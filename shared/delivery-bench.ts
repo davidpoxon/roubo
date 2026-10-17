@@ -77,19 +77,27 @@ export interface DeliveryStreamFrame {
 // global 210 KB body limit would refuse one.
 export const DELIVERY_EVENT_LOG_MAX = 1_000;
 
+// When a batch would take the in-memory log over DELIVERY_EVENT_LOG_MAX, the
+// oldest events leave memory DELIVERY_EVENT_SPILL_CHUNK at a time for the spill
+// file: an append-only JSON Lines file beside the record in the bench
+// workspace, so it goes with the workspace like the record does. Whatever reads
+// the event log reads the spill file as well as memory, in seq order.
+export const DELIVERY_EVENT_SPILL_CHUNK = 500;
+export const DELIVERY_EVENT_SPILL_FILE = "delivery-events.jsonl";
+
 // ── Ingest errors ──
 //
-//   INVALID_EVENT    an event fails the envelope schema, or names another
-//                    delivery (`field` names the field, `index` the event)
-//   STALE_SEQ        every event of the batch is at or below the accepted seq
-//   SEQ_GAP          an event skips a seq: the next one must be acceptedSeq + 1
-//   EVENT_LOG_FULL   the bench holds DELIVERY_EVENT_LOG_MAX events the record
-//                    has not caught up with yet
+//   INVALID_EVENT           an event fails the envelope schema, or names another
+//                           delivery (`field` names the field, `index` the event)
+//   STALE_SEQ               every event of the batch is at or below the accepted seq
+//   SEQ_GAP                 an event skips a seq: the next one must be acceptedSeq + 1
+//   EVENT_LOG_SPILL_FAILED  the log was full and its oldest events could not be
+//                           written to the spill file, so the batch was not applied
 export const DELIVERY_INGEST_ERROR_CODES = [
   "INVALID_EVENT",
   "STALE_SEQ",
   "SEQ_GAP",
-  "EVENT_LOG_FULL",
+  "EVENT_LOG_SPILL_FAILED",
 ] as const;
 export type DeliveryIngestErrorCode = (typeof DELIVERY_INGEST_ERROR_CODES)[number];
 

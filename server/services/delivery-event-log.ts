@@ -8,16 +8,32 @@
 // fold stops at a hole, so an event that skips a seq is refused rather than
 // held where no snapshot could reach it.
 //
-// The log holds the accepted events above the record's `last_event_seq`, at
-// most DELIVERY_EVENT_LOG_MAX of them. Each time the record moves forward, the
-// events it now carries leave the log. When the log is full the batch is
-// refused whole and nothing is dropped from the log: an event the record does
-// not carry yet would otherwise leave a hole in the fold.
+// The log holds the accepted events above the record's `last_event_seq` in
+// memory, at most DELIVERY_EVENT_LOG_MAX of them. Each time the record moves
+// forward, the events it now carries leave memory. When a batch would take
+// memory over the limit, the oldest events, DELIVERY_EVENT_SPILL_CHUNK at a
+// time, are appended to the bench's spill file (a JSON Lines file beside the
+// record in the bench workspace) and leave memory, and the batch is accepted.
+// No accepted event is discarded: a read of the log reads the spill file as
+// well as memory, in seq order. The spill file is append-only, so it can hold
+// an event more than once (a spill that failed part way, or a session that
+// posts again after a restart); a read keeps one event per seq, memory first.
 //
-// A batch is applied whole or not at all: every check runs before anything is
-// added, so a refused batch leaves the accepted seq where it was.
-import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
-import { DELIVERY_EVENT_LOG_MAX, type DeliveryIngestError } from "@roubo/shared/delivery-bench";
+// A batch is applied whole or not at all: every check, and the spill write,
+// runs before anything is added, so a refused batch leaves the log and the
+// accepted seq where they were.
+import fs from "node:fs";
+import path from "node:path";
+import {
+  validateDeliveryEvent,
+  type DeliveryEvent,
+  type DeliveryRecord,
+} from "@roubo/shared/delivery-observation-contract";
+import {
+  DELIVERY_EVENT_LOG_MAX,
+  DELIVERY_EVENT_SPILL_CHUNK,
+  type DeliveryIngestError,
+} from "@roubo/shared/delivery-bench";
 
 interface BenchEventLog {
   // The delivery the log belongs to: the record's, or the first accepted
@@ -87,12 +103,15 @@ export type DeliveryIngestResult =
  * Checks a batch of validated events against the bench's delivery and accepted
  * seq, and appends it whole to the log, or refuses it whole. `record` is the
  * bench's record when it has a readable one, undefined while it has none.
+ * `spillPath` is the bench's spill file, which takes the oldest events in
+ * memory when the batch would take memory over DELIVERY_EVENT_LOG_MAX.
  */
 export function ingestDeliveryEvents(
   projectId: string,
   benchId: number,
   record: DeliveryRecord | undefined,
   batch: readonly DeliveryEvent[],
+  spillPath: string,
 ): DeliveryIngestResult {
   const log = syncLog(key(projectId, benchId), record);
   const deliveryId = log.deliveryId ?? batch[0]?.delivery_id;
@@ -158,16 +177,30 @@ export function ingestDeliveryEvents(
       },
     };
   }
-  if (log.events.length + fresh.length > DELIVERY_EVENT_LOG_MAX) {
-    return {
-      ok: false,
-      status: 429,
-      error: {
-        code: "EVENT_LOG_FULL",
-        error: `The bench holds ${log.events.length} events its delivery record does not carry yet, and keeps at most ${DELIVERY_EVENT_LOG_MAX}: write the record, then post again`,
-        acceptedSeq: log.acceptedSeq,
-      },
-    };
+  // A batch holds at most DELIVERY_EVENT_LOG_MAX events, so spilling every
+  // event in memory always makes room.
+  let spilled = 0;
+  while (
+    log.events.length - spilled + fresh.length > DELIVERY_EVENT_LOG_MAX &&
+    spilled < log.events.length
+  ) {
+    spilled += Math.min(DELIVERY_EVENT_SPILL_CHUNK, log.events.length - spilled);
+  }
+  if (spilled > 0) {
+    try {
+      appendSpill(spillPath, log.events.slice(0, spilled));
+    } catch (err) {
+      return {
+        ok: false,
+        status: 500,
+        error: {
+          code: "EVENT_LOG_SPILL_FAILED",
+          error: `The bench holds ${log.events.length} events in memory, at most ${DELIVERY_EVENT_LOG_MAX}, and the oldest could not be written to its spill file: ${(err as Error).message}`,
+          acceptedSeq: log.acceptedSeq,
+        },
+      };
+    }
+    log.events = log.events.slice(spilled);
   }
 
   log.deliveryId = deliveryId;
@@ -181,16 +214,86 @@ export function ingestDeliveryEvents(
   };
 }
 
+// True when the file ends part way through a line: a write that failed after
+// some bytes reached it.
+function endsMidLine(file: string): boolean {
+  let fd: number;
+  try {
+    fd = fs.openSync(file, "r");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
+  try {
+    const { size } = fs.fstatSync(fd);
+    if (size === 0) return false;
+    const last = Buffer.alloc(1);
+    fs.readSync(fd, last, 0, 1, size - 1);
+    return last[0] !== 0x0a;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function appendSpill(spillPath: string, events: readonly DeliveryEvent[]): void {
+  fs.mkdirSync(path.dirname(spillPath), { recursive: true });
+  // A torn last line is closed first, so the first event appended now is a
+  // line of its own and not the tail of the torn one.
+  const lead = endsMidLine(spillPath) ? "\n" : "";
+  fs.appendFileSync(
+    spillPath,
+    lead + events.map((event) => `${JSON.stringify(event)}\n`).join(""),
+  );
+}
+
+// The events of the spill file that belong to the delivery and sit above
+// `afterSeq`, keyed by seq; a later line wins over an earlier one with the same
+// seq. A line that is not a valid envelope (the torn tail of a failed write) is
+// skipped. No file is no events.
+function readSpill(
+  spillPath: string,
+  deliveryId: string,
+  afterSeq: number,
+): Map<number, DeliveryEvent> {
+  const bySeq = new Map<number, DeliveryEvent>();
+  let text: string;
+  try {
+    text = fs.readFileSync(spillPath, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return bySeq;
+    throw err;
+  }
+  for (const line of text.split("\n")) {
+    if (line.trim().length === 0) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const event = validateDeliveryEvent(raw);
+    if (!event.ok) continue;
+    if (event.data.delivery_id !== deliveryId || event.data.seq <= afterSeq) continue;
+    bySeq.set(event.data.seq, event.data);
+  }
+  return bySeq;
+}
+
 /**
  * The accepted events above the record's `last_event_seq`, in seq order, for a
- * fold over the record. Seeds the bench's log from the record when it has none.
+ * fold over the record: the ones in the bench's spill file and the ones in
+ * memory, one per seq. Seeds the bench's log from the record when it has none.
  */
 export function deliveryEventsAfterRecord(
   projectId: string,
   benchId: number,
   record: DeliveryRecord,
+  spillPath: string,
 ): DeliveryEvent[] {
-  return syncLog(key(projectId, benchId), record).events.slice();
+  const log = syncLog(key(projectId, benchId), record);
+  const bySeq = readSpill(spillPath, record.delivery_id, record.last_event_seq);
+  for (const event of log.events) bySeq.set(event.seq, event);
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
 }
 
 /** The bench's accepted seq, or undefined before its events were read or posted. */
@@ -198,7 +301,10 @@ export function deliveryAcceptedSeq(projectId: string, benchId: number): number 
   return logs.get(key(projectId, benchId))?.acceptedSeq;
 }
 
-/** Drops a bench's log (Clear bench, a fresh workspace), or every bench's when none is named. */
+/**
+ * Drops a bench's in-memory log (Clear bench, a fresh workspace), or every
+ * bench's when none is named. The spill file is in the workspace and goes with it.
+ */
 export function forgetDeliveryEventLog(projectId?: string, benchId?: number): void {
   if (projectId === undefined || benchId === undefined) {
     logs.clear();

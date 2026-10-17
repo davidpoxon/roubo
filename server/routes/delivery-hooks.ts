@@ -19,10 +19,14 @@
 //        400 SEQ_GAP: an event skips a seq (`expected`, `got`)
 //        409 a DeliveryReadError: the record is there but cannot be read, so
 //            the accepted seq cannot be seeded from it
-//        429 EVENT_LOG_FULL: the bench holds as many events above the record
-//            as it keeps
+//        500 EVENT_LOG_SPILL_FAILED: the batch would take the in-memory log
+//            over DELIVERY_EVENT_LOG_MAX, and its oldest events could not be
+//            written to the bench's spill file
 //     Every refusal applies nothing. Events at or below the accepted seq in a
 //     batch that also carries newer ones are dropped and the rest accepted.
+//     A full log never refuses a batch: its oldest events move to the spill
+//     file beside the record in the bench workspace (see
+//     services/delivery-event-log.ts), and the batch is accepted.
 //
 // The route reads its body with its own JSON parser, deliveryEventBodyParser,
 // which the server mounts ahead of the global 210 KB parser: a full batch of
@@ -41,7 +45,10 @@ import {
   validateDeliveryEvent,
   type DeliveryEvent,
 } from "@roubo/shared/delivery-observation-contract";
-import { loadBenchDeliveryRecord } from "../lib/delivery-record-loader.js";
+import {
+  benchDeliveryEventSpillPath,
+  loadBenchDeliveryRecord,
+} from "../lib/delivery-record-loader.js";
 import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
@@ -181,14 +188,16 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
     res.status(409).json(loaded.error);
     return;
   }
+  // An unsafe spec folder fails the record load above with DELIVERY_INVALID,
+  // so the spill path resolves here.
   const result = ingestDeliveryEvents(
     bench.projectId,
     bench.id,
     loaded.ok ? loaded.record : undefined,
     batch,
+    benchDeliveryEventSpillPath(bench),
   );
   if (!result.ok) {
-    if (result.status === 429) res.set("Retry-After", "1");
     res.status(result.status).json(result.error);
     return;
   }
