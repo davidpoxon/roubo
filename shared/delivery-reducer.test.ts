@@ -451,6 +451,52 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     expect(snapshot.review.unreviewed).toEqual(["decision-2", "decision-3"]);
   });
 
+  it("decision.decided by a named author after the agent clears the agent's review state and leaves the stack", () => {
+    const record = fixtureRecord();
+    // The fixture's decision-2 was decided by the agent and waits unreviewed.
+    expect(record.decisions[1].author).toBe("agent");
+    const decided = foldDelivery({
+      record,
+      events: stream([
+        "decision.decided",
+        { decision_id: "decision-2", chosen: "accept it", author: "David" },
+      ]),
+    });
+    const decision = decided.decisionsById["decision-2"];
+    expect(decision.author).toBe("David");
+    expect(decision.chosen).toBe("accept it");
+    expect(decision.status).toBe("decided");
+    expect(decision.review).toBeUndefined();
+    expect(decision.rationale).toBeUndefined();
+    expect(decision.affected_units).toEqual(["B", "C"]);
+    // The list, the status and the stack agree: no decision waits, the fixture's
+    // provisional gate still does.
+    expect(decided.review).toEqual({ status: "pending", unreviewed: [] });
+    expect(selectReviewStack(decided).map((card) => card.id)).toEqual(["gate-after-c"]);
+
+    const settled = foldDelivery({
+      record,
+      events: stream(
+        [
+          "decision.decided",
+          {
+            decision_id: "decision-2",
+            chosen: "accept it",
+            author: "David",
+            rationale: "The operator's files carry them.",
+          },
+        ],
+        ["gate.confirmed", { gate_id: "gate-after-c" }],
+      ),
+    });
+    expect(settled.decisionsById["decision-2"].rationale).toBe("The operator's files carry them.");
+    expect(settled.decisionsById["decision-2"].review).toBeUndefined();
+    expect(settled.review).toEqual({ status: "none", unreviewed: [] });
+    expect(selectReviewStack(settled)).toEqual([]);
+    expect(record.decisions[1].review).toEqual({ status: "unreviewed" });
+    expect(record.review.unreviewed).toEqual(["decision-2"]);
+  });
+
   it("review.opened opens the review with its trigger and list", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({
@@ -462,6 +508,53 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       trigger: "boundary",
       unreviewed: ["decision-2"],
     });
+  });
+
+  it("review.opened reconciles its list with the decisions so the list and the stack agree", () => {
+    const record = fixtureRecord();
+    // An empty list cannot hide the agent decision that still waits.
+    const emptied = foldDelivery({
+      record,
+      events: stream(["review.opened", { trigger: "boundary", unreviewed: [] }]),
+    });
+    expect(emptied.review).toEqual({
+      status: "open",
+      trigger: "boundary",
+      unreviewed: ["decision-2"],
+    });
+    expect(selectReviewStack(emptied).map((card) => card.id)).toEqual([
+      "decision-2",
+      "gate-after-c",
+    ]);
+
+    // An id that names no unreviewed agent decision is dropped, and a decision
+    // the agent decided after the list was built joins it.
+    const widened = foldDelivery({
+      record,
+      events: stream(
+        ["decision.decided", { decision_id: "decision-1", chosen: "one file per stack" }],
+        ["review.opened", { unreviewed: ["decision-1", "decision-9", "decision-1"] }],
+      ),
+    });
+    expect(widened.review).toEqual({ status: "open", unreviewed: ["decision-1", "decision-2"] });
+    expect(selectReviewStack(widened).map((card) => card.id)).toEqual([
+      "decision-2",
+      "gate-after-c",
+      "decision-1",
+    ]);
+
+    // A review opened once nothing waits settles to none, and a later outcome
+    // cannot leave a card behind.
+    const nothing = foldDelivery({
+      record,
+      events: stream(
+        ["review.outcome", { decision_id: "decision-2", status: "accepted" }],
+        ["gate.confirmed", { gate_id: "gate-after-c" }],
+        ["review.opened", { trigger: "manual", unreviewed: ["decision-2"] }],
+      ),
+    });
+    expect(nothing.review).toEqual({ status: "none", trigger: "manual", unreviewed: [] });
+    expect(selectReviewStack(nothing)).toEqual([]);
   });
 
   it("review.outcome records the operator's verdict, applies an overturn's option and settles the review", () => {
@@ -708,6 +801,41 @@ describe("foldDelivery event handlers", () => {
       { from: "X", to: "Y", kind: "depends_on" },
       { from: "X", to: "Y", kind: "stack" },
     ]);
+  });
+
+  it("delivery.planned settles the review when the gates it replaces change what waits", () => {
+    const record = fixtureRecord();
+    const gates = [{ id: "gate-x", after: ["B"], status: "pending", cases: ["DEMO-TC-001"] }];
+    // The fixture's unconfirmed provisional gate goes; decision-2 still waits.
+    const decisionOnly = foldDelivery({
+      record,
+      events: stream(["delivery.planned", { gates }]),
+    });
+    expect(decisionOnly.review).toEqual({ status: "pending", unreviewed: ["decision-2"] });
+    expect(selectReviewStack(decisionOnly).map((card) => card.id)).toEqual(["decision-2"]);
+
+    // Once the decision is reviewed too, dropping the gate leaves nothing waiting.
+    const nothing = foldDelivery({
+      record,
+      events: stream(
+        ["review.outcome", { decision_id: "decision-2", status: "accepted" }],
+        ["delivery.planned", { gates }],
+      ),
+    });
+    expect(nothing.review).toEqual({ status: "none", unreviewed: [] });
+    expect(selectReviewStack(nothing)).toEqual([]);
+
+    // A new provisional gate in the list makes the review pending again.
+    const provisional = foldDelivery({
+      record,
+      events: stream(
+        ["review.outcome", { decision_id: "decision-2", status: "accepted" }],
+        ["gate.confirmed", { gate_id: "gate-after-c" }],
+        ["delivery.planned", { gates: [{ ...gates[0], status: "provisional" }] }],
+      ),
+    });
+    expect(provisional.review).toEqual({ status: "pending", unreviewed: [] });
+    expect(selectReviewStack(provisional).map((card) => card.id)).toEqual(["gate-x"]);
   });
 
   it("lifecycle.changed merges the lifecycle fields", () => {
