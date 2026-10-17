@@ -72,7 +72,9 @@ export interface DeliveryStreamFrame {
 }
 
 // The most events a bench keeps in memory above its record's `last_event_seq`,
-// and so the most one batch may carry.
+// and so the most one batch may carry. The event route reads its body with a
+// parser of its own, whose limit is set so a full batch fits; the server's
+// global 210 KB body limit would refuse one.
 export const DELIVERY_EVENT_LOG_MAX = 1_000;
 
 // ── Ingest errors ──

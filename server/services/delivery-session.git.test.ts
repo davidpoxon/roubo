@@ -90,7 +90,7 @@ import * as notification from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import benchesRouter from "../routes/benches.js";
 import deliveryRouter from "../routes/delivery.js";
-import deliveryHooksRouter from "../routes/delivery-hooks.js";
+import deliveryHooksRouter, { deliveryEventBodyParser } from "../routes/delivery-hooks.js";
 import * as sse from "./sse.js";
 import { registerSpecbenchVariantHost } from "../lib/specbench-variant-host.js";
 import { unregisterVariantHost } from "./variant-host-registry.js";
@@ -101,7 +101,7 @@ import {
   type DeliveryLaunchRequest,
 } from "./delivery-session-launcher.js";
 import { hashDeliveryToken } from "./delivery-token-registry.js";
-import { DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
+import { DELIVERY_EVENT_HOOK_PATH, DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
 import { deliveryAcceptedSeq, forgetDeliveryEventLog } from "./delivery-event-log.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -972,6 +972,59 @@ describe("Event ingest", () => {
     expect(next.status).toBe(202);
     expect(next.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX + 1 });
     expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX + 1);
+  });
+
+  // The body parsers as server/index.ts mounts them: the event route's own
+  // parser first, then the global 210 KB one every other route reads with.
+  function productionBodyLimitApp(withEventParser = true): express.Express {
+    const prod = express();
+    if (withEventParser) prod.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
+    prod.use(express.json({ limit: "210kb" }));
+    prod.use("/api/hooks", deliveryHooksRouter);
+    return prod;
+  }
+
+  // A realistic envelope: a unit's status change with its title.
+  function fullBatch(): Record<string, unknown>[] {
+    return Array.from({ length: DELIVERY_EVENT_LOG_MAX }, (_, i) => ({
+      ...event(i + 1),
+      payload: { status: "running", title: "Token-gated event ingest" },
+    }));
+  }
+
+  it(`SB-TC-012: a batch of ${DELIVERY_EVENT_LOG_MAX} events in sequence is accepted under the production body limit`, async () => {
+    const { bench, token } = await benchWithRecord(0);
+    const batch = fullBatch();
+    // The batch is over the global limit, so the route's own parser is what
+    // lets it through.
+    expect(Buffer.byteLength(JSON.stringify(batch))).toBeGreaterThan(210 * 1024);
+
+    const globalOnly = await request(productionBodyLimitApp(false))
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send(batch);
+    expect(globalOnly.status).toBe(413);
+    expect(await snapshotSeq(bench)).toBe(0);
+
+    const accepted = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send(batch);
+    expect(accepted.status).toBe(202);
+    expect(accepted.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX });
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX);
+  });
+
+  it("answers a JSON 413 for an event body over the route's limit, and applies nothing", async () => {
+    const { bench, token } = await benchWithRecord();
+    const huge = { ...event(8), payload: { status: "running", blob: "x".repeat(3 * 1024 * 1024) } };
+    const res = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send(huge);
+    expect(res.status).toBe(413);
+    expect(res.body).toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    expect(await snapshotSeq(bench)).toBe(7);
   });
 
   it("drops the bench's events when the bench is cleared", async () => {

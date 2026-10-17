@@ -37,7 +37,7 @@ import projectSettingsRouter from "./routes/project-settings.js";
 import benchesSettingsRouter from "./routes/benches-settings.js";
 import pluginsGithubOauthRouter from "./routes/plugins-github-oauth.js";
 import hooksRouter from "./routes/hooks.js";
-import deliveryHooksRouter from "./routes/delivery-hooks.js";
+import deliveryHooksRouter, { deliveryEventBodyParser } from "./routes/delivery-hooks.js";
 import notificationsRouter from "./routes/notifications.js";
 import integrationRouter from "./routes/integration.js";
 import pluginsRouter from "./routes/plugins.js";
@@ -50,6 +50,7 @@ import * as pluginManager from "./services/plugin-manager.js";
 import * as catalogClient from "./services/catalog-client.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
+import { DELIVERY_EVENT_HOOK_PATH } from "@roubo/shared/delivery-bench";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -112,6 +113,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   const app = express();
 
   app.use(cors());
+  // The delivery event route reads a batch of up to DELIVERY_EVENT_LOG_MAX
+  // events, which is over the global limit, so it parses its own body first;
+  // the global parser then skips the body it finds already read.
+  app.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
   app.use(express.json({ limit: "210kb" }));
 
   app.use("/api/projects", projectsRouter);

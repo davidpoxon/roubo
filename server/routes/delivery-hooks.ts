@@ -12,6 +12,7 @@
 //        400 INVALID_EVENT: an event fails the envelope schema (`field` names
 //            the field, `index` the event), names another delivery, or the
 //            batch is empty or over DELIVERY_EVENT_LOG_MAX events
+//        413 PAYLOAD_TOO_LARGE: the body is over DELIVERY_EVENT_BODY_LIMIT
 //        400 STALE_SEQ: every event is at or below the accepted seq, or a seq
 //            repeats within the batch (`field` is `seq`)
 //        400 SEQ_GAP: an event skips a seq (`expected`, `got`)
@@ -22,11 +23,16 @@
 //     Every refusal applies nothing. Events at or below the accepted seq in a
 //     batch that also carries newer ones are dropped and the rest accepted.
 //
+// The route reads its body with its own JSON parser, deliveryEventBodyParser,
+// which the server mounts ahead of the global 210 KB parser: a full batch of
+// DELIVERY_EVENT_LOG_MAX events is larger than 210 KB, so under the global
+// limit it would never reach the route.
+//
 // GET /delivery-controls lands on this router with the control outbox.
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.
-import { Router, type Request } from "express";
+import express, { Router, type Request, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
 import { DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
@@ -41,6 +47,37 @@ import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
 
 const router = Router();
+
+// The body limit of POST /delivery-event. An envelope's text fields are each
+// bounded, and a realistic envelope is a few hundred bytes, so 2 MB carries a
+// full batch of DELIVERY_EVENT_LOG_MAX events with room to spare.
+export const DELIVERY_EVENT_BODY_LIMIT = "2mb";
+
+const deliveryEventJson = express.json({ limit: DELIVERY_EVENT_BODY_LIMIT });
+
+function isEntityTooLarge(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { type?: unknown }).type === "entity.too.large"
+  );
+}
+
+// The JSON parser of POST /delivery-event. The server mounts it on that path
+// before its global parser, which then finds the body read and skips it. A
+// body over the limit gets a JSON 413 rather than the default error page.
+export const deliveryEventBodyParser: RequestHandler = (req, res, next) => {
+  void deliveryEventJson(req, res, (error?: unknown) => {
+    if (isEntityTooLarge(error)) {
+      res.status(413).json({
+        error: `A delivery event body holds at most ${DELIVERY_EVENT_BODY_LIMIT}`,
+        code: "PAYLOAD_TOO_LARGE",
+      });
+      return;
+    }
+    next(error);
+  });
+};
 
 // A session posts an event per step, so the limit is wide.
 const deliveryEventRateLimiter = rateLimit({
