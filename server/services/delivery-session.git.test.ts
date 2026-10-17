@@ -1,10 +1,9 @@
 // A Spec Bench's delivery session, its token and its record end to end against
 // a real git repository (SB-FR-002, SB-FR-003, SB-FR-009, SB-US-001, SB-US-002).
 // The record is read from `.specifications/<slug>/` inside the bench workspace,
-// so each test writes it there once the workspace exists, commits it to the
-// project so the worktree checks it out, or places it in the checkout's spec
-// folder, from which attach mode and Cleanup & Retry copy it into a workspace
-// that has none.
+// so each test writes it there once the workspace exists, or commits it to the
+// project so the worktree checks it out. The record goes with the workspace, and
+// the bench never reads or writes the record in the checkout's spec folder.
 // The create route, the bench manager, the delivery routes, the token registry
 // and the record loader are real; the agent launch executor is a recording
 // stand-in, so each test sees exactly the launch requests that reached it.
@@ -385,19 +384,29 @@ describe("Attach mode", () => {
     expect(posted.status).toBe(202);
   });
 
-  it("adopts an uncommitted record from the checkout's spec folder into the workspace", async () => {
-    fs.writeFileSync(
-      path.join(specFolder, "delivery-observation.json"),
-      `${JSON.stringify(fixtureRecord(), null, 2)}\n`,
-    );
+  it("reads the committed record in the workspace and leaves a newer uncommitted checkout record untouched on Clear bench", async () => {
+    // A is committed; the checkout then holds B, uncommitted.
+    const committed = fixtureRecord();
+    commitRecordToProject(committed);
+    const committedText = `${JSON.stringify(committed, null, 2)}\n`;
+    const edited = fixtureRecord();
+    (edited.budget as Record<string, unknown>).estimate_usd = 9.9;
+    const editedText = `${JSON.stringify(edited, null, 2)}\n`;
+    const checkoutRecord = path.join(specFolder, "delivery-observation.json");
+    fs.writeFileSync(checkoutRecord, editedText);
+
     const { status, bench } = await createSpecBench("attach");
     expect(status).toBe(201);
-    expect(fs.existsSync(workspaceRecordPath(bench))).toBe(true);
-    expect(launches).toHaveLength(0);
-
+    expect(fs.readFileSync(workspaceRecordPath(bench), "utf8")).toBe(committedText);
     const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
     expect(read.status).toBe(200);
     expect(read.body.budget.estimate_usd).toBe(3.2);
+
+    benchManager.teardownBench("demo", bench.id, true);
+    await cleared("demo", bench.id);
+
+    expect(fs.existsSync(bench.workspacePath)).toBe(false);
+    expect(fs.readFileSync(checkoutRecord, "utf8")).toBe(editedText);
   });
 
   it("refuses resume while the record does not conform, and launches nothing", async () => {
@@ -697,12 +706,11 @@ describe("Launching again without a record", () => {
     expect(live?.deliveryTokenHash).toBe(hashDeliveryToken(launches[1].descriptor.token));
   });
 
-  it("keeps the record in the checkout through Cleanup & Retry and resumes the delivery with its delivery_id", async () => {
+  it("removes the record with the workspace on Cleanup & Retry, never copies it into the checkout, and launches with no resume argument", async () => {
     const { bench } = await createSpecBench("launch");
     expect(launches).toHaveLength(1);
     // The session wrote its record in the workspace, then the bench ended in error.
     writeRecord(bench, fixtureRecord());
-    const written = fs.readFileSync(workspaceRecordPath(bench), "utf8");
     hoisted.liveSessions.clear();
     bench.status = "error";
     bench.error = "provisioning failed";
@@ -712,43 +720,15 @@ describe("Launching again without a record", () => {
     await benchManager.whenWorkspaceProvisioned("demo", bench.id);
     await whenDeliveryBound("demo", bench.id);
 
-    // The checkout kept the record, and the new workspace has it again.
-    expect(fs.readFileSync(path.join(specFolder, "delivery-observation.json"), "utf8")).toBe(
-      written,
-    );
+    expect(fs.existsSync(path.join(specFolder, "delivery-observation.json"))).toBe(false);
     const live = benchManager.getBench("demo", bench.id);
     if (!live) throw new Error("bench vanished");
-    expect(fs.readFileSync(workspaceRecordPath(live), "utf8")).toBe(written);
-
+    expect(fs.existsSync(workspaceRecordPath(live))).toBe(false);
     expect(launches).toHaveLength(2);
-    expect(launches[1].descriptor.resume).toBe("demo-delivery-1");
-    expect(live.deliverySessionId).toBe("session-2");
+    expect(launches[1].descriptor).not.toHaveProperty("resume");
     const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
-    expect(read.status).toBe(200);
-  });
-
-  it("launches nothing after Cleanup & Retry when the kept record does not conform, and says why", async () => {
-    const { bench } = await createSpecBench("launch");
-    const record = fixtureRecord();
-    delete record.budget;
-    writeRecord(bench, record);
-    hoisted.liveSessions.clear();
-    bench.status = "error";
-    bench.error = "provisioning failed";
-    vi.mocked(notification.createNotification).mockClear();
-
-    const retried = await request(app).post(`/demo/benches/${bench.id}/cleanup-and-retry`).send({});
-    expect(retried.status).toBe(200);
-    await benchManager.whenWorkspaceProvisioned("demo", bench.id);
-    await whenDeliveryBound("demo", bench.id);
-
-    expect(launches).toHaveLength(1);
-    expect(notification.createNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ id: bench.id }),
-      "agent-launch-failed",
-      undefined,
-      expect.objectContaining({ message: expect.stringMatching(/budget/) }),
-    );
+    expect(read.status).toBe(409);
+    expect(read.body.code).toBe("DELIVERY_RECORD_MISSING");
   });
 
   it("launches nothing after Cleanup & Retry of an attached bench", async () => {

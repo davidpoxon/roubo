@@ -379,11 +379,10 @@ router.post("/:projectId/benches/:id/cleanup-and-retry", async (req, res) => {
     const bench = await benchManager.cleanupAndRetryBench(req.params.projectId, benchId);
     res.json(bench);
     // The retry re-provisions the workspace from scratch, so a Spec Bench binds
-    // to its delivery again once it exists. The record the retry kept in the
-    // checkout is copied back into the new workspace first; launch mode then
-    // resumes that delivery, or starts the session that the failed round never
-    // started when there is no record (SB-FR-002, SB-FR-004).
-    if (bench.variant === "specbench") void bindDeliveryOnCreate(bench, { reprovisioned: true });
+    // to its delivery again once it exists: launch mode starts the session that
+    // the failed round never started (SB-FR-002). The delivery record went with
+    // the old workspace.
+    if (bench.variant === "specbench") void bindDeliveryOnCreate(bench);
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });

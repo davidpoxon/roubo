@@ -4,9 +4,8 @@
 //   launch  Once the bench workspace exists, mint a delivery token, build the
 //           launch descriptor and pass it to the agent launch executor, which
 //           starts the main delivery session in the bench workspace.
-//   attach  Adopt the delivery whose record is in the spec folder of the bench
-//           workspace, copied there from the checkout's spec folder when the
-//           workspace has none, and launch nothing. The token of the session
+//   attach  Adopt the delivery whose record is already in the spec folder of
+//           the bench workspace, and launch nothing. The token of the session
 //           that already runs the delivery is minted on request, by POST
 //           /delivery/attach, which hands that session's operator the
 //           descriptor with the plain token.
@@ -37,10 +36,6 @@ import { createNotification } from "./notification.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
 import { mintDeliveryToken } from "./delivery-token-registry.js";
-import {
-  loadBenchDeliveryRecord,
-  seedWorkspaceDeliveryRecord,
-} from "../lib/delivery-record-loader.js";
 
 const DEFAULT_ROUBO_PORT = "3335";
 
@@ -253,49 +248,21 @@ function notifyLaunchFailed(bench: Bench, reason: string): void {
  * provisioned: launch mode launches, attach mode launches nothing and mints
  * nothing (its token is minted when POST /delivery/attach hands it out). A
  * launch that fails leaves a notification on the bench; it never fails the
- * create, which has already answered. Cleanup & Retry calls it again with
- * `reprovisioned` for the re-provisioned workspace, and POST /delivery/launch
- * tries a failed launch again.
- *
- * Attach mode, and either mode after Cleanup & Retry, first copies the record
- * from the checkout's spec folder into a workspace that has none, so an
- * uncommitted record, or the one Cleanup & Retry kept from the old workspace,
- * is adopted. After Cleanup & Retry, a launch-mode bench whose workspace then
- * holds a conformant record resumes that delivery, with the record's
- * delivery_id as the resume argument; one with a record that does not conform
- * launches nothing and says why.
+ * create, which has already answered. Cleanup & Retry calls it again for the
+ * re-provisioned workspace: the record of the old workspace went with it, so a
+ * launch-mode bench launches with no resume argument, as on create. POST
+ * /delivery/launch tries a failed launch again.
  */
-export function bindDeliveryOnCreate(
-  bench: Bench,
-  options: { reprovisioned?: boolean } = {},
-): Promise<void> {
+export function bindDeliveryOnCreate(bench: Bench): Promise<void> {
   const k = bindingKey(bench.projectId, bench.id);
   const binding = (async () => {
     await benchManager.whenWorkspaceProvisioned(bench.projectId, bench.id);
     const live = benchManager.getBench(bench.projectId, bench.id);
     if (!live || live.variant !== "specbench") return;
     if (live.status === "error" || live.status === "clearing") return;
-    const attach = live.deliveryBindMode === "attach";
-    if (attach || options.reprovisioned === true) {
-      try {
-        seedWorkspaceDeliveryRecord(live);
-      } catch (err) {
-        console.warn(`[delivery] the delivery record of bench ${live.id} was not copied:`, err);
-      }
-    }
-    if (attach) return;
-    let resume: string | undefined;
-    if (options.reprovisioned === true) {
-      const loaded = loadBenchDeliveryRecord(live);
-      if (loaded.ok) {
-        resume = loaded.record.delivery_id;
-      } else if (loaded.error.code !== "DELIVERY_RECORD_MISSING") {
-        notifyLaunchFailed(live, loaded.error.error);
-        return;
-      }
-    }
+    if (live.deliveryBindMode === "attach") return;
     try {
-      await launchDeliverySession(live, resume === undefined ? {} : { resume });
+      await launchDeliverySession(live);
     } catch (err) {
       // The status was checked above and nothing else launches before this
       // binding settles, so a block here means a session already runs or is

@@ -34,12 +34,6 @@ export interface VariantHost {
   verifyVariantState(bench: Bench): VariantStateResult;
   /** Runs before the bench's terminals, components and workspace are torn down. */
   beforeTeardown(bench: Bench, ctx: VariantTeardownContext): Promise<void>;
-  /**
-   * Runs right before Cleanup & Retry removes the bench workspace to provision
-   * it again, after the bench's sessions and components are stopped. A throw
-   * stops the retry with the workspace still there. Optional.
-   */
-  beforeWorkspaceRemoval?(bench: Bench): void;
 }
 
 const hosts = new Map<BenchVariant, VariantHost>();
@@ -72,11 +66,6 @@ export function verifyVariantState(bench: Bench): VariantStateResult {
 /** The pre-teardown work of a bench: its host's, or nothing. */
 export async function beforeTeardown(bench: Bench, ctx: VariantTeardownContext): Promise<void> {
   await getVariantHost(bench.variant)?.beforeTeardown(bench, ctx);
-}
-
-/** The work before Cleanup & Retry removes a bench's workspace: its host's, or nothing. */
-export function beforeWorkspaceRemoval(bench: Bench): void {
-  getVariantHost(bench.variant)?.beforeWorkspaceRemoval?.(bench);
 }
 
 /** The label of a bench's pre-teardown step, or undefined when it has none to show. */

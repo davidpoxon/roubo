@@ -2,8 +2,8 @@
 // SB-FR-004). The create route, the bench manager, the VariantHostRegistry and
 // the delivery domain's Spec Bench host are all real, so these tests see what
 // stays on disk: the bench workspace, the gate pin worktree, and the checkout's
-// spec folder with test-results.json and the delivery record that the bench
-// keeps there from its workspace.
+// spec folder with test-results.json. The delivery record lives in the bench
+// workspace and goes with it; the checkout's spec folder is never written.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -297,14 +297,19 @@ describe("Spec Bench create validation", () => {
 });
 
 describe("Clear bench on a Spec Bench", () => {
-  it("SB-TC-005: removes the pin, then stops the session, then removes the workspace, and keeps the record", async () => {
+  it("SB-TC-005: removes the pin, then stops the session, then removes the workspace with its record, and leaves the checkout's spec folder untouched", async () => {
     const bench = await createSpecBench();
     // The session's record, where it writes it: the spec folder of the workspace.
     const workspaceSpecFolder = path.join(bench.workspacePath, ".specifications", "fixture-spec");
-    const recordBefore = `${JSON.stringify({ delivery_id: "demo-delivery-1", seq: 7 }, null, 2)}\n`;
-    fs.writeFileSync(path.join(workspaceSpecFolder, "delivery-observation.json"), recordBefore);
+    const workspaceRecord = path.join(workspaceSpecFolder, "delivery-observation.json");
+    fs.writeFileSync(
+      workspaceRecord,
+      `${JSON.stringify({ delivery_id: "demo-delivery-1", seq: 7 }, null, 2)}\n`,
+    );
+    // A record the checkout already holds, uncommitted and different.
     const recordPath = path.join(specFolder, "delivery-observation.json");
-    expect(fs.existsSync(recordPath)).toBe(false);
+    const recordBefore = `${JSON.stringify({ delivery_id: "demo-delivery-1", seq: 3 }, null, 2)}\n`;
+    fs.writeFileSync(recordPath, recordBefore);
     const resultsPath = path.join(specFolder, "test-results.json");
     const resultsBefore = fs.readFileSync(resultsPath, "utf8");
 
@@ -329,8 +334,9 @@ describe("Clear bench on a Spec Bench", () => {
     ]);
     expect(fs.existsSync(bench.workspacePath)).toBe(false);
 
-    // The record outlives the workspace in the checkout's spec folder, byte for
-    // byte as the session wrote it, beside the checkout's own results file.
+    // The workspace record went with the workspace. The checkout's spec folder
+    // keeps exactly what it held: its own record and results file, byte for byte.
+    expect(fs.existsSync(workspaceRecord)).toBe(false);
     expect(fs.readFileSync(recordPath, "utf8")).toBe(recordBefore);
     expect(fs.readFileSync(resultsPath, "utf8")).toBe(resultsBefore);
 
