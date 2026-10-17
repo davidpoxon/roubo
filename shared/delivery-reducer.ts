@@ -32,6 +32,15 @@
 // Status words are open strings (the contract's compatibility posture).
 // `classifyUnitStatus` and `isDecisionOpen` give the fold and the selectors one
 // reading of them, each with an "other" fallback for a word they do not know.
+//
+// Open keys. Every table this module indexes by a string a producer wrote (an
+// event type, a status word, a unit, gate, decision, steering or seam id, a role
+// or stack name) is a plain object, and a plain object inherits
+// `Object.prototype`: `table["toString"]` is a function, not undefined, and
+// `table["__proto__"] = x` changes the prototype rather than adding a key. So
+// every such read goes through `ownValue` and every such write through
+// `setOwnValue`, which see own keys only. An event typed `toString` is then an
+// unknown type like any other, and a unit whose id is `constructor` is a unit.
 
 import type {
   DeliveryBudget,
@@ -183,9 +192,29 @@ const UNIT_STATUS_KINDS: Readonly<Record<string, UnitStatusKind>> = {
   skipped: "skipped",
 };
 
+// ── Open-key tables ──
+
+// Read a key of a table keyed by an open string, own keys only: a key that names
+// an `Object.prototype` member (`toString`, `constructor`, `__proto__`, ...)
+// reads as absent, not as the inherited function.
+export function ownValue<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
+// Write a key of a table keyed by an open string as an own, enumerable property,
+// so a key of `__proto__` adds an entry instead of changing the prototype.
+export function setOwnValue<T>(table: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(table, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
 // Read an open unit status word. A word the table does not know is "other".
 export function classifyUnitStatus(status: string): UnitStatusKind {
-  return UNIT_STATUS_KINDS[status.toLowerCase()] ?? "other";
+  return ownValue(UNIT_STATUS_KINDS, status.toLowerCase()) ?? "other";
 }
 
 const CLOSED_DECISION_STATUSES: ReadonlySet<string> = new Set([
@@ -295,7 +324,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function indexById<T extends { id: string }>(items: readonly T[]): Record<string, T> {
   const out: Record<string, T> = {};
   for (const item of items) {
-    out[item.id] = item;
+    setOwnValue(out, item.id, item);
   }
   return out;
 }
@@ -352,7 +381,7 @@ const onDeliveryPlanned: EventHandler = (state, event) => {
     const roles: Record<string, DeliveryRole> = { ...next.roles };
     for (const [name, role] of Object.entries(payload.roles)) {
       if (isRecord(role) && isString(role.tier)) {
-        roles[name] = role as DeliveryRole;
+        setOwnValue(roles, name, role as DeliveryRole);
       }
     }
     next = { ...next, roles };
@@ -374,7 +403,7 @@ const onLifecycleChanged: EventHandler = (state, event) => {
 const onUnitChanged: EventHandler = (state, event) => {
   const unitId = event.unit_id;
   if (!isString(unitId)) return state;
-  const current = state.unitsById[unitId];
+  const current = ownValue(state.unitsById, unitId);
   if (current === undefined) return state;
   const payload = event.payload as UnitChangedPayload;
   const patch: Partial<DeliveryUnit> = {};
@@ -435,7 +464,7 @@ const onDecisionAnswered: EventHandler = (state, event) => {
   const payload = event.payload as DecisionAnsweredPayload;
   const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
   if (!isString(id)) return state;
-  const current = state.decisionsById[id];
+  const current = ownValue(state.decisionsById, id);
   if (current === undefined) return state;
   const patch: Record<string, unknown> = {
     status: isString(payload.status) ? payload.status : "answered",
@@ -506,7 +535,7 @@ const onSeamRan: EventHandler = (state, event) => {
   const payload = event.payload as SeamRanPayload;
   if (!isString(payload.seam) || !isString(payload.status)) return state;
   const seam: DeliverySeam = {
-    ...(state.seams[payload.seam] ?? {}),
+    ...(ownValue(state.seams, payload.seam) ?? {}),
     status: payload.status,
     last_run_at: isString(payload.last_run_at) ? payload.last_run_at : event.ts,
   };
@@ -519,7 +548,8 @@ const onSeamRan: EventHandler = (state, event) => {
 };
 
 // The handler table. Adding an event type is adding a row; a type with no row is
-// skipped (its seq is still accepted).
+// skipped (its seq is still accepted). The fold reads it through `ownValue`, so
+// a type that names an `Object.prototype` member has no row either.
 export const EVENT_HANDLERS: Readonly<Record<string, EventHandler>> = {
   "delivery.planned": onDeliveryPlanned,
   "lifecycle.changed": onLifecycleChanged,
@@ -566,7 +596,7 @@ function applyEvents(state: FoldState, events: readonly DeliveryEvent[]): FoldSt
     if (event.seq !== next.seq + 1) {
       return { ...next, gap: { expected: next.seq + 1, got: event.seq } };
     }
-    const handler: EventHandler | undefined = EVENT_HANDLERS[event.type];
+    const handler = ownValue(EVENT_HANDLERS, event.type);
     // Copy before stamping the seq: `next` may still be the caller's (or the
     // memo's) state when the handler changed nothing.
     next = { ...(handler ? handler(next, event) : next), seq: event.seq };
@@ -675,10 +705,10 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
   const gateResults = plan === undefined ? null : (results ?? null);
   const gatesById: Record<string, DeliveryGateView> = {};
   for (const gate of state.gates) {
-    gatesById[gate.id] = {
+    setOwnValue(gatesById, gate.id, {
       gate,
       state: evaluateGate(verifyUnitOf(gate), gateResults, record.plan_hash, plan, lifecycle),
-    };
+    });
   }
   const jams = Object.values(state.unitsById)
     .filter((unit) => classifyUnitStatus(unit.status) === "jammed")
