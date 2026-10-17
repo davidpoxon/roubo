@@ -1,8 +1,9 @@
 // The Spec Bench variant end to end against a real git repository (SB-FR-001,
 // SB-FR-004). The create route, the bench manager, the VariantHostRegistry and
 // the delivery domain's Spec Bench host are all real, so these tests see what
-// stays on disk: the bench workspace, the gate pin worktree, and the spec folder
-// with its delivery record and test-results.json.
+// stays on disk: the bench workspace, the gate pin worktree, and the checkout's
+// spec folder with test-results.json and the delivery record that the bench
+// keeps there from its workspace.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -112,14 +113,12 @@ beforeEach(() => {
   fs.mkdirSync(repo);
   fs.mkdirSync(hoisted.workspaces);
 
-  // The fixture project: a spec `fixture-spec` with a delivery record and a
-  // results file, committed so the checkout is the project's own.
+  // The fixture project: a spec `fixture-spec` with a results file, committed
+  // so the checkout is the project's own. The delivery record is written by the
+  // session into the bench workspace, so each test that needs one writes it
+  // there.
   specFolder = path.join(repo, ".specifications", "fixture-spec");
-  fs.mkdirSync(path.join(specFolder, "delivery"), { recursive: true });
-  fs.writeFileSync(
-    path.join(specFolder, "delivery", "record.json"),
-    '{"contractVersion":"1.0.0"}\n',
-  );
+  fs.mkdirSync(specFolder, { recursive: true });
   fs.writeFileSync(path.join(specFolder, "test-results.json"), '{"results":[]}\n');
   fs.writeFileSync(
     path.join(repo, ".specifications", "fixture-spec", "test-cases.json"),
@@ -300,9 +299,13 @@ describe("Spec Bench create validation", () => {
 describe("Clear bench on a Spec Bench", () => {
   it("SB-TC-005: removes the pin, then stops the session, then removes the workspace, and keeps the record", async () => {
     const bench = await createSpecBench();
-    const recordPath = path.join(specFolder, "delivery", "record.json");
+    // The session's record, where it writes it: the spec folder of the workspace.
+    const workspaceSpecFolder = path.join(bench.workspacePath, ".specifications", "fixture-spec");
+    const recordBefore = `${JSON.stringify({ delivery_id: "demo-delivery-1", seq: 7 }, null, 2)}\n`;
+    fs.writeFileSync(path.join(workspaceSpecFolder, "delivery-observation.json"), recordBefore);
+    const recordPath = path.join(specFolder, "delivery-observation.json");
+    expect(fs.existsSync(recordPath)).toBe(false);
     const resultsPath = path.join(specFolder, "test-results.json");
-    const recordBefore = fs.readFileSync(recordPath, "utf8");
     const resultsBefore = fs.readFileSync(resultsPath, "utf8");
 
     // An open gate sitting: a pin worktree at the gate's head and its session.
@@ -326,6 +329,8 @@ describe("Clear bench on a Spec Bench", () => {
     ]);
     expect(fs.existsSync(bench.workspacePath)).toBe(false);
 
+    // The record outlives the workspace in the checkout's spec folder, byte for
+    // byte as the session wrote it, beside the checkout's own results file.
     expect(fs.readFileSync(recordPath, "utf8")).toBe(recordBefore);
     expect(fs.readFileSync(resultsPath, "utf8")).toBe(resultsBefore);
 
@@ -334,14 +339,14 @@ describe("Clear bench on a Spec Bench", () => {
     expect(worktrees).not.toContain(bench.workspacePath);
   });
 
-  it("clears a Spec Bench with no open sitting and still keeps the spec folder", async () => {
+  it("clears a Spec Bench with no open sitting and no record, and still keeps the spec folder", async () => {
     const bench = await createSpecBench();
     benchManager.teardownBench("demo", bench.id, true);
     await cleared("demo", bench.id);
 
     expect(hoisted.stoppedSessions).toEqual([]);
     expect(fs.existsSync(bench.workspacePath)).toBe(false);
-    expect(fs.existsSync(path.join(specFolder, "delivery", "record.json"))).toBe(true);
+    expect(fs.existsSync(path.join(specFolder, "delivery-observation.json"))).toBe(false);
     expect(fs.existsSync(path.join(specFolder, "test-results.json"))).toBe(true);
   });
 });

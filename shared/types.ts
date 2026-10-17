@@ -1744,7 +1744,8 @@ export interface Bench {
    * with resolveWithin when loaded (enforcement lives in the testbench store).
    * For a Spec Bench it is the spec folder `.specifications/<slug>` in the
    * project checkout; the bench reads its delivery record from the folder of
-   * the same slug inside its workspace. Absent on a normal bench.
+   * the same slug inside its workspace, and copies the record into this folder
+   * before its workspace is removed. Absent on a normal bench.
    */
   focusedSpecPath?: string;
   /** Spec Bench only: how the bench binds to its delivery. */
