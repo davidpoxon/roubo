@@ -165,10 +165,11 @@ function eventPath(bench: Bench): string {
   return `/api/hooks/delivery-event?projectId=demo&benchId=${bench.id}`;
 }
 
+// Posts one envelope as it is, or a list of them as a batch { events: [...] }.
 function postEvents(bench: Bench, token: string | undefined, body: unknown) {
   const req = request(app).post(eventPath(bench));
   if (token !== undefined) req.set("Authorization", `Bearer ${token}`);
-  return req.send(body as object);
+  return req.send((Array.isArray(body) ? { events: body } : body) as object);
 }
 
 beforeEach(() => {
@@ -930,6 +931,25 @@ describe("Event ingest", () => {
     expect(await snapshotSeq(bench)).toBe(7);
   });
 
+  it("takes a batch only in an events wrapper, and refuses a bare array or a non-array events", async () => {
+    const { bench, token } = await benchWithRecord();
+    const bare = await request(app)
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send([event(8)]);
+    expect(bare.status).toBe(400);
+    expect(bare.body).toMatchObject({ code: "INVALID_EVENT", field: "events" });
+
+    const notArray = await postEvents(bench, token, { events: event(8) });
+    expect(notArray.status).toBe(400);
+    expect(notArray.body).toMatchObject({ code: "INVALID_EVENT", field: "events" });
+    expect(await snapshotSeq(bench)).toBe(7);
+
+    const wrapped = await postEvents(bench, token, { events: [event(8), event(9)] });
+    expect(wrapped.status).toBe(202);
+    expect(wrapped.body).toEqual({ acceptedSeq: 9 });
+  });
+
   it("answers 401 for a query that names no Spec Bench", async () => {
     const { token } = await benchWithRecord();
     const none = await request(app)
@@ -963,6 +983,7 @@ describe("Event ingest", () => {
     }
     const full = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
     expect(full.status).toBe(429);
+    expect(full.headers["retry-after"]).toBe("1");
     expect(full.body).toMatchObject({ code: "EVENT_LOG_FULL", acceptedSeq: DELIVERY_EVENT_LOG_MAX });
 
     // Once the record carries the first 500, room opens and the log keeps
@@ -1002,14 +1023,14 @@ describe("Event ingest", () => {
     const globalOnly = await request(productionBodyLimitApp(false))
       .post(eventPath(bench))
       .set("Authorization", `Bearer ${token}`)
-      .send(batch);
+      .send({ events: batch });
     expect(globalOnly.status).toBe(413);
     expect(await snapshotSeq(bench)).toBe(0);
 
     const accepted = await request(productionBodyLimitApp())
       .post(eventPath(bench))
       .set("Authorization", `Bearer ${token}`)
-      .send(batch);
+      .send({ events: batch });
     expect(accepted.status).toBe(202);
     expect(accepted.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX });
     expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX);

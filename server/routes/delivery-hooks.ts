@@ -2,7 +2,7 @@
 // hook endpoints (SB-FR-007, SB-FR-008, SB-NFR-001).
 //
 //   POST /delivery-event?projectId=<id>&benchId=<n>
-//     body: one delivery event envelope, or a JSON array of them (a batch)
+//     body: one delivery event envelope, or a batch { events: [envelope, ...] }
 //     -> 202 { acceptedSeq }: the batch is appended to the bench's event log,
 //            and a delivery frame goes out on GET /api/notifications/stream
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
@@ -11,7 +11,8 @@
 //            nothing about which benches exist
 //        400 INVALID_EVENT: an event fails the envelope schema (`field` names
 //            the field, `index` the event), names another delivery, or the
-//            batch is empty or over DELIVERY_EVENT_LOG_MAX events
+//            batch is not a wrapper with an `events` array (a bare array
+//            included), or is empty or over DELIVERY_EVENT_LOG_MAX events
 //        413 PAYLOAD_TOO_LARGE: the body is over DELIVERY_EVENT_BODY_LIMIT
 //        400 STALE_SEQ: every event is at or below the accepted seq, or a seq
 //            repeats within the batch (`field` is `seq`)
@@ -117,6 +118,18 @@ function fieldOf(error: string | undefined): string | undefined {
   return colon > 0 ? error.slice(0, colon) : undefined;
 }
 
+// The events a body carries: the `events` array of a batch wrapper, or the one
+// envelope a body that is not a wrapper holds. Undefined for a bare array, or a
+// wrapper whose `events` is not an array.
+function batchOf(body: unknown): unknown[] | undefined {
+  if (Array.isArray(body)) return undefined;
+  if (typeof body === "object" && body !== null && "events" in body) {
+    const events = (body as { events: unknown }).events;
+    return Array.isArray(events) ? events : undefined;
+  }
+  return [body];
+}
+
 router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   const bench = queriedSpecBench(req);
   // The token is checked before the body is read, so a caller without it
@@ -126,8 +139,15 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
     return;
   }
 
-  const body: unknown = req.body;
-  const raw: unknown[] = Array.isArray(body) ? body : [body];
+  const raw = batchOf(req.body);
+  if (raw === undefined) {
+    res.status(400).json({
+      error: "A batch is an object whose events field is an array of event envelopes",
+      code: "INVALID_EVENT",
+      field: "events",
+    });
+    return;
+  }
   if (raw.length === 0 || raw.length > DELIVERY_EVENT_LOG_MAX) {
     res.status(400).json({
       error: `A batch holds from 1 to ${DELIVERY_EVENT_LOG_MAX} events, and this one holds ${raw.length}`,
