@@ -34,10 +34,7 @@ vi.mock("../services/delivery-session-launcher.js", () => ({
 }));
 
 import * as benchManager from "../services/bench-manager.js";
-import {
-  forgetDeliveryEventLog,
-  ingestDeliveryEvents,
-} from "../services/delivery-event-log.js";
+import { forgetDeliveryEventLog, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import router from "./delivery.js";
 
 const FIXTURE_RECORD = fileURLToPath(

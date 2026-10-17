@@ -62,7 +62,13 @@ afterEach(() => {
 
 function fireFrame(seq: number): void {
   source.onmessage?.({
-    data: JSON.stringify({ type: "delivery", projectId: "p1", benchId: 1, change: "snapshot", seq }),
+    data: JSON.stringify({
+      type: "delivery",
+      projectId: "p1",
+      benchId: 1,
+      change: "snapshot",
+      seq,
+    }),
   } as MessageEvent);
 }
 
@@ -152,7 +158,10 @@ describe("useDeliveryFeed", () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot(12));
     vi.mocked(api.fetchDeliveryEvents)
       .mockResolvedValueOnce({ events: [event(10, "C", "d2")], acceptedSeq: 10 })
-      .mockResolvedValueOnce({ events: [event(1, "C", "d2"), event(2, "C", "d2")], acceptedSeq: 2 });
+      .mockResolvedValueOnce({
+        events: [event(1, "C", "d2"), event(2, "C", "d2")],
+        acceptedSeq: 2,
+      });
     act(() => fireFrame(12));
 
     await waitFor(() => expect(result.current.events.data?.acceptedSeq).toBe(2));
