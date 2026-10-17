@@ -14,10 +14,13 @@ import {
   createDeliveryReducer,
   foldDelivery,
   isDecisionOpen,
+  isProvisionalGate,
+  isUnconfirmedProvisionalGate,
   type DeliveryFoldInputs,
   type DeliveryGateView,
   type DeliveryResults,
 } from "./delivery-reducer.js";
+import { selectProvisionalMarks, selectReviewStack } from "./delivery-selectors.js";
 import type { GateLifecycle } from "./gate-evaluator.js";
 import type { Resolution } from "./lifecycle-resolver.js";
 import type { Case, CaseResult, CaseStatus, TestCasesPlan } from "./testbench-contracts.js";
@@ -328,7 +331,10 @@ describe("foldDelivery", () => {
       ["review.reply", { decision_id: "decision-2", in_reply_to: "m" }], // no text
       ["gate.provisional", { cases: [] }], // no gate_id
       ["gate.provisional", { gate_id: "gate-after-b" }], // no cases
-      ["gate.provisional", { gate_id: "gate-after-b", cases: [{ case: "DEMO-TC-001", mark: "passed" }] }],
+      [
+        "gate.provisional",
+        { gate_id: "gate-after-b", cases: [{ case: "DEMO-TC-001", mark: "passed" }] },
+      ],
       ["gate.confirmed", { cases: ["DEMO-TC-001"] }], // no gate_id
       ["gate.confirmed", { gate_id: "gate-after-b" }], // not provisional
     );
@@ -383,7 +389,10 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       decided_at: "2026-10-16T10:00:00Z",
     });
     expect(isDecisionOpen(snapshot.decisionsById["decision-1"])).toBe(false);
-    expect(snapshot.review).toEqual({ status: "pending", unreviewed: ["decision-2", "decision-1"] });
+    expect(snapshot.review).toEqual({
+      status: "pending",
+      unreviewed: ["decision-2", "decision-1"],
+    });
     expect(record.decisions[0].status).toBe("open");
     expect(record.review.unreviewed).toEqual(["decision-2"]);
   });
@@ -394,7 +403,12 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       record,
       events: stream([
         "decision.decided",
-        { decision_id: "decision-1", chosen: "one file per unit", author: "Ada", status: "answered" },
+        {
+          decision_id: "decision-1",
+          chosen: "one file per unit",
+          author: "Ada",
+          status: "answered",
+        },
       ]),
     });
     const decision = snapshot.decisionsById["decision-1"];
@@ -458,7 +472,13 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
         ["review.opened", { trigger: "boundary" }],
         [
           "review.outcome",
-          { decision_id: "decision-2", status: "accepted", reviewer: "Ada", summary: "Strict is right.", control_seq: 4 },
+          {
+            decision_id: "decision-2",
+            status: "accepted",
+            reviewer: "Ada",
+            summary: "Strict is right.",
+            control_seq: 4,
+          },
         ],
       ),
     });
@@ -475,7 +495,10 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       record,
       events: stream(
         ["gate.confirmed", { gate_id: "gate-after-c" }],
-        ["review.outcome", { decision_id: "decision-2", status: "overturned", chosen: "accept it" }],
+        [
+          "review.outcome",
+          { decision_id: "decision-2", status: "overturned", chosen: "accept it" },
+        ],
       ),
     });
     expect(overturned.decisionsById["decision-2"].review).toEqual({ status: "overturned" });
@@ -499,7 +522,10 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     const snapshot = foldDelivery({
       record,
       events: stream(
-        ["review.reply", { decision_id: "decision-2", text: "Why?", author: "Ada", control_seq: 5 }],
+        [
+          "review.reply",
+          { decision_id: "decision-2", text: "Why?", author: "Ada", control_seq: 5 },
+        ],
         ["review.reply", { decision_id: "decision-2", text: "Strict grammar.", in_reply_to: "5" }],
         ["review.reply", { decision_id: "decision-1", text: "Hm.", author: "Ada", control_seq: 6 }],
       ),
@@ -544,14 +570,72 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     expect(view.gate).toEqual({
       ...record.stack.gates[0],
       status: "provisional",
-      provisional: true,
       provisionalCases: [
         { case: "DEMO-TC-001", mark: "met", evidence: "The suite row passed.", confirmed: false },
         { case: "DEMO-TC-002", mark: "not_met", evidence: "", confirmed: false },
       ],
     });
     expect(view.provisionalAt).toBe("2026-10-16T10:00:00Z");
-    expect(record.stack.gates[0].provisional).toBeUndefined();
+    expect(record.stack.gates[0].status).toBe("pending");
+    expect(record.stack.gates[0].provisionalCases).toBeUndefined();
+  });
+
+  it("a record gate whose status is provisional is provisional on that word alone: dated from the record, on the review stack, with its marks, and confirmable", () => {
+    const record = fixtureRecord();
+    const gate = record.stack.gates[1];
+    expect(gate.status).toBe("provisional");
+    expect(Object.keys(gate)).not.toContain("provisional");
+    const snapshot = foldDelivery({ record, events: [] });
+    const view = snapshot.gatesById["gate-after-c"];
+    expect(isProvisionalGate(view.gate)).toBe(true);
+    expect(isUnconfirmedProvisionalGate(view.gate)).toBe(true);
+    expect(view.provisionalAt).toBe(record.updated_at);
+    expect(selectProvisionalMarks(snapshot, "gate-after-c")).toEqual(gate.provisionalCases);
+    expect(selectReviewStack(snapshot).map((card) => card.id)).toEqual([
+      "decision-2",
+      "gate-after-c",
+    ]);
+
+    const confirmed = foldDelivery({
+      record,
+      events: stream(["gate.confirmed", { gate_id: "gate-after-c", control_seq: 3 }]),
+    });
+    const after = confirmed.gatesById["gate-after-c"];
+    expect(after.gate.status).toBe("confirmed");
+    expect(after.gate.provisionalCases?.map((entry) => entry.confirmed)).toEqual([true]);
+    expect(after.provisionalAt).toBeNull();
+    expect(selectProvisionalMarks(confirmed, "gate-after-c")).toEqual([]);
+    expect(selectReviewStack(confirmed).map((card) => card.id)).toEqual(["decision-2"]);
+  });
+
+  it("gate.changed moves a gate into and out of the provisional state by its status word", () => {
+    const record = fixtureRecord();
+    const entered = foldDelivery({
+      record,
+      events: stream(["gate.changed", { gate_id: "gate-after-b", status: "provisional" }]),
+    });
+    const view = entered.gatesById["gate-after-b"];
+    expect(isUnconfirmedProvisionalGate(view.gate)).toBe(true);
+    expect(view.provisionalAt).toBe("2026-10-16T10:00:00Z");
+    expect(selectReviewStack(entered).map((card) => card.id)).toEqual([
+      "decision-2",
+      "gate-after-c",
+      "gate-after-b",
+    ]);
+
+    const left = foldDelivery({
+      record,
+      events: stream(["gate.changed", { gate_id: "gate-after-c", status: "passed" }]),
+    });
+    expect(left.gatesById["gate-after-c"].provisionalAt).toBeNull();
+    expect(selectProvisionalMarks(left, "gate-after-c")).toEqual([]);
+    expect(selectReviewStack(left).map((card) => card.id)).toEqual(["decision-2"]);
+    // A gate.confirmed on a gate that is not provisional is a no-op.
+    const ignored = foldDelivery({
+      record,
+      events: stream(["gate.confirmed", { gate_id: "gate-after-b" }]),
+    });
+    expect(ignored.gatesById["gate-after-b"].gate).toBe(record.stack.gates[0]);
   });
 
   it("gate.confirmed confirms the named cases, and the gate leaves the provisional state once all are", () => {
@@ -573,7 +657,6 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       ),
     });
     const partialGate = partial.gatesById["gate-after-b"].gate;
-    expect(partialGate.provisional).toBe(true);
     expect(partialGate.status).toBe("provisional");
     expect(partialGate.provisionalCases?.map((entry) => entry.confirmed)).toEqual([true, false]);
     expect(partial.gatesById["gate-after-b"].provisionalAt).toBe("2026-10-16T10:00:00Z");
@@ -583,11 +666,9 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       events: stream(["gate.confirmed", { gate_id: "gate-after-c" }]),
     });
     const gate = all.gatesById["gate-after-c"].gate;
-    expect(gate.provisional).toBe(false);
     expect(gate.status).toBe("confirmed");
-    expect(gate.provisionalCases).toEqual([
-      { ...record.stack.gates[1].provisionalCases![0], confirmed: true },
-    ]);
+    const [recordMark] = record.stack.gates[1].provisionalCases ?? [];
+    expect(gate.provisionalCases).toEqual([{ ...recordMark, confirmed: true }]);
     expect(all.gatesById["gate-after-c"].provisionalAt).toBeNull();
     // decision-2 still waits, so the review stays pending.
     expect(all.review.status).toBe("pending");

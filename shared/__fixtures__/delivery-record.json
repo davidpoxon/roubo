@@ -29,7 +29,6 @@
         "after": ["C"],
         "status": "provisional",
         "cases": ["DEMO-TC-003"],
-        "provisional": true,
         "provisionalCases": [
           {
             "case": "DEMO-TC-003",

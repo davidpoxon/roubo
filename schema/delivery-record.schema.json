@@ -53,7 +53,8 @@
         },
         "trigger": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 4000
         },
         "unreviewed": {
           "type": "array",
@@ -111,9 +112,6 @@
                   "type": "string",
                   "minLength": 1
                 }
-              },
-              "provisional": {
-                "type": "boolean"
               },
               "provisionalCases": {
                 "type": "array",
@@ -207,19 +205,22 @@
           },
           "question": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 4000
           },
           "options": {
             "minItems": 2,
             "type": "array",
             "items": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 4000
             }
           },
           "default": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 4000
           },
           "status": {
             "type": "string",
@@ -236,11 +237,13 @@
           },
           "author": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 4000
           },
           "chosen": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 4000
           },
           "rationale": {
             "type": "string",
@@ -262,7 +265,8 @@
               },
               "reviewer": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "maxLength": 4000
               },
               "summary": {
                 "type": "string",

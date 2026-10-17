@@ -68,6 +68,10 @@ const StatusSchema = z.string().min(1);
 // view can render it as text and a store can size it.
 export const DELIVERY_TEXT_MAX_LENGTH = 4000;
 const BoundedTextSchema = z.string().max(DELIVERY_TEXT_MAX_LENGTH);
+// A session-authored line that cannot be empty: a decision's question, one of
+// its options, the chosen option, an author or reviewer name, a review trigger.
+// Bounded by the same limit, so no session-authored string escapes it.
+const BoundedLineSchema = BoundedTextSchema.min(1);
 
 // ── Decision-mode vocabularies ──
 //
@@ -102,6 +106,12 @@ export type ProvisionalMark = z.infer<typeof ProvisionalMarkSchema>;
 // its own (auto mode), else the name of the person who answered.
 export const AGENT_AUTHOR = "agent";
 
+// The gate status word that says the session judged the gate provisionally.
+// A gate's `status` is an open string, and this is the one value of it the
+// decision-mode readers act on: a gate is provisional when, and only when, its
+// `status` is this word.
+export const GATE_PROVISIONAL_STATUS = "provisional";
+
 // ── units[] ──
 //
 // One entry per work unit the delivery plans, gates excluded (gates live under
@@ -129,10 +139,11 @@ export type DeliveryUnit = z.infer<typeof DeliveryUnitSchema>;
 // runs after the units in `after` are done and judges `cases`.
 //
 // Provisional state (SB-FR-040). In auto mode a gate the session judged while
-// the operator was away is `provisional`: `provisionalCases` carries the mark
-// the session gave each gating case, with its evidence, and `confirmed` turns
-// true when the operator confirms that mark. `status` stays the gate's own open
-// status word.
+// the operator was away has the `status` `provisional` (GATE_PROVISIONAL_STATUS):
+// `provisionalCases` then carries the mark the session gave each gating case,
+// with its evidence, and `confirmed` turns true when the operator confirms that
+// mark. The status word is the one key of the provisional state; there is no
+// separate flag.
 export const ProvisionalCaseSchema = z
   .object({
     case: IdSchema,
@@ -149,7 +160,6 @@ export const DeliveryGateSchema = z
     after: z.array(IdSchema).min(1),
     status: StatusSchema,
     cases: z.array(IdSchema),
-    provisional: z.boolean().optional(),
     provisionalCases: z.array(ProvisionalCaseSchema).optional(),
   })
   .loose();
@@ -176,7 +186,7 @@ export type DeliveryStack = z.infer<typeof DeliveryStackSchema>;
 export const DecisionReviewSchema = z
   .object({
     status: DecisionReviewStatusSchema,
-    reviewer: z.string().min(1).optional(),
+    reviewer: BoundedLineSchema.optional(),
     summary: BoundedTextSchema.optional(),
   })
   .loose();
@@ -185,14 +195,14 @@ export type DecisionReview = z.infer<typeof DecisionReviewSchema>;
 export const DeliveryDecisionSchema = z
   .object({
     id: IdSchema,
-    question: z.string().min(1),
-    options: z.array(z.string().min(1)).min(2),
-    default: z.string().min(1),
+    question: BoundedLineSchema,
+    options: z.array(BoundedLineSchema).min(2),
+    default: BoundedLineSchema,
     status: StatusSchema,
     unit_id: IdSchema.optional(),
     raised_at: TimestampSchema,
-    author: z.string().min(1).optional(),
-    chosen: z.string().min(1).optional(),
+    author: BoundedLineSchema.optional(),
+    chosen: BoundedLineSchema.optional(),
     rationale: BoundedTextSchema.optional(),
     affected_units: z.array(IdSchema).optional(),
     review: DecisionReviewSchema.optional(),
@@ -306,7 +316,7 @@ export type DeliveryMode = z.infer<typeof DeliveryModeSchema>;
 export const DeliveryReviewSchema = z
   .object({
     status: DeliveryReviewStatusSchema,
-    trigger: z.string().min(1).optional(),
+    trigger: BoundedLineSchema.optional(),
     unreviewed: z.array(IdSchema),
   })
   .loose();
@@ -419,15 +429,15 @@ export type ModeChangedPayload = z.infer<typeof ModeChangedPayloadSchema>;
 export const DecisionDecidedPayloadSchema = z
   .object({
     decision_id: IdSchema,
-    chosen: z.string().min(1),
-    author: z.string().min(1).optional(),
+    chosen: BoundedLineSchema,
+    author: BoundedLineSchema.optional(),
     rationale: BoundedTextSchema.optional(),
     affected_units: z.array(IdSchema).optional(),
     status: StatusSchema.optional(),
     decided_at: TimestampSchema.optional(),
-    question: z.string().min(1).optional(),
-    options: z.array(z.string().min(1)).min(2).optional(),
-    default: z.string().min(1).optional(),
+    question: BoundedLineSchema.optional(),
+    options: z.array(BoundedLineSchema).min(2).optional(),
+    default: BoundedLineSchema.optional(),
     ...readBackFields,
   })
   .loose();
@@ -435,7 +445,7 @@ export type DecisionDecidedPayload = z.infer<typeof DecisionDecidedPayloadSchema
 
 export const ReviewOpenedPayloadSchema = z
   .object({
-    trigger: z.string().min(1).optional(),
+    trigger: BoundedLineSchema.optional(),
     unreviewed: z.array(IdSchema).optional(),
     ...readBackFields,
   })
@@ -448,9 +458,9 @@ export const ReviewOutcomePayloadSchema = z
   .object({
     decision_id: IdSchema,
     status: z.enum(["accepted", "overturned"]),
-    reviewer: z.string().min(1).optional(),
+    reviewer: BoundedLineSchema.optional(),
     summary: BoundedTextSchema.optional(),
-    chosen: z.string().min(1).optional(),
+    chosen: BoundedLineSchema.optional(),
     reviewed_at: TimestampSchema.optional(),
     ...readBackFields,
   })
@@ -461,8 +471,8 @@ export type ReviewOutcomePayload = z.infer<typeof ReviewOutcomePayloadSchema>;
 export const ReviewReplyPayloadSchema = z
   .object({
     decision_id: IdSchema,
-    text: BoundedTextSchema.min(1),
-    author: z.string().min(1).optional(),
+    text: BoundedLineSchema,
+    author: BoundedLineSchema.optional(),
     ...readBackFields,
   })
   .loose()
@@ -472,7 +482,8 @@ export const ReviewReplyPayloadSchema = z
   });
 export type ReviewReplyPayload = z.infer<typeof ReviewReplyPayloadSchema>;
 
-// The session judged a gate provisionally: one mark per gating case.
+// The session judged a gate provisionally: one mark per gating case. The gate's
+// `status` becomes `provisional`; the payload carries no status of its own.
 export const GateProvisionalPayloadSchema = z
   .object({
     gate_id: IdSchema,
@@ -486,14 +497,15 @@ export const GateProvisionalPayloadSchema = z
         })
         .loose(),
     ),
-    status: StatusSchema.optional(),
     ...readBackFields,
   })
   .loose();
 export type GateProvisionalPayload = z.infer<typeof GateProvisionalPayloadSchema>;
 
 // The operator confirmed a provisional gate's marks: the cases named, or every
-// provisional case when `cases` is absent.
+// provisional case when `cases` is absent. Once every mark is confirmed the
+// gate leaves the `provisional` status for `status` when given, else
+// `confirmed`.
 export const GateConfirmedPayloadSchema = z
   .object({
     gate_id: IdSchema,
