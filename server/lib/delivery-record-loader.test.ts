@@ -86,6 +86,8 @@ describe("copying the record between the workspace and the checkout", () => {
     fs.mkdirSync(workspaceFolder, { recursive: true });
     fs.writeFileSync(path.join(workspaceFolder, "delivery-observation.json"), '{"new":1}\n');
     fs.writeFileSync(path.join(checkout, "delivery-observation.json"), '{"old":1}\n');
+    const older = new Date(Date.now() - 60_000);
+    fs.utimesSync(path.join(checkout, "delivery-observation.json"), older, older);
 
     expect(preserveDeliveryRecord(bench)).toBe(true);
     expect(fs.readFileSync(path.join(checkout, "delivery-observation.json"), "utf8")).toBe(
@@ -95,6 +97,19 @@ describe("copying the record between the workspace and the checkout", () => {
       "delivery-observation.json",
       "test-results.json",
     ]);
+  });
+
+  it("preserves nothing over a checkout record that is newer than the workspace record", () => {
+    fs.mkdirSync(workspaceFolder, { recursive: true });
+    fs.writeFileSync(path.join(workspaceFolder, "delivery-observation.json"), '{"seeded":1}\n');
+    const older = new Date(Date.now() - 60_000);
+    fs.utimesSync(path.join(workspaceFolder, "delivery-observation.json"), older, older);
+    fs.writeFileSync(path.join(checkout, "delivery-observation.json"), '{"live":1}\n');
+
+    expect(preserveDeliveryRecord(bench)).toBe(false);
+    expect(fs.readFileSync(path.join(checkout, "delivery-observation.json"), "utf8")).toBe(
+      '{"live":1}\n',
+    );
   });
 
   it("preserves nothing when the workspace has no record, and leaves the checkout's copy", () => {
