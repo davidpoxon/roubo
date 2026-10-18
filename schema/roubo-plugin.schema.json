@@ -90,6 +90,11 @@
       "enum": ["long-running", "one-shot"],
       "description": "Component-plugin lifecycle shape surfaced pre-install in the marketplace detail drawer. Absent means long-running."
     },
+    "componentMode": {
+      "type": "string",
+      "enum": ["declarative", "imperative"],
+      "description": "Used by component plugins. Which half of the component contract the plugin implements. declarative (the default when omitted) implements translate, and the host runs the ProvisionDescriptor it returns. imperative implements the start, stop, health, and cleanup hooks, and the host calls them directly."
+    },
     "entry": {
       "type": "string",
       "minLength": 1,

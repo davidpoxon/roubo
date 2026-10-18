@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import * as YAML from "yaml";
+import { z } from "zod";
 import {
   RouboConfigSchema,
   BenchesConfigSchema,
@@ -12,6 +13,7 @@ import {
   zodIssuesToFieldMap,
   type RouboConfig,
 } from "./config-schema.js";
+import { jsonSchemaKeyDiff } from "./test/json-schema-agreement.js";
 
 function makeConfig(overrides?: Partial<RouboConfig>): RouboConfig {
   return {
@@ -1224,5 +1226,48 @@ describe("benches section agreement (#1436)", () => {
 
   it("rejects the removed autoClear key", () => {
     expect(BenchesConfigSchema.safeParse({ max: 1, autoClear: true }).success).toBe(false);
+  });
+});
+
+// #1442: the hand-authored JSON Schema is the editor mirror of
+// RouboConfigSchema and sets `additionalProperties: false`, so a key it lacks
+// is flagged as an error in a valid roubo.yaml. These compare every section,
+// nested shapes and tool and login-step variants included.
+describe("roubo-config JSON Schema agreement (#1442)", () => {
+  // `io: "input"` so that keys with a zod default (components, ports) count as
+  // optional, which is what a roubo.yaml author sees.
+  const zodJson = () => z.toJSONSchema(RouboConfigSchema, { io: "input" }) as any;
+  const handJson = () =>
+    JSON.parse(
+      readFileSync(new URL("../schema/roubo-config.schema.json", import.meta.url), "utf8"),
+    ) as any;
+
+  it("accepts and requires the same keys as RouboConfigSchema in every section", () => {
+    expect(jsonSchemaKeyDiff(zodJson(), handJson())).toEqual([]);
+  });
+
+  it("fails when a key is added only to the JSON Schema", () => {
+    const hand = handJson();
+    hand.properties.integration.properties.sources.additionalProperties.items.oneOf[1].properties.extra =
+      { type: "string" };
+    expect(jsonSchemaKeyDiff(zodJson(), hand)).toEqual([
+      "integration.sources.*[]: keys only in JSON Schema: extra",
+    ]);
+  });
+
+  it("fails when a key is added only to the zod schema", () => {
+    const zod = zodJson();
+    zod.properties.tools.items.oneOf[2].properties.extra = { type: "string" };
+    expect(jsonSchemaKeyDiff(zod, handJson())).toEqual(["tools[]<agent>: keys only in zod: extra"]);
+  });
+
+  it("fails when the schemas disagree on a required key or on closedness", () => {
+    const hand = handJson();
+    hand.properties.benches.required = [];
+    delete hand.properties.layout.additionalProperties;
+    expect(jsonSchemaKeyDiff(zodJson(), hand)).toEqual([
+      "benches: required only in zod: max",
+      "layout: unknown keys rejected only in zod",
+    ]);
   });
 });
