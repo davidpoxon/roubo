@@ -355,13 +355,127 @@ describe("stopProcess", () => {
     // SIGKILL should now have been sent
     expect(mockTreeKill).toHaveBeenCalledWith(55555, "SIGKILL", expect.any(Function));
 
-    // Invoke the SIGKILL callback to resolve the promise
+    // The SIGKILL callback fires once the signal is sent, before the child's
+    // exit. The stop resolves on the exit, not on the callback (#1387).
+    let stopped = false;
+    void stopPromise.then(() => {
+      stopped = true;
+    });
     const sigkillCall = mockTreeKill.mock.calls.find((c) => c[1] === "SIGKILL");
     if (!sigkillCall) throw new Error("expected SIGKILL call");
     const sigkillCallback = sigkillCall[2] as () => void;
     sigkillCallback();
+    await Promise.resolve();
+    expect(stopped).toBe(false);
 
+    child.emit("exit", null, "SIGKILL");
     await stopPromise;
+  });
+
+  it("gives up when the SIGKILL fails, since no exit is coming (#1387)", async () => {
+    vi.useFakeTimers();
+
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+    mockTreeKill.mockImplementation((_pid, signal, cb) => {
+      if (signal === "SIGKILL") cb?.(new Error("kill EPERM"));
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const child = createMockChild(88888);
+    mockSpawn.mockReturnValue(child);
+    const { startProcess, stopProcess, getProcessStatus } = await loadModule();
+
+    await startProcess("eperm-test", "node", ["app.js"], {}, "/cwd");
+    const stopPromise = stopProcess("eperm-test");
+    vi.advanceTimersByTime(5000);
+    await stopPromise;
+
+    expect(getProcessStatus("eperm-test").alive).toBe(false);
+    expect(warn).toHaveBeenCalledWith("SIGKILL failed for PID 88888:", "kill EPERM");
+    warn.mockRestore();
+  });
+
+  it("resolves on exit even when the close never comes (#1387)", async () => {
+    // An orphaned grandchild that tree-kill cannot find keeps the stdio pipes
+    // open, so 'close' never fires. The stop must not wait for it.
+    const child = createMockChild(66666);
+    mockSpawn.mockReturnValue(child);
+    const { startProcess, stopProcess, getProcessStatus } = await loadModule();
+
+    await startProcess("orphan-test", "node", ["app.js"], {}, "/cwd");
+    const stopPromise = stopProcess("orphan-test");
+    child.emit("exit", 0, null);
+    await stopPromise;
+
+    expect(getProcessStatus("orphan-test").alive).toBe(false);
+  });
+
+  it("resolves at once for a child that has exited while its close is pending (#1387)", async () => {
+    const child = createMockChild(77777);
+    mockSpawn.mockReturnValue(child);
+    const { startProcess, stopProcess } = await loadModule();
+
+    await startProcess("exited-test", "node", ["app.js"], {}, "/cwd");
+    child.exitCode = 0;
+    child.emit("exit", 0, null);
+
+    await expect(stopProcess("exited-test")).resolves.toBeUndefined();
+  });
+
+  it("leaves an entry that replaced the stopped process under its id (#1387)", async () => {
+    const first = createMockChild(33333);
+    const second = createMockChild(44444);
+    mockSpawn.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const { startProcess, stopProcess, runProcess, getProcessPid } = await loadModule();
+
+    await startProcess("replace-test", "node", ["app.js"], {}, "/cwd");
+    const stopPromise = stopProcess("replace-test");
+    // runProcess registers under the id without stopping what is there.
+    const running = runProcess("replace-test", "node", ["task.js"], {}, "/cwd");
+    first.emit("exit", null, "SIGTERM");
+    await stopPromise;
+
+    expect(getProcessPid("replace-test")).toBe(44444);
+    second.emit("close", 0);
+    await running;
+  });
+
+  it("keeps a process restarted under the same id when the old one closes late (#1387)", async () => {
+    vi.useFakeTimers();
+
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+
+    const first = createMockChild(11111);
+    const second = createMockChild(22222);
+    mockSpawn.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const { startProcess, stopProcess, getProcessPid, getProcessStatus } = await loadModule();
+
+    await startProcess("restart-test", "node", ["app.js"], {}, "/cwd");
+
+    // The old process ignores SIGTERM, so the stop escalates to SIGKILL, and
+    // tree-kill calls back before the child's close arrives.
+    const stopPromise = stopProcess("restart-test");
+    vi.advanceTimersByTime(5000);
+    const sigkillCall = mockTreeKill.mock.calls.find((c) => c[1] === "SIGKILL");
+    if (!sigkillCall) throw new Error("expected SIGKILL call");
+    (sigkillCall[2] as () => void)();
+    await Promise.resolve();
+
+    // Restart under the same id, then deliver the old process's exit, and its
+    // close only after the new process is registered.
+    const restartPromise = startProcess("restart-test", "node", ["app.js"], {}, "/cwd");
+    await Promise.resolve();
+    first.emit("exit", null, "SIGKILL");
+    await stopPromise;
+    await restartPromise;
+    first.emit("close", null);
+
+    expect(getProcessPid("restart-test")).toBe(22222);
+    expect(getProcessStatus("restart-test").alive).toBe(true);
   });
 });
 
@@ -430,10 +544,17 @@ describe("stopAllProcesses", () => {
 
     // Simulate processes closing after SIGTERM
     mockTreeKill.mockImplementation((_pid, _signal, cb) => {
-      // Simulate the child close event on SIGTERM
+      // Simulate the child exiting on SIGTERM: 'exit', then 'close', as a
+      // real child reports it
       if (_signal === "SIGTERM") {
-        if (_pid === 10001) child1.emit("close", 0);
-        if (_pid === 10002) child2.emit("close", 0);
+        for (const [pid, child] of [
+          [10001, child1],
+          [10002, child2],
+        ] as const) {
+          if (_pid !== pid) continue;
+          child.emit("exit", 0, null);
+          child.emit("close", 0);
+        }
       }
       if (cb) cb();
     });

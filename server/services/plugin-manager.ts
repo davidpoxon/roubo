@@ -1297,7 +1297,11 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // published as running, so a crash during the RPC wiring must still reach
   // handleChildExit; an exit emitted before the listener exists is lost, and
   // the record would stay "enabled" with a dead pid and no restart scheduled.
+  // An exit from a child that no longer owns the entry is ignored: a newer
+  // spawn has taken the slot, and handling the old exit there would tear down
+  // the new child's connection and count the exit as its crash (#1387).
   child.on("exit", (code) => {
+    if (entry.process !== child) return;
     handleChildExit(entry, code);
   });
   attachStdioLogging(entry, child);
@@ -1588,33 +1592,37 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
   const proc = entry.process;
   if (!proc || !proc.pid) return;
 
+  // Resolve on the child's 'exit' only, never on the SIGKILL callback (#1387).
+  // tree-kill calls back as soon as the signal is sent, before the exit event
+  // is delivered. A caller that spawns on the same entry next (restart) would
+  // then reset intentionalStop before the old exit arrived, and the exit would
+  // run the crash path. This listener is added after spawnPlugin's, so by the
+  // time the stop resolves handleChildExit has seen the exit as intentional.
+  // The one exception is a SIGKILL that failed: no exit is coming, so the stop
+  // gives up rather than hang, and the exit listener's ownership check keeps a
+  // later exit of this child away from whatever owns the entry by then.
   await new Promise<void>((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve();
-    };
     const timer = setTimeout(() => {
       const pid = proc.pid;
-      if (pid) {
-        treeKill(pid, "SIGKILL", () => finish());
-      } else {
-        finish();
-      }
+      if (!pid) return;
+      treeKill(pid, "SIGKILL", (err) => {
+        if (!err) return;
+        writeLog(entry, "host", `SIGKILL failed: ${err.message}`, "error").catch(() => {});
+        resolve();
+      });
     }, SHUTDOWN_GRACE_MS);
-    proc.once("exit", finish);
+    proc.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
     const pid = proc.pid;
     if (pid) {
       treeKill(pid, "SIGTERM", (err) => {
         if (err) {
-          // best-effort; if SIGTERM failed (process already dead), wait for exit anyway
+          // best-effort; if SIGTERM failed, wait for exit anyway
           // the timer will SIGKILL as fallback
         }
       });
-    } else {
-      finish();
     }
   });
 }
