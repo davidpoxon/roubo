@@ -199,8 +199,8 @@ function GateMarker({ item, selected, onActive, onSelect, onOpen }: ItemProps<Pl
         onMouseEnter={() => onActive(item.key)}
         onMouseLeave={() => onActive(null)}
         style={{ left: item.x, top: item.y, width: GATE_WIDTH, height: GATE_HEIGHT }}
-        className={`${FRAME_CLASSES} justify-center gap-0.5 rounded-control border bg-danger-surface px-2 py-1 text-text-body hover:bg-bg-hover active:bg-bg-pressed ${
-          selected ? "border-accent-border" : "border-status-error"
+        className={`${FRAME_CLASSES} justify-center gap-0.5 rounded-control border ${marker.ground} px-2 py-1 text-text-body hover:bg-bg-hover active:bg-bg-pressed ${
+          selected ? "border-accent-border" : marker.border
         }`}
       >
         <span className="font-mono text-11 text-text-body truncate w-full">gate {gate.id}</span>

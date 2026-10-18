@@ -42,19 +42,29 @@ export function isDoneUnit(unit: DeliveryUnit): boolean {
 // ── Gate state ──
 //
 // A gate's marker reads its record status word as one of these kinds. Each kind
-// has one entry in GATE_MARKERS, so a further state (the provisional gate of
-// SB-FR-038) is one more member, one more entry and the words that map to it.
+// has one entry in GATE_MARKERS, which holds everything the marker draws for it:
+// the label, the status dot's tone, and the marker's ground and border. A further
+// state (the provisional gate of SB-FR-038, which DESIGN.md draws on the base
+// ground with the default border) is one more member, one more entry and the
+// words that map to it, with no change to the graph or the list.
 export type GateMarkerKind = "pending" | "passed" | "failed";
 
 export interface GateMarkerStyle {
   label: string;
   tone: StatusTone;
+  // The marker's ground and its border when it is not selected.
+  ground: string;
+  border: string;
 }
 
+// DESIGN.md Unit node: a gate node swaps the ground to `danger-surface` and the
+// border to `status-error`.
+const GATE_NODE = { ground: "bg-danger-surface", border: "border-status-error" };
+
 export const GATE_MARKERS: Record<GateMarkerKind, GateMarkerStyle> = {
-  pending: { label: "pending", tone: "idle" },
-  passed: { label: "passed", tone: "active" },
-  failed: { label: "failed", tone: "error" },
+  pending: { label: "pending", tone: "idle", ...GATE_NODE },
+  passed: { label: "passed", tone: "active", ...GATE_NODE },
+  failed: { label: "failed", tone: "error", ...GATE_NODE },
 };
 
 const GATE_STATUS_KINDS: ReadonlyMap<string, GateMarkerKind> = new Map([
