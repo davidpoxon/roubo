@@ -11,6 +11,7 @@ import {
   useResumeDelivery,
 } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
+import DeliveryMap from "./DeliveryMap";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot and its
@@ -141,15 +142,7 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
         </dd>
       </dl>
 
-      <ul className="space-y-1 text-13" aria-label="Units">
-        {units.map((unit) => (
-          <li key={unit.id} className="flex gap-2">
-            <span className="font-mono text-text-primary">{unit.id}</span>
-            <span className="text-text-body">{unit.title}</span>
-            <span className="text-text-secondary">{unit.status}</span>
-          </li>
-        ))}
-      </ul>
+      <DeliveryMap projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
 
       <p className="text-12 text-text-secondary">
         Sending answers, steering notes and tier changes is not available on this bench yet.

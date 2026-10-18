@@ -22,6 +22,9 @@ type BenchViewEntry = {
   // vertical space (hiding metadata + tabs, keeping the title row + actions)
   // survives navigation and reload.
   headerCollapsed?: boolean;
+  // Spec Bench delivery map view (SB-FR-010). Persisted per bench so the last
+  // chosen graph or list view is restored on reload; unset reads as the graph.
+  deliveryMapView?: "graph" | "list";
 };
 type BenchViewStore = Record<string, BenchViewEntry>;
 
@@ -105,6 +108,14 @@ export function useBenchViewState(projectId: string, benchId: number) {
     [benchKey, bump],
   );
 
+  const setDeliveryMapView = useCallback(
+    (view: "graph" | "list") => {
+      writeEntry(benchKey, { deliveryMapView: view });
+      bump();
+    },
+    [benchKey, bump],
+  );
+
   return {
     activeTab: entry.activeTab,
     setActiveTab,
@@ -118,5 +129,7 @@ export function useBenchViewState(projectId: string, benchId: number) {
     setTestbenchViewMode,
     headerCollapsed: entry.headerCollapsed ?? false,
     setHeaderCollapsed,
+    deliveryMapView: entry.deliveryMapView,
+    setDeliveryMapView,
   };
 }

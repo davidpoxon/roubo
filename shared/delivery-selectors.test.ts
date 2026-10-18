@@ -10,6 +10,10 @@ import {
 import { foldDelivery } from "./delivery-reducer.js";
 import {
   selectDecisionThread,
+  selectDependencyEdges,
+  selectDependencyOrder,
+  selectGateAnchors,
+  selectGatesAfterUnit,
   selectGateState,
   selectMode,
   selectNextBoundary,
@@ -20,6 +24,7 @@ import {
   selectReviewStack,
   selectStalenessAge,
   selectSteeringFor,
+  selectUnitDependencies,
   selectUnitStack,
   selectUnitStatus,
   selectUnitsInStackOrder,
@@ -340,5 +345,106 @@ describe("delivery selectors: decision mode (SB-FR-040)", () => {
     });
     // Once confirmed the gate is no longer provisional, so it has no marks to review.
     expect(selectProvisionalMarks(confirmed, "gate-after-c")).toEqual([]);
+  });
+});
+
+describe("delivery selectors: dependency order (SB-FR-010)", () => {
+  function withUnits(units: DeliveryRecord["units"], stacks: Record<string, string[]>) {
+    const record = fixtureRecord();
+    return foldDelivery({
+      record: { ...record, units, stack: { ...record.stack, stacks } },
+      events: [],
+    });
+  }
+
+  function unit(id: string, stack: string, layer: number, depends_on: string[]) {
+    return { id, title: id, status: "pending", stack, layer, depends_on };
+  }
+
+  it("selectDependencyEdges gives the depends_on edges between known units", () => {
+    const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
+    expect(selectDependencyEdges(snapshot)).toEqual([
+      { from: "A", to: "B", kind: "depends_on" },
+      { from: "B", to: "C", kind: "depends_on" },
+    ]);
+    expect(selectUnitDependencies(snapshot, "C")).toEqual(["B"]);
+    expect(selectUnitDependencies(snapshot, "A")).toEqual([]);
+  });
+
+  it("selectDependencyEdges drops an edge from a unit the snapshot does not carry", () => {
+    const snapshot = withUnits([unit("A", "A", 0, ["ghost"]), unit("B", "A", 1, ["A", "A"])], {
+      A: ["A", "B"],
+    });
+    expect(selectDependencyEdges(snapshot).map((edge) => edge.from)).toEqual(["A", "A"]);
+    expect(selectUnitDependencies(snapshot, "B")).toEqual(["A"]);
+    expect(selectDependencyOrder(snapshot)).toEqual({
+      kind: "ordered",
+      units: [expect.objectContaining({ id: "A" }), expect.objectContaining({ id: "B" })],
+    });
+  });
+
+  it("selectDependencyOrder puts each unit after its dependencies, stack order breaking ties", () => {
+    const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
+    const order = selectDependencyOrder(snapshot);
+    expect(order.kind).toBe("ordered");
+    if (order.kind !== "ordered") return;
+    expect(order.units.map((entry) => entry.id)).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("selectDependencyOrder moves a unit after a dependency on a later stack", () => {
+    const snapshot = withUnits(
+      [unit("A", "A", 0, ["D"]), unit("B", "A", 1, ["A"]), unit("D", "D", 0, [])],
+      { A: ["A", "B"], D: ["D"] },
+    );
+    const order = selectDependencyOrder(snapshot);
+    expect(order.kind === "ordered" && order.units.map((entry) => entry.id)).toEqual([
+      "D",
+      "A",
+      "B",
+    ]);
+  });
+
+  it("selectDependencyOrder names the cycle instead of an order", () => {
+    const snapshot = withUnits(
+      [unit("A", "A", 0, ["C"]), unit("B", "B", 0, ["A"]), unit("C", "C", 0, ["A"])],
+      { A: ["A"], B: ["B"], C: ["C"] },
+    );
+    expect(selectDependencyOrder(snapshot)).toEqual({ kind: "cycle", cycle: ["A", "C"] });
+  });
+
+  it("selectDependencyOrder names a unit that depends on itself", () => {
+    const snapshot = withUnits([unit("A", "A", 0, ["A"])], { A: ["A"] });
+    expect(selectDependencyOrder(snapshot)).toEqual({ kind: "cycle", cycle: ["A"] });
+  });
+
+  it("selectDependencyOrder finds the cycle from a unit that only waits on it", () => {
+    const snapshot = withUnits(
+      [unit("Z", "Z", 0, ["A"]), unit("A", "A", 0, ["C"]), unit("C", "C", 0, ["A"])],
+      { Z: ["Z"], A: ["A"], C: ["C"] },
+    );
+    expect(selectDependencyOrder(snapshot)).toEqual({ kind: "cycle", cycle: ["A", "C"] });
+  });
+
+  it("selectGateAnchors places each gate after the last of its after units", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record: {
+        ...record,
+        stack: {
+          ...record.stack,
+          gates: [
+            ...record.stack.gates,
+            { id: "gate-both", after: ["C", "A"], status: "pending", cases: [] },
+            { id: "gate-ghost", after: ["ghost"], status: "pending", cases: [] },
+          ],
+        },
+      },
+      events: [],
+    });
+    const anchors = selectGateAnchors(snapshot, ["A", "B", "C", "D"]);
+    expect(anchors.get("B")?.map((view) => view.gate.id)).toEqual(["gate-after-b"]);
+    expect(anchors.get("C")?.map((view) => view.gate.id)).toEqual(["gate-after-c", "gate-both"]);
+    expect(anchors.has("A")).toBe(false);
+    expect(selectGatesAfterUnit(snapshot, "A").map((view) => view.gate.id)).toEqual(["gate-both"]);
   });
 });

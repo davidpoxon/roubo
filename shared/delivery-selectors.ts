@@ -8,6 +8,8 @@
 // stack name is an open string too, so every `byId` or `stacks` read goes
 // through the reducer's `ownValue`: a unit called `toString` is a unit, and a
 // stack called `constructor` that the snapshot does not list has no members. The
+// dependency-order selectors (SB-FR-010) give the delivery map its order, its
+// edges and the place of each gate. The
 // decision-mode selectors (SB-FR-040: the mode, the review stack, a decision's
 // thread, a gate's provisional marks) are more functions over the same
 // snapshot, at the end of the module.
@@ -28,6 +30,7 @@ import {
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
   ownValue,
+  type DeliveryEdge,
   type DeliveryGateView,
   type DeliveryProgress,
   type DeliverySnapshot,
@@ -107,6 +110,124 @@ export function selectUnitsInStackOrder(snapshot: DeliverySnapshot): DeliveryUni
     }
   }
   return ordered;
+}
+
+// ── Dependency order (SB-FR-010) ──
+
+// The `depends_on` edges between two units the snapshot carries: a dependency
+// on an id that no unit has is not drawn and does not order anything.
+export function selectDependencyEdges(snapshot: DeliverySnapshot): DeliveryEdge[] {
+  return snapshot.edges.filter(
+    (edge) =>
+      edge.kind === "depends_on" &&
+      ownValue(snapshot.unitsById, edge.from) !== undefined &&
+      ownValue(snapshot.unitsById, edge.to) !== undefined,
+  );
+}
+
+// The ids of the units a unit depends on, in the order its `depends_on` lists
+// them, each once; empty for a unit the snapshot does not carry.
+export function selectUnitDependencies(snapshot: DeliverySnapshot, unitId: string): string[] {
+  const dependencies: string[] = [];
+  for (const edge of selectDependencyEdges(snapshot)) {
+    if (edge.to === unitId && !dependencies.includes(edge.from)) dependencies.push(edge.from);
+  }
+  return dependencies;
+}
+
+// Every unit in dependency order (each after the units it depends on), or the
+// cycle that leaves no such order. Among the units that are ready at a step,
+// stack order (`selectUnitsInStackOrder`) breaks the tie, so a delivery with no
+// cross-stack dependency reads stack by stack, base first. A cycle lists its
+// unit ids so that each depends on the next and the last on the first.
+export type DependencyOrder =
+  { kind: "ordered"; units: DeliveryUnit[] } | { kind: "cycle"; cycle: string[] };
+
+export function selectDependencyOrder(snapshot: DeliverySnapshot): DependencyOrder {
+  const base = selectUnitsInStackOrder(snapshot);
+  const rank = new Map(base.map((unit, index) => [unit.id, index]));
+  const dependencies = new Map<string, string[]>();
+  const dependents = new Map<string, string[]>();
+  const waiting = new Map<string, number>();
+  for (const unit of base) {
+    dependencies.set(unit.id, []);
+    dependents.set(unit.id, []);
+    waiting.set(unit.id, 0);
+  }
+  for (const edge of selectDependencyEdges(snapshot)) {
+    const before = dependencies.get(edge.to);
+    if (before === undefined || before.includes(edge.from)) continue;
+    before.push(edge.from);
+    dependents.get(edge.from)?.push(edge.to);
+    waiting.set(edge.to, (waiting.get(edge.to) ?? 0) + 1);
+  }
+
+  const byRank = (a: string, b: string) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0);
+  const ready = base.filter((unit) => waiting.get(unit.id) === 0).map((unit) => unit.id);
+  const ordered: DeliveryUnit[] = [];
+  while (ready.length > 0) {
+    ready.sort(byRank);
+    const id = ready.shift() as string;
+    const unit = ownValue(snapshot.unitsById, id);
+    if (unit !== undefined) ordered.push(unit);
+    for (const next of dependents.get(id) ?? []) {
+      const left = (waiting.get(next) ?? 0) - 1;
+      waiting.set(next, left);
+      if (left === 0) ready.push(next);
+    }
+  }
+  if (ordered.length === base.length) {
+    return { kind: "ordered", units: ordered };
+  }
+
+  // Every unit left over still waits on a unit that is left over, so a walk
+  // along those dependencies must come back to a unit it already met.
+  const placed = new Set(ordered.map((unit) => unit.id));
+  const left = base.map((unit) => unit.id).filter((id) => !placed.has(id));
+  const at = new Map<string, number>();
+  const path: string[] = [];
+  let current = left[0];
+  while (!at.has(current)) {
+    at.set(current, path.length);
+    path.push(current);
+    const next = (dependencies.get(current) ?? []).find((id) => !placed.has(id));
+    if (next === undefined) break;
+    current = next;
+  }
+  return { kind: "cycle", cycle: path.slice(at.get(current) ?? 0) };
+}
+
+// Where each gate sits in a dependency order: after the last of its `after`
+// units in `orderedIds`. A gate none of whose `after` units is in the order has
+// no place and is left out.
+export function selectGateAnchors(
+  snapshot: DeliverySnapshot,
+  orderedIds: readonly string[],
+): Map<string, DeliveryGateView[]> {
+  const position = new Map(orderedIds.map((id, index) => [id, index]));
+  const anchors = new Map<string, DeliveryGateView[]>();
+  for (const view of Object.values(snapshot.gatesById)) {
+    let anchor: string | undefined;
+    for (const id of view.gate.after) {
+      const index = position.get(id);
+      if (index !== undefined && (anchor === undefined || index > (position.get(anchor) ?? -1))) {
+        anchor = id;
+      }
+    }
+    if (anchor === undefined) continue;
+    const list = anchors.get(anchor) ?? [];
+    list.push(view);
+    anchors.set(anchor, list);
+  }
+  return anchors;
+}
+
+// The gates that run after a unit: every gate whose `after` names it.
+export function selectGatesAfterUnit(
+  snapshot: DeliverySnapshot,
+  unitId: string,
+): DeliveryGateView[] {
+  return Object.values(snapshot.gatesById).filter((view) => view.gate.after.includes(unitId));
 }
 
 export type BoundaryKind = "finish" | "start";
