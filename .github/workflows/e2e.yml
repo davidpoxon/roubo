@@ -24,7 +24,9 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # #1448: several minutes over the slowest successful run (about 8.5
+    # minutes), so a hang fails the job but a slow, healthy run does not.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: read

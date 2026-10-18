@@ -12,8 +12,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  # #1448: every job sets timeout-minutes, so a hung step fails the job
+  # instead of leaving the pull request pending until GitHub's 6-hour limit.
+  # `npm ci` has hung after printing its final output in about 1 install in
+  # 800, in schema-drift and in e2e. The process does not exit, and the hang
+  # does not reproduce on a rerun. Each limit is several times the job's
+  # slowest successful run (about 2 minutes for the short jobs, about 8.5 for
+  # test). The e2e job sets its own limit in e2e.yml, because a job that calls
+  # a reusable workflow cannot set timeout-minutes.
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -62,6 +71,7 @@ jobs:
 
   format:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -76,6 +86,7 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -98,6 +109,7 @@ jobs:
   # schema/roubo-*.json (the diff would always fire on them).
   schema-drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -122,6 +134,7 @@ jobs:
   # route list this replaced had drifted to roughly a third of the real surface.
   route-inventory-drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -140,6 +153,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -154,6 +168,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: read
