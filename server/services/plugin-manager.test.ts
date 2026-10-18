@@ -1297,6 +1297,50 @@ describe("component-plugin crash hooks (#657)", () => {
     expect(unsettledWhenRestarted).toEqual([0]);
   }, 30_000);
 
+  it("restart of a plugin that ignores SIGTERM fires no crash hooks and leaves one process (#1387)", async () => {
+    // A plugin that outlives SIGTERM (node as PID 1 on the Docker tier) is only
+    // ended by the SIGKILL after the shutdown grace. Its exit must count as the
+    // intentional stop restart() asked for, not as a crash of the process
+    // restart() spawns next: a crash runs the pre-restart teardown
+    // (`compose down -v`) and spawns a third process.
+    const preRestart = vi.fn();
+    const restarted = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-sigterm-immune"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginRestarted: restarted,
+    });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-sigterm-immune");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+    // A round-trip proves the fixture has installed its SIGTERM handler. A
+    // restart sent before that would end it with SIGTERM and miss the race.
+    expect(await mgr.invoke("component-sigterm-immune", "ping", {})).toBe("pong");
+    const oldPid = need(findRecord(mgr.listInstalled(), "component-sigterm-immune").pid, "pid");
+
+    await mgr.restart("component-sigterm-immune");
+    const newPid = need(findRecord(mgr.listInstalled(), "component-sigterm-immune").pid, "pid");
+    expect(newPid).not.toBe(oldPid);
+
+    await waitForProcessGone(oldPid);
+    // Wait past the first restart backoff (500 ms), so a respawn scheduled by a
+    // misread exit would have landed before the assertions below.
+    await new Promise((r) => setTimeout(r, 1_000));
+
+    expect(preRestart).not.toHaveBeenCalled();
+    expect(restarted).not.toHaveBeenCalled();
+    const rec = findRecord(getManager().listInstalled(), "component-sigterm-immune");
+    expect(rec.status).toBe("enabled");
+    expect(rec.restartHistory).toEqual([]);
+    expect(rec.pid).toBe(newPid);
+    expect(() => process.kill(newPid, 0)).not.toThrow();
+  }, 30_000);
+
   it("does not fire the hooks for a crashing integration plugin", async () => {
     const preRestart = vi.fn();
     const budgetExhausted = vi.fn();

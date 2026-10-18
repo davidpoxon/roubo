@@ -355,13 +355,55 @@ describe("stopProcess", () => {
     // SIGKILL should now have been sent
     expect(mockTreeKill).toHaveBeenCalledWith(55555, "SIGKILL", expect.any(Function));
 
-    // Invoke the SIGKILL callback to resolve the promise
+    // The SIGKILL callback fires once the signal is sent, before the child's
+    // close. The stop resolves on the close, not on the callback (#1387).
+    let stopped = false;
+    void stopPromise.then(() => {
+      stopped = true;
+    });
     const sigkillCall = mockTreeKill.mock.calls.find((c) => c[1] === "SIGKILL");
     if (!sigkillCall) throw new Error("expected SIGKILL call");
     const sigkillCallback = sigkillCall[2] as () => void;
     sigkillCallback();
+    await Promise.resolve();
+    expect(stopped).toBe(false);
 
+    child.emit("close", null);
     await stopPromise;
+  });
+
+  it("keeps a process restarted under the same id when the old one closes late (#1387)", async () => {
+    vi.useFakeTimers();
+
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+
+    const first = createMockChild(11111);
+    const second = createMockChild(22222);
+    mockSpawn.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const { startProcess, stopProcess, getProcessPid, getProcessStatus } = await loadModule();
+
+    await startProcess("restart-test", "node", ["app.js"], {}, "/cwd");
+
+    // The old process ignores SIGTERM, so the stop escalates to SIGKILL, and
+    // tree-kill calls back before the child's close arrives.
+    const stopPromise = stopProcess("restart-test");
+    vi.advanceTimersByTime(5000);
+    const sigkillCall = mockTreeKill.mock.calls.find((c) => c[1] === "SIGKILL");
+    if (!sigkillCall) throw new Error("expected SIGKILL call");
+    (sigkillCall[2] as () => void)();
+    await Promise.resolve();
+
+    // Restart under the same id, then deliver the old process's late close.
+    const restartPromise = startProcess("restart-test", "node", ["app.js"], {}, "/cwd");
+    await Promise.resolve();
+    first.emit("close", null);
+    await stopPromise;
+    await restartPromise;
+
+    expect(getProcessPid("restart-test")).toBe(22222);
+    expect(getProcessStatus("restart-test").alive).toBe(true);
   });
 });
 

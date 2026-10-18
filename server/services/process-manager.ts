@@ -184,17 +184,19 @@ export function stopProcess(id: string): Promise<void> {
       return;
     }
 
-    // Give process 5 seconds to exit gracefully before force-killing
+    // Give process 5 seconds to exit gracefully before force-killing. Resolve
+    // on its close only: tree-kill calls back before the close arrives, and a
+    // startProcess under the same id would then register its process first and
+    // have it deleted by this late close (#1387).
     const timeout = setTimeout(() => {
-      treeKill(pid, "SIGKILL", () => {
-        processes.delete(id);
-        resolve();
+      treeKill(pid, "SIGKILL", (err) => {
+        if (err) console.warn(`SIGKILL failed for PID ${pid}:`, err.message);
       });
     }, 5000);
 
     managed.process?.on("close", () => {
       clearTimeout(timeout);
-      processes.delete(id);
+      if (processes.get(id) === managed) processes.delete(id);
       resolve();
     });
 
