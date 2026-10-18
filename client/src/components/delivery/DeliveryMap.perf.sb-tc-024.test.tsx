@@ -15,12 +15,11 @@
  * budget assertion is gated behind RUN_PERF_HARNESS=1, the repo's perf
  * convention (`npm run test:perf`), like the other perf files: WARMUP_ITERATIONS
  * unmeasured renders, then measured iterations, inline median and p95, a
- * structured perf-evidence log. A sentinel keeps the file contributing a passing
- * assertion under the default run, where the measured test is skipped, and a
- * non-gated structural test pins that the 50-unit record paints every node and
- * that a folded event reaches its node. The structural test asserts no budget,
- * so its name carries no case id. The numbers are jsdom render times, not
- * real-browser paint times.
+ * structured perf-evidence log. Under the default run, where the measured test is
+ * skipped, a non-gated structural test pins that the 50-unit record paints every
+ * node and that a folded event reaches its node. The structural test asserts no
+ * budget, so its name carries no case id. The numbers are jsdom render times,
+ * not real-browser paint times.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
@@ -128,14 +127,6 @@ it.runIf(RUN)(
   benchmarkMap,
   120_000,
 );
-
-describe("delivery map perf harness (smoke)", () => {
-  // Sentinel so the file always contributes a passing assertion under the
-  // default run (vitest fails files with zero discovered tests).
-  it.runIf(!RUN)("perf assertion is skipped unless RUN_PERF_HARNESS=1", () => {
-    expect(RUN).toBe(false);
-  });
-});
 
 describe("delivery map on the 50-unit record", () => {
   it("paints every unit node and shows a folded event on its node", () => {
