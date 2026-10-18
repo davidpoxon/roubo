@@ -199,10 +199,13 @@ export function stopProcess(id: string): Promise<void> {
       resolve();
     };
 
-    // Give process 5 seconds to exit gracefully before force-killing
+    // Give process 5 seconds to exit gracefully before force-killing. A SIGKILL
+    // that fails means no exit is coming, so give up rather than hang.
     const timeout = setTimeout(() => {
       treeKill(pid, "SIGKILL", (err) => {
-        if (err) console.warn(`SIGKILL failed for PID ${pid}:`, err.message);
+        if (!err) return;
+        console.warn(`SIGKILL failed for PID ${pid}:`, err.message);
+        settle();
       });
     }, 5000);
 

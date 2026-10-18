@@ -372,6 +372,31 @@ describe("stopProcess", () => {
     await stopPromise;
   });
 
+  it("gives up when the SIGKILL fails, since no exit is coming (#1387)", async () => {
+    vi.useFakeTimers();
+
+    const treeKill = (await import("tree-kill")).default;
+    const mockTreeKill = vi.mocked(treeKill);
+    mockTreeKill.mockReset();
+    mockTreeKill.mockImplementation((_pid, signal, cb) => {
+      if (signal === "SIGKILL") cb?.(new Error("kill EPERM"));
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const child = createMockChild(88888);
+    mockSpawn.mockReturnValue(child);
+    const { startProcess, stopProcess, getProcessStatus } = await loadModule();
+
+    await startProcess("eperm-test", "node", ["app.js"], {}, "/cwd");
+    const stopPromise = stopProcess("eperm-test");
+    vi.advanceTimersByTime(5000);
+    await stopPromise;
+
+    expect(getProcessStatus("eperm-test").alive).toBe(false);
+    expect(warn).toHaveBeenCalledWith("SIGKILL failed for PID 88888:", "kill EPERM");
+    warn.mockRestore();
+  });
+
   it("resolves on exit even when the close never comes (#1387)", async () => {
     // An orphaned grandchild that tree-kill cannot find keeps the stdio pipes
     // open, so 'close' never fires. The stop must not wait for it.
