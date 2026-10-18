@@ -4356,6 +4356,244 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
     expect(fs.default.rmSync).not.toHaveBeenCalled();
   });
 
+  describe("a forced unregister stops what runs in each bench (#1441)", () => {
+    const bench7Path = "/home/.roubo/workspaces/test-project/bench-7";
+
+    // Bench 1 is live, with a process-backed and a docker-backed component that
+    // have both been started, so the engine has cached their descriptors.
+    async function liveBenchWithComponents() {
+      const config = makeConfig({
+        components: {
+          db: {
+            type: "database",
+            docker: { composeFile: "docker-compose.yml", service: "db" },
+          },
+          backend: {
+            type: "process",
+            command: "dotnet run --project src/Api/Api.csproj",
+          },
+        },
+      });
+      setupExistingBench({ config, ports: { db: 5432, backend: 5001 } });
+      setupProcessMocks();
+      setupDockerServiceMocks();
+      await benchManager.startComponent("test-project", 1, "db");
+      await benchManager.startComponent("test-project", 1, "backend");
+      vi.mocked(processManager.stopProcess).mockClear();
+      vi.mocked(dockerService.composeDown).mockClear();
+    }
+
+    function repoPresent(order: string[] = []) {
+      vi.mocked(fs.default.existsSync).mockImplementation(
+        (p) => p === "/repos/test-project" || p === workspacePath || p === bench7Path,
+      );
+      vi.mocked(execModule.runCommand).mockImplementation(async (_cmd: string, args: string[]) => {
+        order.push(args.slice(0, 2).join(" "));
+        if (args[0] === "worktree" && args[1] === "list") {
+          return {
+            code: 0,
+            stdout: `worktree ${workspacePath}\n\nworktree ${bench7Path}\n`,
+            stderr: "",
+          };
+        }
+        return ok;
+      });
+    }
+
+    it("closes terminals, stops processes, downs compose projects and clears the bench's state before removal", async () => {
+      await liveBenchWithComponents();
+      const order: string[] = [];
+      repoPresent(order);
+      vi.mocked(dockerService.composeDown).mockImplementationOnce(async () => {
+        order.push("compose down");
+      });
+      // The ledger has no project id, so another project's bench 1 shares the row.
+      vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([
+        {
+          pluginId: "database",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-test-project-bench-1", "roubo-other-bench-1"],
+        },
+        { pluginId: "process", benchId: 1, processIds: ["process:1:backend"], composeProjects: [] },
+      ]);
+      benchManager.recordAuditEntry("test-project", 1, {
+        ts: "2026-10-18T00:00:00.000Z",
+        pluginId: "process",
+        benchId: 1,
+        method: "host.process.start",
+        params: {},
+        outcome: "allowed",
+      });
+      componentLogStore.appendComponentLog("test-project", 1, "db", {
+        source: "stdout",
+        text: "compose up",
+        ts: "2026-10-18T00:00:00.000Z",
+      });
+
+      const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+        "test-project",
+        "/repos/test-project",
+        [{ id: 1, workspacePath }],
+      );
+
+      expect(leftovers).toEqual([]);
+      expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 1);
+      expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
+      expect(processManager.stopProcess).not.toHaveBeenCalledWith("database:1:db");
+      expect(dockerService.composeDown).toHaveBeenCalledTimes(1);
+      expect(dockerService.composeDown).toHaveBeenCalledWith(
+        "roubo-test-project-bench-1",
+        expect.any(String),
+        workspacePath,
+      );
+      // Compose down reads the compose file from the workspace, so it runs first.
+      expect(order.indexOf("compose down")).toBeLessThan(order.indexOf("worktree remove"));
+      // Only this project's compose project leaves the ledger.
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledTimes(1);
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledWith(
+        "database",
+        1,
+        "roubo-test-project-bench-1",
+      );
+      expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+      expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
+      expect(sseService.clearComponentStatusForBench).toHaveBeenCalledWith("test-project", 1);
+      expect(benchManager.queryAuditLog("test-project", 1)).toEqual([]);
+      expect(componentLogStore.hasComponentLogs("test-project", 1, "db")).toBe(false);
+    });
+
+    it("stops a bench that only has a persisted record, by the project's component names", async () => {
+      setupExistingBench();
+      setupProcessMocks();
+      repoPresent();
+
+      await benchManager.removeProjectBenchWorkspaces("test-project", "/repos/test-project", [
+        { id: 1, workspacePath },
+        { id: 7, workspacePath: bench7Path },
+      ]);
+
+      expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 1);
+      expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 7);
+      expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
+      expect(processManager.stopProcess).toHaveBeenCalledWith("process:7:backend");
+    });
+
+    it("stops every bench when the repo is missing", async () => {
+      await liveBenchWithComponents();
+      vi.mocked(fs.default.existsSync).mockImplementation((p) => p === workspacePath);
+
+      await benchManager.removeProjectBenchWorkspaces("test-project", "/repos/test-project", [
+        { id: 1, workspacePath },
+      ]);
+
+      expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 1);
+      expect(processManager.stopProcess).toHaveBeenCalledWith("process:1:backend");
+      expect(dockerService.composeDown).toHaveBeenCalledWith(
+        "roubo-test-project-bench-1",
+        expect.any(String),
+        workspacePath,
+      );
+    });
+
+    it("takes down a compose project the ledger lists when no descriptor names it", async () => {
+      // No docker component was started, so there is no cached descriptor.
+      setupExistingBench();
+      setupProcessMocks();
+      repoPresent();
+      vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
+      const row = {
+        pluginId: "database",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-test-project-bench-1"],
+      };
+      vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([row]).mockReturnValueOnce([row]);
+
+      await benchManager.removeProjectBenchWorkspaces("test-project", "/repos/test-project", [
+        { id: 1, workspacePath },
+      ]);
+
+      expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledWith(
+        "database",
+        1,
+        "roubo-test-project-bench-1",
+      );
+    });
+
+    it("takes a compose project down by name when its workspace is already gone", async () => {
+      await liveBenchWithComponents();
+      vi.mocked(fs.default.existsSync).mockReturnValue(false);
+
+      await benchManager.removeProjectBenchWorkspaces("test-project", "/repos/test-project", [
+        { id: 1, workspacePath },
+      ]);
+
+      expect(dockerService.composeDown).not.toHaveBeenCalled();
+      expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
+    });
+
+    it("logs each stop that fails and carries on with the rest and with the removal", async () => {
+      await liveBenchWithComponents();
+      repoPresent();
+      vi.mocked(terminalService.destroyBenchSessions).mockImplementationOnce(() => {
+        throw new Error("pty boom");
+      });
+      vi.mocked(componentRegistry.resolveBinding).mockImplementationOnce(() => {
+        throw new Error("binding boom");
+      });
+      vi.mocked(processManager.stopProcess).mockRejectedValueOnce(new Error("kill boom"));
+      vi.mocked(dockerService.composeDown).mockRejectedValueOnce(new Error("down boom"));
+      vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([
+        {
+          pluginId: "database",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-test-project-bench-1"],
+        },
+      ]);
+      const warn = vi.mocked(console.warn);
+      warn.mockClear();
+
+      const { leftovers } = await benchManager.removeProjectBenchWorkspaces(
+        "test-project",
+        "/repos/test-project",
+        [
+          { id: 1, workspacePath },
+          { id: 7, workspacePath: bench7Path },
+        ],
+      );
+      const warnings = warn.mock.calls.map((c) => String(c[0]));
+
+      expect(leftovers).toEqual([]);
+      for (const boom of ["pty boom", "binding boom", "kill boom", "down boom"]) {
+        expect(warnings.some((w) => w.includes("Force unregister") && w.includes(boom))).toBe(true);
+      }
+      // The failures on bench 1 stop neither bench 1's other steps nor bench 7.
+      expect(dockerService.composeDown).toHaveBeenCalled();
+      expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
+      // The compose project bench 1 could not take down stays in the ledger, so
+      // the startup sweep still takes it down.
+      expect(ledgerService.removeComposeProject).not.toHaveBeenCalledWith(
+        "database",
+        1,
+        expect.anything(),
+      );
+      expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+      expect(warnings.some((w) => w.includes("stays in the ledger"))).toBe(true);
+      expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 7);
+      expect(processManager.stopProcess).toHaveBeenCalledWith("process:7:backend");
+      for (const ws of [workspacePath, bench7Path]) {
+        expect(execModule.runCommand).toHaveBeenCalledWith(
+          "git",
+          ["worktree", "remove", "--force", ws],
+          "/repos/test-project",
+        );
+      }
+    });
+  });
+
   it("clearing during the pull-latest fetch kills it, and no worktree is created", async () => {
     setupCreateBenchMocks({
       project: makeProject({

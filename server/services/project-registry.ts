@@ -36,8 +36,9 @@ export interface LiveBenchSource {
   listBenchIds(projectId: string): number[];
   dropBenches(projectId: string): number;
   /**
-   * Removes each bench's workspace and git admin dir on the force path (#1435),
-   * or logs what stays when `repoPath` is missing. Returns the paths still on disk.
+   * On the force path, stops what runs in each bench (#1441), then removes each
+   * bench's workspace and git admin dir (#1435), or logs what stays when
+   * `repoPath` is missing. Returns the paths still on disk.
    */
   removeWorkspaces(
     projectId: string,
@@ -276,9 +277,10 @@ async function unregisterProjectNow(projectId: string, opts: { force?: boolean }
         { benchCount: activeIds.length, benchIds: activeIds },
       );
     }
-    // Force path. Remove each bench's workspace and git admin dir first, while
-    // the records still say where they are: once they are dropped, Roubo no
-    // longer knows the project and nothing removes them (#1435). When the repo
+    // Force path. Stop each bench's terminals, component processes and compose
+    // projects (#1441) and remove its workspace and git admin dir (#1435) first,
+    // while the records still say where they are: once they are dropped, Roubo no
+    // longer knows the project and nothing stops or removes them. When the repo
     // is missing nothing can be removed through git, so the paths are logged and
     // stay on disk. Then drop the bench records from state.json.
     await liveBenchSource?.removeWorkspaces(projectId, project.repoPath, benches);

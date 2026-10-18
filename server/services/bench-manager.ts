@@ -989,9 +989,8 @@ export function getLiveBenchIds(projectId: string): number[] {
  * Drop every in-memory bench entry for a project and return how many were removed.
  * Called on `unregisterProject`'s force path: the map is what `readGlobalBenchCap`
  * measures (`benches.size`), so entries left behind keep consuming global-cap slots
- * until the app restarts (#1204). Map-entry removal only: the force path removes
- * the workspaces first, through removeProjectBenchWorkspaces. It does not tear
- * down components (#1441).
+ * until the app restarts (#1204). Map-entry removal only: the force path stops
+ * each bench and removes its workspace first, through removeProjectBenchWorkspaces.
  */
 export function dropProjectBenches(projectId: string): number {
   let removed = 0;
@@ -1012,13 +1011,18 @@ export function dropProjectBenches(projectId: string): number {
  * them. The targets are the union of the in-memory benches and `persisted`, by id.
  *
  * In-flight provisioning is aborted and awaited first, as in teardown, so a
- * `worktree add` or `submodule update` cannot recreate what is removed. Removal is
+ * `worktree add` or `submodule update` cannot recreate what is removed. Then each
+ * bench is stopped as Clear stops it (#1441): terminals, component processes,
+ * compose projects, and the per-bench in-memory state. Its compose project leaves
+ * the ledger only when it was taken down. Each of those steps is best effort, and
+ * a failure is logged. Removal is
  * not strict: the project is going away, so a worktree git refuses to remove is
  * removed by hand. A dirty workspace is removed too. Bench branches are kept, so
  * committed work survives.
  *
- * When `repoPath` is missing, nothing is removed: without the repo the worktrees
- * cannot be removed through git. Each workspace path is logged instead.
+ * When `repoPath` is missing, the benches are still stopped, but nothing is
+ * removed: without the repo the worktrees cannot be removed through git. Each
+ * workspace path is logged instead.
  *
  * createBench refuses the project until this returns. The caller drops the
  * records in the same tick, so no bench can be reserved in between.
@@ -1055,6 +1059,17 @@ async function removeWorkspacesOf(
   }
   await Promise.all(provisioning);
 
+  // Stop what runs in each bench while its workspace, which holds the compose
+  // file, is still there (#1441). Once the records are dropped nothing stops it.
+  // A bench with only a persisted record has no component map, so the project's
+  // configured component names cover it.
+  const configured = Object.keys(projectRegistry.getProject(projectId)?.config?.components ?? {});
+  for (const [benchId, workspacePath] of targets) {
+    const live = benches.get(benchKey(projectId, benchId));
+    const names = new Set([...configured, ...Object.keys(live?.components ?? {})]);
+    await stopBenchForUnregister(projectId, benchId, workspacePath, [...names]);
+  }
+
   const leftovers: string[] = [];
   if (!fs.existsSync(repoPath)) {
     for (const [benchId, workspacePath] of targets) {
@@ -1084,6 +1099,113 @@ async function removeWorkspacesOf(
     }
   }
   return { leftovers };
+}
+
+/**
+ * Clear's stop steps and cleanup, for a bench a forced unregister drops (#1441):
+ * close terminals, stop component processes, take compose projects down, release
+ * the bench's compose project from the ledger, then clearBenchRuntimeState.
+ * Unlike Clear, each step is best effort: a failure is logged and the rest still
+ * run, because the unregister goes ahead regardless.
+ */
+async function stopBenchForUnregister(
+  projectId: string,
+  benchId: number,
+  workspacePath: string,
+  componentNames: string[],
+): Promise<void> {
+  const attempt = async (what: string, step: () => unknown): Promise<boolean> => {
+    try {
+      await step();
+      return true;
+    } catch (err) {
+      console.warn(
+        `[bench-manager] Force unregister of '${projectId}': ${what} failed for ` +
+          `bench ${benchId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+  };
+
+  await attempt("closing terminals", () =>
+    terminalService.destroyBenchSessions(projectId, benchId),
+  );
+
+  // A docker-backed component is left for compose down, as in Clear (#663).
+  const dockerComposeFiles = new Set<string>();
+  for (const name of componentNames) {
+    const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
+    if (descriptor?.kind === "docker") {
+      dockerComposeFiles.add(descriptor.composeFile);
+      continue;
+    }
+    const ids = [processId(projectId, benchId, name)];
+    await attempt(`resolving component ${name}'s plugin`, () => {
+      const binding = resolveBinding(projectId, name);
+      if (!isNotBound(binding)) ids.unshift(`${binding.pluginId}:${benchId}:${name}`);
+    });
+    for (const id of ids) {
+      await attempt(`stopProcess(${id})`, () => processManager.stopProcess(id));
+    }
+  }
+
+  const composeProject = dockerService.getComposeProjectName(projectId, benchId);
+  let composeDownFailed = false;
+  const down = async (step: () => Promise<void>) => {
+    if (!(await attempt(`composeDown(${composeProject})`, step))) composeDownFailed = true;
+  };
+  // A compose project the ledger lists can be up without a cached descriptor:
+  // assigning a container drops the descriptor and leaves the project up.
+  let recorded = false;
+  if (dockerComposeFiles.size === 0) {
+    await attempt("reading the ledger", () => {
+      recorded = ledger
+        .getAllEntries()
+        .some((e) => e.benchId === benchId && e.composeProjects.includes(composeProject));
+    });
+  }
+  if (dockerComposeFiles.size > 0 && fs.existsSync(workspacePath)) {
+    for (const composeFile of dockerComposeFiles) {
+      await down(() => dockerService.composeDown(composeProject, composeFile, workspacePath));
+    }
+  } else if (dockerComposeFiles.size > 0 || recorded) {
+    // The compose file went with the workspace, or no descriptor names it, so
+    // select the project by name.
+    await down(() => dockerService.composeDownByProject(composeProject));
+  }
+
+  // The ledger is the only record of the compose project once the bench is
+  // dropped, so it stays when compose down failed: the startup sweep then takes
+  // the project down. Otherwise only this project's compose project is removed.
+  // Process ids carry no project id, so clearing the whole entry, as Clear does,
+  // could also drop another project's bench with the same id (#1499). The bench's
+  // process rows therefore stay until the startup sweep clears them.
+  if (composeDownFailed) {
+    console.warn(
+      `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s compose ` +
+        `project stays in the ledger, so the startup sweep takes it down`,
+    );
+  } else {
+    await attempt("releasing its compose project from the ledger", () =>
+      releaseComposeProjectFromLedger(benchId, composeProject),
+    );
+  }
+
+  await attempt("clearing its state", () =>
+    clearBenchRuntimeState(projectId, benchId, componentNames),
+  );
+}
+
+/**
+ * Removes `composeProject` from every ledger entry of `benchId`, leaving the
+ * entries' other rows in place. An entry with nothing left is dropped.
+ */
+function releaseComposeProjectFromLedger(benchId: number, composeProject: string): void {
+  for (const entry of ledger.getAllEntries()) {
+    if (entry.benchId === benchId && entry.composeProjects.includes(composeProject)) {
+      ledger.removeComposeProject(entry.pluginId, benchId, composeProject);
+    }
+  }
 }
 
 export interface CreateBenchOptions {
@@ -1930,36 +2052,10 @@ async function runTeardownBackground(
     // After the bench's processes and compose projects are stopped, drop its
     // ledger entries (#657): the resources are gone, so the startup orphan
     // sweep must not later try to reap them. Scoped to this bench's id across
-    // every owning plugin.
+    // every owning plugin. The ledger has no project id, so this also clears
+    // another project's bench with the same id (#1499).
     clearLedgerForBench(benchId);
-
-    // Drop this bench's in-memory audit log (#680) so a cleared bench's recorded
-    // broker calls do not leak into a later bench that reuses the same id, and
-    // drop the per-bench BrokerContext(s) the plugin connection resolved against
-    // (#686) for the same reason.
-    clearAuditLog(projectId, benchId);
-    unregisterBrokerContextsForBench(projectId, benchId);
-    // Drop this bench's per-component SSE status records (#886) for the same
-    // reason: bench ids are reused, and a stale last-status entry would make the
-    // reused bench's first component-status-change look like a consecutive
-    // duplicate and be suppressed.
-    sseService.clearComponentStatusForBench(projectId, benchId);
-    // Drop this bench's forwarded component logs (#886): this change populates the
-    // component log store on every plugin-backed provision, so on bench-id reuse a
-    // stale compose/init/migration tail would otherwise surface for the new bench.
-    componentLogStore.clearComponentLogsForBench(projectId, benchId);
-
-    // Drop this bench's cached ProvisionDescriptors (#888, CP-TC-002). Now
-    // that provisionComponent trusts the descriptor cache on start rather than
-    // re-translating, a leftover entry keyed on this (projectId, benchId, component)
-    // would be served to a DIFFERENT bench that reuses this id (findNextBenchNumber
-    // returns the lowest free id), launching it with a stale descriptor from the
-    // cleared bench's config. This is the same id-reuse leak the audit-log and
-    // broker-context clears above prevent. Runs after the docker-down loop that
-    // reads these descriptors to tear compose projects down.
-    for (const name of Object.keys(bench.components)) {
-      componentDescriptors.delete(descriptorKindKey(projectId, benchId, name));
-    }
+    clearBenchRuntimeState(projectId, benchId, Object.keys(bench.components));
 
     // Step 4: Save permissions from workspace before removal
     updateStep(bench.teardownSteps, "save-permissions", "running");
@@ -2055,6 +2151,46 @@ async function runTeardownBackground(
     // broadcast explicitly so a retry always reaches state.json and the client.
     stateService.updateBench(stateService.toPersistedBench(bench));
     sseService.broadcastBenchStatus(bench);
+  }
+}
+
+/**
+ * Drops the in-memory state Roubo holds for a bench once its processes and
+ * compose projects are stopped. Clear and a forced unregister (#1441) both call
+ * it, after their stop steps, because the bench id can be reused by a later
+ * bench. The ledger is persisted and each caller releases it separately.
+ */
+function clearBenchRuntimeState(
+  projectId: string,
+  benchId: number,
+  componentNames: string[],
+): void {
+  // Drop this bench's in-memory audit log (#680) so a cleared bench's recorded
+  // broker calls do not leak into a later bench that reuses the same id, and
+  // drop the per-bench BrokerContext(s) the plugin connection resolved against
+  // (#686) for the same reason.
+  clearAuditLog(projectId, benchId);
+  unregisterBrokerContextsForBench(projectId, benchId);
+  // Drop this bench's per-component SSE status records (#886) for the same
+  // reason: bench ids are reused, and a stale last-status entry would make the
+  // reused bench's first component-status-change look like a consecutive
+  // duplicate and be suppressed.
+  sseService.clearComponentStatusForBench(projectId, benchId);
+  // Drop this bench's forwarded component logs (#886): this change populates the
+  // component log store on every plugin-backed provision, so on bench-id reuse a
+  // stale compose/init/migration tail would otherwise surface for the new bench.
+  componentLogStore.clearComponentLogsForBench(projectId, benchId);
+
+  // Drop this bench's cached ProvisionDescriptors (#888, CP-TC-002). Now
+  // that provisionComponent trusts the descriptor cache on start rather than
+  // re-translating, a leftover entry keyed on this (projectId, benchId, component)
+  // would be served to a DIFFERENT bench that reuses this id (findNextBenchNumber
+  // returns the lowest free id), launching it with a stale descriptor from the
+  // cleared bench's config. This is the same id-reuse leak the audit-log and
+  // broker-context clears above prevent. Runs after the docker-down step that
+  // reads these descriptors to tear compose projects down.
+  for (const name of componentNames) {
+    componentDescriptors.delete(descriptorKindKey(projectId, benchId, name));
   }
 }
 
