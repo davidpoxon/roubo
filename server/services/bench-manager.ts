@@ -1013,8 +1013,9 @@ export function dropProjectBenches(projectId: string): number {
  * In-flight provisioning is aborted and awaited first, as in teardown, so a
  * `worktree add` or `submodule update` cannot recreate what is removed. Then each
  * bench is stopped as Clear stops it (#1441): terminals, component processes,
- * compose projects, and the per-bench ledger and in-memory state. Each of those
- * steps is best effort, and a failure is logged. Removal is
+ * compose projects, and the per-bench in-memory state. Its compose project leaves
+ * the ledger only when it was taken down. Each of those steps is best effort, and
+ * a failure is logged. Removal is
  * not strict: the project is going away, so a worktree git refuses to remove is
  * removed by hand. A dirty workspace is removed too. Bench branches are kept, so
  * committed work survives.
@@ -1102,9 +1103,10 @@ async function removeWorkspacesOf(
 
 /**
  * Clear's stop steps and cleanup, for a bench a forced unregister drops (#1441):
- * close terminals, stop component processes, take compose projects down, then
- * clearBenchRuntimeState. Unlike Clear, each step is best effort: a failure is
- * logged and the rest still run, because the unregister goes ahead regardless.
+ * close terminals, stop component processes, take compose projects down, release
+ * the bench's compose project from the ledger, then clearBenchRuntimeState.
+ * Unlike Clear, each step is best effort: a failure is logged and the rest still
+ * run, because the unregister goes ahead regardless.
  */
 async function stopBenchForUnregister(
   projectId: string,
@@ -1112,14 +1114,16 @@ async function stopBenchForUnregister(
   workspacePath: string,
   componentNames: string[],
 ): Promise<void> {
-  const attempt = async (what: string, step: () => unknown) => {
+  const attempt = async (what: string, step: () => unknown): Promise<boolean> => {
     try {
       await step();
+      return true;
     } catch (err) {
       console.warn(
         `[bench-manager] Force unregister of '${projectId}': ${what} failed for ` +
           `bench ${benchId}: ${(err as Error).message}`,
       );
+      return false;
     }
   };
 
@@ -1145,25 +1149,59 @@ async function stopBenchForUnregister(
     }
   }
 
+  let composeDownFailed = false;
   if (dockerComposeFiles.size > 0) {
     const composeProject = dockerService.getComposeProjectName(projectId, benchId);
     if (fs.existsSync(workspacePath)) {
       for (const composeFile of dockerComposeFiles) {
-        await attempt(`composeDown(${composeProject})`, () =>
+        const downed = await attempt(`composeDown(${composeProject})`, () =>
           dockerService.composeDown(composeProject, composeFile, workspacePath),
         );
+        if (!downed) composeDownFailed = true;
       }
     } else {
       // The compose file went with the workspace, so select the project by name.
-      await attempt(`composeDown(${composeProject})`, () =>
+      const downed = await attempt(`composeDown(${composeProject})`, () =>
         dockerService.composeDownByProject(composeProject),
       );
+      if (!downed) composeDownFailed = true;
     }
+  }
+
+  // The ledger is the only record of the compose project once the bench is
+  // dropped, so it stays when compose down failed: the startup sweep then takes
+  // the project down. Otherwise only this project's compose project is removed.
+  // Process ids carry no project id, so clearing the whole entry, as Clear does,
+  // could also drop another project's bench with the same id (#1499).
+  if (composeDownFailed) {
+    console.warn(
+      `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s compose ` +
+        `project stays in the ledger, so the startup sweep takes it down`,
+    );
+  } else {
+    await attempt("releasing its compose project from the ledger", () =>
+      releaseComposeProjectFromLedger(
+        benchId,
+        dockerService.getComposeProjectName(projectId, benchId),
+      ),
+    );
   }
 
   await attempt("clearing its state", () =>
     clearBenchRuntimeState(projectId, benchId, componentNames),
   );
+}
+
+/**
+ * Removes `composeProject` from every ledger entry of `benchId`, leaving the
+ * entries' other rows in place. An entry with nothing left is dropped.
+ */
+function releaseComposeProjectFromLedger(benchId: number, composeProject: string): void {
+  for (const entry of ledger.getAllEntries()) {
+    if (entry.benchId === benchId && entry.composeProjects.includes(composeProject)) {
+      ledger.removeComposeProject(entry.pluginId, benchId, composeProject);
+    }
+  }
 }
 
 export interface CreateBenchOptions {
@@ -2007,6 +2045,12 @@ async function runTeardownBackground(
       updateStep(bench.teardownSteps, "docker-down", "done");
     }
 
+    // After the bench's processes and compose projects are stopped, drop its
+    // ledger entries (#657): the resources are gone, so the startup orphan
+    // sweep must not later try to reap them. Scoped to this bench's id across
+    // every owning plugin. The ledger has no project id, so this also clears
+    // another project's bench with the same id (#1499).
+    clearLedgerForBench(benchId);
     clearBenchRuntimeState(projectId, benchId, Object.keys(bench.components));
 
     // Step 4: Save permissions from workspace before removal
@@ -2107,21 +2151,16 @@ async function runTeardownBackground(
 }
 
 /**
- * Drops what Roubo holds for a bench once its processes and compose projects are
- * stopped. Clear and a forced unregister (#1441) both call it, after their stop
- * steps, because the bench id can be reused by a later bench.
+ * Drops the in-memory state Roubo holds for a bench once its processes and
+ * compose projects are stopped. Clear and a forced unregister (#1441) both call
+ * it, after their stop steps, because the bench id can be reused by a later
+ * bench. The ledger is persisted and each caller releases it separately.
  */
 function clearBenchRuntimeState(
   projectId: string,
   benchId: number,
   componentNames: string[],
 ): void {
-  // Drop the bench's ledger entries (#657): the resources are gone, so the
-  // startup orphan sweep must not later try to reap them. Scoped to this
-  // bench's id across every owning plugin. The ledger has no project id, so this
-  // also clears another project's bench with the same id (#1499).
-  clearLedgerForBench(benchId);
-
   // Drop this bench's in-memory audit log (#680) so a cleared bench's recorded
   // broker calls do not leak into a later bench that reuses the same id, and
   // drop the per-bench BrokerContext(s) the plugin connection resolved against

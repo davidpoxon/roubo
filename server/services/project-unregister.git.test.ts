@@ -44,7 +44,7 @@ vi.mock("./sse.js", () => ({
   broadcastBenchStatus: vi.fn(),
   clearComponentStatusForBench: vi.fn(),
 }));
-vi.mock("./docker.js", () => ({}));
+vi.mock("./docker.js", () => ({ getComposeProjectName: vi.fn(() => "roubo-test-project") }));
 vi.mock("./process-manager.js", () => ({ stopProcess: vi.fn() }));
 
 import { parseConfig } from "./config-parser.js";

@@ -4407,8 +4407,15 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       vi.mocked(dockerService.composeDown).mockImplementationOnce(async () => {
         order.push("compose down");
       });
+      // The ledger has no project id, so another project's bench 1 shares the row.
       vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([
-        { pluginId: "process", benchId: 1, processIds: [], composeProjects: [] },
+        {
+          pluginId: "database",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-test-project-bench-1", "roubo-other-bench-1"],
+        },
+        { pluginId: "process", benchId: 1, processIds: ["process:1:backend"], composeProjects: [] },
       ]);
       benchManager.recordAuditEntry("test-project", 1, {
         ts: "2026-10-18T00:00:00.000Z",
@@ -4442,7 +4449,14 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       );
       // Compose down reads the compose file from the workspace, so it runs first.
       expect(order.indexOf("compose down")).toBeLessThan(order.indexOf("worktree remove"));
-      expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+      // Only this project's compose project leaves the ledger.
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledTimes(1);
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledWith(
+        "database",
+        1,
+        "roubo-test-project-bench-1",
+      );
+      expect(ledgerService.clearEntry).not.toHaveBeenCalled();
       expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
       expect(sseService.clearComponentStatusForBench).toHaveBeenCalledWith("test-project", 1);
       expect(benchManager.queryAuditLog("test-project", 1)).toEqual([]);
@@ -4506,7 +4520,12 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       vi.mocked(processManager.stopProcess).mockRejectedValueOnce(new Error("kill boom"));
       vi.mocked(dockerService.composeDown).mockRejectedValueOnce(new Error("down boom"));
       vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([
-        { pluginId: "process", benchId: 1, processIds: [], composeProjects: [] },
+        {
+          pluginId: "database",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-test-project-bench-1"],
+        },
       ]);
       const warn = vi.mocked(console.warn);
       warn.mockClear();
@@ -4527,7 +4546,16 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       }
       // The failures on bench 1 stop neither bench 1's other steps nor bench 7.
       expect(dockerService.composeDown).toHaveBeenCalled();
-      expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+      expect(pluginManager.unregisterBrokerContext).toHaveBeenCalledWith("process", 1);
+      // The compose project bench 1 could not take down stays in the ledger, so
+      // the startup sweep still takes it down.
+      expect(ledgerService.removeComposeProject).not.toHaveBeenCalledWith(
+        "database",
+        1,
+        expect.anything(),
+      );
+      expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+      expect(warnings.some((w) => w.includes("stays in the ledger"))).toBe(true);
       expect(terminalService.destroyBenchSessions).toHaveBeenCalledWith("test-project", 7);
       expect(processManager.stopProcess).toHaveBeenCalledWith("process:7:backend");
       for (const ws of [workspacePath, bench7Path]) {
