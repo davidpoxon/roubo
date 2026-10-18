@@ -4496,6 +4496,32 @@ describe("a cleared bench leaves nothing behind (#1433)", () => {
       );
     });
 
+    it("takes down a compose project the ledger lists when no descriptor names it", async () => {
+      // No docker component was started, so there is no cached descriptor.
+      setupExistingBench();
+      setupProcessMocks();
+      repoPresent();
+      vi.mocked(dockerService.getComposeProjectName).mockReturnValue("roubo-test-project-bench-1");
+      const row = {
+        pluginId: "database",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-test-project-bench-1"],
+      };
+      vi.mocked(ledgerService.getAllEntries).mockReturnValueOnce([row]).mockReturnValueOnce([row]);
+
+      await benchManager.removeProjectBenchWorkspaces("test-project", "/repos/test-project", [
+        { id: 1, workspacePath },
+      ]);
+
+      expect(dockerService.composeDownByProject).toHaveBeenCalledWith("roubo-test-project-bench-1");
+      expect(ledgerService.removeComposeProject).toHaveBeenCalledWith(
+        "database",
+        1,
+        "roubo-test-project-bench-1",
+      );
+    });
+
     it("takes a compose project down by name when its workspace is already gone", async () => {
       await liveBenchWithComponents();
       vi.mocked(fs.default.existsSync).mockReturnValue(false);

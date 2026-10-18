@@ -1149,30 +1149,37 @@ async function stopBenchForUnregister(
     }
   }
 
+  const composeProject = dockerService.getComposeProjectName(projectId, benchId);
   let composeDownFailed = false;
-  if (dockerComposeFiles.size > 0) {
-    const composeProject = dockerService.getComposeProjectName(projectId, benchId);
-    if (fs.existsSync(workspacePath)) {
-      for (const composeFile of dockerComposeFiles) {
-        const downed = await attempt(`composeDown(${composeProject})`, () =>
-          dockerService.composeDown(composeProject, composeFile, workspacePath),
-        );
-        if (!downed) composeDownFailed = true;
-      }
-    } else {
-      // The compose file went with the workspace, so select the project by name.
-      const downed = await attempt(`composeDown(${composeProject})`, () =>
-        dockerService.composeDownByProject(composeProject),
-      );
-      if (!downed) composeDownFailed = true;
+  const down = async (step: () => Promise<void>) => {
+    if (!(await attempt(`composeDown(${composeProject})`, step))) composeDownFailed = true;
+  };
+  // A compose project the ledger lists can be up without a cached descriptor:
+  // assigning a container drops the descriptor and leaves the project up.
+  let recorded = false;
+  if (dockerComposeFiles.size === 0) {
+    await attempt("reading the ledger", () => {
+      recorded = ledger
+        .getAllEntries()
+        .some((e) => e.benchId === benchId && e.composeProjects.includes(composeProject));
+    });
+  }
+  if (dockerComposeFiles.size > 0 && fs.existsSync(workspacePath)) {
+    for (const composeFile of dockerComposeFiles) {
+      await down(() => dockerService.composeDown(composeProject, composeFile, workspacePath));
     }
+  } else if (dockerComposeFiles.size > 0 || recorded) {
+    // The compose file went with the workspace, or no descriptor names it, so
+    // select the project by name.
+    await down(() => dockerService.composeDownByProject(composeProject));
   }
 
   // The ledger is the only record of the compose project once the bench is
   // dropped, so it stays when compose down failed: the startup sweep then takes
   // the project down. Otherwise only this project's compose project is removed.
   // Process ids carry no project id, so clearing the whole entry, as Clear does,
-  // could also drop another project's bench with the same id (#1499).
+  // could also drop another project's bench with the same id (#1499). The bench's
+  // process rows therefore stay until the startup sweep clears them.
   if (composeDownFailed) {
     console.warn(
       `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s compose ` +
@@ -1180,10 +1187,7 @@ async function stopBenchForUnregister(
     );
   } else {
     await attempt("releasing its compose project from the ledger", () =>
-      releaseComposeProjectFromLedger(
-        benchId,
-        dockerService.getComposeProjectName(projectId, benchId),
-      ),
+      releaseComposeProjectFromLedger(benchId, composeProject),
     );
   }
 
