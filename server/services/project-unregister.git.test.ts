@@ -31,18 +31,25 @@ vi.mock("./port-allocator.js", () => ({
 vi.mock("./plugin-manager.js", () => ({
   getComponentManifests: vi.fn(() => []),
   registerComponentPluginHooks: vi.fn(),
+  getRecord: vi.fn(),
+  unregisterBrokerContext: vi.fn(),
 }));
 vi.mock("./cut-list-query-service.js", () => ({
   cutListQueryService: { evictProject: vi.fn(), evictPlugin: vi.fn() },
 }));
 vi.mock("./terminal.js", () => ({ destroyBenchSessions: vi.fn() }));
 vi.mock("./notification.js", () => ({ createNotification: vi.fn() }));
-vi.mock("./sse.js", () => ({ broadcast: vi.fn(), broadcastBenchStatus: vi.fn() }));
+vi.mock("./sse.js", () => ({
+  broadcast: vi.fn(),
+  broadcastBenchStatus: vi.fn(),
+  clearComponentStatusForBench: vi.fn(),
+}));
 vi.mock("./docker.js", () => ({}));
 vi.mock("./process-manager.js", () => ({ stopProcess: vi.fn() }));
 
 import { parseConfig } from "./config-parser.js";
 import * as state from "./state.js";
+import * as terminal from "./terminal.js";
 import * as registry from "./project-registry.js";
 import * as benchManager from "./bench-manager.js";
 
@@ -132,6 +139,9 @@ describe("forced unregister (#1435)", () => {
     expect(registry.getProject("test-project")).toBeUndefined();
     expect(state.removeBench).toHaveBeenCalledWith("test-project", 1);
     expect(state.removeBench).toHaveBeenCalledWith("test-project", 2);
+    // Each bench is stopped too, before its records go (#1441).
+    expect(terminal.destroyBenchSessions).toHaveBeenCalledWith("test-project", 1);
+    expect(terminal.destroyBenchSessions).toHaveBeenCalledWith("test-project", 2);
   });
 
   it("still succeeds when the repo is missing, and logs each workspace it leaves on disk", async () => {
@@ -156,5 +166,8 @@ describe("forced unregister (#1435)", () => {
     }
     expect(state.removeBench).toHaveBeenCalledWith("test-project", 1);
     expect(state.removeBench).toHaveBeenCalledWith("test-project", 2);
+    // Each bench is stopped too, before its records go (#1441).
+    expect(terminal.destroyBenchSessions).toHaveBeenCalledWith("test-project", 1);
+    expect(terminal.destroyBenchSessions).toHaveBeenCalledWith("test-project", 2);
   });
 });
