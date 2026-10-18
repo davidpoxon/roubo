@@ -5,7 +5,6 @@ import type {
   CreateBenchWithIssueResponse,
   Bench,
   NormalizedIssue,
-  PersistedBench,
   RouboConfig,
   JigDefaultSource,
   ResolvedTheme,
@@ -37,10 +36,15 @@ import { createNotification } from "./notification.js";
  * calls; if a teardown cleared the bench in that window (removeBench +
  * benches.delete), persisting here would resurrect it in state.json and it would
  * reappear on the next app restart.
+ *
+ * `updateBench` replaces the whole record, so this always writes the one
+ * complete projection. A hand-listed subset erased every field it forgot
+ * (variant, focusedSpecPath, componentSetupState, componentUrls, and before #997
+ * benchSetupComplete) on the next assign or unassign (#1386).
  */
-function persistBenchIfLive(persisted: PersistedBench): void {
-  if (benchManager.isBenchLive(persisted.projectId, persisted.id)) {
-    stateService.updateBench(persisted);
+function persistBenchIfLive(bench: Bench): void {
+  if (benchManager.isBenchLive(bench.projectId, bench.id)) {
+    stateService.updateBench(stateService.toPersistedBench(bench));
   }
 }
 
@@ -68,7 +72,7 @@ async function finalizeAssignedBench(
   appTheme: ResolvedTheme | undefined,
 ): Promise<CreateBenchWithIssueResponse> {
   // Persist before the network/session work so a failure can't orphan the bench.
-  persistBenchIfLive(stateService.toPersistedBench(bench));
+  persistBenchIfLive(bench);
 
   // The bench was just created by benchManager.createBench and its worktree may
   // still be provisioning: `git worktree add` has to have created
@@ -105,7 +109,7 @@ async function finalizeAssignedBench(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    persistBenchIfLive(stateService.toPersistedBench(bench));
+    persistBenchIfLive(bench);
   }
 
   return {
@@ -558,21 +562,7 @@ export async function assignIssue(
     ...(issue.externalUrl ? { externalUrl: issue.externalUrl } : {}),
   };
 
-  // Persist changes. `updateBench` replaces the whole record, so an omitted
-  // `benchSetupComplete` is erased from state.json and hydrates back as `true`
-  // (#997), which would mark an unfinished or failed `benches.setup` complete.
-  persistBenchIfLive({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    benchSetupComplete: bench.benchSetupComplete,
-  });
+  persistBenchIfLive(bench);
 
   const {
     sessionId: terminalSessionId,
@@ -600,22 +590,7 @@ export async function assignIssue(
   if (jigId) {
     bench.injectedJigId = jigId;
     bench.injectedJigSource = jigSource;
-    persistBenchIfLive({
-      id: bench.id,
-      projectId: bench.projectId,
-      branch: bench.branch,
-      workspacePath: bench.workspacePath,
-      ports: bench.ports,
-      createdAt: bench.createdAt,
-      assignedContainers: bench.assignedContainers,
-      assignedIssue: bench.assignedIssue,
-      notifications: bench.notifications,
-      baseBranch: bench.baseBranch,
-      baseCommit: bench.baseCommit,
-      injectedJigId: bench.injectedJigId,
-      injectedJigSource: bench.injectedJigSource,
-      benchSetupComplete: bench.benchSetupComplete,
-    });
+    persistBenchIfLive(bench);
   }
 
   return {
@@ -633,22 +608,7 @@ export async function unassignIssue(projectId: string, benchId: number): Promise
 
   bench.assignedIssue = undefined;
 
-  persistBenchIfLive({
-    id: bench.id,
-    projectId: bench.projectId,
-    branch: bench.branch,
-    workspacePath: bench.workspacePath,
-    ports: bench.ports,
-    createdAt: bench.createdAt,
-    assignedContainers: bench.assignedContainers,
-    assignedIssue: bench.assignedIssue,
-    notifications: bench.notifications,
-    baseBranch: bench.baseBranch,
-    baseCommit: bench.baseCommit,
-    injectedJigId: bench.injectedJigId,
-    injectedJigSource: bench.injectedJigSource,
-    benchSetupComplete: bench.benchSetupComplete,
-  });
+  persistBenchIfLive(bench);
 
   return bench;
 }

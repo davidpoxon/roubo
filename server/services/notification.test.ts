@@ -409,7 +409,23 @@ describe("createNotification", () => {
   it("persists the full bench record on a repeat, not a hand-listed subset", () => {
     // updateBench replaces the whole record, so any field left out of the write
     // is erased from state.json.
-    const bench = makeBench({ variant: "testbench", focusedSpecPath: "specs/a" });
+    const bench = makeBench({
+      variant: "testbench",
+      focusedSpecPath: "specs/a",
+      components: {
+        backend: {
+          name: "backend",
+          status: "running",
+          setupComplete: false,
+          url: "http://localhost:5000",
+        },
+      },
+      baseBranch: "main",
+      baseCommit: "abc1234",
+      injectedJigId: "feature-dev",
+      injectedJigSource: "app",
+      benchSetupComplete: false,
+    });
     createNotification(bench, "agent-waiting", "s1", { label: "first" });
     vi.clearAllMocks();
 
@@ -419,7 +435,13 @@ describe("createNotification", () => {
       expect.objectContaining({
         variant: "testbench",
         focusedSpecPath: "specs/a",
-        componentSetupState: { backend: true },
+        componentSetupState: { backend: false },
+        componentUrls: { backend: "http://localhost:5000" },
+        baseBranch: "main",
+        baseCommit: "abc1234",
+        injectedJigId: "feature-dev",
+        injectedJigSource: "app",
+        benchSetupComplete: false,
       }),
     );
   });

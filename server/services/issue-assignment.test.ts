@@ -206,6 +206,48 @@ function jiraIssue(overrides: Partial<NormalizedIssue> = {}): NormalizedIssue {
   };
 }
 
+/**
+ * A bench carrying every optional field `toPersistedBench` writes, so a persist
+ * that hand-lists a subset shows up as a missing field (#1386).
+ */
+function fullyPopulatedBench() {
+  return {
+    id: 1,
+    projectId: "project1",
+    branch: "issue-42-fix",
+    workspacePath: "/workspace",
+    ports: { backend: 5000 },
+    createdAt: "2026-01-01",
+    components: {
+      backend: {
+        name: "backend",
+        status: "stopped" as const,
+        setupComplete: false,
+        url: "http://localhost:5000",
+      },
+    },
+    status: "idle" as const,
+    provisioningSteps: [],
+    notifications: [],
+    baseBranch: "main",
+    baseCommit: "abc1234",
+    variant: "testbench" as const,
+    focusedSpecPath: "specs/login",
+    benchSetupComplete: false,
+  };
+}
+
+/** The fields every persist of `fullyPopulatedBench` must keep. */
+const FULLY_POPULATED_FIELDS = {
+  baseBranch: "main",
+  baseCommit: "abc1234",
+  variant: "testbench",
+  focusedSpecPath: "specs/login",
+  componentSetupState: { backend: false },
+  componentUrls: { backend: "http://localhost:5000" },
+  benchSetupComplete: false,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   // clearAllMocks resets call history but not implementations, so restore the
@@ -615,6 +657,27 @@ describe("assignIssue", () => {
     for (const [persisted] of calls) {
       expect(persisted.benchSetupComplete).toBe(false);
     }
+  });
+
+  it("keeps every persisted field on every persist (#1386)", async () => {
+    // updateBench replaces the whole record, so a persist that hand-lists fields
+    // erases the rest from state.json: a TestBench would reload as a normal
+    // bench, and a lost componentSetupState would mark unfinished setup done.
+    // The assign tail persists once, then the jig injection persists again.
+    vi.mocked(benchManager.getBench).mockReturnValue(fullyPopulatedBench());
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project as any);
+    vi.mocked(runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    mockAgentSession("term-1");
+
+    await assignIssue("project1", 1, githubIssue({ body: "Body" }), []);
+
+    const calls = vi.mocked(stateService.updateBench).mock.calls;
+    expect(calls.length).toBeGreaterThan(1);
+    for (const [persisted] of calls) {
+      expect(persisted).toEqual(expect.objectContaining(FULLY_POPULATED_FIELDS));
+    }
+    const jigWrite = calls.find(([persisted]) => persisted.injectedJigId === "feature-dev");
+    expect(jigWrite?.[0]).toEqual(expect.objectContaining({ injectedJigSource: "app" }));
   });
 
   it("includes comments in the injected jig", async () => {
@@ -1628,6 +1691,34 @@ describe("unassignIssue", () => {
 
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ benchSetupComplete: false }),
+    );
+  });
+
+  it("keeps every persisted field when persisting (#1386)", async () => {
+    // updateBench replaces the whole record, so a hand-listed subset here would
+    // erase the TestBench variant and the component setup state from state.json.
+    vi.mocked(benchManager.getBench).mockReturnValue({
+      ...fullyPopulatedBench(),
+      assignedIssue: {
+        number: 42,
+        integrationId: "github-com",
+        externalId: "42",
+        title: "Fix it",
+      },
+      injectedJigId: "feature-dev",
+      injectedJigSource: "app" as const,
+    });
+
+    await unassignIssue("project1", 1);
+
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...FULLY_POPULATED_FIELDS,
+        assignedIssue: undefined,
+        injectedJigId: "feature-dev",
+        injectedJigSource: "app",
+      }),
     );
   });
 
