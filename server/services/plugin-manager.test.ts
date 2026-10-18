@@ -188,7 +188,27 @@ vi.mock("../../shared/plugin-manifest-schema.js", async (importOriginal) => {
   };
 });
 
+// The stop's SIGKILL goes through tree-kill. `failNextSigkill` makes the next
+// SIGKILL report an error without sending the signal, as an EPERM would, so a
+// test can leave a stopped child alive and deliver its exit later (#1387).
+// One-shot and off by default: every other call is the real tree-kill.
+const treeKillControl = vi.hoisted(() => ({ failNextSigkill: false }));
+vi.mock("tree-kill", async (importOriginal) => {
+  const real = (await importOriginal<typeof import("tree-kill")>()).default;
+  return {
+    default: ((pid, signal, callback) => {
+      if (signal === "SIGKILL" && treeKillControl.failNextSigkill) {
+        treeKillControl.failNextSigkill = false;
+        callback?.(new Error("kill EPERM"));
+        return;
+      }
+      real(pid, signal, callback);
+    }) as typeof real,
+  };
+});
+
 beforeEach(() => {
+  treeKillControl.failNextSigkill = false;
   enableStateMocks.loadEnableState.mockReset().mockReturnValue(null);
   enableStateMocks.saveEnableState.mockReset();
   enableStateMocks.setPluginEnabled.mockReset().mockImplementation((id, enabled) => ({
@@ -1339,6 +1359,48 @@ describe("component-plugin crash hooks (#657)", () => {
     expect(rec.restartHistory).toEqual([]);
     expect(rec.pid).toBe(newPid);
     expect(() => process.kill(newPid, 0)).not.toThrow();
+  }, 30_000);
+
+  it("ignores the exit of a child that a restart has already replaced (#1387)", async () => {
+    // A SIGKILL that fails leaves the old child running, and the stop gives up
+    // on it rather than hang. Its exit then arrives after restart() has handed
+    // the entry to a new child, and must not be read as that child's crash.
+    const preRestart = vi.fn();
+    const restarted = vi.fn();
+    sandbox = await makeSandbox({ bundled: ["component-sigterm-immune"] });
+    mgr = await loadManager();
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginRestarted: restarted,
+    });
+    await mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "component-sigterm-immune");
+      return !!r && r.status === "enabled" && r.pid !== null;
+    });
+    expect(await mgr.invoke("component-sigterm-immune", "ping", {})).toBe("pong");
+    const oldPid = need(findRecord(mgr.listInstalled(), "component-sigterm-immune").pid, "pid");
+
+    treeKillControl.failNextSigkill = true;
+    await mgr.restart("component-sigterm-immune");
+    const newPid = need(findRecord(mgr.listInstalled(), "component-sigterm-immune").pid, "pid");
+    expect(newPid).not.toBe(oldPid);
+    expect(() => process.kill(oldPid, 0)).not.toThrow();
+
+    process.kill(oldPid, "SIGKILL");
+    await waitForProcessGone(oldPid);
+    // Wait past the first restart backoff (500 ms), as above.
+    await new Promise((r) => setTimeout(r, 1_000));
+
+    expect(preRestart).not.toHaveBeenCalled();
+    expect(restarted).not.toHaveBeenCalled();
+    const rec = findRecord(getManager().listInstalled(), "component-sigterm-immune");
+    expect(rec.status).toBe("enabled");
+    expect(rec.restartHistory).toEqual([]);
+    expect(rec.pid).toBe(newPid);
+    expect(await mgr.invoke("component-sigterm-immune", "ping", {})).toBe("pong");
   }, 30_000);
 
   it("does not fire the hooks for a crashing integration plugin", async () => {

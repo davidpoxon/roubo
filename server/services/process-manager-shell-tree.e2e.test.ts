@@ -78,6 +78,36 @@ describe.skipIf(!isPosix)("shell-wrapped process lifecycle (#1218, AC5)", () => 
     }
   }, 30_000);
 
+  it("stopping a process whose orphaned grandchild holds its stdout does not hang (#1387)", async () => {
+    const id = "shell-tree-test:1:orphan";
+    // The shell backgrounds a sleep, prints its pid, and exits. The sleep is
+    // reparented away from the shell, so tree-kill cannot find it, and it keeps
+    // the stdout pipe open: the child's 'exit' fires but its 'close' does not.
+    const { pid } = await startProcess(
+      id,
+      "/bin/sh",
+      ["-c", "sleep 30 & echo $!; sleep 1"],
+      {},
+      os.tmpdir(),
+    );
+    let orphan: number | null = null;
+    try {
+      expect(
+        await waitFor(() => getProcessLogLines(id).some((line) => /^\d+$/.test(line.text))),
+      ).toBe(true);
+      orphan = Number(getProcessLogLines(id).find((line) => /^\d+$/.test(line.text))?.text);
+      expect(await waitFor(() => !isAlive(pid))).toBe(true);
+      expect(isAlive(orphan)).toBe(true);
+
+      const t0 = Date.now();
+      await stopProcess(id);
+      expect(Date.now() - t0).toBeLessThan(4_000);
+      expect(getProcessStatus(id).alive).toBe(false);
+    } finally {
+      if (orphan !== null && isAlive(orphan)) process.kill(orphan, "SIGKILL");
+    }
+  }, 30_000);
+
   it("actually interprets shell syntax that argv mode leaves inert", async () => {
     const command = "echo one && echo two";
     const shellMode = resolveSpawn(command, true);

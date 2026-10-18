@@ -177,28 +177,36 @@ export function stopProcess(id: string): Promise<void> {
       return;
     }
 
-    const pid = managed.process?.pid;
-    if (!pid) {
+    const proc = managed.process;
+    const pid = proc?.pid;
+    // 'alive' clears on 'close', so the child may already have exited while an
+    // orphaned grandchild still holds its stdio open.
+    if (!proc || !pid || proc.exitCode !== null || proc.signalCode !== null) {
       processes.delete(id);
       resolve();
       return;
     }
 
-    // Give process 5 seconds to exit gracefully before force-killing. Resolve
-    // on its close only: tree-kill calls back before the close arrives, and a
-    // startProcess under the same id would then register its process first and
-    // have it deleted by this late close (#1387).
+    // Settle on the child's 'exit', never on the SIGKILL callback: tree-kill
+    // calls back before the exit arrives, and a startProcess under the same id
+    // would then race the old process (#1387). Not on 'close' either, which
+    // waits for every holder of the stdio pipes, so an orphaned grandchild
+    // tree-kill cannot find would hold the stop open. Only delete our own entry,
+    // in case another registration has taken the id meanwhile.
+    const settle = () => {
+      clearTimeout(timeout);
+      if (processes.get(id) === managed) processes.delete(id);
+      resolve();
+    };
+
+    // Give process 5 seconds to exit gracefully before force-killing
     const timeout = setTimeout(() => {
       treeKill(pid, "SIGKILL", (err) => {
         if (err) console.warn(`SIGKILL failed for PID ${pid}:`, err.message);
       });
     }, 5000);
 
-    managed.process?.on("close", () => {
-      clearTimeout(timeout);
-      if (processes.get(id) === managed) processes.delete(id);
-      resolve();
-    });
+    proc.once("exit", settle);
 
     treeKill(pid, "SIGTERM", (err) => {
       if (err) console.warn(`SIGTERM failed for PID ${pid}:`, err.message);

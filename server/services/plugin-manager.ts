@@ -1598,15 +1598,17 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
   // then reset intentionalStop before the old exit arrived, and the exit would
   // run the crash path. This listener is added after spawnPlugin's, so by the
   // time the stop resolves handleChildExit has seen the exit as intentional.
+  // The one exception is a SIGKILL that failed: no exit is coming, so the stop
+  // gives up rather than hang, and the exit listener's ownership check keeps a
+  // later exit of this child away from whatever owns the entry by then.
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       const pid = proc.pid;
       if (!pid) return;
-      // tree-kill throws from inside its own callback chain when given none.
       treeKill(pid, "SIGKILL", (err) => {
-        if (err) {
-          writeLog(entry, "host", `SIGKILL failed: ${err.message}`, "error").catch(() => {});
-        }
+        if (!err) return;
+        writeLog(entry, "host", `SIGKILL failed: ${err.message}`, "error").catch(() => {});
+        resolve();
       });
     }, SHUTDOWN_GRACE_MS);
     proc.once("exit", () => {
