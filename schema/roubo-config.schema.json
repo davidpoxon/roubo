@@ -8,18 +8,37 @@
   "properties": {
     "project": {
       "type": "object",
-      "required": ["name", "displayName", "repo"],
+      "required": ["name", "displayName"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-        "displayName": { "type": "string" },
-        "repo": { "type": "string" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "minLength": 1 },
         "github": {
           "type": "object",
+          "required": ["project"],
           "properties": {
             "project": { "type": "integer" }
           },
           "additionalProperties": false
+        },
+        "jigSettings": {
+          "type": "object",
+          "required": ["autoInject", "autoExecute"],
+          "description": "Project-level jig behaviour.",
+          "properties": {
+            "autoInject": { "type": "boolean" },
+            "autoExecute": { "type": "boolean" },
+            "defaultJigId": { "type": "string" },
+            "issueTypeMappings": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "defaultAgentPluginId": {
+              "type": "string",
+              "description": "The agent plugin a jig-driven launch falls back to when the jig carries no agent binding of its own."
+            }
+          }
         }
       }
     },
@@ -173,6 +192,14 @@
             }
           },
           {
+            "if": { "properties": { "type": { "const": "browser" } }, "required": ["type"] },
+            "then": { "properties": { "command": false } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "shell" } }, "required": ["type"] },
+            "then": { "properties": { "url": false } }
+          },
+          {
             "if": { "properties": { "type": { "const": "agent" } }, "required": ["type"] },
             "then": {
               "required": ["agent"],
@@ -231,6 +258,14 @@
                   "required": ["externalId"],
                   "properties": {
                     "externalId": { "type": ["string", "number"] },
+                    "label": {
+                      "type": "string",
+                      "description": "Display name captured when the source was picked. Display only; the plugin ignores it."
+                    },
+                    "sublabel": {
+                      "type": "string",
+                      "description": "Secondary display line captured when the source was picked. Display only; the plugin ignores it."
+                    },
                     "project": { "type": "string" },
                     "boardMode": { "type": "string", "enum": ["active-sprint", "whole-board"] },
                     "mineScope": { "type": "string", "enum": ["in-project", "anywhere"] },
@@ -247,7 +282,27 @@
             }
           }
         },
+        "advanced": {
+          "type": "object",
+          "description": "Plugin-defined, opaque-to-roubo block, validated against the active integration plugin's manifest configSchema.",
+          "additionalProperties": true
+        },
         "pluginSource": { "type": "string" },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Page size forwarded to the plugin's listIssues call. Defaults to 50."
+        },
+        "capturedUserId": {
+          "type": "object",
+          "required": ["externalId", "displayName"],
+          "additionalProperties": false,
+          "description": "Identity captured from the plugin at the last successful configuration check, so that assigning an issue to \"me\" uses the resolved external id.",
+          "properties": {
+            "externalId": { "type": "string", "minLength": 1 },
+            "displayName": { "type": "string", "minLength": 1 }
+          }
+        },
         "excludedStatuses": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
@@ -257,6 +312,16 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "Category-first default exclusion (e.g. \"Done\"), user-editable, ANDed into the JQL alongside excludedStatuses. Plugin-global default is seeded in the plugin manifest."
+        },
+        "sortBy": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Cut-list sort field: a field id the active plugin declares as sortable. Omitted, the plugin's natural order applies."
+        },
+        "sortDir": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "description": "Cut-list sort direction."
         }
       }
     },

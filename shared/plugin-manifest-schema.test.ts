@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { z } from "zod";
 import {
   PluginManifestSchema,
   PluginDefaultIntegrationConfigSchema,
@@ -12,6 +13,7 @@ import {
   type PluginManifest,
 } from "./plugin-manifest-schema.js";
 import { RouboConfigSchema, zodIssuesToValidationErrors } from "./config-schema.js";
+import { jsonSchemaKeyDiff } from "./test/json-schema-agreement.js";
 
 function makeManifest(overrides?: Partial<PluginManifest>): PluginManifest {
   return {
@@ -1583,6 +1585,19 @@ describe("schema/roubo-plugin.schema.json: JSON Schema artifact", () => {
       "excludedStatusCategories",
       "excludedStatuses",
     ]);
+  });
+});
+
+// #1442: the same key-agreement walk as roubo-config's, over every nested
+// manifest object. The kind gates in the root `allOf` are cross-field rules,
+// which the walk does not compare; the suite above pins those.
+describe("schema/roubo-plugin.schema.json: key agreement with PluginManifestSchema (#1442)", () => {
+  it("accepts and requires the same keys as the zod schema", () => {
+    const hand = JSON.parse(
+      readFileSync(new URL("../schema/roubo-plugin.schema.json", import.meta.url), "utf8"),
+    );
+    const zodJson = z.toJSONSchema(PluginManifestSchema, { io: "input" }) as object;
+    expect(jsonSchemaKeyDiff(zodJson, hand)).toEqual([]);
   });
 });
 
