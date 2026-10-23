@@ -20,7 +20,7 @@
 // sets `save-exact=true`, so the lock records the exact version. This guard
 // stays as the backstop for any path that still writes a range.
 //
-// Three rules:
+// Four rules:
 //
 //   1. Unpinned spec. A dependency spec in any first-party `package.json`
 //      (root or workspace) that is not an exact `x.y.z`, directly or through
@@ -36,6 +36,13 @@
 //      that releases in lockstep (`@electron-forge/*`) carries a different
 //      version from the family's declared pins. Dependabot moves the pins and
 //      never the override.
+//
+//   4. Direct override skew. A top-level root override on a package that a
+//      first-party manifest also pins directly carries a different version
+//      from that pin. The override wins, so the declared pin is a dead letter
+//      until the next lock regeneration records it and `npm ci` then refuses
+//      the lock. #1452 moved the client's `react` pins and left the `react`
+//      override behind; #1481 then failed `npm ci` on that skew.
 //
 // Rules 1 and 2 skip the repo's OWN workspace packages (`@roubo/shared`,
 // `@roubo/plugin-sdk`). Those are linked, not resolved from the registry, so
@@ -247,7 +254,51 @@ export function scanPins(lock, manifests) {
     }
   });
 
+  // Rule 4: a top-level override on a package a workspace pins directly must
+  // carry that pin. A nested override applies only beneath its parent, so it
+  // can legitimately differ and is left alone. So is a key with a version
+  // selector: deciding whether its range covers the pin needs a semver
+  // library, and this guard runs on the committed JSON alone. Lockstep
+  // families are rule 3's, so one stale override never reports twice.
+  walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
+    const selfForm = dependency === "." && path.length === 1;
+    if (path.length > 0 && !selfForm) return;
+    const overridden = selfForm ? path[0] : dependency;
+    if (hasVersionSelector(overridden)) return;
+    if (ownPackages.has(overridden)) return;
+    if (LOCKSTEP_FAMILIES.some((prefix) => overridden.startsWith(prefix))) return;
+    for (const [workspace, manifest] of Object.entries(manifests)) {
+      for (const kind of DEP_KINDS) {
+        const declaredSpec = manifest[kind]?.[overridden];
+        if (declaredSpec === undefined || declaredSpec === spec) continue;
+        findings.push({
+          file: "package.json",
+          dependency,
+          kind: path.length > 0 ? `overrides.${path.join(".")}` : "overrides",
+          reason:
+            `override '${spec}' differs from '${overridden}@${declaredSpec}' in ` +
+            `${manifestPathFor(workspace)}. The override wins, so the declared pin ` +
+            "never installs. Bump the override in the same commit as the pin.",
+        });
+        return;
+      }
+    }
+  });
+
   return findings;
+}
+
+/**
+ * Whether an override key carries a version selector (`react@18`,
+ * `@scope/pkg@^1`). npm applies such an override only to specs that
+ * intersect the selector, so it may legitimately differ from a direct pin
+ * outside that range.
+ *
+ * @param {string} key
+ * @returns {boolean}
+ */
+function hasVersionSelector(key) {
+  return key.lastIndexOf("@") > 0;
 }
 
 /**

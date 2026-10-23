@@ -332,3 +332,124 @@ describe("scanPins lockstep overrides (DependencyPinGuard)", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("scanPins direct overrides (DependencyPinGuard)", () => {
+  // The client workspace as Dependabot left it in #1452: the declared react
+  // pin moved, and the root override that forces react did not.
+  function reactTree(overrides: Record<string, unknown>, react = "19.3.0") {
+    return scanPins(
+      { packages: { "": {}, client: { dependencies: { react } } } },
+      {
+        "": { name: "roubo", workspaces: ["client"], overrides },
+        client: { name: "@roubo/client", dependencies: { react } },
+      },
+    );
+  }
+
+  it("accepts an override that matches the workspace's direct pin", () => {
+    expect(reactTree({ react: "19.3.0" })).toEqual([]);
+  });
+
+  it("flags an override left behind by a direct pin bump", () => {
+    const findings = reactTree({ react: "19.2.8" });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].dependency).toBe("react");
+    expect(findings[0].kind).toBe("overrides");
+    expect(findings[0].reason).toMatch(/'react@19\.3\.0' in client\/package\.json/);
+  });
+
+  it("flags a stale override written in npm's self-override form", () => {
+    const findings = reactTree({ react: { ".": "19.2.8" } });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].kind).toBe("overrides.react");
+  });
+
+  it("leaves a nested override alone, since it applies only under its parent", () => {
+    expect(reactTree({ "some-lib": { react: "19.2.8" } })).toEqual([]);
+  });
+
+  it("leaves an override on a package no workspace declares alone", () => {
+    expect(reactTree({ tmp: "0.2.7" })).toEqual([]);
+  });
+
+  it("leaves an override keyed with a version selector alone", () => {
+    // npm applies `react@18` only to specs inside 18.x, so it never touches
+    // the 19.3.0 pin and is not skew.
+    expect(reactTree({ "react@18": "18.3.1", "@types/react@<19": "18.3.0" })).toEqual([]);
+  });
+
+  it("checks a pin in the root manifest itself", () => {
+    const findings = scanPins(
+      { packages: { "": { devDependencies: { esbuild: "0.28.2" } } } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: [],
+          devDependencies: { esbuild: "0.28.2" },
+          overrides: { esbuild: "0.28.1" },
+        },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/'esbuild@0\.28\.2' in package\.json/);
+  });
+
+  it("flags the workspace that differs when another matches", () => {
+    const findings = scanPins(
+      {
+        packages: {
+          "": {},
+          client: { dependencies: { react: "19.3.0" } },
+          server: { dependencies: { react: "19.2.8" } },
+        },
+      },
+      {
+        "": { name: "roubo", workspaces: ["client", "server"], overrides: { react: "19.3.0" } },
+        client: { name: "@roubo/client", dependencies: { react: "19.3.0" } },
+        server: { name: "@roubo/server", dependencies: { react: "19.2.8" } },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/in server\/package\.json/);
+  });
+
+  it("exempts the repo's own workspace packages", () => {
+    const findings = scanPins(
+      { packages: { "": {}, client: { dependencies: { "@roubo/shared": "*" } }, shared: {} } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["client", "shared"],
+          overrides: { "@roubo/shared": "1.0.0" },
+        },
+        client: { name: "@roubo/client", dependencies: { "@roubo/shared": "*" } },
+        shared: { name: "@roubo/shared" },
+      },
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("leaves a direct Forge pin to rule 3, so a stale override reports once", () => {
+    const findings = scanPins(
+      {
+        packages: {
+          "": {},
+          electron: { devDependencies: { "@electron-forge/maker-base": "8.0.2" } },
+        },
+      },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["electron"],
+          overrides: { "@electron-forge/maker-base": "8.0.1" },
+        },
+        electron: {
+          name: "@roubo/electron",
+          devDependencies: { "@electron-forge/maker-base": "8.0.2" },
+        },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/release in lockstep/);
+  });
+});
