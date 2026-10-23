@@ -15,6 +15,11 @@
 // A guard that reads the two files and compares them is the only thing that
 // sees it.
 //
+// The cause was npm's default `save-prefix`: Dependabot regenerates the lock
+// with `npm install <dep>@<version>`, which records `^<version>`. `.npmrc` now
+// sets `save-exact=true`, so the lock records the exact version. This guard
+// stays as the backstop for any path that still writes a range.
+//
 // Three rules:
 //
 //   1. Unpinned spec. A dependency spec in any first-party `package.json`
