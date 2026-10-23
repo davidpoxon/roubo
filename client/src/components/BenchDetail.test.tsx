@@ -959,6 +959,53 @@ describe("BenchDetail", () => {
     });
   });
 
+  describe("Spec Bench variant: badge and Delivery tab", () => {
+    const specBench = {
+      ...baseBench,
+      variant: "specbench",
+      focusedSpecPath: "/repos/proj-1/.specifications/fixture-spec",
+      deliveryBindMode: "launch",
+    };
+
+    it("SB-TC-001: shows the Spec Bench variant badge and opens on the Delivery tab", () => {
+      renderBench(specBench as never);
+      expect(screen.getByTestId("bench-variant-badge")).toHaveTextContent("Spec Bench");
+      const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+      expect(tabs[0]).toMatch(/delivery/i);
+      expect(screen.getByRole("tab", { name: /delivery/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(screen.getByTestId("delivery-tab-panel")).toHaveTextContent("fixture-spec");
+      expect(screen.getByRole("tab", { name: /components/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /terminal/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /info/i })).toBeInTheDocument();
+    });
+
+    it("SB-TC-008: shows no Delivery tab and no variant badge on a plain bench or a TestBench", () => {
+      localStorage.setItem(
+        "roubo-bench-view-state",
+        JSON.stringify({ "proj-1:1": { activeTab: "delivery" } }),
+      );
+      const { unmount } = renderBench();
+      expect(screen.queryByRole("tab", { name: /delivery/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("bench-variant-badge")).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /components/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      unmount();
+
+      renderBench({
+        ...baseBench,
+        variant: "testbench",
+        focusedSpecPath: ".specifications/demo/test-cases.json",
+      } as never);
+      expect(screen.queryByRole("tab", { name: /delivery/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("bench-variant-badge")).not.toBeInTheDocument();
+    });
+  });
+
   describe("dirty-bench confirmation", () => {
     const dirtyReasons: DirtyReason[] = [
       { kind: "dirty-worktree", location: "workspace", detail: "3 modified" },

@@ -20,11 +20,13 @@ import { sendPluginRpcError } from "./plugin-rpc-error.js";
 import { ServiceError } from "../services/service-error.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { assignedIssueFetchId } from "../services/issue-formatting.js";
+import { BENCH_VARIANTS, SPEC_BENCH_BIND_MODES, isBenchVariant } from "@roubo/shared";
 import type {
   CreateBenchRequest,
   AssignContainerRequest,
   ExecuteToolRequest,
   NormalizedIssue,
+  SpecBenchBindMode,
 } from "@roubo/shared";
 
 const router = Router();
@@ -85,8 +87,64 @@ router.get("/:projectId/benches", (req, res) => {
 });
 
 router.post("/:projectId/benches", async (req, res) => {
-  const { branch, externalId, branchConflictResolution, variant, focusedSpecPath, appTheme } =
-    req.body as CreateBenchRequest;
+  const {
+    branch,
+    externalId,
+    branchConflictResolution,
+    variant,
+    focusedSpecPath,
+    delivery,
+    appTheme,
+  } = req.body as CreateBenchRequest;
+
+  // A variant the server does not know is refused before anything else, so a
+  // typo never falls through to the plain-bench path and claims a bench
+  // (SB-TC-002).
+  if (variant !== undefined && !isBenchVariant(variant)) {
+    res.status(400).json({
+      error: `Unknown variant '${String(variant)}': variant must be one of ${BENCH_VARIANTS.join(", ")}`,
+      code: "INVALID_VARIANT",
+    });
+    return;
+  }
+
+  // Spec Bench create (SB-FR-001). It claims a number, ports and a workspace
+  // through the same createBench path as every bench, and binds a spec folder.
+  // The folder is validated for containment and existence inside
+  // bench-manager.createBench (BenchError "INVALID_FOCUS" -> 400).
+  if (variant === "specbench") {
+    if (typeof focusedSpecPath !== "string" || focusedSpecPath.length === 0) {
+      res.status(400).json({
+        error: "focusedSpecPath must be a non-empty string for a specbench variant",
+        code: "INVALID_FOCUS",
+      });
+      return;
+    }
+    const mode = (delivery as { mode?: unknown } | undefined)?.mode;
+    if (
+      typeof delivery !== "object" ||
+      delivery === null ||
+      typeof mode !== "string" ||
+      !(SPEC_BENCH_BIND_MODES as readonly string[]).includes(mode)
+    ) {
+      res.status(400).json({
+        error: `delivery.mode must be one of ${SPEC_BENCH_BIND_MODES.join(", ")} for a specbench variant`,
+        code: "INVALID_DELIVERY",
+      });
+      return;
+    }
+    try {
+      const bench = benchManager.createBench(req.params.projectId, undefined, {
+        variant: "specbench",
+        focusedSpecPath,
+        delivery: { mode: mode as SpecBenchBindMode },
+      });
+      res.status(201).json(bench);
+    } catch (err) {
+      handleCreateBenchError(res, err);
+    }
+    return;
+  }
 
   // TestBench-variant create (#459). A TestBench has no issue/branch coupling: it
   // binds a focused spec instead. Validation + containment of focusedSpecPath

@@ -78,6 +78,8 @@ import IssueAssignControl from "./IssueAssignControl";
 import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
+import DeliveryTabPanel from "./delivery/DeliveryTabPanel";
+import VariantBadge from "./VariantBadge";
 import { TAB_CLASS } from "./ui/Tabs";
 import StatusIndicator from "./ui/StatusIndicator";
 import type { StatusTone } from "./ui/styles";
@@ -597,6 +599,7 @@ export default function BenchDetail() {
   const hasDatabaseComponent = !!databaseComponentName;
 
   const isTestbench = bench?.variant === "testbench";
+  const isSpecbench = bench?.variant === "specbench";
 
   const { activeTab, setActiveTab, headerCollapsed, setHeaderCollapsed } = useBenchViewState(
     projectId,
@@ -607,6 +610,8 @@ export default function BenchDetail() {
   // via TestBenchPanel.
   const availableTabIds: BenchTabId[] = [
     ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
+    // A Spec Bench opens on its Delivery tab. No other bench offers it.
+    ...(isSpecbench ? (["delivery"] as BenchTabId[]) : []),
     "components",
     "terminal",
     "info",
@@ -646,6 +651,7 @@ export default function BenchDetail() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <h2 className="text-20 font-semibold text-text-primary">Bench {bench.id}</h2>
+            <VariantBadge variant={bench.variant} />
             <StatusIndicator
               tone={BENCH_STATUS_TONE[bench.status]}
               label={bench.status}
@@ -886,6 +892,11 @@ export default function BenchDetail() {
                 TestBench
               </Tab>
             )}
+            {isSpecbench && (
+              <Tab id="delivery" className={tabClassName}>
+                Delivery
+              </Tab>
+            )}
             <Tab id="components" className={tabClassName}>
               Components
             </Tab>
@@ -908,6 +919,12 @@ export default function BenchDetail() {
                 focusedSpecPath={bench.focusedSpecPath}
                 benchStatus={bench.status}
               />
+            </TabPanel>
+          )}
+
+          {isSpecbench && (
+            <TabPanel id="delivery" className="outline-none overflow-auto flex-1">
+              <DeliveryTabPanel bench={bench} />
             </TabPanel>
           )}
 
