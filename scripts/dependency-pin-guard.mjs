@@ -256,12 +256,14 @@ export function scanPins(lock, manifests) {
 
   // Rule 4: a top-level override on a package a workspace pins directly must
   // carry that pin. A nested override applies only beneath its parent, so it
-  // can legitimately differ and is left alone.
+  // can legitimately differ and is left alone. Lockstep families are rule 3's,
+  // so one stale override never reports twice.
   walkOverrides(manifests[""]?.overrides ?? {}, [], (path, dependency, spec) => {
     const selfForm = dependency === "." && path.length === 1;
     if (path.length > 0 && !selfForm) return;
-    const overridden = selfForm ? path[0] : dependency;
+    const overridden = overrideTarget(selfForm ? path[0] : dependency);
     if (ownPackages.has(overridden)) return;
+    if (LOCKSTEP_FAMILIES.some((prefix) => overridden.startsWith(prefix))) return;
     for (const [workspace, manifest] of Object.entries(manifests)) {
       for (const kind of DEP_KINDS) {
         const declaredSpec = manifest[kind]?.[overridden];
@@ -281,6 +283,19 @@ export function scanPins(lock, manifests) {
   });
 
   return findings;
+}
+
+/**
+ * The package an override key names. npm accepts a version selector on the
+ * key (`react@19`, `@scope/pkg@^1`), which overrides only the matching
+ * versions; strip it so the key compares against manifest dependency names.
+ *
+ * @param {string} key
+ * @returns {string}
+ */
+function overrideTarget(key) {
+  const at = key.lastIndexOf("@");
+  return at > 0 ? key.slice(0, at) : key;
 }
 
 /**

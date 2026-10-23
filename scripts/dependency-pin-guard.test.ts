@@ -371,4 +371,85 @@ describe("scanPins direct overrides (DependencyPinGuard)", () => {
   it("leaves an override on a package no workspace declares alone", () => {
     expect(reactTree({ tmp: "0.2.7" })).toEqual([]);
   });
+
+  it("strips a version selector from the override key before matching", () => {
+    const findings = reactTree({ "react@19": "19.2.8" });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].dependency).toBe("react@19");
+  });
+
+  it("checks a pin in the root manifest itself", () => {
+    const findings = scanPins(
+      { packages: { "": { devDependencies: { esbuild: "0.28.2" } } } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: [],
+          devDependencies: { esbuild: "0.28.2" },
+          overrides: { esbuild: "0.28.1" },
+        },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/'esbuild@0\.28\.2' in package\.json/);
+  });
+
+  it("flags the workspace that differs when another matches", () => {
+    const findings = scanPins(
+      {
+        packages: {
+          "": {},
+          client: { dependencies: { react: "19.3.0" } },
+          server: { dependencies: { react: "19.2.8" } },
+        },
+      },
+      {
+        "": { name: "roubo", workspaces: ["client", "server"], overrides: { react: "19.3.0" } },
+        client: { name: "@roubo/client", dependencies: { react: "19.3.0" } },
+        server: { name: "@roubo/server", dependencies: { react: "19.2.8" } },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/in server\/package\.json/);
+  });
+
+  it("exempts the repo's own workspace packages", () => {
+    const findings = scanPins(
+      { packages: { "": {}, client: { dependencies: { "@roubo/shared": "*" } }, shared: {} } },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["client", "shared"],
+          overrides: { "@roubo/shared": "1.0.0" },
+        },
+        client: { name: "@roubo/client", dependencies: { "@roubo/shared": "*" } },
+        shared: { name: "@roubo/shared" },
+      },
+    );
+    expect(findings).toEqual([]);
+  });
+
+  it("leaves a direct Forge pin to rule 3, so a stale override reports once", () => {
+    const findings = scanPins(
+      {
+        packages: {
+          "": {},
+          electron: { devDependencies: { "@electron-forge/maker-base": "8.0.2" } },
+        },
+      },
+      {
+        "": {
+          name: "roubo",
+          workspaces: ["electron"],
+          overrides: { "@electron-forge/maker-base": "8.0.1" },
+        },
+        electron: {
+          name: "@roubo/electron",
+          devDependencies: { "@electron-forge/maker-base": "8.0.2" },
+        },
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].reason).toMatch(/release in lockstep/);
+  });
 });
