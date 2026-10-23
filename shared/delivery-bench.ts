@@ -3,6 +3,9 @@
 // descriptor names, and the read of a delivery record on load, with the named
 // errors a nonconformant or invalid record gives.
 //
+// It also holds the frame the notification stream carries for an accepted batch
+// of delivery events, and the named errors the event ingest gives (SB-FR-007).
+//
 // Agent-agnostic by construction (SB-NFR-001). The descriptor is data: two URLs,
 // a token and an optional resume argument. It names no agent, no model and no
 // command line; the agent launch executor decides how the data reaches the
@@ -17,14 +20,22 @@ import {
 
 // ── Routes ──
 //
-// Every delivery route of a bench hangs off one base path:
+// The operator's delivery routes of a bench hang off one base path:
 //
 //   GET  <base>          the folded snapshot, or a named read error
-//   POST <base>/events   one event from the delivery session (bearer token)
 //   POST <base>/launch   launch a launch-mode bench's session again while it has no record
 //   POST <base>/resume   launch the session again with the record's resume argument
-//   <base>/controls      the control outbox the session reads; its route comes
+//
+// The delivery session's own routes sit beside the other hook endpoints, under
+// /api/hooks, and name the bench in their query (`projectId`, `benchId`); the
+// session presents its delivery token as a bearer token on each:
+//
+//   POST <events>        one event envelope or a batch of them (SB-FR-007)
+//   <controls>           the control outbox the session reads; its route comes
 //                        with the control outbox, the descriptor names it now
+export const DELIVERY_EVENT_HOOK_PATH = "/api/hooks/delivery-event";
+export const DELIVERY_CONTROLS_HOOK_PATH = "/api/hooks/delivery-controls";
+
 export interface DeliveryRoutePaths {
   base: string;
   events: string;
@@ -35,13 +46,70 @@ export interface DeliveryRoutePaths {
 
 export function deliveryRoutePaths(projectId: string, benchId: number): DeliveryRoutePaths {
   const base = `/api/projects/${encodeURIComponent(projectId)}/benches/${benchId}/delivery`;
+  const bench = new URLSearchParams({ projectId, benchId: String(benchId) }).toString();
   return {
     base,
-    events: `${base}/events`,
-    controls: `${base}/controls`,
+    events: `${DELIVERY_EVENT_HOOK_PATH}?${bench}`,
+    controls: `${DELIVERY_CONTROLS_HOOK_PATH}?${bench}`,
     launch: `${base}/launch`,
     resume: `${base}/resume`,
   };
+}
+
+// ── Stream frame ──
+//
+// The frame GET /api/notifications/stream carries each time the server accepts
+// a batch of a bench's delivery events. `seq` is the accepted seq after the
+// batch. The frame carries no event: `change: "snapshot"` tells the client to
+// read the snapshot again, and a frame whose seq the client already holds is
+// one it can skip.
+export interface DeliveryStreamFrame {
+  type: "delivery";
+  projectId: string;
+  benchId: number;
+  change: "snapshot";
+  seq: number;
+}
+
+// The most events a bench keeps in memory above its record's `last_event_seq`,
+// and so the most one batch may carry. The event route reads its body with a
+// parser of its own, whose limit is set so a full batch fits; the server's
+// global 210 KB body limit would refuse one.
+export const DELIVERY_EVENT_LOG_MAX = 1_000;
+
+// When a batch would take the in-memory log over DELIVERY_EVENT_LOG_MAX, the
+// oldest events leave memory DELIVERY_EVENT_SPILL_CHUNK at a time for the spill
+// file: an append-only JSON Lines file beside the record in the bench
+// workspace, so it goes with the workspace like the record does. Whatever reads
+// the event log reads the spill file as well as memory, in seq order.
+export const DELIVERY_EVENT_SPILL_CHUNK = 500;
+export const DELIVERY_EVENT_SPILL_FILE = "delivery-events.jsonl";
+
+// ── Ingest errors ──
+//
+//   INVALID_EVENT           an event fails the envelope schema, or names another
+//                           delivery (`field` names the field, `index` the event)
+//   STALE_SEQ               every event of the batch is at or below the accepted seq
+//   SEQ_GAP                 an event skips a seq: the next one must be acceptedSeq + 1
+//   EVENT_LOG_SPILL_FAILED  the log was full and its oldest events could not be
+//                           written to the spill file, so the batch was not applied
+export const DELIVERY_INGEST_ERROR_CODES = [
+  "INVALID_EVENT",
+  "STALE_SEQ",
+  "SEQ_GAP",
+  "EVENT_LOG_SPILL_FAILED",
+] as const;
+export type DeliveryIngestErrorCode = (typeof DELIVERY_INGEST_ERROR_CODES)[number];
+
+export interface DeliveryIngestError {
+  code: DeliveryIngestErrorCode;
+  error: string;
+  field?: string;
+  index?: number;
+  errors?: string[];
+  acceptedSeq?: number;
+  expected?: number;
+  got?: number;
 }
 
 // ── Launch descriptor ──

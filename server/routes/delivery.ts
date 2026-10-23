@@ -1,19 +1,17 @@
-// REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-009).
+// REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
+// SB-FR-009).
 //
 // Endpoints (mounted under /api/projects):
-//   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot
+//   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
+//                                                    with the accepted events above its
+//                                                    last_event_seq (in memory and in the
+//                                                    spill file) folded over it
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
 //                                                        missing a section
 //                                                        (DELIVERY_NONCONFORMANT + section)
 //                                                        or invalid (DELIVERY_INVALID + field)
-//   POST /:projectId/benches/:id/delivery/events  -> 202 one event from the session,
-//                                                    which presents its delivery token
-//                                                    as a bearer token; 401 without it,
-//                                                    400 for a malformed event. The event
-//                                                    is accepted but not yet stored or
-//                                                    folded into GET /delivery
 //   POST /:projectId/benches/:id/delivery/launch  -> 202 a launch-mode bench's session
 //                                                    launched again with no resume
 //                                                    argument, while no record exists
@@ -42,10 +40,11 @@
 //                                                    delivery; launches nothing. The same
 //                                                    two 409s as resume.
 //
-// Only the events route checks the delivery token. Launch, resume and the attach
-// handout are operator actions on the local API, which checks no caller, like
-// the other bench routes. The handout's body carries the plain token, so it is
-// sent with Cache-Control: no-store and nothing here logs it.
+// The session posts its events to POST /api/hooks/delivery-event (see
+// delivery-hooks.ts), which checks the delivery token. Launch, resume and the
+// attach handout are operator actions on the local API, which checks no caller,
+// like the other bench routes. The handout's body carries the plain token, so it
+// is sent with Cache-Control: no-store and nothing here logs it.
 //
 // The record is `.specifications/<slug>/delivery-observation.json` inside the
 // bench workspace. It is read and validated on every request (see
@@ -54,11 +53,13 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
-import { validateDeliveryEvent } from "@roubo/shared/delivery-observation-contract";
-import { loadBenchDeliveryRecord } from "../lib/delivery-record-loader.js";
+import {
+  benchDeliveryEventSpillPath,
+  loadBenchDeliveryRecord,
+} from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
-import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
+import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -71,17 +72,10 @@ import {
 const router = Router();
 
 // Every handler reads the record from disk, so each is rate-limited (CodeQL
-// js/missing-rate-limiting). A session posts an event per step, so the event
-// limit is the wide one.
+// js/missing-rate-limiting).
 const deliveryReadRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 600,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
-});
-const deliveryEventRateLimiter = rateLimit({
-  windowMs: 60_000,
-  limit: 1200,
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });
@@ -105,12 +99,6 @@ function specBenchOf(req: Request, res: Response): Bench | undefined {
     return undefined;
   }
   return bench;
-}
-
-function bearerToken(req: Request): string | undefined {
-  const header = req.get("authorization");
-  const match = header === undefined ? null : /^Bearer\s+(\S+)$/i.exec(header);
-  return match?.[1];
 }
 
 // A launch, a resume or a handout mints a new token, which revokes the one
@@ -140,31 +128,15 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
     res.status(409).json(loaded.error);
     return;
   }
-  // No posted event is held yet, so the snapshot is the record's own state.
-  res.json(foldDeliverySnapshot({ record: loaded.record, events: [], now: Date.now() }));
-});
-
-router.post("/:projectId/benches/:id/delivery/events", deliveryEventRateLimiter, (req, res) => {
-  const bench = specBenchOf(req, res);
-  if (!bench) return;
-  // The token is checked before the body is read, so a caller without it
-  // learns nothing about the event shape.
-  if (!verifyDeliveryToken(bench, bearerToken(req))) {
-    res.status(401).json({ error: "A valid delivery token is required", code: "UNAUTHORIZED" });
-    return;
-  }
-  const event = validateDeliveryEvent(req.body);
-  if (!event.ok) {
-    res.status(400).json({
-      error: `Invalid delivery event: ${event.errors.join("; ")}`,
-      code: "INVALID_EVENT",
-      errors: event.errors,
-    });
-    return;
-  }
-  // The event is accepted and not yet stored: ingestion, with its seq checks,
-  // comes in a later slice.
-  res.status(202).json({ seq: event.data.seq });
+  // Reading the events also seeds the bench's accepted seq from the record, so
+  // after a restart the bench goes on from the record's last_event_seq.
+  const events = deliveryEventsAfterRecord(
+    bench.projectId,
+    bench.id,
+    loaded.record,
+    benchDeliveryEventSpillPath(bench),
+  );
+  res.json(foldDeliverySnapshot({ record: loaded.record, events, now: Date.now() }));
 });
 
 function sendLaunchFailed(res: Response, err: unknown): void {
