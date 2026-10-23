@@ -372,10 +372,10 @@ describe("scanPins direct overrides (DependencyPinGuard)", () => {
     expect(reactTree({ tmp: "0.2.7" })).toEqual([]);
   });
 
-  it("strips a version selector from the override key before matching", () => {
-    const findings = reactTree({ "react@19": "19.2.8" });
-    expect(findings).toHaveLength(1);
-    expect(findings[0].dependency).toBe("react@19");
+  it("leaves an override keyed with a version selector alone", () => {
+    // npm applies `react@18` only to specs inside 18.x, so it never touches
+    // the 19.3.0 pin and is not skew.
+    expect(reactTree({ "react@18": "18.3.1", "@types/react@<19": "18.3.0" })).toEqual([]);
   });
 
   it("checks a pin in the root manifest itself", () => {
