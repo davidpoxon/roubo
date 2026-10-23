@@ -332,3 +332,43 @@ describe("scanPins lockstep overrides (DependencyPinGuard)", () => {
     expect(findings).toEqual([]);
   });
 });
+
+describe("scanPins direct overrides (DependencyPinGuard)", () => {
+  // The client workspace as Dependabot left it in #1452: the declared react
+  // pin moved, and the root override that forces react did not.
+  function reactTree(overrides: Record<string, unknown>, react = "19.3.0") {
+    return scanPins(
+      { packages: { "": {}, client: { dependencies: { react } } } },
+      {
+        "": { name: "roubo", workspaces: ["client"], overrides },
+        client: { name: "@roubo/client", dependencies: { react } },
+      },
+    );
+  }
+
+  it("accepts an override that matches the workspace's direct pin", () => {
+    expect(reactTree({ react: "19.3.0" })).toEqual([]);
+  });
+
+  it("flags an override left behind by a direct pin bump", () => {
+    const findings = reactTree({ react: "19.2.8" });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].dependency).toBe("react");
+    expect(findings[0].kind).toBe("overrides");
+    expect(findings[0].reason).toMatch(/'react@19\.3\.0' in client\/package\.json/);
+  });
+
+  it("flags a stale override written in npm's self-override form", () => {
+    const findings = reactTree({ react: { ".": "19.2.8" } });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].kind).toBe("overrides.react");
+  });
+
+  it("leaves a nested override alone, since it applies only under its parent", () => {
+    expect(reactTree({ "some-lib": { react: "19.2.8" } })).toEqual([]);
+  });
+
+  it("leaves an override on a package no workspace declares alone", () => {
+    expect(reactTree({ tmp: "0.2.7" })).toEqual([]);
+  });
+});
