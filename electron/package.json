@@ -47,7 +47,7 @@
     "@electron-forge/shared-types": "8.0.1",
     "@electron/rebuild": "4.2.0",
     "@types/node": "26.6.2",
-    "electron": "44.5.1",
+    "electron": "44.9.1",
     "ts-node": "10.9.2",
     "typescript": "6.0.3"
   }
