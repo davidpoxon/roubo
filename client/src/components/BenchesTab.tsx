@@ -1,6 +1,6 @@
 import { useOutletContext } from "react-router";
 import { Button, Tooltip, TooltipTrigger } from "react-aria-components";
-import { Plus } from "lucide-react";
+import { Plus, Workflow } from "lucide-react";
 import type { ProjectOutletContext } from "./BenchDashboard";
 import BenchCard from "./BenchCard";
 import EmptyBenchCard from "./EmptyBenchCard";
@@ -17,6 +17,7 @@ export default function BenchesTab() {
     pendingAssignments,
     isLoading,
     openCreateBench,
+    openSpecBenchSetup,
     pickIssueForBench,
     testBenchEnabled,
     onCreateTestBench,
@@ -67,6 +68,18 @@ export default function BenchesTab() {
           </div>
           <div className="flex items-center gap-4">
             <GlobalBenchMeter />
+            {openSpecBenchSetup && (
+              // A Spec Bench takes a bench slot like any bench, so it is not
+              // offered at the global cap.
+              <Button
+                onPress={openSpecBenchSetup}
+                isDisabled={atCap}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-12 font-medium text-text-body bg-bg-surface border border-border-control not-disabled:hover:bg-bg-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              >
+                <Workflow size={14} />
+                Set up Spec Bench
+              </Button>
+            )}
             {atCap ? (
               // Use aria-disabled rather than isDisabled so the button stays focusable
               // and keeps firing hover/focus events, which the tooltip needs to appear.

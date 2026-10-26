@@ -73,6 +73,7 @@ import type {
   SourceSelection,
   FileFixIssueRequest,
   FixIssueRecord,
+  SpecBenchBindMode,
 } from "@roubo/shared";
 import type {
   Note,
@@ -91,6 +92,7 @@ import {
   type DeliveryReadError,
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
+  type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import { resolvedTheme } from "./theme";
 
@@ -273,9 +275,12 @@ export function createBench(
     externalId?: string;
     branchConflictResolution?: "resume" | "new";
     // TestBench variant (#467): when "testbench", the create path binds the bench
-    // to focusedSpecPath rather than to an issue/branch.
-    variant?: "testbench";
+    // to focusedSpecPath rather than to an issue/branch. A Spec Bench
+    // ("specbench", SB-FR-001) binds to its spec folder and names how it binds
+    // to its delivery in `deliveryMode`.
+    variant?: "testbench" | "specbench";
     focusedSpecPath?: string;
+    deliveryMode?: SpecBenchBindMode;
   } = {},
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
@@ -288,6 +293,7 @@ export function createBench(
   if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
   if (opts.variant) body.variant = opts.variant;
   if (opts.focusedSpecPath) body.focusedSpecPath = opts.focusedSpecPath;
+  if (opts.deliveryMode) body.delivery = { mode: opts.deliveryMode };
   return request(`/projects/${projectId}/benches`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -1803,6 +1809,15 @@ export function fetchSpecs(
   projectId: string,
 ): Promise<{ specs: DiscoveredSpec[]; invalid: InvalidSpec[] }> {
   return request(`/projects/${projectId}/testbench/specs`);
+}
+
+// GET /specbench/specs/:slug/summary: the units and gates of a spec's
+// work-units.json, which the Set up Spec Bench dialog shows (SB-FR-001).
+export function fetchSpecBenchSpecSummary(
+  projectId: string,
+  slug: string,
+): Promise<SpecBenchSpecSummary> {
+  return request(`/projects/${projectId}/specbench/specs/${encodeURIComponent(slug)}/summary`);
 }
 
 // POST /testbench/specs/validate: validate a single user-supplied path (the FR-003
