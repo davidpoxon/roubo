@@ -21,11 +21,7 @@ afterEach(() => {
 const LAST_EVENT = "2026-10-16T10:00:00Z";
 
 // An event of the whole delivery, which names no unit.
-function deliveryEvent(
-  seq: number,
-  type: string,
-  payload: Record<string, unknown>,
-): DeliveryEvent {
+function deliveryEvent(seq: number, type: string, payload: Record<string, unknown>): DeliveryEvent {
   return {
     $schema: DELIVERY_EVENT_SCHEMA_ID,
     schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
@@ -71,7 +67,10 @@ describe("Delivery rail", () => {
   it("reads disconnected while the stream is down and the delivery is not jammed", () => {
     vi.useFakeTimers({ now: Date.parse(LAST_EVENT) });
     render(
-      <DeliveryRail snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })} disconnected />,
+      <DeliveryRail
+        snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })}
+        disconnected
+      />,
     );
     expect(screen.getByTestId("delivery-health-chip")).toHaveAttribute(
       "data-health",
@@ -154,9 +153,7 @@ describe("Drift ledger", () => {
 
   it("shows an entry from before the spec-edit fields by its kind and detail", () => {
     const record = fourUnitRecord();
-    record.drift = [
-      { kind: "scope", detail: "Unit B grew", detected_at: "2026-10-16T09:01:00Z" },
-    ];
+    record.drift = [{ kind: "scope", detail: "Unit B grew", detected_at: "2026-10-16T09:01:00Z" }];
     render(<DeliveryDriftLedger snapshot={foldDelivery({ record, events: [] })} />);
     const row = screen.getByTestId("delivery-drift-row-0");
     expect(row).toHaveTextContent("scope");
