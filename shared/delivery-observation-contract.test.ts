@@ -234,6 +234,28 @@ describe("delivery observation contract: record fixture", () => {
     }
   });
 
+  it("SB-TC-022: a unit entry carries an optional pull request url, a string when present", () => {
+    const fixture = loadFixture();
+    const units = fixture.units as Record<string, unknown>[];
+    const withUrl = validateDeliveryRecord({
+      ...fixture,
+      units: [{ ...units[0], pr_url: "https://github.com/demo/demo/pull/1" }, ...units.slice(1)],
+    });
+    expect(withUrl.ok).toBe(true);
+    if (withUrl.ok) {
+      expect(withUrl.data.units[0].pr_url).toBe("https://github.com/demo/demo/pull/1");
+    }
+
+    const notString = validateDeliveryRecord({
+      ...fixture,
+      units: [{ ...units[0], pr_url: 1 }, ...units.slice(1)],
+    });
+    expect(notString.ok).toBe(false);
+    if (!notString.ok) {
+      expect(notString.errors.some((e) => e.startsWith("units.0.pr_url"))).toBe(true);
+    }
+  });
+
   it("keeps an unknown key at the root and inside a section (additive posture)", () => {
     const fixture = loadFixture();
     const record = {

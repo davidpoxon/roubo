@@ -30,6 +30,7 @@ import {
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
   ownValue,
+  type DeliveryCaseProgress,
   type DeliveryEdge,
   type DeliveryGateView,
   type DeliveryProgress,
@@ -87,6 +88,12 @@ export function selectGateState(
 
 export function selectProgress(snapshot: DeliverySnapshot): DeliveryProgress {
   return snapshot.progress;
+}
+
+// The met cases of the progress, in plan order, each with its verify record and
+// the unit that met it (SB-FR-011).
+export function selectMetCases(snapshot: DeliverySnapshot): DeliveryCaseProgress[] {
+  return snapshot.progress.caseList.filter((entry) => entry.met);
 }
 
 // Every unit in stack order: the stacks in the record's key order, each base
