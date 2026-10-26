@@ -45,6 +45,11 @@ updates:
           - "@vitest/*"
       dev-dependencies:
         dependency-type: "development"
+        # Group order alone did not keep @vitest/coverage-v8 out of this
+        # group (#1529, #1530), so exclude the vitest packages explicitly.
+        exclude-patterns:
+          - "vitest"
+          - "@vitest/*"
         update-types:
           - "minor"
           - "patch"
