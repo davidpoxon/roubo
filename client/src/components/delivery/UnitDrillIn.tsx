@@ -1,6 +1,10 @@
 import { memo, useMemo, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
-import { classifyUnitStatus, ownValue, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import {
+  classifyUnitStatus,
+  ownValue,
+  type DeliverySnapshot,
+} from "@roubo/shared/delivery-reducer";
 import { selectGatesAfterUnit } from "@roubo/shared/delivery-selectors";
 import { useDeliveryFeed } from "../../hooks/useDeliveryFeed";
 import { useDeliveryUnitDiff, useDeliveryUnitTranscript } from "../../hooks/useDelivery";
@@ -68,6 +72,7 @@ export default function UnitDrillIn({
           panelRef={timelineRef}
           unitId={unitId}
           events={events}
+          folded={feed.events.data?.folded ?? 0}
           snapshot={snapshot}
           isPending={feed.events.isPending}
           error={feed.events.isError ? feed.events.error.message : undefined}
@@ -103,6 +108,7 @@ function UnitTimeline({
   panelRef,
   unitId,
   events,
+  folded,
   snapshot,
   isPending,
   error,
@@ -110,6 +116,9 @@ function UnitTimeline({
   panelRef: RefObject<HTMLElement | null>;
   unitId: string;
   events: readonly DeliveryEvent[];
+  // The count of the unit's events that the record already carries, and so
+  // that `events` leaves out.
+  folded: number;
   snapshot: DeliverySnapshot;
   isPending: boolean;
   error: string | undefined;
@@ -136,8 +145,14 @@ function UnitTimeline({
           Reading the events of unit {unitId}...
         </p>
       ) : items.length === 0 ? (
-        <p data-testid="unit-timeline-empty" className={EMPTY}>
-          No events for unit {unitId} yet.
+        <p
+          data-testid="unit-timeline-empty"
+          data-folded={folded > 0 ? "true" : undefined}
+          className={EMPTY}
+        >
+          {folded > 0
+            ? `No newer events for unit ${unitId}: the delivery record holds its ${folded} ${folded === 1 ? "event" : "events"}.`
+            : `No events for unit ${unitId} yet.`}
         </p>
       ) : (
         <TimelineList unitId={unitId} items={items} />
@@ -194,9 +209,7 @@ function TimelineEvent({ event, newest }: { event: DeliveryEvent; newest: boolea
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-13 text-text-body">{eventText(event)}</span>
-        {detail !== null && (
-          <span className="font-mono text-11 text-text-secondary">{detail}</span>
-        )}
+        {detail !== null && <span className="font-mono text-11 text-text-secondary">{detail}</span>}
       </span>
     </li>
   );
@@ -296,10 +309,7 @@ function RecordedTranscript({
   const own = unitEvents(unitId, events);
   const lastSeq = own.at(-1)?.seq ?? null;
   const transcript = useDeliveryUnitTranscript(projectId, benchId, unitId, lastSeq, true);
-  const text = useMemo(
-    () => transcriptText(transcript.data?.lines ?? []),
-    [transcript.data],
-  );
+  const text = useMemo(() => transcriptText(transcript.data?.lines ?? []), [transcript.data]);
   if (transcript.isPending) {
     return (
       <p role="status" className={EMPTY}>

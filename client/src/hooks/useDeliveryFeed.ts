@@ -24,7 +24,10 @@ import { deliveryQueryKey, useDelivery } from "./useDelivery";
 // read after the first asks only for the events above the accepted seq it
 // holds, and appends them. The list keeps the most recent
 // DELIVERY_FEED_MAX_EVENTS events only (SB-NFR-003), so a long delivery cannot
-// grow the client without bound; the older ones stay on the server.
+// grow the client without bound; the older ones stay on the server. A unit's
+// list also holds `folded`, the count of its events that the record already
+// carries, so a view can tell a unit whose events are all in the record from
+// one with no event.
 
 export const DELIVERY_FEED_MAX_EVENTS = 1_000;
 
@@ -51,7 +54,8 @@ async function readEvents(
 ): Promise<DeliveryEventsResponse> {
   const key = deliveryEventsQueryKey(projectId, benchId, unit);
   const held = queryClient.getQueryData<DeliveryEventsResponse>(key);
-  if (held === undefined) return mostRecent(await api.fetchDeliveryEvents(projectId, benchId, { unit }));
+  if (held === undefined)
+    return mostRecent(await api.fetchDeliveryEvents(projectId, benchId, { unit }));
   const next = await api.fetchDeliveryEvents(projectId, benchId, {
     after: held.acceptedSeq,
     unit,
@@ -70,6 +74,8 @@ async function readEvents(
   return mostRecent({
     events: [...held.events, ...next.events.filter((event) => event.seq > last)],
     acceptedSeq: next.acceptedSeq,
+    // The count of the unit's events the record carries is the latest read's.
+    ...(next.folded !== undefined && { folded: next.folded }),
   });
 }
 

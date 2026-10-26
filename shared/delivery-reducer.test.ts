@@ -1161,6 +1161,23 @@ describe("foldDelivery event handlers", () => {
     expect(snapshot.seams.plan.unit_id).toBe("C");
     expect(snapshot.seams["results-merge"].unit_id).toBeUndefined();
   });
+
+  it("SB-TC-030 seam.ran that names no unit after a run inside a unit marks no unit", () => {
+    const record = fixtureRecord();
+    nextSeq = 8;
+    const snapshot = foldDelivery({
+      record,
+      events: [
+        event("seam.ran", { seam: "plan", status: "ok" }, { unit_id: "A" }),
+        {
+          ...event("seam.ran", { seam: "plan", status: "ok" }),
+          ts: "2026-10-16T10:05:00Z",
+        },
+      ],
+    });
+    expect(snapshot.seams.plan).toEqual({ status: "ok", last_run_at: "2026-10-16T10:05:00Z" });
+    expect(snapshot.seams.plan.unit_id).toBeUndefined();
+  });
 });
 
 describe("foldDelivery gate state and progress (SB-FR-011)", () => {

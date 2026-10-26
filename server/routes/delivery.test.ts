@@ -336,6 +336,24 @@ describe("GET /:projectId/benches/:id/delivery/events", () => {
       [8, "C"],
       [10, "C"],
     ]);
+    expect(res.body.folded).toBe(0);
+  });
+
+  it("SB-TC-035 counts the unit's events the record carries apart from no events", async () => {
+    writeRecord(fixtureRecord());
+    accept([event(8, "C"), event(9, "D"), event(10, "C", "done")]);
+    writeRecord({ ...fixtureRecord(), last_event_seq: 9 });
+
+    const carried = await request(app).get(`${base}/events?unit=C`);
+    expect(carried.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([10]);
+    expect(carried.body.folded).toBe(1);
+
+    const none = await request(app).get(`${base}/events?unit=B`);
+    expect(none.body).toEqual({ events: [], acceptedSeq: 10, folded: 0 });
+
+    // Without unit the body carries no count.
+    const all = await request(app).get(`${base}/events`);
+    expect(all.body.folded).toBeUndefined();
   });
 
   it("honours after, alone and with unit", async () => {
@@ -454,7 +472,9 @@ function recordWithHeads(heads: Record<string, string>): DeliveryRecord {
   return {
     ...record,
     units: record.units.map((unit) =>
-      Object.hasOwn(heads, unit.id) ? { ...unit, head: heads[unit.id] } : { ...unit, head: undefined },
+      Object.hasOwn(heads, unit.id)
+        ? { ...unit, head: heads[unit.id] }
+        : { ...unit, head: undefined },
     ),
   };
 }
@@ -536,6 +556,37 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/transcript", () => 
       timedEvent(9, "B", "2026-10-16T09:41:00Z"),
       timedEvent(10, "A", "2026-10-16T09:45:00Z"),
     ]);
+    vi.mocked(getSessionScrollback).mockReturnValue(["first\r\n", "last\r\n"]);
+
+    const res = await request(app).get(`${base}/units/A/transcript`);
+
+    expect(res.status).toBe(200);
+    expect(getSessionScrollback).toHaveBeenCalledWith(
+      "session-1",
+      Date.parse("2026-10-16T09:40:00Z"),
+      Date.parse("2026-10-16T09:45:00Z"),
+    );
+    expect(res.body).toEqual({
+      unit: "A",
+      sessionId: "session-1",
+      from: "2026-10-16T09:40:00Z",
+      to: "2026-10-16T09:45:00Z",
+      lines: ["first\r\n", "last\r\n"],
+    });
+  });
+
+  it("SB-TC-031 keeps a done unit's span after the record carries its events", async () => {
+    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
+    writeRecord(fixtureRecord());
+    accept([
+      timedEvent(8, "A", "2026-10-16T09:40:00Z"),
+      timedEvent(9, "A", "2026-10-16T09:45:00Z"),
+    ]);
+    // The session writes the record past both of A's events, so they leave the
+    // log: the events read above the record holds none of A's.
+    writeRecord({ ...fixtureRecord(), last_event_seq: 9 });
+    const above = await request(app).get(`${base}/events?unit=A`);
+    expect(above.body).toEqual({ events: [], acceptedSeq: 9, folded: 2 });
     vi.mocked(getSessionScrollback).mockReturnValue(["first\r\n", "last\r\n"]);
 
     const res = await request(app).get(`${base}/units/A/transcript`);
