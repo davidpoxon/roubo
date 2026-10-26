@@ -17,7 +17,7 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
-import { DELIVERY_EVENT_SPILL_FILE } from "@roubo/shared/delivery-bench";
+import { DELIVERY_EVENT_SPILL_FILE, DELIVERY_UNIT_SPANS_FILE } from "@roubo/shared/delivery-bench";
 import {
   TEST_CASES_SCHEMA_ID,
   TEST_RESULTS_SCHEMA_ID,
@@ -604,6 +604,76 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/transcript", () => 
       to: "2026-10-16T09:45:00Z",
       lines: ["first\r\n", "last\r\n"],
     });
+  });
+
+  it("SB-TC-031 keeps a folded unit's span, transcript and timeline count across a server restart", async () => {
+    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
+    writeRecord(fixtureRecord());
+    accept([
+      timedEvent(8, "A", "2026-10-16T09:40:00Z"),
+      timedEvent(9, "B", "2026-10-16T09:42:00Z"),
+      timedEvent(10, "A", "2026-10-16T09:45:00Z"),
+    ]);
+    // The record passes A's events, so they leave the log, and the span file
+    // beside the spill file holds their span.
+    writeRecord({ ...fixtureRecord(), last_event_seq: 10 });
+    expect(fs.existsSync(path.join(specFolder, DELIVERY_UNIT_SPANS_FILE))).toBe(true);
+
+    // Roubo restarts: a fresh event-log module, and the routes over it.
+    vi.resetModules();
+    const fresh = await import("./delivery.js");
+    const freshBenches = await import("../services/bench-manager.js");
+    const freshTerminal = await import("../services/terminal.js");
+    vi.mocked(freshBenches.getBench).mockImplementation((projectId, benchId) =>
+      projectId === bench.projectId && benchId === bench.id ? bench : undefined,
+    );
+    vi.mocked(freshTerminal.getSessionScrollback).mockReturnValue(["built A\r\n"]);
+    const restarted = express();
+    restarted.use("/api/projects", fresh.default);
+
+    const timeline = await request(restarted).get(`${base}/events?unit=A`);
+    expect(timeline.body).toEqual({ events: [], acceptedSeq: 10, folded: 2 });
+
+    const res = await request(restarted).get(`${base}/units/A/transcript`);
+    expect(res.status).toBe(200);
+    expect(freshTerminal.getSessionScrollback).toHaveBeenCalledWith(
+      "session-1",
+      Date.parse("2026-10-16T09:40:00Z"),
+      Date.parse("2026-10-16T09:45:00Z"),
+    );
+    expect(res.body).toEqual({
+      unit: "A",
+      sessionId: "session-1",
+      from: "2026-10-16T09:40:00Z",
+      to: "2026-10-16T09:45:00Z",
+      lines: ["built A\r\n"],
+    });
+    const other = await request(restarted).get(`${base}/events?unit=B`);
+    expect(other.body).toMatchObject({ folded: 1 });
+  });
+
+  it("ignores a span file of another delivery after a restart", async () => {
+    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
+    writeRecord({ ...fixtureRecord(), last_event_seq: 10 });
+    fs.writeFileSync(
+      path.join(specFolder, DELIVERY_UNIT_SPANS_FILE),
+      JSON.stringify({
+        delivery_id: "another-delivery",
+        units: {
+          A: {
+            first: { seq: 8, ts: "2026-10-16T09:40:00Z" },
+            last: { seq: 9, ts: "2026-10-16T09:45:00Z" },
+            seqs: [8, 9],
+          },
+        },
+      }),
+    );
+    vi.mocked(getSessionScrollback).mockReturnValue([]);
+
+    const timeline = await request(app).get(`${base}/events?unit=A`);
+    expect(timeline.body).toMatchObject({ folded: 0 });
+    const res = await request(app).get(`${base}/units/A/transcript`);
+    expect(res.body).toMatchObject({ from: null, to: null, lines: [] });
   });
 
   it("answers no lines and no span for a unit with no events", async () => {

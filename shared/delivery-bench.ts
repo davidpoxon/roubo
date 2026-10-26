@@ -143,6 +143,12 @@ export const DELIVERY_EVENT_LOG_MAX = 1_000;
 export const DELIVERY_EVENT_SPILL_CHUNK = 500;
 export const DELIVERY_EVENT_SPILL_FILE = "delivery-events.jsonl";
 
+// Beside the spill file, the span of each unit's accepted events (the ts of its
+// first and last event and its seqs), so a unit's drill-in can still cut its
+// transcript and count its folded events after a server restart (SB-FR-013).
+// It goes with the workspace like the record does.
+export const DELIVERY_UNIT_SPANS_FILE = "delivery-unit-spans.json";
+
 // ── Ingest errors ──
 //
 //   INVALID_EVENT           an event fails the envelope schema, or names another
