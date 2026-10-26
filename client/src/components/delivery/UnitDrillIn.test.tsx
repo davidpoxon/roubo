@@ -15,6 +15,7 @@ import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
+import { FakeSocket } from "../../test/fake-terminal";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -29,6 +30,13 @@ vi.mock("../../lib/api", async (importOriginal) => {
     launchDelivery: vi.fn(),
   };
 });
+
+// The real Terminal and its connection hook run in the drill-in; only xterm,
+// which needs a canvas, and the socket are stand-ins.
+vi.mock("@xterm/xterm", () => import("../../test/fake-terminal"));
+vi.mock("@xterm/addon-fit", () => import("../../test/fake-terminal"));
+vi.mock("@xterm/addon-web-links", () => import("../../test/fake-terminal"));
+vi.mock("@xterm/xterm/css/xterm.css", () => ({}));
 
 import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
@@ -113,6 +121,8 @@ function timelineOrder(): string[] {
 beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("EventSource", FakeEventSource);
+  FakeSocket.opened = [];
+  vi.stubGlobal("WebSocket", FakeSocket);
   record = fourUnitRecord();
   log = [];
   decorate = (snapshot) => snapshot;
@@ -189,6 +199,10 @@ describe("Unit drill-in", () => {
     const top = drillIn.querySelector('[data-drill-in-row="top"]');
     const bottom = drillIn.querySelector('[data-drill-in-row="bottom"]');
     expect([...(top?.children ?? [])]).toEqual([timeline, terminal]);
+    // The terminal beside the timeline is the live delivery session itself.
+    expect(within(terminal).getByTestId("unit-terminal-live")).toBeInTheDocument();
+    expect(within(terminal).getByRole("textbox", { name: "Terminal input" })).toBeInTheDocument();
+    expect(FakeSocket.to("session-1")).toHaveLength(1);
     expect([...(bottom?.children ?? [])]).toEqual([diff, verify]);
     expect(top?.compareDocumentPosition(bottom as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
@@ -288,22 +302,25 @@ describe("Unit drill-in", () => {
     await userEvent.type(transcript, "rm -rf");
     expect(transcript.textContent).toBe("built A\nthe suite passed\n");
 
-    // Step 2: B is active, so its terminal is the live delivery session, which
-    // the bench's Terminal tab holds; the panel opens that tab on the session
-    // (UnitDrillIn.terminal-socket.test.tsx mounts the two together).
+    // A done unit's terminal holds no socket to the session.
+    expect(FakeSocket.opened).toHaveLength(0);
+
+    // Step 2: B is active, so its terminal is the live delivery session,
+    // embedded in the drill-in: it shows what the session writes and sends
+    // what is typed into it.
     await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
     const active = await openUnit("B");
     const live = within(active).getByRole("region", { name: "Terminal of unit B" });
-    expect(within(live).getByTestId("unit-terminal-live")).toHaveTextContent(
-      "Unit B works in the bench's delivery session, live in the Terminal tab.",
-    );
     expect(within(live).queryByTestId("unit-transcript-label")).not.toBeInTheDocument();
-    await userEvent.click(within(live).getByRole("button", { name: "Open the live terminal" }));
-    const view = JSON.parse(localStorage.getItem("roubo-bench-view-state") ?? "{}");
-    expect(view["demo:3"]).toMatchObject({
-      activeTab: "terminal",
-      activeTerminalSessionId: "session-1",
-    });
+    const [socket] = FakeSocket.to("session-1");
+    expect(socket).toBeDefined();
+    await act(async () => {});
+    act(() => socket.receive({ type: "replay", lines: ["$ building B\r\n"] }));
+    act(() => socket.receive({ type: "output", data: "turn 3 of B\r\n" }));
+    expect(within(live).getByTestId("xterm-screen")).toHaveTextContent("$ building B turn 3 of B");
+    const input = within(live).getByRole("textbox", { name: "Terminal input" });
+    fireEvent.input(input, { target: { value: "y" } });
+    expect(socket.sent).toContainEqual({ type: "input", data: "y" });
   });
 
   it("SB-TC-031 replays a done unit's transcript after the record carries all its events", async () => {
@@ -359,7 +376,7 @@ describe("Unit drill-in", () => {
     // shortcut that leaves the terminal moves the focus to the next panel. The
     // 100 ms bound itself is not measured here: jsdom dispatches a key
     // synchronously, so no render can delay it and a timing would prove nothing.
-    const opener = screen.getByRole("button", { name: "Open the live terminal" });
+    const input = screen.getByRole("textbox", { name: "Terminal input" });
     const diffPanel = screen.getByRole("region", { name: "Diff of unit B" });
     for (let batch = 0; batch < 10; batch += 1) {
       const events = Array.from({ length: 100 }, (_, index) => {
@@ -367,8 +384,8 @@ describe("Unit drill-in", () => {
         return unitEvent(seq, "B", "note", { text: `Turn ${seq}` }, at(42 + batch, index % 60));
       });
       post(...events);
-      opener.focus();
-      fireEvent.keyDown(opener, { key: "F6" });
+      input.focus();
+      fireEvent.keyDown(input, { key: "F6" });
       expect(diffPanel).toHaveFocus();
       const last = events.at(-1)?.seq ?? 0;
       await waitFor(() => expect(screen.getByTestId(`timeline-event-${last}`)).toBeInTheDocument());
@@ -403,15 +420,15 @@ describe("Unit drill-in", () => {
     expect(terminal).toHaveFocus();
     expect(terminal).toHaveAccessibleDescription(/Press F6 to leave the terminal/);
     await user.tab();
-    const opener = screen.getByRole("button", { name: "Open the live terminal" });
-    expect(opener).toHaveFocus();
-    // F6 leaves the terminal for the next panel.
+    const input = screen.getByRole("textbox", { name: "Terminal input" });
+    expect(input).toHaveFocus();
+    // The live terminal keeps Tab for itself, so F6 is the way out.
     await user.keyboard("{F6}");
     expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
     // Shift+F6 from inside the terminal goes back to the timeline.
-    opener.focus();
+    input.focus();
     await user.keyboard("{Shift>}{F6}{/Shift}");
     expect(screen.getByRole("region", { name: "Timeline of unit B" })).toHaveFocus();
 

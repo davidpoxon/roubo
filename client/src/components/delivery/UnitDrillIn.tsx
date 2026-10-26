@@ -8,8 +8,7 @@ import {
 import { selectGatesAfterUnit } from "@roubo/shared/delivery-selectors";
 import { useDeliveryFeed } from "../../hooks/useDeliveryFeed";
 import { useDeliveryUnitDiff, useDeliveryUnitTranscript } from "../../hooks/useDelivery";
-import { useBenchViewState } from "../../hooks/useBenchViewState";
-import Button from "../ui/Button";
+import Terminal from "../Terminal";
 import { focusRing } from "../ui/focus-ring";
 import {
   buildTimeline,
@@ -28,9 +27,11 @@ import {
 // panels beneath. The timeline holds the unit's events from GET
 // /delivery/events?unit=<id> (the most recent 1,000, SB-NFR-003) with each
 // generation seam of the unit marked on it. A done unit's terminal replays its
-// recorded transcript read-only; an active unit's terminal opens the live
-// delivery session in the bench's Terminal tab, which holds its one socket.
-// Every panel is a named region the keyboard reaches, F6
+// recorded transcript read-only; an active unit's terminal is the live
+// delivery session, embedded here beside the timeline. It holds a socket of its
+// own to the session, next to the one the bench's Terminal tab holds: the
+// server takes several viewers per session and sends each the replay and the
+// live output. Every panel is a named region the keyboard reaches, F6
 // leaves the terminal for the next panel (Shift+F6 for the one before), and a
 // unit with no events shows an empty state naming the unit in each panel.
 
@@ -254,19 +255,14 @@ function UnitTerminalPanel({
   deliverySessionId: string | undefined;
   onLeave: (backwards: boolean) => void;
 }) {
-  // Caught in the capture phase, so the shortcut works from anything inside the
-  // panel: the transcript, or the button that opens the live terminal.
+  // Caught before the terminal sees it, so the shortcut works from inside the
+  // live terminal, which keeps every other key, Tab included.
   const onKeyDownCapture = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== LEAVE_TERMINAL_KEY) return;
     event.preventDefault();
     event.stopPropagation();
     onLeave(event.shiftKey);
   };
-  // The live session is the one the bench's Terminal tab already holds open.
-  // The server keeps one socket per session and closes the older one on each
-  // connect, so a second terminal here would evict that tab's socket, and each
-  // would reconnect over the other. The panel opens that tab on the session.
-  const { setActiveTab, setActiveTerminalSessionId } = useBenchViewState(projectId, benchId);
   return (
     <section
       aria-label={`Terminal of unit ${unitId}`}
@@ -288,18 +284,8 @@ function UnitTerminalPanel({
           events={events}
         />
       ) : deliverySessionId !== undefined && (active || events.length > 0) ? (
-        <div data-testid="unit-terminal-live" className="space-y-2">
-          <p className="text-13 text-text-body">
-            Unit {unitId} works in the bench&apos;s delivery session, live in the Terminal tab.
-          </p>
-          <Button
-            onPress={() => {
-              setActiveTerminalSessionId(deliverySessionId);
-              setActiveTab("terminal");
-            }}
-          >
-            Open the live terminal
-          </Button>
+        <div data-testid="unit-terminal-live" className="h-80">
+          <Terminal sessionId={deliverySessionId} active />
         </div>
       ) : (
         <p data-testid="unit-terminal-empty" className={EMPTY}>

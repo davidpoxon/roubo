@@ -131,10 +131,21 @@ const PONG_TIMEOUT_MS = 10_000;
 const MAX_CLI_PROMPT_LENGTH = 100_000;
 const SESSIONS_DIR = path.join(getRouboDir(), "terminal-sessions");
 
+// One socket attached to a session, with its own heartbeat. A session takes
+// several viewers at once: the bench's Terminal tab and a Spec Bench unit's
+// drill-in can both show the delivery session (SB-FR-013).
+interface Viewer {
+  pingTimer: ReturnType<typeof setInterval> | null;
+  pongDeadline: ReturnType<typeof setTimeout> | null;
+}
+
 interface InternalSession {
   session: TerminalSession;
   pty: pty.IPty | null;
-  ws: WebSocket | null;
+  // Every socket attached to the session. Each gets the replay and the live
+  // output, and any of them can send input; one closing leaves the others and
+  // the session as they are.
+  viewers: Map<WebSocket, Viewer>;
   buffer: CircularBuffer<string>;
   // The epoch milliseconds at which each chunk of `buffer` was written, in step
   // with it: entry i is the time of chunk i. NaN marks a chunk whose time is not
@@ -143,8 +154,6 @@ interface InternalSession {
   // these times (SB-FR-013).
   bufferTimes: CircularBuffer<number>;
   exitCode: number | null;
-  pingTimer: ReturnType<typeof setInterval> | null;
-  pongDeadline: ReturnType<typeof setTimeout> | null;
   quiescenceTimer: ReturnType<typeof setTimeout> | null;
   // Timestamps used to gate quiescence-driven notifications: we only re-notify
   // for an idle window when fresh PTY output has arrived since the last
@@ -442,16 +451,32 @@ function cancelQuiescenceCheck(internal: InternalSession): void {
   }
 }
 
+function clearViewerTimers(viewer: Viewer): void {
+  if (viewer.pingTimer) {
+    clearInterval(viewer.pingTimer);
+    viewer.pingTimer = null;
+  }
+  if (viewer.pongDeadline) {
+    clearTimeout(viewer.pongDeadline);
+    viewer.pongDeadline = null;
+  }
+}
+
 function clearTimers(internal: InternalSession): void {
-  if (internal.pingTimer) {
-    clearInterval(internal.pingTimer);
-    internal.pingTimer = null;
-  }
-  if (internal.pongDeadline) {
-    clearTimeout(internal.pongDeadline);
-    internal.pongDeadline = null;
-  }
+  for (const viewer of internal.viewers.values()) clearViewerTimers(viewer);
   cancelQuiescenceCheck(internal);
+}
+
+// Closes every socket attached to the session.
+function closeViewers(internal: InternalSession): void {
+  for (const ws of internal.viewers.keys()) {
+    try {
+      ws.close();
+    } catch {
+      // WebSocket may be already closed
+    }
+  }
+  internal.viewers.clear();
 }
 
 /**
@@ -608,12 +633,10 @@ function registerSession(
   const internal: InternalSession = {
     session,
     pty: ptyProcess,
-    ws: null,
+    viewers: new Map(),
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
     bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
     exitCode: null,
-    pingTimer: null,
-    pongDeadline: null,
     quiescenceTimer: null,
     lastOutputAt: null,
     lastNotifiedAt: null,
@@ -1176,13 +1199,7 @@ export function destroySession(sessionId: string): boolean {
     }
   }
 
-  if (internal.ws) {
-    try {
-      internal.ws.close();
-    } catch {
-      // WebSocket may be already closed
-    }
-  }
+  closeViewers(internal);
 
   forgetNotifierToken(internal);
   sessions.delete(sessionId);
@@ -1204,13 +1221,7 @@ export function destroyBenchSessions(projectId: string, benchId: number): void {
           /* ignore */
         }
       }
-      if (internal.ws) {
-        try {
-          internal.ws.close();
-        } catch {
-          /* ignore */
-        }
-      }
+      closeViewers(internal);
       forgetNotifierToken(internal);
       sessions.delete(id);
       deletePersistedSession(id);
@@ -1235,13 +1246,7 @@ export function destroyAllSessions(): void {
         /* ignore */
       }
     }
-    if (internal.ws) {
-      try {
-        internal.ws.close();
-      } catch {
-        /* ignore */
-      }
-    }
+    closeViewers(internal);
   }
   sessions.clear();
   notifierTokens.clear();
@@ -1268,12 +1273,10 @@ export function loadPersistedSessions(): void {
       const internal: InternalSession = {
         session: persisted.session,
         pty: null,
-        ws: null,
+        viewers: new Map(),
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
         bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
         exitCode: persisted.session.exitCode ?? null,
-        pingTimer: null,
-        pongDeadline: null,
         quiescenceTimer: null,
         lastOutputAt: null,
         lastNotifiedAt: null,
@@ -1303,16 +1306,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     return;
   }
 
-  // Close any previously connected WebSocket and clean up its timers
-  clearTimers(internal);
-  if (internal.ws) {
-    try {
-      internal.ws.close();
-    } catch {
-      /* ignore */
-    }
-  }
-  internal.ws = ws;
+  // The socket joins the session's viewers; one already attached stays open
+  // and keeps its output. A pending quiescence check is cancelled here and
+  // re-armed below.
+  cancelQuiescenceCheck(internal);
+  const viewer: Viewer = { pingTimer: null, pongDeadline: null };
 
   // Send buffered output replay
   ws.send(
@@ -1332,9 +1330,9 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   // Ghost session: replay then close
   if (!internal.pty) {
     ws.close(4410, "Session ended");
-    internal.ws = null;
     return;
   }
+  internal.viewers.set(ws, viewer);
 
   // Arm (or re-arm on reconnect) the quiescence timer for sessions whose
   // waiting state is not hook-driven. clearTimers above cancelled any pending
@@ -1376,11 +1374,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   });
 
   // Ping/pong heartbeat
-  internal.pingTimer = setInterval(() => {
+  viewer.pingTimer = setInterval(() => {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify({ type: "ping" }));
-      if (internal.pongDeadline) clearTimeout(internal.pongDeadline);
-      internal.pongDeadline = setTimeout(() => {
+      if (viewer.pongDeadline) clearTimeout(viewer.pongDeadline);
+      viewer.pongDeadline = setTimeout(() => {
         // No pong received: close to trigger client reconnect
         try {
           ws.close();
@@ -1423,9 +1421,9 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
       ) {
         internal.pty?.resize(msg.cols, msg.rows);
       } else if (msg.type === "pong") {
-        if (internal.pongDeadline) {
-          clearTimeout(internal.pongDeadline);
-          internal.pongDeadline = null;
+        if (viewer.pongDeadline) {
+          clearTimeout(viewer.pongDeadline);
+          viewer.pongDeadline = null;
         }
       }
     } catch {
@@ -1433,11 +1431,16 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     }
   });
 
+  // A viewer leaving ends neither the session nor another viewer. The
+  // quiescence check is cancelled only when the last viewer leaves, as it was
+  // when a session had one socket.
   ws.on("close", () => {
     dataHandler.dispose();
     exitHandler.dispose();
-    clearTimers(internal);
-    internal.ws = null;
+    clearViewerTimers(viewer);
+    if (internal.viewers.get(ws) !== viewer) return;
+    internal.viewers.delete(ws);
+    if (internal.viewers.size === 0) cancelQuiescenceCheck(internal);
   });
 }
 
