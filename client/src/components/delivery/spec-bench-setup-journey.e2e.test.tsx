@@ -741,7 +741,9 @@ describe("Spec Bench setup journey", () => {
           // which reflects only what the operator picked and chose.
           const summary = within(dialog).queryByRole("region", { name: "Summary" });
           if (!summary) {
-            throw new Error(`the dialog shows no Summary section; it reads "${dialog.textContent}"`);
+            throw new Error(
+              `the dialog shows no Summary section; it reads "${dialog.textContent}"`,
+            );
           }
           const shown = `the Summary reads "${summary.textContent ?? ""}"`;
           const scope = within(summary);
@@ -755,7 +757,8 @@ describe("Spec Bench setup journey", () => {
           expect(plan, shown).toHaveTextContent(/\b4 units\b/i);
           expect(plan, shown).toHaveTextContent(/\b2 gates\b/i);
           const launch = choice(dialog, /^launch/i);
-          const pressed = launch.getAttribute("aria-checked") ?? launch.getAttribute("aria-pressed");
+          const pressed =
+            launch.getAttribute("aria-checked") ?? launch.getAttribute("aria-pressed");
           expect(pressed, "the Launch toggle is not the chosen mode").toBe("true");
         });
       },
