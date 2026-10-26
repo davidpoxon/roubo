@@ -145,11 +145,11 @@ import BenchDetail from "../BenchDetail";
 // also crosses but that sits outside the blocked-by set is labelled apart.
 const OWNERS = {
   costHealth:
-    "Burn meter, jam flags, drift ledger and health rail (SB-FR-018, SB-FR-019, SB-FR-020)",
-  ingest: "Delivery session launch, delivery token and event ingest (SB-FR-002)",
+    "Burn meter, jam flags, drift ledger and the stale indicator (SB-FR-018, SB-FR-019, SB-FR-020)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
+  ingest: "Delivery session launch, delivery token and event ingest (SB-FR-002)",
   deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
   reducer: "reducer and selectors (SB-FR-008, SB-FR-010, SB-FR-011)",
 } as const;
@@ -742,7 +742,7 @@ describe("Spec Bench health and cost journey", () => {
     await step(
       "1. Post cost rows, a jam event and a drift event",
       "the event endpoint accepts the tooling's cost rows, jam event and drift event with the token",
-      owners(["ingest"]),
+      owners(["costHealth"], ["ingest"]),
       async () => {
         expect(await tooling.post(journeyEvents())).toBe(202);
       },
