@@ -141,14 +141,31 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
+// The blocked-by slices come first, by title and FR id. A slice that a step
+// also crosses but that sits outside the blocked-by set is labelled apart.
 const OWNERS = {
+  reducer: "reducer and selectors (SB-FR-008, SB-FR-010, SB-FR-011)",
+  routes: "snapshot and events routes (SB-FR-008, SB-FR-013)",
+  map: "delivery map graph and list views (SB-FR-010)",
+  progress: "progress (SB-FR-011)",
+} as const;
+
+const OUTSIDE_BLOCKED_BY = {
   launch: "delivery session launch, delivery token and event ingest (SB-FR-002)",
   deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
-  map: "delivery map with its graph and list views and gate markers (SB-FR-010)",
-  progress: "progress in cases met and requirements covered (SB-FR-011)",
   drillIn: "unit drill-in with its timeline, terminal, diff and verify (SB-FR-013)",
   health: "delivery health chip and staleness (SB-FR-019)",
 } as const;
+
+type BlockedBySlice = keyof typeof OWNERS;
+type OutsideSlice = keyof typeof OUTSIDE_BLOCKED_BY;
+
+function owners(blockedBy: BlockedBySlice[], outside: OutsideSlice[] = []): string {
+  const named = blockedBy.map((key) => OWNERS[key]).join("; ");
+  if (outside.length === 0) return named;
+  const also = outside.map((key) => OUTSIDE_BLOCKED_BY[key]).join("; ");
+  return `${named}\n  also crossed, outside the blocked-by set: ${also}`;
+}
 
 // ── Fixture project and spec (SB-TC-026 preconditions) ──
 
@@ -714,9 +731,7 @@ async function setUpLaunchModeSpecBench(): Promise<number> {
     }),
   });
   if (res.status !== 201) {
-    throw new Error(
-      `the create route answered ${res.status}: ${JSON.stringify(await res.json())}`,
-    );
+    throw new Error(`the create route answered ${res.status}: ${JSON.stringify(await res.json())}`);
   }
   return ((await res.json()) as Bench).id;
 }
@@ -780,14 +795,14 @@ describe("Spec Bench progress journey", () => {
     await step(
       "1. Open the bench after two units are done and one gate has passed",
       "the event endpoint accepts the tooling's events, and the bench opens on its Delivery tab with A and B done",
-      `${OWNERS.launch}, ${OWNERS.deliveryTab}`,
+      owners(["routes", "reducer"], ["launch", "deliveryTab"]),
       () => openBenchAfterGateAfterB(user, tooling, benchId),
     );
 
     await step(
       "2. Read the header",
       "the health chip shows the delivery state, and the progress stat shows cases met and requirements covered",
-      `${OWNERS.health}, ${OWNERS.progress}`,
+      owners(["reducer", "progress"], ["health"]),
       () => {
         const rail = screen.getByRole("group", { name: "Delivery health" });
         const chip = within(rail).getByTestId("delivery-health-chip");
@@ -805,7 +820,7 @@ describe("Spec Bench progress journey", () => {
     await step(
       "3. Hover the gate after B",
       `the gate after B shows passed and the count of cases it gated (${CASES_AFTER_B.length})`,
-      OWNERS.map,
+      owners(["map", "reducer"]),
       async () => {
         const marker = screen.getByTestId(`gate-marker-${GATE_AFTER_B}`);
         await user.hover(marker);
@@ -825,7 +840,7 @@ describe("Spec Bench progress journey", () => {
     const graph = await step(
       "4. Click unit C",
       "the drill-in of unit C opens on C's timeline, which holds C's events",
-      `${OWNERS.drillIn}, ${OWNERS.map}`,
+      owners(["routes", "map"], ["drillIn"]),
       async () => {
         const readings = graphReadings();
         await user.click(screen.getByTestId("unit-node-C"));
@@ -848,7 +863,7 @@ describe("Spec Bench progress journey", () => {
     await step(
       "5. Return to the map and switch to list view",
       "the list shows one row per unit with the same status, stack and layer as the graph, and B's row names the gate after B as passed",
-      OWNERS.map,
+      owners(["map"]),
       async () => {
         const drillIn = screen.getByRole("region", { name: "Unit C" });
         await user.click(within(drillIn).getByRole("button", { name: "Close" }));
