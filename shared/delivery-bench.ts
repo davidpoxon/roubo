@@ -87,6 +87,41 @@ export interface DeliveryEventsResponse {
   acceptedSeq: number;
 }
 
+// ── Unit drill-in reads (SB-FR-013) ──
+//
+// The body of GET <base>/units/:unitId/diff: the pull-request diff of the
+// unit's layer, as `git diff <base> <head>` in the bench workspace. `head` is
+// the unit's `head`; `base` is the `head` of the unit below it in its stack, or
+// the stack base (the merge base of the workspace's HEAD and the unit's head)
+// for a unit at the stack's base or one whose lower layer has no head. Both are
+// null, and `diff` empty, while the unit has no head. A diff over
+// DELIVERY_DIFF_MAX_BYTES is cut there, and `truncated` says so. No GitHub call
+// is made.
+export interface DeliveryUnitDiffResponse {
+  unit: string;
+  base: string | null;
+  head: string | null;
+  diff: string;
+  truncated: boolean;
+}
+
+export const DELIVERY_DIFF_MAX_BYTES = 1024 * 1024;
+
+// The body of GET <base>/units/:unitId/transcript: what the bench's delivery
+// session terminal wrote between the unit's first and last accepted event, cut
+// from that terminal's scrollback by time. `from` and `to` are the `ts` of
+// those two events, null while the unit has none; `sessionId` is the bench's
+// delivery session, null when the bench recorded none or its terminal is gone.
+// `lines` are the scrollback chunks as the terminal wrote them, escape
+// sequences included; empty when there is no span or no session.
+export interface DeliveryUnitTranscriptResponse {
+  unit: string;
+  sessionId: string | null;
+  from: string | null;
+  to: string | null;
+  lines: string[];
+}
+
 // The most events a bench keeps in memory above its record's `last_event_seq`,
 // and so the most one batch may carry. The event route reads its body with a
 // parser of its own, whose limit is set so a full batch fits; the server's

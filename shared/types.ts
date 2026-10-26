@@ -2386,6 +2386,12 @@ export interface TerminalSession {
 export interface PersistedTerminalSession {
   session: TerminalSession;
   buffer: string[];
+  /**
+   * The epoch milliseconds at which each chunk of `buffer` was written, in step
+   * with it; null for a chunk whose time is not known. Absent in a file written
+   * before the times were kept.
+   */
+  bufferTimes?: (number | null)[];
   persistedAt: string;
   /**
    * The launch failure recorded for this session, kept so a restart does not

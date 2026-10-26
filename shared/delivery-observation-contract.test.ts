@@ -256,6 +256,26 @@ describe("delivery observation contract: record fixture", () => {
     }
   });
 
+  it("a seam entry carries an optional unit id, a non-empty string when present", () => {
+    const fixture = loadFixture();
+    const seams = fixture.seams as Record<string, Record<string, unknown>>;
+    const withUnit = validateDeliveryRecord({
+      ...fixture,
+      seams: { ...seams, compaction: { status: "ok", unit_id: "B" } },
+    });
+    expect(withUnit.ok).toBe(true);
+    if (withUnit.ok) expect(withUnit.data.seams.compaction.unit_id).toBe("B");
+
+    const empty = validateDeliveryRecord({
+      ...fixture,
+      seams: { ...seams, compaction: { status: "ok", unit_id: "" } },
+    });
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) {
+      expect(empty.errors.some((e) => e.startsWith("seams.compaction.unit_id"))).toBe(true);
+    }
+  });
+
   it("keeps an unknown key at the root and inside a section (additive posture)", () => {
     const fixture = loadFixture();
     const record = {

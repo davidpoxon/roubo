@@ -144,7 +144,14 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
         </dd>
       </dl>
 
-      <DeliveryMap projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+      <DeliveryMap
+        projectId={bench.projectId}
+        benchId={bench.id}
+        snapshot={snapshot}
+        {...(bench.deliverySessionId !== undefined && {
+          deliverySessionId: bench.deliverySessionId,
+        })}
+      />
 
       <p className="text-12 text-text-secondary">
         Sending answers, steering notes and tier changes is not available on this bench yet.

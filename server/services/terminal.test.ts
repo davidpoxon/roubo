@@ -295,6 +295,32 @@ describe("output buffer", () => {
     expect(replay.lines[4999]).toBe("line-5009\n");
   });
 
+  it("answers the scrollback chunks written inside a time span", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, getSessionScrollback } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    for (const [at, chunk] of [
+      [1_000, "before\r\n"],
+      [2_000, "first\r\n"],
+      [3_000, "last\r\n"],
+      [4_000, "after\r\n"],
+    ] as const) {
+      vi.setSystemTime(at);
+      pty._emit("data", chunk);
+    }
+
+    expect(getSessionScrollback(session.id, 2_000, 3_000)).toEqual(["first\r\n", "last\r\n"]);
+    expect(getSessionScrollback(session.id, Number.NaN, Number.NaN)).toEqual([]);
+    expect(getSessionScrollback("no-such-session", 0, 5_000)).toBeUndefined();
+
+    // The times are persisted beside the buffer.
+    vi.advanceTimersByTime(1_000);
+    const [, content] = mockAtomicWrite.mock.calls.at(-1) ?? [];
+    expect(JSON.parse(String(content)).bufferTimes).toEqual([1_000, 2_000, 3_000, 4_000]);
+  });
+
   it("forwards output to connected WebSocket in real time", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
@@ -592,6 +618,35 @@ describe("ghost sessions", () => {
     expect(replay.type).toBe("replay");
     expect(replay.lines).toEqual(["before shutdown"]);
     expect(ws.close).toHaveBeenCalledWith(4410, "Session ended");
+  });
+
+  it("restores the chunk times of a persisted session, and none from a file without them", async () => {
+    const id = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+    const other = "7a2b3c4d-5e6f-4a70-9b8c-0d1e2f3a4b5c";
+    const sessionOf = (sessionId: string) => ({
+      id: sessionId,
+      benchKey: "project1:1",
+      label: "Terminal 1",
+      createdAt: "2026-01-01",
+      status: "live",
+    });
+    mockReaddirSync.mockReturnValue([`${id}.json`, `${other}.json`]);
+    mockReadFileSync.mockImplementation((file: string) =>
+      String(file).includes(id)
+        ? JSON.stringify({
+            session: sessionOf(id),
+            buffer: ["timed", "untimed"],
+            bufferTimes: [1_000, null],
+            persistedAt: "2026-01-01",
+          })
+        : JSON.stringify({ session: sessionOf(other), buffer: ["old"], persistedAt: "2026-01-01" }),
+    );
+
+    const { loadPersistedSessions, getSessionScrollback } = await loadModule();
+    loadPersistedSessions();
+
+    expect(getSessionScrollback(id, 0, 5_000)).toEqual(["timed"]);
+    expect(getSessionScrollback(other, 0, 5_000)).toEqual([]);
   });
 
   it("loadPersistedSessions marks sessions as ended", async () => {
