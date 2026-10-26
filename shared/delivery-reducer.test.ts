@@ -1305,7 +1305,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     ]);
   });
 
-  it("SB-TC-022 leaves a passed case that no gate names out of both totals", () => {
+  it("SB-TC-022 leaves a passed case that no gate names out of the cases but judges its requirements by it", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({
       record: {
@@ -1324,37 +1324,103 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
       }),
     });
     // TC-001 and TC-002 passed, but no gate names them, so neither enters the
-    // stat, and DEMO-FR-001, which only they link, is not counted either.
+    // cases stat. Their current results still judge the requirements they link:
+    // DEMO-FR-001 is covered, and DEMO-FR-002 waits on the failed TC-003.
     expect(snapshot.progress.cases).toEqual({ met: 0, total: 1 });
-    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 1 });
+    expect(snapshot.progress.requirements).toEqual({ met: 1, total: 2 });
     expect(snapshot.progress.caseList.map((entry) => entry.id)).toEqual(["DEMO-TC-003"]);
   });
 
-  it("SB-TC-022 leaves a case its gate's level policy excludes out of both totals", () => {
+  // DEMO-TC-002 at level 3: the default policy leaves it out of gate-after-b.
+  const L3_PLAN: TestCasesPlan = {
+    ...PLAN,
+    cases: PLAN.cases.map((testCase) =>
+      testCase.id === "DEMO-TC-002" ? { ...testCase, level: 3 } : testCase,
+    ),
+  };
+
+  it("SB-TC-022 holds a requirement open on a failed non-gating L3 case its gate leaves out", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({
       record,
       events: [],
-      plan: {
-        ...PLAN,
-        cases: PLAN.cases.map((testCase) =>
-          testCase.id === "DEMO-TC-002" ? { ...testCase, level: 3 } : testCase,
-        ),
-      },
+      plan: L3_PLAN,
       results: results(record.plan_hash, {
         "DEMO-TC-001": caseResult("passed"),
         "DEMO-TC-002": caseResult("failed"),
         "DEMO-TC-003": caseResult("passed"),
       }),
     });
-    // The L3 case is not gating, so its failure neither counts nor blocks a requirement.
+    // The L3 case is not gating, so it stays out of the cases stat and the gate,
+    // but both requirements it links have a linked case that is not met.
     expect(snapshot.progress.cases).toEqual({ met: 2, total: 2 });
-    expect(snapshot.progress.requirements).toEqual({ met: 2, total: 2 });
+    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 2 });
     expect(snapshot.progress.caseList.map((entry) => entry.id)).toEqual([
       "DEMO-TC-001",
       "DEMO-TC-003",
     ]);
     expect(snapshot.gatesById["gate-after-b"].state.status).toBe("passed");
+  });
+
+  it("SB-TC-022 counts a requirement covered when its non-gating L3 case passed too", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: L3_PLAN,
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("passed"),
+        "DEMO-TC-003": caseResult("passed"),
+      }),
+    });
+    expect(snapshot.progress.cases).toEqual({ met: 2, total: 2 });
+    expect(snapshot.progress.requirements).toEqual({ met: 2, total: 2 });
+  });
+
+  it("SB-TC-022 holds a requirement open on a non-gating case with no result", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: L3_PLAN,
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-003": caseResult("passed"),
+      }),
+    });
+    expect(snapshot.progress.cases).toEqual({ met: 2, total: 2 });
+    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 2 });
+  });
+
+  it("SB-TC-022 holds a requirement open on a non-gating case whose passed result is stale", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: L3_PLAN,
+      results: results("another-hash", {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("passed"),
+        "DEMO-TC-003": caseResult("passed"),
+      }),
+    });
+    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 2 });
+  });
+
+  it("SB-TC-022 holds a requirement open on a non-gating case whose result is unverified", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: L3_PLAN,
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("in_progress"),
+        "DEMO-TC-003": caseResult("passed"),
+      }),
+    });
+    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 2 });
   });
 
   it("SB-TC-022 counts a gating case the plan lacks as not met, after the plan's cases", () => {
@@ -1428,6 +1494,39 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
       expect(gate.status).toBe("passed");
       expect(gate.gatingCaseIds).toEqual(["DEMO-TC-001"]);
       expect(gate.lifecycleExcludedCaseIds).toEqual(["DEMO-TC-002"]);
+    });
+
+    it("SB-TC-022 lets a retired non-gating case hold no requirement open", () => {
+      const record = fixtureRecord();
+      const snapshot = foldDelivery({
+        record,
+        events: [],
+        plan: L3_PLAN,
+        results: results(record.plan_hash, {
+          "DEMO-TC-001": caseResult("passed"),
+          "DEMO-TC-002": caseResult("failed"),
+          "DEMO-TC-003": caseResult("passed"),
+        }),
+        lifecycle: lifecycleOf(resolution("DEMO-TC-002", "retired")),
+      });
+      expect(snapshot.progress.requirements).toEqual({ met: 2, total: 2 });
+    });
+
+    it("reads a superseded non-gating case from the case its chain resolved to", () => {
+      const record = fixtureRecord();
+      const snapshot = foldDelivery({
+        record,
+        events: [],
+        plan: L3_PLAN,
+        // TC-002 was superseded by TC-003; its own failed result is not read.
+        results: results(record.plan_hash, {
+          "DEMO-TC-001": caseResult("passed"),
+          "DEMO-TC-002": caseResult("failed"),
+          "DEMO-TC-003": caseResult("passed"),
+        }),
+        lifecycle: lifecycleOf(resolution("DEMO-TC-002", "resolved", "DEMO-TC-003")),
+      });
+      expect(snapshot.progress.requirements).toEqual({ met: 2, total: 2 });
     });
 
     it("reads a superseded case from the case its chain resolved to, as the gate does", () => {
