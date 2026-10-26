@@ -1306,9 +1306,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     return;
   }
 
-  // The socket joins the session's viewers; one already attached stays open
-  // and keeps its output. A pending quiescence check is cancelled here and
-  // re-armed below.
+  // A live session takes the socket as one more viewer; a viewer already
+  // attached stays open, keeps its own heartbeat and keeps its output. The
+  // session's pending quiescence check is cancelled here, and the arm below
+  // re-arms it for the session when the session is live and its waiting state
+  // is not hook-driven.
   cancelQuiescenceCheck(internal);
   const viewer: Viewer = { pingTimer: null, pongDeadline: null };
 
@@ -1334,18 +1336,20 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   }
   internal.viewers.set(ws, viewer);
 
-  // Arm (or re-arm on reconnect) the quiescence timer for sessions whose
-  // waiting state is not hook-driven. clearTimers above cancelled any pending
-  // timer. On reconnect, if the shell is already idle at a prompt no new PTY
-  // output will arrive so the onData handler won't reschedule: we do it here to
-  // ensure a waiting terminal still notifies. A hook-wired agent is skipped
-  // because its hook, not the reconnect, is what says it is waiting.
+  // Arm (or re-arm when a viewer attaches) the session's quiescence timer for
+  // sessions whose waiting state is not hook-driven. The pending quiescence
+  // check was cancelled above when this viewer attached; the session keeps one
+  // timer, shared by all its viewers, so this re-arms it for the session. If
+  // the shell is already idle at a prompt no new PTY output will arrive, so
+  // the onData handler won't reschedule: we do it here to ensure a waiting
+  // terminal still notifies. A hook-wired agent is skipped because its hook,
+  // not the attach, is what says it is waiting.
   //
   // Skip the rearm when we have already notified for the current idle window
-  // (no fresh output since lastNotifiedAt). Without this, a reconnect after a
-  // user dismissal would repeatedly fire fresh notifications for the same
-  // unchanged idle state. scheduleQuiescenceCheck applies the same guard
-  // inside the timer callback as a second line of defence.
+  // (no fresh output since lastNotifiedAt). Without this, each attach after a
+  // user dismissal would fire a fresh notification for the same unchanged idle
+  // state. scheduleQuiescenceCheck applies the same guard inside the timer
+  // callback as a second line of defence.
   if (
     !internal.hookNotification &&
     (internal.lastNotifiedAt === null || (internal.lastOutputAt ?? 0) > internal.lastNotifiedAt)
