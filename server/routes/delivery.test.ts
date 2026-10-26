@@ -207,6 +207,45 @@ describe("GET /:projectId/benches/:id/delivery", () => {
       expect(res.body.gatesById["gate-after-b"].state.status).toBe("stale");
     });
 
+    it("SB-TC-022 leaves a retired case out of the progress totals and the gate's set", async () => {
+      const retiredPlan: TestCasesPlan = {
+        ...plan,
+        cases: plan.cases.map((testCase) =>
+          testCase.id === "DEMO-TC-002"
+            ? { ...testCase, lifecycle: { state: "retired", reason: "Obsolete" } }
+            : testCase,
+        ),
+      };
+      const hash = computePlanHash(retiredPlan);
+      writeRecord({ ...fixtureRecord(), plan_hash: hash });
+      fs.writeFileSync(path.join(specFolder, "test-cases.json"), JSON.stringify(retiredPlan));
+      fs.writeFileSync(
+        path.join(specFolder, "test-results.json"),
+        JSON.stringify({
+          $schema: TEST_RESULTS_SCHEMA_ID,
+          schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+          planHash: hash,
+          caseResults: { "DEMO-TC-001": passed },
+          updatedAt: "2026-10-16T09:30:00Z",
+        }),
+      );
+
+      const res = await request(app).get(base);
+
+      expect(res.status).toBe(200);
+      // DEMO-TC-002 has no result: counted, it would hold the gate pending.
+      expect(res.body.progress.cases).toEqual({ met: 1, total: 2 });
+      expect(res.body.progress.requirements).toEqual({ met: 1, total: 2 });
+      expect(res.body.progress.caseList.map((entry: { id: string }) => entry.id)).toEqual([
+        "DEMO-TC-001",
+        "DEMO-TC-003",
+      ]);
+      expect(res.body.gatesById["gate-after-b"].state.status).toBe("passed");
+      expect(res.body.gatesById["gate-after-b"].state.lifecycleExcludedCaseIds).toEqual([
+        "DEMO-TC-002",
+      ]);
+    });
+
     it("SB-TC-022 reports no totals while the workspace has no plan", async () => {
       writeRecord(fixtureRecord());
 

@@ -7,8 +7,8 @@
 // Cleanup & Retry removes it. A record placed in the checkout reaches the bench
 // only as a committed file that the worktree checks out. The spill file of the
 // bench's event log sits beside the record and goes with the workspace too. The
-// spec's plan and results, which the fold reads for gate state and progress,
-// are read from the same workspace folder (`loadBenchDeliveryVerifyInputs`).
+// spec's plan, results and lifecycle, which the fold reads for gate state and
+// progress, are read from the same workspace (`loadBenchDeliveryVerifyInputs`).
 //
 // Nothing is cached: every read goes back to the file and checks it against the
 // record schema, so a record edited on disk, or read again after a restart, is
@@ -25,6 +25,7 @@ import {
 } from "@roubo/shared/delivery-bench";
 import type { DeliveryFoldInputs } from "@roubo/shared/delivery-reducer";
 import { MissingPlanError, readPlanAndResults } from "./testbench-store.js";
+import { buildPlanLifecycle } from "./plan-lifecycle.js";
 import {
   assertRealpathWithin,
   assertSafeIdentifier,
@@ -93,23 +94,34 @@ export function benchDeliveryEventSpillPath(
 }
 
 /**
- * The spec's plan and recorded results in the bench workspace, as the delivery
- * fold takes them for gate state and progress (SB-FR-011): the
+ * The spec's plan, recorded results and lifecycle in the bench workspace, as the
+ * delivery fold takes them for gate state and progress (SB-FR-011): the
  * `test-cases.json` and `test-results.json` beside the record. The results
  * carry the live plan hash when they are current and a hash that matches
  * nothing when the plan changed since they were written, so stale results never
- * count a case met (the gates route threads them the same way). A missing or
- * invalid plan, or an unsafe slug, gives neither: the fold then reads every gate
- * `stale` and reports no progress totals.
+ * count a case met (the gates route threads them the same way). The lifecycle is
+ * built as the gates route builds it (`buildPlanLifecycle`), with the spec's own
+ * manifest and every referenced spec read from the workspace, so a retired case
+ * leaves the gates and the progress totals and a superseded one reads its
+ * replacement. It is absent when no plan case carries a lifecycle block. A
+ * missing or invalid plan, or an unsafe slug, gives none of them: the fold then
+ * reads every gate `stale` and reports no progress totals.
  */
 export function loadBenchDeliveryVerifyInputs(
   bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
-): Pick<DeliveryFoldInputs, "plan" | "results"> {
+): Pick<DeliveryFoldInputs, "plan" | "results" | "lifecycle"> {
   const slug = path.basename(bench.focusedSpecPath ?? "");
   try {
     const { plan, results, planHash, stale } = readPlanAndResults(bench.workspacePath, slug);
-    if (results === null) return { plan };
-    return { plan, results: { ...results, planHash: stale ? `${planHash}::stale` : planHash } };
+    const workspace = bench.workspacePath;
+    const lifecycle = buildPlanLifecycle(plan, slug, workspace, () => workspace);
+    return {
+      plan,
+      ...(results !== null && {
+        results: { ...results, planHash: stale ? `${planHash}::stale` : planHash },
+      }),
+      ...(lifecycle !== undefined && { lifecycle }),
+    };
   } catch (err) {
     if (err instanceof MissingPlanError || err instanceof UnsafePathError) return {};
     throw err;

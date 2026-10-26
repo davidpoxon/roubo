@@ -6,8 +6,9 @@
 //                                                    with the accepted events above its
 //                                                    last_event_seq (in memory and in the
 //                                                    spill file) folded over it, with the
-//                                                    spec's plan and results in the
-//                                                    workspace for gate state and progress
+//                                                    spec's plan, results and lifecycle in
+//                                                    the workspace for gate state and
+//                                                    progress
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
@@ -154,8 +155,9 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
     loaded.record,
     benchDeliveryEventSpillPath(bench),
   );
-  // The plan and results give the gates their state and the progress its cases
-  // met and requirements covered (SB-FR-011).
+  // The plan, the results and the lifecycle give the gates their state and the
+  // progress its cases met and requirements covered (SB-FR-011): a retired or
+  // superseded case reads as the gates route reads it.
   const verify = loadBenchDeliveryVerifyInputs(bench);
   res.json(foldDeliverySnapshot({ record: loaded.record, events, ...verify, now: Date.now() }));
 });
