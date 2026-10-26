@@ -85,7 +85,11 @@ import type {
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { isDeliveryReadError, type DeliveryReadError } from "@roubo/shared/delivery-bench";
+import {
+  isDeliveryReadError,
+  type DeliveryEventsResponse,
+  type DeliveryReadError,
+} from "@roubo/shared/delivery-bench";
 import { resolvedTheme } from "./theme";
 
 const BASE = "/api";
@@ -549,6 +553,23 @@ export function destroyTerminal(
 // that does not conform; `request` puts that body on `ApiError.details`.
 export function fetchDelivery(projectId: string, benchId: number): Promise<DeliverySnapshot> {
   return request(`/projects/${projectId}/benches/${benchId}/delivery`);
+}
+
+// The accepted events above `after` (absent: every one above the record), of
+// one unit when `unit` names it, in seq order, with the bench's accepted seq.
+// The same 409 DeliveryReadError as the snapshot read.
+export function fetchDeliveryEvents(
+  projectId: string,
+  benchId: number,
+  query: { after?: number; unit?: string } = {},
+): Promise<DeliveryEventsResponse> {
+  const params = new URLSearchParams();
+  if (query.after !== undefined) params.set("after", String(query.after));
+  if (query.unit !== undefined) params.set("unit", query.unit);
+  const search = params.toString();
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/events${search ? `?${search}` : ""}`,
+  );
 }
 
 export function resumeDelivery(
