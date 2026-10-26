@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 // The bench's Terminal tab and a unit's drill-in mounted together (SB-FR-013).
 // The Terminal tab is force-mounted on every bench and holds a socket to each
-// session, the delivery session included; the server keeps one socket per
-// session and closes the older one on each connect. So the drill-in must not
-// open a second socket to the delivery session: its live terminal opens the
-// Terminal tab on that session instead.
+// session, the delivery session included. An active unit's drill-in embeds the
+// live delivery session too, over a socket of its own: the server takes several
+// viewers per session, so the two sockets stay open side by side, and closing
+// the drill-in closes its socket only.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
-import { useBenchViewState } from "../../hooks/useBenchViewState";
+import { FakeSocket } from "../../test/fake-terminal";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -34,36 +34,19 @@ vi.mock("../../hooks/useToast");
 vi.mock("../../hooks/useAgentTools");
 vi.mock("../../hooks/useProjectAgents");
 vi.mock("../../hooks/useProjectDefaultJig");
-// The real Terminal and its real connection hook run; only xterm, which needs a
-// canvas, is a stand-in.
-vi.mock("@xterm/xterm", () => ({
-  Terminal: function MockXTerm() {
-    return {
-      options: {},
-      parser: { registerOscHandler: () => ({ dispose: () => undefined }) },
-      loadAddon: () => undefined,
-      open: () => undefined,
-      onData: () => ({ dispose: () => undefined }),
-      onResize: () => ({ dispose: () => undefined }),
-      dispose: () => undefined,
-      write: () => undefined,
-    };
-  },
-}));
-vi.mock("@xterm/addon-fit", () => ({
-  FitAddon: function MockFitAddon() {
-    return { fit: () => undefined, proposeDimensions: () => ({ cols: 80, rows: 24 }) };
-  },
-}));
-vi.mock("@xterm/addon-web-links", () => ({
-  WebLinksAddon: function MockWebLinks() {
-    return { dispose: () => undefined };
-  },
-}));
+// The real Terminal and its real connection hook run in both views; only xterm,
+// which needs a canvas, and the socket are stand-ins.
+vi.mock("@xterm/xterm", () => import("../../test/fake-terminal"));
+vi.mock("@xterm/addon-fit", () => import("../../test/fake-terminal"));
+vi.mock("@xterm/addon-web-links", () => import("../../test/fake-terminal"));
 vi.mock("@xterm/xterm/css/xterm.css", () => ({}));
 
 import * as api from "../../lib/api";
-import { useCreateTerminal, useDestroyTerminal, useTerminalSessions } from "../../hooks/useTerminal";
+import {
+  useCreateTerminal,
+  useDestroyTerminal,
+  useTerminalSessions,
+} from "../../hooks/useTerminal";
 import { useInjectJig, useJigs } from "../../hooks/useJigs";
 import { useSettings } from "../../hooks/useSettings";
 import { useDismissNotification } from "../../hooks/useBenches";
@@ -105,46 +88,9 @@ const sessions = [
   },
 ];
 
-// Every socket the page opens, by the session its URL names.
-let sockets: FakeSocket[];
-class FakeSocket {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSING = 2;
-  static readonly CLOSED = 3;
-  readyState = FakeSocket.CONNECTING;
-  closed = false;
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: ((event: { code: number }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  constructor(readonly url: string) {
-    sockets.push(this);
-    queueMicrotask(() => {
-      if (this.closed) return;
-      this.readyState = FakeSocket.OPEN;
-      this.onopen?.();
-    });
-  }
-  send() {}
-  close() {
-    this.closed = true;
-    this.readyState = FakeSocket.CLOSED;
-  }
-}
-const socketsTo = (sessionId: string) =>
-  sockets.filter((socket) => socket.url.endsWith(`/ws/terminal/${sessionId}`));
-
-// BenchDetail's tab list reads the active tab from the same view state.
-function ActiveBenchTab() {
-  const { activeTab } = useBenchViewState("demo", 3);
-  return <p data-testid="active-bench-tab">{activeTab ?? "none"}</p>;
-}
-
 function Bench3() {
   return (
     <>
-      <ActiveBenchTab />
       <DeliveryTabPanel bench={bench} />
       <TerminalTabs projectId="demo" benchId={3} projectName="Demo" hasAssignedIssue={false} />
     </>
@@ -155,7 +101,7 @@ let record: DeliveryRecord;
 
 beforeEach(() => {
   localStorage.clear();
-  sockets = [];
+  FakeSocket.opened = [];
   vi.stubGlobal("WebSocket", FakeSocket);
   vi.stubGlobal(
     "EventSource",
@@ -224,35 +170,48 @@ afterEach(() => {
 });
 
 describe("Unit drill-in beside the Terminal tab", () => {
-  it("SB-TC-031 keeps one socket to the delivery session and opens an active unit's live terminal in the Terminal tab", async () => {
+  it("SB-TC-031 embeds an active unit's live terminal beside the Terminal tab's own socket to the session", async () => {
     renderWithProviders(<Bench3 />);
     await act(async () => {});
     // The Terminal tab holds one socket to each session.
-    expect(socketsTo("session-1")).toHaveLength(1);
-    expect(socketsTo("shell-1")).toHaveLength(1);
-    const tabSocket = socketsTo("session-1")[0];
+    expect(FakeSocket.to("session-1")).toHaveLength(1);
+    expect(FakeSocket.to("shell-1")).toHaveLength(1);
+    const [tabSocket] = FakeSocket.to("session-1");
 
-    // Open B, which is active, from the map.
+    // Open B, which is active, from the map: its drill-in attaches a second
+    // viewer to the delivery session, and the tab's socket stays open.
     await userEvent.click(await screen.findByTestId("unit-node-B"));
     const drillIn = screen.getByRole("region", { name: "Unit B" });
     const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit B" });
-    const open = within(terminal).getByRole("button", { name: "Open the live terminal" });
     await act(async () => {});
-
-    // The drill-in opened no socket of its own, so the Terminal tab's socket
-    // stays open: nothing evicts it, and nothing reconnects.
-    expect(socketsTo("session-1")).toEqual([tabSocket]);
-    expect(tabSocket.closed).toBe(false);
+    const sockets = FakeSocket.to("session-1");
     expect(sockets).toHaveLength(2);
-
-    // The live terminal is the Terminal tab, on the delivery session.
-    expect(screen.getByText("Shell").closest("div")?.className).toContain("bg-bg-pressed");
-    await userEvent.click(open);
-    expect(screen.getByTestId("active-bench-tab")).toHaveTextContent("terminal");
-    expect(screen.getByText("Delivery").closest("div")?.className).toContain("bg-bg-pressed");
-    expect(screen.getByText("Shell").closest("div")?.className).not.toContain("bg-bg-pressed");
-    await act(async () => {});
-    expect(socketsTo("session-1")).toEqual([tabSocket]);
+    const [, drillInSocket] = sockets;
     expect(tabSocket.closed).toBe(false);
+    expect(drillInSocket.closed).toBe(false);
+
+    // Each viewer gets the session's frames, and the drill-in's shows them.
+    act(() => {
+      for (const socket of sockets) {
+        socket.receive({ type: "replay", lines: ["$ claude\r\n"] });
+        socket.receive({ type: "output", data: "working on B\r\n" });
+      }
+    });
+    expect(within(terminal).getByTestId("xterm-screen")).toHaveTextContent("$ claude working on B");
+
+    // Input typed in the drill-in goes out on the drill-in's socket.
+    fireEvent.input(within(terminal).getByRole("textbox", { name: "Terminal input" }), {
+      target: { value: "continue" },
+    });
+    expect(drillInSocket.sent).toContainEqual({ type: "input", data: "continue" });
+    expect(tabSocket.sent).not.toContainEqual({ type: "input", data: "continue" });
+
+    // Closing the drill-in closes its socket only; the tab's stays open and
+    // nothing reconnects.
+    await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
+    await act(async () => {});
+    expect(drillInSocket.closed).toBe(true);
+    expect(tabSocket.closed).toBe(false);
+    expect(FakeSocket.to("session-1")).toHaveLength(2);
   });
 });

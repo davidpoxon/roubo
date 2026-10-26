@@ -492,19 +492,86 @@ describe("handleWebSocket", () => {
     expect(replay.exitCode).toBe(0);
   });
 
-  it("replaces previous WebSocket on reconnect", async () => {
+  it("SB-TC-031 keeps an attached viewer open when a second viewer attaches, and sends both the replay and the output", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession, handleWebSocket } = await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
-    const ws1 = createMockWs();
-    const ws2 = createMockWs();
+    pty._emit("data", "before\r\n");
+    const tab = createMockWs();
+    const drillIn = createMockWs();
 
-    handleWebSocket(session.id, ws1);
-    handleWebSocket(session.id, ws2);
+    handleWebSocket(session.id, tab);
+    handleWebSocket(session.id, drillIn);
 
-    expect(ws1.close).toHaveBeenCalled();
+    expect(tab.close).not.toHaveBeenCalled();
+    for (const ws of [tab, drillIn]) {
+      expect(JSON.parse(ws._sent[0])).toMatchObject({ type: "replay", lines: ["before\r\n"] });
+    }
+    pty._emit("data", "live\r\n");
+    for (const ws of [tab, drillIn]) {
+      expect(ws._sent.map((m: string) => JSON.parse(m))).toContainEqual({
+        type: "output",
+        data: "live\r\n",
+      });
+    }
+    // Either viewer can type into the session.
+    drillIn._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "y\r" })));
+    tab._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "n\r" })));
+    expect(pty.write).toHaveBeenCalledWith("y\r");
+    expect(pty.write).toHaveBeenCalledWith("n\r");
+  });
+
+  it("SB-TC-031 ends neither the session nor the other viewer when one viewer detaches", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket, hasSession } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    const tab = createMockWs();
+    const drillIn = createMockWs();
+    handleWebSocket(session.id, tab);
+    handleWebSocket(session.id, drillIn);
+
+    drillIn._trigger("close");
+    tab._sent.length = 0;
+    drillIn._sent.length = 0;
+    pty._emit("data", "still running\r\n");
+
+    expect(hasSession(session.id)).toBe(true);
+    expect(pty.kill).not.toHaveBeenCalled();
+    expect(tab.close).not.toHaveBeenCalled();
+    expect(tab._sent.map((m: string) => JSON.parse(m))).toEqual([
+      { type: "output", data: "still running\r\n" },
+    ]);
+    expect(drillIn._sent).toEqual([]);
+
+    // The remaining viewer keeps its heartbeat; the detached one gets none.
+    vi.advanceTimersByTime(30_000);
+    expect(tab._sent.some((m: string) => JSON.parse(m).type === "ping")).toBe(true);
+    expect(drillIn._sent).toEqual([]);
+    // The pong deadline is the viewer's own: with no pong it closes alone.
+    vi.advanceTimersByTime(10_000);
+    expect(tab.close).toHaveBeenCalled();
+    expect(drillIn.close).not.toHaveBeenCalled();
+  });
+
+  it("closes every attached viewer when the session is destroyed", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket, destroySession } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    const tab = createMockWs();
+    const drillIn = createMockWs();
+    handleWebSocket(session.id, tab);
+    handleWebSocket(session.id, drillIn);
+
+    destroySession(session.id);
+
+    expect(tab.close).toHaveBeenCalled();
+    expect(drillIn.close).toHaveBeenCalled();
   });
 
   it("forwards input from WebSocket to pty", async () => {
