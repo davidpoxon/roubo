@@ -82,7 +82,9 @@
 //                                                    scrollback written between the ts of
 //                                                    the unit's first and last accepted
 //                                                    event, the ones the record already
-//                                                    carries included; no new file
+//                                                    carries included, whose span the
+//                                                    bench's span file keeps across a
+//                                                    restart; no transcript file
 //                                                    404 UNIT_NOT_FOUND, and 404 and 409 as
 //                                                        the snapshot read
 //
@@ -255,7 +257,13 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
   };
   if (unit !== undefined) {
     body.folded =
-      deliveryUnitEventSpan(bench.projectId, bench.id, loaded.record, unit)?.folded ?? 0;
+      deliveryUnitEventSpan(
+        bench.projectId,
+        bench.id,
+        loaded.record,
+        unit,
+        benchDeliveryEventSpillPath(bench),
+      )?.folded ?? 0;
   }
   res.json(body);
 });
@@ -405,8 +413,14 @@ router.get(
     const { bench, record, unit } = context;
     // The log's span of the unit, not the events above the record only: once
     // the record carries a finished unit's events, they leave the log, and the
-    // span keeps their times.
-    const span = deliveryUnitEventSpan(bench.projectId, bench.id, record, unit.id);
+    // span keeps their times, in the bench's span file across a restart too.
+    const span = deliveryUnitEventSpan(
+      bench.projectId,
+      bench.id,
+      record,
+      unit.id,
+      benchDeliveryEventSpillPath(bench),
+    );
     const from = span?.from ?? null;
     const to = span?.to ?? null;
     const sessionId = bench.deliverySessionId ?? null;

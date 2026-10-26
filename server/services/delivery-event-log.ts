@@ -24,8 +24,13 @@
 // span outlives a record write, which takes the events it carries out of the
 // log, so a finished unit's drill-in can still cut its transcript out of the
 // session's scrollback and tell events folded into the record from none
-// (SB-FR-013). The span lives in memory only, like the scrollback it cuts:
-// after a server restart it holds only the events read again from the log.
+// (SB-FR-013). The spans are also written to the bench's span file (a JSON
+// file beside the spill file in the bench workspace) each time they grow, and a
+// log made after a server restart reads them back, so a unit whose events the
+// record already carries keeps its span across a restart, as the session's
+// scrollback does. The span file goes with the workspace, like the record. A
+// write that fails leaves the spans in memory only and refuses nothing: the
+// events themselves are in the record, the spill file or memory.
 //
 // A batch is applied whole or not at all: every check, and the spill write,
 // runs before anything is added, so a refused batch leaves the log and the
@@ -40,6 +45,7 @@ import {
 import {
   DELIVERY_EVENT_LOG_MAX,
   DELIVERY_EVENT_SPILL_CHUNK,
+  DELIVERY_UNIT_SPANS_FILE,
   type DeliveryIngestError,
 } from "@roubo/shared/delivery-bench";
 
@@ -91,8 +97,9 @@ function fromRecord(record: DeliveryRecord): BenchEventLog {
 }
 
 // Adds each event that names a unit to that unit's span. An event already in
-// the span (a re-read of the spill file) counts once.
-function noteUnitEvents(log: BenchEventLog, events: Iterable<DeliveryEvent>): void {
+// the span (a re-read of the spill file) counts once. True when a span grew.
+function noteUnitEvents(log: BenchEventLog, events: Iterable<DeliveryEvent>): boolean {
+  let grew = false;
   for (const event of events) {
     const unitId = event.unit_id;
     if (unitId === undefined) continue;
@@ -100,19 +107,92 @@ function noteUnitEvents(log: BenchEventLog, events: Iterable<DeliveryEvent>): vo
     const span = log.unitSpans.get(unitId);
     if (span === undefined) {
       log.unitSpans.set(unitId, { first: mark, last: mark, seqs: new Set([event.seq]) });
+      grew = true;
       continue;
     }
     if (span.seqs.has(event.seq)) continue;
     span.seqs.add(event.seq);
+    grew = true;
     if (event.seq < span.first.seq) span.first = mark;
     if (event.seq > span.last.seq) span.last = mark;
+  }
+  return grew;
+}
+
+// ── The span file ──
+//
+// `delivery-unit-spans.json` beside the spill file:
+//   { delivery_id, units: { <unit id>: { first: {seq, ts}, last: {seq, ts},
+//     seqs: [<seq>, ...] } } }
+// `seqs` lists each accepted seq of the unit once, so a read after a restart
+// still counts the unit's events and tells the folded ones from the rest.
+
+interface PersistedUnitSpans {
+  delivery_id: string;
+  units: Record<string, { first: UnitSpan["first"]; last: UnitSpan["last"]; seqs: number[] }>;
+}
+
+function unitSpansPath(spillPath: string): string {
+  return path.join(path.dirname(spillPath), DELIVERY_UNIT_SPANS_FILE);
+}
+
+function isMark(value: unknown): value is UnitSpan["first"] {
+  if (typeof value !== "object" || value === null) return false;
+  const mark = value as Record<string, unknown>;
+  return Number.isSafeInteger(mark.seq) && typeof mark.ts === "string";
+}
+
+// The spans of the span file when it belongs to the delivery, else none. A
+// file that does not parse, or an entry of the wrong shape, is skipped.
+function readUnitSpans(spillPath: string, deliveryId: string): Map<string, UnitSpan> {
+  const spans = new Map<string, UnitSpan>();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(unitSpansPath(spillPath), "utf8"));
+  } catch {
+    return spans;
+  }
+  if (typeof raw !== "object" || raw === null) return spans;
+  const file = raw as Partial<PersistedUnitSpans>;
+  if (file.delivery_id !== deliveryId || typeof file.units !== "object" || file.units === null) {
+    return spans;
+  }
+  for (const [unitId, entry] of Object.entries(file.units)) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { first, last, seqs } = entry;
+    if (!isMark(first) || !isMark(last) || !Array.isArray(seqs)) continue;
+    if (!seqs.every((seq) => Number.isSafeInteger(seq))) continue;
+    spans.set(unitId, { first, last, seqs: new Set(seqs) });
+  }
+  return spans;
+}
+
+// Writes the log's spans to the span file, through a temporary file and a
+// rename so a reader never sees half a file.
+function writeUnitSpans(log: BenchEventLog, spillPath: string): void {
+  if (log.deliveryId === undefined) return;
+  const file: PersistedUnitSpans = { delivery_id: log.deliveryId, units: {} };
+  for (const [unitId, span] of log.unitSpans) {
+    file.units[unitId] = { first: span.first, last: span.last, seqs: [...span.seqs] };
+  }
+  const target = unitSpansPath(spillPath);
+  const tmp = `${target}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(tmp, `${JSON.stringify(file)}\n`);
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    console.warn(
+      `[delivery] The unit spans could not be written to ${target}: ${(err as Error).message}`,
+    );
   }
 }
 
 // Brings a bench's log into line with its record, or with no record. A record
 // of another delivery, or one whose seq went back (it was rewritten), starts
-// the log again from the record.
-function syncLog(k: string, record: DeliveryRecord | undefined): BenchEventLog {
+// the log again from the record. A log made from the record for the first time
+// (after a server restart) reads the unit spans of the bench's span file back.
+function syncLog(k: string, record: DeliveryRecord | undefined, spillPath: string): BenchEventLog {
   const log = logs.get(k);
   if (record === undefined) {
     if (log !== undefined) return log;
@@ -126,8 +206,13 @@ function syncLog(k: string, record: DeliveryRecord | undefined): BenchEventLog {
     logs.set(k, empty);
     return empty;
   }
+  if (log === undefined) {
+    const seeded = fromRecord(record);
+    seeded.unitSpans = readUnitSpans(spillPath, record.delivery_id);
+    logs.set(k, seeded);
+    return seeded;
+  }
   if (
-    log === undefined ||
     (log.deliveryId !== undefined && log.deliveryId !== record.delivery_id) ||
     record.last_event_seq < log.recordSeq
   ) {
@@ -162,7 +247,7 @@ export function ingestDeliveryEvents(
   batch: readonly DeliveryEvent[],
   spillPath: string,
 ): DeliveryIngestResult {
-  const log = syncLog(key(projectId, benchId), record);
+  const log = syncLog(key(projectId, benchId), record, spillPath);
   const deliveryId = log.deliveryId ?? batch[0]?.delivery_id;
   for (const [index, event] of batch.entries()) {
     if (event.delivery_id !== deliveryId) {
@@ -254,7 +339,7 @@ export function ingestDeliveryEvents(
 
   log.deliveryId = deliveryId;
   log.events.push(...fresh);
-  noteUnitEvents(log, fresh);
+  if (noteUnitEvents(log, fresh)) writeUnitSpans(log, spillPath);
   log.acceptedSeq = last;
   return {
     ok: true,
@@ -337,27 +422,30 @@ export function deliveryEventsAfterRecord(
   record: DeliveryRecord,
   spillPath: string,
 ): DeliveryEvent[] {
-  const log = syncLog(key(projectId, benchId), record);
+  const log = syncLog(key(projectId, benchId), record, spillPath);
   const bySeq = readSpill(spillPath, record.delivery_id, record.last_event_seq);
   for (const event of log.events) bySeq.set(event.seq, event);
   const events = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
   // The spill file can hold events that this log has not seen since a restart.
-  noteUnitEvents(log, events);
+  if (noteUnitEvents(log, events)) writeUnitSpans(log, spillPath);
   return events;
 }
 
 /**
  * The span of a unit's accepted events, read after the record so the log is
  * in line with it (see deliveryEventsAfterRecord), or undefined when no
- * accepted event the log knows names the unit.
+ * accepted event the log knows names the unit. `spillPath` is the bench's
+ * spill file, beside which the span file sits: after a restart the spans are
+ * read back from it.
  */
 export function deliveryUnitEventSpan(
   projectId: string,
   benchId: number,
   record: DeliveryRecord,
   unitId: string,
+  spillPath: string,
 ): DeliveryUnitEventSpan | undefined {
-  const log = syncLog(key(projectId, benchId), record);
+  const log = syncLog(key(projectId, benchId), record, spillPath);
   const span = log.unitSpans.get(unitId);
   if (span === undefined) return undefined;
   let folded = 0;
@@ -372,7 +460,8 @@ export function deliveryAcceptedSeq(projectId: string, benchId: number): number 
 
 /**
  * Drops a bench's in-memory log (Clear bench, a fresh workspace), or every
- * bench's when none is named. The spill file is in the workspace and goes with it.
+ * bench's when none is named. The spill file and the span file are in the
+ * workspace and go with it.
  */
 export function forgetDeliveryEventLog(projectId?: string, benchId?: number): void {
   if (projectId === undefined || benchId === undefined) {
