@@ -304,53 +304,82 @@ describe("Unit drill-in", () => {
     expect(within(live).queryByTestId("unit-transcript-label")).not.toBeInTheDocument();
   });
 
-  it(
-    "SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst responsive",
-    async () => {
-      record = withStatus(fourUnitRecord(), { B: "running" });
-      log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
-      renderWithProviders(<Harness />);
-      await openUnit("B");
-      await waitFor(() => expect(timelineOrder()).toEqual(["event:8"]));
+  it("SB-TC-031 replays a done unit's transcript after the record carries all its events", async () => {
+    // The session wrote the record past A's two events, so no event of A sits
+    // above it: the server counts them as folded.
+    record = { ...withStatus(fourUnitRecord(), { A: "done" }), last_event_seq: 9 };
+    vi.mocked(api.fetchDeliveryEvents).mockImplementation(async (_p, _b, query = {}) => ({
+      events: [],
+      acceptedSeq: 9,
+      ...(query.unit !== undefined && { folded: query.unit === "A" ? 2 : 0 }),
+    }));
+    vi.mocked(api.fetchDeliveryUnitTranscript).mockResolvedValue({
+      unit: "A",
+      sessionId: "session-1",
+      from: at(40),
+      to: at(45),
+      lines: ["built A\r\n"],
+    });
+    renderWithProviders(<Harness />);
 
-      // Step 1: one event for B reaches the timeline within 2 seconds.
-      const posted = performance.now();
-      post(unitEvent(9, "B", "note", { text: "Opened the worktree" }, at(41)));
-      await waitFor(() => expect(screen.getByTestId("timeline-event-9")).toBeInTheDocument(), {
-        timeout: 2_000,
+    const drillIn = await openUnit("A");
+    const empty = await within(drillIn).findByTestId("unit-timeline-empty");
+    expect(empty).toHaveTextContent(
+      "No newer events for unit A: the delivery record holds its 2 events.",
+    );
+    expect(empty).toHaveAttribute("data-folded", "true");
+    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit A" });
+    expect(
+      await within(terminal).findByRole("region", {
+        name: "Recorded transcript of unit A, read-only",
+      }),
+    ).toHaveTextContent("built A");
+    expect(within(terminal).getByTestId("unit-transcript-label")).toBeInTheDocument();
+  });
+
+  it("SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst responsive", async () => {
+    record = withStatus(fourUnitRecord(), { B: "running" });
+    log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
+    renderWithProviders(<Harness />);
+    await openUnit("B");
+    await waitFor(() => expect(timelineOrder()).toEqual(["event:8"]));
+
+    // Step 1: one event for B reaches the timeline within 2 seconds.
+    const posted = performance.now();
+    post(unitEvent(9, "B", "note", { text: "Opened the worktree" }, at(41)));
+    await waitFor(() => expect(screen.getByTestId("timeline-event-9")).toBeInTheDocument(), {
+      timeout: 2_000,
+    });
+    expect(performance.now() - posted).toBeLessThan(2_000);
+
+    // Step 2: 1,000 more events in one minute, posted in ten batches.
+    for (let batch = 0; batch < 10; batch += 1) {
+      const events = Array.from({ length: 100 }, (_, index) => {
+        const seq = 10 + batch * 100 + index;
+        return unitEvent(seq, "B", "note", { text: `Turn ${seq}` }, at(42 + batch, index % 60));
       });
-      expect(performance.now() - posted).toBeLessThan(2_000);
+      post(...events);
+      const last = events.at(-1)?.seq ?? 0;
+      await waitFor(() => expect(screen.getByTestId(`timeline-event-${last}`)).toBeInTheDocument());
+    }
+    // The log holds the most recent 1,000: seqs 10 to 1009, the first two gone.
+    const rows = screen.getByTestId("unit-timeline-list").children;
+    expect(rows).toHaveLength(1_000);
+    expect(rows[0]).toHaveAttribute("data-seq", "1009");
+    expect(rows[999]).toHaveAttribute("data-seq", "10");
+    expect(screen.queryByTestId("timeline-event-9")).not.toBeInTheDocument();
+    // The timeline keeps scrolling inside its own box.
+    expect(screen.getByTestId("unit-timeline-list").className).toContain("overflow-y-auto");
 
-      // Step 2: 1,000 more events in one minute, posted in ten batches.
-      for (let batch = 0; batch < 10; batch += 1) {
-        const events = Array.from({ length: 100 }, (_, index) => {
-          const seq = 10 + batch * 100 + index;
-          return unitEvent(seq, "B", "note", { text: `Turn ${seq}` }, at(42 + batch, index % 60));
-        });
-        post(...events);
-        const last = events.at(-1)?.seq ?? 0;
-        await waitFor(() => expect(screen.getByTestId(`timeline-event-${last}`)).toBeInTheDocument());
-      }
-      // The log holds the most recent 1,000: seqs 10 to 1009, the first two gone.
-      const rows = screen.getByTestId("unit-timeline-list").children;
-      expect(rows).toHaveLength(1_000);
-      expect(rows[0]).toHaveAttribute("data-seq", "1009");
-      expect(rows[999]).toHaveAttribute("data-seq", "10");
-      expect(screen.queryByTestId("timeline-event-9")).not.toBeInTheDocument();
-      // The timeline keeps scrolling inside its own box.
-      expect(screen.getByTestId("unit-timeline-list").className).toContain("overflow-y-auto");
-
-      // Input on the page responds within 100 ms: the shortcut that leaves the
-      // terminal moves the focus to the Diff panel.
-      const input = screen.getByTestId("live-terminal");
-      input.focus();
-      const pressed = performance.now();
-      fireEvent.keyDown(input, { key: "F6" });
-      expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
-      expect(performance.now() - pressed).toBeLessThan(100);
-    },
-    60_000,
-  );
+    // Input on the page responds within 100 ms: the shortcut that leaves the
+    // terminal moves the focus to the Diff panel.
+    const input = screen.getByTestId("live-terminal");
+    input.focus();
+    const pressed = performance.now();
+    fireEvent.keyDown(input, { key: "F6" });
+    expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
+    expect(performance.now() - pressed).toBeLessThan(100);
+  }, 60_000);
 
   it("SB-TC-033 reaches every panel by keyboard with its name, leaves the terminal by shortcut and has no axe findings", async () => {
     const user = userEvent.setup();

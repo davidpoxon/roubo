@@ -19,6 +19,14 @@
 // an event more than once (a spill that failed part way, or a session that
 // posts again after a restart); a read keeps one event per seq, memory first.
 //
+// The log also keeps, per unit, the span of the unit's accepted events: the ts
+// of its first and last event and how many it has, counted once per seq. The
+// span outlives a record write, which takes the events it carries out of the
+// log, so a finished unit's drill-in can still cut its transcript out of the
+// session's scrollback and tell events folded into the record from none
+// (SB-FR-013). The span lives in memory only, like the scrollback it cuts:
+// after a server restart it holds only the events read again from the log.
+//
 // A batch is applied whole or not at all: every check, and the spill write,
 // runs before anything is added, so a refused batch leaves the log and the
 // accepted seq where they were.
@@ -44,6 +52,26 @@ interface BenchEventLog {
   acceptedSeq: number;
   // Seq order, dense, every seq above recordSeq.
   events: DeliveryEvent[];
+  // Per unit id, the span of the unit's accepted events, the folded ones too.
+  unitSpans: Map<string, UnitSpan>;
+}
+
+interface UnitSpan {
+  first: { seq: number; ts: string };
+  last: { seq: number; ts: string };
+  seqs: Set<number>;
+}
+
+/**
+ * The span of a unit's accepted events, the ones the record already carries
+ * included: the ts of the first and the last, and how many there are, and how
+ * many of them sit at or below the record's last_event_seq.
+ */
+export interface DeliveryUnitEventSpan {
+  from: string;
+  to: string;
+  count: number;
+  folded: number;
 }
 
 const logs = new Map<string, BenchEventLog>();
@@ -58,7 +86,27 @@ function fromRecord(record: DeliveryRecord): BenchEventLog {
     recordSeq: record.last_event_seq,
     acceptedSeq: record.last_event_seq,
     events: [],
+    unitSpans: new Map(),
   };
+}
+
+// Adds each event that names a unit to that unit's span. An event already in
+// the span (a re-read of the spill file) counts once.
+function noteUnitEvents(log: BenchEventLog, events: Iterable<DeliveryEvent>): void {
+  for (const event of events) {
+    const unitId = event.unit_id;
+    if (unitId === undefined) continue;
+    const mark = { seq: event.seq, ts: event.ts };
+    const span = log.unitSpans.get(unitId);
+    if (span === undefined) {
+      log.unitSpans.set(unitId, { first: mark, last: mark, seqs: new Set([event.seq]) });
+      continue;
+    }
+    if (span.seqs.has(event.seq)) continue;
+    span.seqs.add(event.seq);
+    if (event.seq < span.first.seq) span.first = mark;
+    if (event.seq > span.last.seq) span.last = mark;
+  }
 }
 
 // Brings a bench's log into line with its record, or with no record. A record
@@ -73,6 +121,7 @@ function syncLog(k: string, record: DeliveryRecord | undefined): BenchEventLog {
       recordSeq: 0,
       acceptedSeq: 0,
       events: [],
+      unitSpans: new Map(),
     };
     logs.set(k, empty);
     return empty;
@@ -205,6 +254,7 @@ export function ingestDeliveryEvents(
 
   log.deliveryId = deliveryId;
   log.events.push(...fresh);
+  noteUnitEvents(log, fresh);
   log.acceptedSeq = last;
   return {
     ok: true,
@@ -240,10 +290,7 @@ function appendSpill(spillPath: string, events: readonly DeliveryEvent[]): void 
   // A torn last line is closed first, so the first event appended now is a
   // line of its own and not the tail of the torn one.
   const lead = endsMidLine(spillPath) ? "\n" : "";
-  fs.appendFileSync(
-    spillPath,
-    lead + events.map((event) => `${JSON.stringify(event)}\n`).join(""),
-  );
+  fs.appendFileSync(spillPath, lead + events.map((event) => `${JSON.stringify(event)}\n`).join(""));
 }
 
 // The events of the spill file that belong to the delivery and sit above
@@ -293,7 +340,29 @@ export function deliveryEventsAfterRecord(
   const log = syncLog(key(projectId, benchId), record);
   const bySeq = readSpill(spillPath, record.delivery_id, record.last_event_seq);
   for (const event of log.events) bySeq.set(event.seq, event);
-  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  const events = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  // The spill file can hold events that this log has not seen since a restart.
+  noteUnitEvents(log, events);
+  return events;
+}
+
+/**
+ * The span of a unit's accepted events, read after the record so the log is
+ * in line with it (see deliveryEventsAfterRecord), or undefined when no
+ * accepted event the log knows names the unit.
+ */
+export function deliveryUnitEventSpan(
+  projectId: string,
+  benchId: number,
+  record: DeliveryRecord,
+  unitId: string,
+): DeliveryUnitEventSpan | undefined {
+  const log = syncLog(key(projectId, benchId), record);
+  const span = log.unitSpans.get(unitId);
+  if (span === undefined) return undefined;
+  let folded = 0;
+  for (const seq of span.seqs) if (seq <= record.last_event_seq) folded += 1;
+  return { from: span.first.ts, to: span.last.ts, count: span.seqs.size, folded };
 }
 
 /** The bench's accepted seq, or undefined before its events were read or posted. */

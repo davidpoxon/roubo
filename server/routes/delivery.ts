@@ -17,14 +17,18 @@
 //                                                        or invalid (DELIVERY_INVALID + field)
 //   GET  /:projectId/benches/:id/delivery/events?after=<seq>&unit=<id>
 //                                                 -> 200 DeliveryEventsResponse
-//                                                    {events, acceptedSeq}: the accepted
-//                                                    events above `after` (absent: every
-//                                                    one above the record's
+//                                                    {events, acceptedSeq, folded}: the
+//                                                    accepted events above `after`
+//                                                    (absent: every one above the record's
 //                                                    last_event_seq, in memory and in the
 //                                                    spill file), only those whose
 //                                                    envelope unit_id is `unit` when it
 //                                                    is given, in seq order; acceptedSeq
-//                                                    is the bench's accepted seq
+//                                                    is the bench's accepted seq; with
+//                                                    `unit`, `folded` counts the unit's
+//                                                    accepted events at or below the
+//                                                    record's last_event_seq, which the
+//                                                    record carries and `events` leaves out
 //                                                    400 INVALID_QUERY + field: `after`
 //                                                        is not a non-negative integer,
 //                                                        or `unit` is not one id
@@ -77,7 +81,8 @@
 //                                                    the delivery session terminal's
 //                                                    scrollback written between the ts of
 //                                                    the unit's first and last accepted
-//                                                    event; no new file
+//                                                    event, the ones the record already
+//                                                    carries included; no new file
 //                                                    404 UNIT_NOT_FOUND, and 404 and 409 as
 //                                                        the snapshot read
 //
@@ -107,9 +112,17 @@ import {
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
-import type { DeliveryEvent, DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
+import type {
+  DeliveryEvent,
+  DeliveryRecord,
+  DeliveryUnit,
+} from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery, ownValue, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { deliveryAcceptedSeq, deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
+import {
+  deliveryAcceptedSeq,
+  deliveryEventsAfterRecord,
+  deliveryUnitEventSpan,
+} from "../services/delivery-event-log.js";
 import { runCommand } from "../services/exec.js";
 import { getSessionScrollback } from "../services/terminal.js";
 import {
@@ -240,6 +253,10 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
     events,
     acceptedSeq: deliveryAcceptedSeq(bench.projectId, bench.id) ?? loaded.record.last_event_seq,
   };
+  if (unit !== undefined) {
+    body.folded =
+      deliveryUnitEventSpan(bench.projectId, bench.id, loaded.record, unit)?.folded ?? 0;
+  }
   res.json(body);
 });
 
@@ -253,6 +270,7 @@ const DIFF_TIMEOUT_MS = 15_000;
 
 interface DrillInContext {
   bench: Bench;
+  record: DeliveryRecord;
   snapshot: DeliverySnapshot;
   events: readonly DeliveryEvent[];
   unit: DeliveryUnit;
@@ -283,7 +301,7 @@ function drillInContext(req: Request, res: Response): DrillInContext | undefined
     res.status(404).json({ error: `The delivery has no unit ${unitId}`, code: "UNIT_NOT_FOUND" });
     return undefined;
   }
-  return { bench, snapshot, events, unit };
+  return { bench, record: loaded.record, snapshot, events, unit };
 }
 
 function sendDiffUnavailable(res: Response, error: string): void {
@@ -367,9 +385,7 @@ router.get(
       unit: unit.id,
       base,
       head,
-      diff: truncated
-        ? bytes.subarray(0, DELIVERY_DIFF_MAX_BYTES).toString("utf8")
-        : diff.stdout,
+      diff: truncated ? bytes.subarray(0, DELIVERY_DIFF_MAX_BYTES).toString("utf8") : diff.stdout,
       truncated,
     };
     res.json(body);
@@ -386,10 +402,13 @@ router.get(
   (req, res) => {
     const context = drillInContext(req, res);
     if (!context) return;
-    const { bench, events, unit } = context;
-    const own = events.filter((event) => event.unit_id === unit.id);
-    const from = own[0]?.ts ?? null;
-    const to = own.at(-1)?.ts ?? null;
+    const { bench, record, unit } = context;
+    // The log's span of the unit, not the events above the record only: once
+    // the record carries a finished unit's events, they leave the log, and the
+    // span keeps their times.
+    const span = deliveryUnitEventSpan(bench.projectId, bench.id, record, unit.id);
+    const from = span?.from ?? null;
+    const to = span?.to ?? null;
     const sessionId = bench.deliverySessionId ?? null;
     let lines: string[] = [];
     let session: string | null = null;

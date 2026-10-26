@@ -82,9 +82,15 @@ export interface DeliveryStreamFrame {
 // given (the envelope's `unit_id`), in seq order. Only the events above the
 // record's `last_event_seq` are kept, so an `after` below it reads from there.
 // `acceptedSeq` is the bench's accepted seq, the seq a later read goes on from.
+// With `unit`, `folded` counts the unit's accepted events at or below the
+// record's `last_event_seq`: the record carries them, so `events` leaves them
+// out, and a unit with an empty list and a `folded` above 0 has events, all in
+// the record (SB-FR-013). The server knows the events it accepted since it
+// started, so after a restart the count can be 0 for a unit the record moved.
 export interface DeliveryEventsResponse {
   events: DeliveryEvent[];
   acceptedSeq: number;
+  folded?: number;
 }
 
 // ── Unit drill-in reads (SB-FR-013) ──
@@ -110,8 +116,9 @@ export const DELIVERY_DIFF_MAX_BYTES = 1024 * 1024;
 // The body of GET <base>/units/:unitId/transcript: what the bench's delivery
 // session terminal wrote between the unit's first and last accepted event, cut
 // from that terminal's scrollback by time. `from` and `to` are the `ts` of
-// those two events, null while the unit has none; `sessionId` is the bench's
-// delivery session, null when the bench recorded none or its terminal is gone.
+// those two events (the record may already carry them), null while the server
+// knows none; `sessionId` is the bench's delivery session, null when the bench
+// recorded none or its terminal is gone.
 // `lines` are the scrollback chunks as the terminal wrote them, escape
 // sequences included; empty when there is no span or no session.
 export interface DeliveryUnitTranscriptResponse {
