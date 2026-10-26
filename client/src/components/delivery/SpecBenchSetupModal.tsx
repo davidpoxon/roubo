@@ -188,7 +188,10 @@ export default function SpecBenchSetupModal({
               >
                 <p>
                   <span className="text-text-secondary">Spec </span>
-                  <span data-testid="specbench-setup-summary-spec" className="font-mono text-text-primary">
+                  <span
+                    data-testid="specbench-setup-summary-spec"
+                    className="font-mono text-text-primary"
+                  >
                     {selected.slug}
                   </span>
                 </p>
