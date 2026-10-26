@@ -600,6 +600,31 @@ describe("handleWebSocket", () => {
     expect(pty.resize).toHaveBeenCalledWith(120, 40);
   });
 
+  it("SB-TC-031 sizes the PTY to the viewer that sent its size last when two viewers send different sizes", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    const tab = createMockWs();
+    const drillIn = createMockWs();
+    handleWebSocket(session.id, tab);
+    handleWebSocket(session.id, drillIn);
+    const resize = (ws: ReturnType<typeof createMockWs>, cols: number, rows: number) =>
+      ws._trigger("message", Buffer.from(JSON.stringify({ type: "resize", cols, rows })));
+
+    // The wide Terminal tab, then the narrow drill-in panel.
+    resize(tab, 200, 50);
+    resize(drillIn, 90, 20);
+    expect(pty.resize).toHaveBeenLastCalledWith(90, 20);
+
+    // The tab re-sends its unchanged size when it is shown again or takes
+    // focus, which brings the PTY back to its width.
+    resize(tab, 200, 50);
+    expect(pty.resize).toHaveBeenLastCalledWith(200, 50);
+    expect(pty.resize).toHaveBeenCalledTimes(3);
+  });
+
   it("sends ping at interval", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
