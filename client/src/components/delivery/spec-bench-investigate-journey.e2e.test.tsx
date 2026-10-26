@@ -146,15 +146,16 @@ import BenchDetail from "../BenchDetail";
 // The blocked-by slices come first, by title and FR id. A slice that a step
 // also crosses but that sits outside the blocked-by set is labelled apart.
 const OWNERS = {
-  drillIn: "unit drill-in with its timeline, terminal, diff and verify (SB-FR-013)",
-  routes: "snapshot, events and unit drill-in routes (SB-FR-008, SB-FR-013)",
-  reducer: "reducer and selectors (SB-FR-008, SB-FR-010, SB-FR-011)",
+  drillIn:
+    "Unit drill-in with timeline, terminal beside it, and diff and verify beneath (SB-FR-013)",
+  routes: "Delivery snapshot and events routes (SB-FR-008, SB-FR-013)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
   launch: "delivery session launch, delivery token and event ingest (SB-FR-002)",
   deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
   map: "delivery map graph and list views (SB-FR-010)",
+  reducer: "reducer and selectors (SB-FR-008, SB-FR-010, SB-FR-011)",
 } as const;
 
 type BlockedBySlice = keyof typeof OWNERS;
@@ -621,8 +622,7 @@ class RouboServerStandIn {
     if (unit.head !== undefined) {
       const order = ownValue(loaded.record.stack.stacks, unit.stack) ?? [];
       const below = order[order.indexOf(unitId) - 1];
-      const belowHead =
-        below === undefined ? undefined : ownValue(snapshot.unitsById, below)?.head;
+      const belowHead = below === undefined ? undefined : ownValue(snapshot.unitsById, below)?.head;
       const base = belowHead ?? STACK_BASE;
       body = {
         unit: unitId,
@@ -910,7 +910,7 @@ describe("Spec Bench investigate journey", () => {
     await step(
       "1. Post events for B that end in a failed review",
       "the event endpoint accepts the tooling's events, and the bench opens on its Delivery tab with B failed on the map",
-      owners(["routes", "reducer"], ["launch", "deliveryTab", "map"]),
+      owners(["routes"], ["launch", "deliveryTab", "map", "reducer"]),
       () => postFailedReviewForB(user, tooling, benchId),
     );
 
@@ -966,7 +966,7 @@ describe("Spec Bench investigate journey", () => {
     await step(
       "4. Open the Diff panel",
       `the Diff panel shows the diff of B's layer, from A's head ${A_HEAD.slice(0, 8)} to B's head ${B_HEAD.slice(0, 8)}`,
-      owners(["drillIn", "routes", "reducer"]),
+      owners(["drillIn", "routes"], ["reducer"]),
       async () => {
         const panels = drillInOfB();
         const diff = within(panels).getByRole("region", { name: "Diff of unit B" });
@@ -982,7 +982,7 @@ describe("Spec Bench investigate journey", () => {
     await step(
       "5. Open the Verify panel",
       `the Verify panel lists ${FAILED_CASE} as failed with its evidence ("${FAILED_EVIDENCE}", "${FAILED_NOTE}")`,
-      owners(["drillIn", "reducer"]),
+      owners(["drillIn"], ["reducer"]),
       async () => {
         const panels = drillInOfB();
         const verify = within(panels).getByRole("region", { name: "Verify results of unit B" });
