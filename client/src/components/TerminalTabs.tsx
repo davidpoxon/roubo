@@ -163,6 +163,19 @@ export default function TerminalTabs({
     return currentSessions.length > 0 ? currentSessions[0].id : null;
   }, [userSelectedTab, justCreated, currentSessions]);
 
+  // Follow a session chosen from outside the tabs: a Spec Bench unit drill-in
+  // opens the delivery session here rather than holding a second socket to it,
+  // since the server keeps one socket per session. Adjusted during render when
+  // the persisted id changes; this view's own write of `activeTab` below
+  // matches it already, so it changes nothing.
+  const [seenSessionId, setSeenSessionId] = useState(activeTerminalSessionId);
+  if (activeTerminalSessionId !== seenSessionId) {
+    setSeenSessionId(activeTerminalSessionId);
+    if (activeTerminalSessionId !== undefined && activeTerminalSessionId !== activeTab) {
+      setUserSelectedTab(activeTerminalSessionId);
+    }
+  }
+
   // Persist the active terminal session so it can be restored after navigation/reload.
   // Guard on sessions !== undefined to avoid clearing a valid persisted ID while the
   // initial fetch is still in flight (before sessions load, activeTab resolves to null).

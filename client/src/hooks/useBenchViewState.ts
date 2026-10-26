@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const STORAGE_KEY = "roubo-bench-view-state";
 
@@ -28,6 +28,11 @@ type BenchViewEntry = {
 };
 type BenchViewStore = Record<string, BenchViewEntry>;
 
+// Every mounted hook instance, so a write from one (the Delivery tab's unit
+// drill-in opening the Terminal tab) re-renders the others (BenchDetail's tab
+// list, TerminalTabs' selected session) instead of waiting for their next render.
+const listeners = new Set<() => void>();
+
 function readStore(): BenchViewStore {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -45,6 +50,7 @@ function writeEntry(benchKey: string, patch: Partial<BenchViewEntry>): void {
   const updated = JSON.stringify({ ...store, [benchKey]: next });
   if (localStorage.getItem(STORAGE_KEY) !== updated) {
     localStorage.setItem(STORAGE_KEY, updated);
+    for (const listener of listeners) listener();
   }
 }
 
@@ -65,6 +71,12 @@ export function useBenchViewState(projectId: string, benchId: number) {
   // react-router navigations that keep this hook instance alive.
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    listeners.add(bump);
+    return () => {
+      listeners.delete(bump);
+    };
+  }, [bump]);
 
   const entry: BenchViewEntry = readStore()[benchKey] ?? {};
 
