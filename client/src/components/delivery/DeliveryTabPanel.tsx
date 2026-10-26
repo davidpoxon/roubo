@@ -1,7 +1,7 @@
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { selectOpenDecisions, selectUnitsInStackOrder } from "@roubo/shared/delivery-selectors";
+import { selectOpenDecisions } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import {
@@ -12,10 +12,12 @@ import {
 } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
 import DeliveryMap from "./DeliveryMap";
+import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
-// and how it is bound, then reads the delivery: the folded snapshot and its
-// controls when the record conforms, or the named error when it does not. No
+// and how it is bound, then reads the delivery: the folded snapshot, its
+// progress in cases met and requirements covered (SB-FR-011) and its controls
+// when the record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -121,7 +123,6 @@ function LaunchDeliveryControl({ bench }: { bench: Bench }) {
 }
 
 function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: DeliverySnapshot }) {
-  const units = selectUnitsInStackOrder(snapshot);
   const decisions = selectOpenDecisions(snapshot);
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
@@ -129,13 +130,14 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
+      <DeliveryProgressStats snapshot={snapshot} />
+      <DeliveryMetCases snapshot={snapshot} />
+
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-13">
         <dt className="text-text-secondary">Lifecycle</dt>
         <dd className="text-text-primary" data-testid="delivery-lifecycle">
           {snapshot.lifecycle.state}
         </dd>
-        <dt className="text-text-secondary">Units</dt>
-        <dd className="text-text-primary">{units.length}</dd>
         <dt className="text-text-secondary">Budget</dt>
         <dd className="text-text-primary" data-testid="delivery-budget">
           ${snapshot.budget.spent_usd.toFixed(2)} of ${snapshot.budget.soft_budget_usd.toFixed(2)}

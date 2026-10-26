@@ -10,6 +10,7 @@ import {
 } from "@roubo/shared/delivery-observation-contract";
 import { createDeliveryReducer } from "@roubo/shared/delivery-reducer";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
+import type { CaseResult, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import { renderWithProviders, makeQueryClient } from "../../test/renderWithProviders";
 
 vi.mock("../../lib/api", async (importOriginal) => {
@@ -253,6 +254,131 @@ describe("DeliveryTabPanel", () => {
 
     await screen.findByTestId("delivery-read-error");
     expectNoControls();
+  });
+
+  describe("SB-TC-022 progress in cases met and requirements covered", () => {
+    const caseId = (n: number) => `FIX-TC-${String(n).padStart(3, "0")}`;
+    const ids = Array.from({ length: 10 }, (_, index) => caseId(index + 1));
+    const passed: CaseResult = {
+      observationMarks: {},
+      derivedStatus: "passed",
+      notes: [
+        {
+          id: "note-1",
+          text: "The suite row passed.",
+          author: { name: "Ada", email: "ada@example.com" },
+          timestamp: "2026-10-16T09:20:00Z",
+          statusAtWrite: "passed",
+        },
+      ],
+      verification: {
+        tier: "b",
+        confidence: "high",
+        evidence: ["report.xml#FIX-TC-001"],
+        author: { name: "verifier", email: "verifier@example.com" },
+        timestamp: "2026-10-16T09:25:00Z",
+      },
+    };
+
+    // A and B are done; only 3 of the 10 gating cases pass.
+    function progressSnapshot() {
+      const base = record();
+      const plan: TestCasesPlan = {
+        $schema: "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json",
+        schemaVersion: "1.2.0",
+        specSlug: "fixture-spec",
+        cases: ids.map((id, index) => ({
+          id,
+          title: id,
+          area: "fixture",
+          level: 1,
+          type: "functional",
+          steps: [],
+          tags: [],
+          linked_requirement_ids: [index < 3 ? "FIX-FR-001" : "FIX-FR-002"],
+          linked_user_story_ids: [],
+        })),
+      };
+      return createDeliveryReducer().fold({
+        record: {
+          ...base,
+          stack: {
+            ...base.stack,
+            gates: [
+              { id: "gate-after-b", after: ["B"], status: "pending", cases: ids.slice(0, 5) },
+              { id: "gate-after-c", after: ["C"], status: "pending", cases: ids.slice(5) },
+            ],
+          },
+          units: base.units.map((unit) =>
+            unit.id === "B"
+              ? { ...unit, status: "done", pr_url: "https://github.com/demo/demo/pull/2" }
+              : unit,
+          ),
+        },
+        events: [],
+        plan,
+        results: {
+          planHash: base.plan_hash,
+          updatedAt: "2026-10-16T09:30:00Z",
+          caseResults: { [ids[0]]: passed, [ids[1]]: passed, [ids[2]]: passed },
+        },
+      });
+    }
+
+    it("SB-TC-022 reads 3 of 10 cases met, counts covered requirements, and reads no units done", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      const cases = await screen.findByTestId("delivery-stat-cases");
+      expect(cases).toHaveTextContent("3 of 10 cases met");
+      expect(screen.getByTestId("delivery-stat-requirements")).toHaveTextContent(
+        "1 of 2 requirements covered",
+      );
+      const progress = screen.getByTestId("delivery-progress");
+      expect(progress).not.toHaveTextContent(/units?/i);
+      expect(screen.getByTestId("delivery-snapshot")).not.toHaveTextContent(/2 of 4 units/);
+    });
+
+    it("SB-TC-022 opens a met case's verify record and links the pull request of the unit that met it", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      const metCases = await screen.findByTestId("delivery-met-cases");
+      // Only the met cases are offered.
+      expect(screen.queryByRole("button", { name: ids[3] })).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`delivery-verify-record-${ids[0]}`)).not.toBeInTheDocument();
+
+      const caseButton = screen.getByRole("button", { name: ids[0] });
+      await userEvent.click(caseButton);
+
+      expect(caseButton).toHaveAttribute("aria-expanded", "true");
+      const verifyRecord = screen.getByTestId(`delivery-verify-record-${ids[0]}`);
+      expect(metCases).toContainElement(verifyRecord);
+      expect(verifyRecord).toHaveTextContent("passed");
+      expect(verifyRecord).toHaveTextContent("tier b, high confidence");
+      expect(verifyRecord).toHaveTextContent("report.xml#FIX-TC-001");
+      expect(verifyRecord).toHaveTextContent("The suite row passed.");
+      expect(screen.getByRole("link", { name: "Pull request of B" })).toHaveAttribute(
+        "href",
+        "https://github.com/demo/demo/pull/2",
+      );
+    });
+
+    it("SB-TC-022 links no pull request whose url is not a web address", async () => {
+      const snapshot = progressSnapshot();
+      snapshot.progress.caseList = snapshot.progress.caseList.map((entry) =>
+        entry.met ? { ...entry, prUrl: "javascript:alert(1)" } : entry,
+      );
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await userEvent.click(await screen.findByRole("button", { name: ids[1] }));
+
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(screen.getByTestId(`delivery-verify-record-${ids[1]}`)).toHaveTextContent(
+        "B has no pull request yet.",
+      );
+    });
   });
 
   it("resumes the delivery from the lifecycle controls", async () => {

@@ -5,7 +5,9 @@
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
 //                                                    with the accepted events above its
 //                                                    last_event_seq (in memory and in the
-//                                                    spill file) folded over it
+//                                                    spill file) folded over it, with the
+//                                                    spec's plan and results in the
+//                                                    workspace for gate state and progress
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
@@ -70,6 +72,7 @@ import type { Bench } from "@roubo/shared";
 import {
   benchDeliveryEventSpillPath,
   loadBenchDeliveryRecord,
+  loadBenchDeliveryVerifyInputs,
 } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -151,7 +154,10 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
     loaded.record,
     benchDeliveryEventSpillPath(bench),
   );
-  res.json(foldDeliverySnapshot({ record: loaded.record, events, now: Date.now() }));
+  // The plan and results give the gates their state and the progress its cases
+  // met and requirements covered (SB-FR-011).
+  const verify = loadBenchDeliveryVerifyInputs(bench);
+  res.json(foldDeliverySnapshot({ record: loaded.record, events, ...verify, now: Date.now() }));
 });
 
 function sendInvalidQuery(res: Response, field: string, error: string): void {
