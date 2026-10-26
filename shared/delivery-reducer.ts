@@ -71,6 +71,7 @@ import type { BenchResults, CaseResult, TestCasesPlan } from "./testbench-contra
 import {
   evaluateGate,
   indexResolutions,
+  isCaseMet,
   readCaseResult,
   type GateLifecycle,
   type GateState,
@@ -177,8 +178,9 @@ export interface DeliveryCaseProgress {
 }
 
 // Progress counts test cases met and requirements covered (SB-FR-011), never
-// units done. The counted cases are the gating cases of the record's gates (see
-// `computeProgress`). `caseList` holds one entry per counted case, in plan order.
+// units done. The counted cases are the gating cases of the record's gates, and a
+// requirement is covered when every plan case that links it is met, gating or not
+// (see `computeProgress`). `caseList` holds one entry per counted case, in plan order.
 export interface DeliveryProgress {
   cases: DeliveryProgressCount;
   requirements: DeliveryProgressCount;
@@ -1147,17 +1149,28 @@ function verifyUnitOf(gate: DeliveryGate): VerifyUnit {
 // resolved for the record's gates (`gatesById`, in record order): a case that no
 // gate names, a case the default level/type policy leaves out of its gate (L3
 // and L4 that are not e2e_flow), and a case the lifecycle resolutions retire are
-// never counted. A counted case is met when the gate that gates it read it as
-// resolved: the gate's state is not `stale` (the results are present and
-// current) and the case is not in its `unresolvedCaseIds`, so the lifecycle
+// never counted in `cases`. A counted case is met when the gate that gates it
+// read it as resolved: the gate's state is not `stale` (the results are present
+// and current) and the case is not in its `unresolvedCaseIds`, so the lifecycle
 // decides which result it is read by, an override wins over the derived status,
-// and an orphaned or absent result is not met, exactly as the gate reads it. A
-// requirement is covered when every counted case that links it in the plan is
-// met. `caseList` holds one entry per counted case, in plan order, then any
-// gating id the plan lacks in gate order. Each entry carries the result the case
-// is read by (`readCaseResult` over current results) and the unit that met it,
-// read from the record's gates and units only (see `DeliveryCaseProgress`).
-// Without the plan nothing is counted.
+// and an orphaned or absent result is not met, exactly as the gate reads it.
+//
+// A requirement is covered when every plan case that links it is met, gating or
+// not. A counted case is met as its gate reads it. Any other plan case (one no
+// gate names, or one the level/type policy leaves out) is met only when its
+// current result (results whose `planHash` is the record's plan hash, read
+// through `readCaseResult` with the lifecycle's resolutions) reads as met by
+// `isCaseMet`: no current result, an unresolvable pointer, or a failed, blocked
+// or unverified result is not met. A case the lifecycle retires ends its
+// obligation, as it leaves a gate's set, so it never holds a requirement open;
+// a requirement that only retired cases link is not counted. `requirements.total`
+// is the number of requirements that a plan case still in force links.
+//
+// `caseList` holds one entry per counted case, in plan order, then any gating id
+// the plan lacks in gate order. Each entry carries the result the case is read
+// by (`readCaseResult` over current results) and the unit that met it, read from
+// the record's gates and units only (see `DeliveryCaseProgress`). Without the
+// plan nothing is counted.
 function computeProgress(
   record: DeliveryRecord,
   state: Pick<FoldState, "gates" | "unitsById">,
@@ -1209,7 +1222,17 @@ function computeProgress(
       metBy,
       prUrl: metByUnit?.pr_url ?? null,
     });
-    for (const requirementId of planCaseById.get(id)?.linked_requirement_ids ?? []) {
+  }
+  // Every plan case in force that links a requirement, gating or not.
+  for (const planCase of plan.cases) {
+    if (resolutionById.get(planCase.id)?.status === "retired") continue;
+    const gatingMet = metById.get(planCase.id);
+    const caseMet =
+      gatingMet !== undefined
+        ? gatingMet
+        : current !== undefined &&
+          isCaseMet(readCaseResult(planCase.id, current.caseResults, resolutionById, lifecycle));
+    for (const requirementId of planCase.linked_requirement_ids) {
       const entry = requirementCases.get(requirementId) ?? { total: 0, met: 0 };
       entry.total += 1;
       if (caseMet) entry.met += 1;

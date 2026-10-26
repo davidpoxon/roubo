@@ -277,9 +277,9 @@ describe("delivery selectors", () => {
 
     const progress = selectProgress(snapshot);
     expect(progress.cases).toEqual({ met: 3, total: 10 });
-    // DEMO-FR-001 is covered; DEMO-FR-002 has unmet cases; DEMO-FR-009 links no
-    // counted case, so it is not a requirement of the stat.
-    expect(progress.requirements).toEqual({ met: 1, total: 2 });
+    // DEMO-FR-001 is covered; DEMO-FR-002 has unmet cases; DEMO-FR-009 links only
+    // the case no gate names, whose current result passed, so it is covered too.
+    expect(progress.requirements).toEqual({ met: 2, total: 3 });
     expect(progress.caseList.map((entry) => entry.id)).toEqual(ids.slice(0, 10));
     expect(selectMetCases(snapshot).map((entry) => entry.id)).toEqual(ids.slice(0, 3));
     expect(selectGateState(snapshot, "gate-after-c")?.state.lifecycleExcludedCaseIds).toEqual([
