@@ -20,6 +20,7 @@ import { DEFAULT_PROJECT_SETTINGS } from "@roubo/shared";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
+  DELIVERY_RECORD_SCHEMA_VERSION,
 } from "@roubo/shared/delivery-observation-contract";
 import { makeConfig } from "../test/fixtures.js";
 
@@ -73,6 +74,7 @@ vi.mock("./terminal.js", () => ({
 }));
 vi.mock("./notification.js", () => ({
   createNotification: vi.fn(),
+  dismissByKey: vi.fn(() => false),
   getNotifications: vi.fn(() => []),
 }));
 vi.mock("./sse.js", () => ({
@@ -565,7 +567,7 @@ describe("Record loading", () => {
     expect(mismatch.status).toBe(409);
     expect(mismatch.body.code).toBe("DELIVERY_VERSION_MISMATCH");
     expect(mismatch.body.found).toBe("2.0.0");
-    expect(mismatch.body.supported).toBe("1.0.0");
+    expect(mismatch.body.supported).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
     expect(mismatch.body.error).toMatch(/2\.0\.0/);
   });
 
@@ -908,6 +910,45 @@ describe("Event ingest", () => {
     expect(res.status).toBe(200);
     expect(res.body.seq).toBe(8);
     expect(res.body.unitsById.C.status).toBe("running");
+  });
+
+  it("SB-TC-047: a unit.changed that jams B raises the delivery-jam notification keyed by B, and one that resumes B dismisses it", async () => {
+    const { bench, token } = await benchWithRecord();
+    vi.mocked(notification.dismissByKey).mockClear();
+
+    // Step 1: B is jammed. The notification comes from the event type alone.
+    const jammed = await postEvents(bench, token, {
+      ...event(8),
+      unit_id: "B",
+      payload: { status: "jammed" },
+    });
+    expect(jammed.status).toBe(202);
+    const jamCalls = vi
+      .mocked(notification.createNotification)
+      .mock.calls.filter(([, type]) => type === "delivery-jam");
+    expect(jamCalls).toHaveLength(1);
+    const [target, , source, metadata, , , dedupeKey] = jamCalls[0];
+    expect(target.id).toBe(bench.id);
+    expect(source).toBeUndefined();
+    expect(metadata).toEqual({ unitId: "B", status: "jammed" });
+    expect(dedupeKey).toBe("B");
+    const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(read.body.jams).toEqual(["B"]);
+
+    // Step 2: B moves on, and its notification is dismissed.
+    const resumed = await postEvents(bench, token, {
+      ...event(9),
+      unit_id: "B",
+      payload: { status: "running" },
+    });
+    expect(resumed.status).toBe(202);
+    expect(notification.dismissByKey).toHaveBeenCalledWith(
+      expect.objectContaining({ id: bench.id }),
+      "delivery-jam",
+      "B",
+    );
+    const after = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(after.body.jams).toEqual([]);
   });
 
   it("broadcasts a delivery frame with the accepted seq for each accepted batch", async () => {

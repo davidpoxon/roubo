@@ -220,7 +220,14 @@ describe("foldDelivery", () => {
     expect(snapshot.seq).toBe(9);
     expect(snapshot.gap).toBeUndefined();
     expect(snapshot.unitsById.B.status).toBe("done");
-    expect({ ...snapshot, seq: 7, unitsById: before.unitsById }).toEqual(before);
+    // A skipped event still says the tooling is alive, so it moves the staleness.
+    expect(snapshot.staleness.lastEventAt).toBe("2026-10-16T10:00:00Z");
+    expect({
+      ...snapshot,
+      seq: 7,
+      unitsById: before.unitsById,
+      staleness: before.staleness,
+    }).toEqual(before);
   });
 
   it("skips an event whose type names an Object.prototype member and still accepts its seq", () => {
@@ -238,7 +245,14 @@ describe("foldDelivery", () => {
     expect(snapshot.seq).toBe(13);
     expect(snapshot.gap).toBeUndefined();
     expect(snapshot.unitsById.B.status).toBe("done");
-    expect({ ...snapshot, seq: 7, unitsById: before.unitsById }).toEqual(before);
+    // A skipped event still says the tooling is alive, so it moves the staleness.
+    expect(snapshot.staleness.lastEventAt).toBe("2026-10-16T10:00:00Z");
+    expect({
+      ...snapshot,
+      seq: 7,
+      unitsById: before.unitsById,
+      staleness: before.staleness,
+    }).toEqual(before);
   });
 
   it("ignores an event that addresses a unit, decision or seam by an Object.prototype name", () => {
@@ -254,7 +268,7 @@ describe("foldDelivery", () => {
     expect(snapshot.seq).toBe(11);
     expect(Object.keys(snapshot.unitsById)).toEqual(["A", "B", "C", "D"]);
     expect(Object.getPrototypeOf(snapshot.unitsById)).toBe(Object.prototype);
-    expect({ ...snapshot, seq: 7 }).toEqual(before);
+    expect({ ...snapshot, seq: 7, staleness: before.staleness }).toEqual(before);
   });
 
   it("keeps an entity whose id is an Object.prototype name as an own key", () => {
@@ -317,7 +331,7 @@ describe("foldDelivery", () => {
       ["gate.changed", { status: "passed" }], // no gate_id
       ["decision.raised", { decision_id: "d-2", question: "Q?" }], // no options
       ["steering.added", { steering_id: "s-2" }], // no note
-      ["drift.detected", { kind: "spec" }], // no detail
+      ["drift.detected", { kind: "spec" }], // no detail or summary
       ["seam.ran", { status: "ok" }], // no seam
       ["health.changed", { detail: "x" }], // no status
       ["mode.changed", { pending: "auto" }], // no value
@@ -341,7 +355,7 @@ describe("foldDelivery", () => {
     const before = foldDelivery({ record, events: [] });
     const snapshot = foldDelivery({ record, events });
     expect(snapshot.seq).toBe(29);
-    expect({ ...snapshot, seq: 7 }).toEqual(before);
+    expect({ ...snapshot, seq: 7, staleness: before.staleness }).toEqual(before);
   });
 });
 
@@ -1627,7 +1641,10 @@ describe("foldDelivery staleness", () => {
     const record = fixtureRecord();
     expect(foldDelivery({ record, events: [] }).staleness).toEqual({
       updatedAt: "2026-10-16T09:30:00Z",
+      lastEventAt: null,
       ageMs: null,
+      quietMs: null,
+      stale: false,
     });
     const now = Date.parse("2026-10-16T09:35:00Z");
     expect(foldDelivery({ record, events: [], now }).staleness.ageMs).toBe(5 * 60 * 1000);

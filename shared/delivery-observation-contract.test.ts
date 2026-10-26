@@ -179,11 +179,13 @@ function decisionModeEvent(
 
 describe("delivery observation contract: generated schema", () => {
   it.each(contracts)(
-    "SB-TC-010: $file is zod in shared with a versioned $id at 1.0.0 and its committed JSON equals a fresh render",
+    "SB-TC-010: $file is zod in shared with a versioned $id and its committed JSON equals a fresh render",
     async ({ file, id, version, schema }) => {
-      // The zod source carries the $id, and the id embeds the 1.0.0 version.
-      expect(version).toBe("1.0.0");
-      expect(id).toMatch(/\/v1\.0\.0\.json$/);
+      // The zod source carries the $id, and the id embeds the version: the
+      // record at 1.1.0 (the drift and per-role cost fields), the event
+      // envelope still at 1.0.0.
+      expect(version).toBe(file === "delivery-record.schema.json" ? "1.1.0" : "1.0.0");
+      expect(id.endsWith(`/v${version}.json`)).toBe(true);
       expect(schema.meta()?.$id).toBe(id);
 
       // The generator lists it, and the committed artifact under schema/ is
@@ -206,11 +208,11 @@ describe("delivery observation contract: generated schema", () => {
 });
 
 describe("delivery observation contract: record fixture", () => {
-  it("SB-TC-011: the conformant 1.0.0 record fixture validates against the record schema", () => {
+  it("SB-TC-011: the conformant record fixture validates against the record schema", () => {
     const result = validateDeliveryRecord(loadFixture());
     expect(result).toEqual(expect.objectContaining({ ok: true }));
     if (result.ok) {
-      expect(result.data.schemaVersion).toBe("1.0.0");
+      expect(result.data.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
       expect(result.data.units.map((u) => u.id)).toEqual(["A", "B", "C", "D"]);
       expect(result.data.stack.stacks.A).toEqual(["A", "B", "C"]);
       expect(result.data.stack.gates.map((g) => g.after)).toEqual([["B"], ["C"]]);
@@ -256,6 +258,53 @@ describe("delivery observation contract: record fixture", () => {
     }
   });
 
+  it("SB-TC-048: a drift entry carries an optional file, summary, minted ids and spec-layer pull request", () => {
+    const fixture = loadFixture();
+    const edit = {
+      kind: "spec",
+      detail: "Added a case for the stale indicator",
+      detected_at: "2026-10-16T09:25:00Z",
+      file: "test-cases.json",
+      summary: "Added a case for the stale indicator",
+      ids: ["DEMO-TC-004", "DEMO-FR-002"],
+      pr_url: "https://github.com/demo/demo/pull/7",
+    };
+    const withEdit = validateDeliveryRecord({ ...fixture, drift: [edit] });
+    expect(withEdit.ok).toBe(true);
+    if (withEdit.ok) expect(withEdit.data.drift[0]).toEqual(edit);
+
+    for (const [field, value] of [
+      ["file", ""],
+      ["summary", ""],
+      ["ids", [""]],
+      ["pr_url", 7],
+    ] as const) {
+      const broken = validateDeliveryRecord({ ...fixture, drift: [{ ...edit, [field]: value }] });
+      expect(broken.ok).toBe(false);
+      if (!broken.ok) expect(broken.errors.some((e) => e.startsWith(`drift.0.${field}`))).toBe(true);
+    }
+  });
+
+  it("SB-TC-046: the budget carries an optional per-role cost map of non-negative numbers", () => {
+    const fixture = loadFixture();
+    const budget = fixture.budget as Record<string, unknown>;
+    const withRoles = validateDeliveryRecord({
+      ...fixture,
+      budget: { ...budget, by_role: { main: 0.1, "unit-coder": 0.32 } },
+    });
+    expect(withRoles.ok).toBe(true);
+    if (withRoles.ok) expect(withRoles.data.budget.by_role).toEqual({ main: 0.1, "unit-coder": 0.32 });
+
+    const negative = validateDeliveryRecord({
+      ...fixture,
+      budget: { ...budget, by_role: { main: -1 } },
+    });
+    expect(negative.ok).toBe(false);
+    if (!negative.ok) {
+      expect(negative.errors.some((e) => e.startsWith("budget.by_role.main"))).toBe(true);
+    }
+  });
+
   it("a seam entry carries an optional unit id, a non-empty string when present", () => {
     const fixture = loadFixture();
     const seams = fixture.seams as Record<string, Record<string, unknown>>;
@@ -293,11 +342,11 @@ describe("delivery observation contract: record fixture", () => {
     }
   });
 
-  it("SB-TC-098: the fixture carries the mode, the review section, the decision review fields and a provisional gate at 1.0.0", () => {
+  it("SB-TC-098: the fixture carries the mode, the review section, the decision review fields and a provisional gate", () => {
     const result = validateDeliveryRecord(loadFixture());
     expect(result).toEqual(expect.objectContaining({ ok: true }));
     if (!result.ok) return;
-    expect(result.data.schemaVersion).toBe("1.0.0");
+    expect(result.data.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
     expect(result.data.mode).toEqual({ value: "auto", pending: null });
     expect(result.data.review).toEqual({ status: "pending", unreviewed: ["decision-2"] });
     const decided = result.data.decisions[1];

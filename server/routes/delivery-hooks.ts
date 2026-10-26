@@ -4,7 +4,10 @@
 //   POST /delivery-event?projectId=<id>&benchId=<n>
 //     body: one delivery event envelope, or a batch { events: [envelope, ...] }
 //     -> 202 { acceptedSeq }: the batch is appended to the bench's event log,
-//            and a delivery frame goes out on GET /api/notifications/stream
+//            and a delivery frame goes out on GET /api/notifications/stream.
+//            A unit.changed whose status reads as jammed raises the bench's
+//            delivery-jam notification for the unit, and one whose status does
+//            not dismisses it (see services/delivery-jam.ts)
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
 //            bench the query names (another bench's token included). Also when
 //            the query names no Spec Bench, so a caller without a token learns
@@ -52,6 +55,7 @@ import {
 import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
+import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
 
 const router = Router();
@@ -201,6 +205,9 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
     res.status(result.status).json(result.error);
     return;
   }
+  // A unit.changed that jams a unit raises its delivery-jam notification, and
+  // one that moves it on dismisses it (SB-FR-019).
+  applyDeliveryJamNotifications(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
   res.status(202).json({ acceptedSeq: result.acceptedSeq });
 });
