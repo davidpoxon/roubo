@@ -37,8 +37,7 @@ export function forgetDelivery(deliveryId?: string): void {
 }
 
 export type FoldDeliveryJsonResult =
-  | { ok: true; snapshot: DeliverySnapshot }
-  | { ok: false; errors: string[] };
+  { ok: true; snapshot: DeliverySnapshot } | { ok: false; errors: string[] };
 
 // Validate a raw record and raw events against the observation contract, then
 // fold. Errors name their field; an event error is prefixed with its index in

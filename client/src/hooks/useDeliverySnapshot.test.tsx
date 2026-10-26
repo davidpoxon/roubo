@@ -19,6 +19,8 @@ function record(): DeliveryRecord {
     delivery_id: "demo-delivery-1",
     spec_slug: "demo",
     plan_hash: "hash",
+    mode: { value: "attended", pending: null },
+    review: { status: "none", unreviewed: [] },
     stack: { stacks: { A: ["A", "B"] }, gates: [] },
     units: [
       { id: "A", title: "A", status: "running", stack: "A", layer: 0, depends_on: [] },

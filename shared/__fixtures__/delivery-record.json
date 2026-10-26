@@ -4,6 +4,14 @@
   "delivery_id": "demo-delivery-1",
   "spec_slug": "demo",
   "plan_hash": "3f6c2a9b1d4e8f7a0c5b6d2e9f1a4b7c8d0e3f6a1b2c4d5e6f7a8b9c0d1e2f3a",
+  "mode": {
+    "value": "auto",
+    "pending": null
+  },
+  "review": {
+    "status": "pending",
+    "unreviewed": ["decision-2"]
+  },
   "stack": {
     "stacks": {
       "A": ["A", "B", "C"],
@@ -19,8 +27,16 @@
       {
         "id": "gate-after-c",
         "after": ["C"],
-        "status": "pending",
-        "cases": ["DEMO-TC-003"]
+        "status": "provisional",
+        "cases": ["DEMO-TC-003"],
+        "provisionalCases": [
+          {
+            "case": "DEMO-TC-003",
+            "mark": "met",
+            "evidence": "The suite row for DEMO-TC-003 passed and its body names the expected banner.",
+            "confirmed": false
+          }
+        ]
       }
     ]
   },
@@ -71,6 +87,21 @@
       "status": "open",
       "unit_id": "A",
       "raised_at": "2026-10-16T09:05:00Z"
+    },
+    {
+      "id": "decision-2",
+      "question": "Does the parser accept a trailing comma?",
+      "options": ["accept it", "reject it"],
+      "default": "reject it",
+      "status": "decided",
+      "unit_id": "B",
+      "raised_at": "2026-10-16T09:12:00Z",
+      "author": "agent",
+      "chosen": "reject it",
+      "rationale": "The fixture files carry none, and rejecting keeps the grammar strict.",
+      "affected_units": ["B", "C"],
+      "review": { "status": "unreviewed" },
+      "decided_at": "2026-10-16T09:15:00Z"
     }
   ],
   "steering": [

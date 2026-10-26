@@ -463,7 +463,10 @@ describe("state recipe contract: compatibility", () => {
     const appended = bumped(withSteps(baseline, [...steps, wait]), "minor");
     expect(checkContractCompatibility(baseline, appended).ok).toBe(true);
 
-    const lost = withSteps(baseline, steps.filter((_, i) => i !== 1));
+    const lost = withSteps(
+      baseline,
+      steps.filter((_, i) => i !== 1),
+    );
     expect(classifySchemaChange(baseline, lost)).toEqual({
       change: "breaking",
       reasons: ['steps[]: oneOf lost the option kind="copy-file"'],

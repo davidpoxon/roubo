@@ -8,25 +8,40 @@
 // stack name is an open string too, so every `byId` or `stacks` read goes
 // through the reducer's `ownValue`: a unit called `toString` is a unit, and a
 // stack called `constructor` that the snapshot does not list has no members. The
-// module is open to the later decision-mode selectors (mode, review stack,
-// thread, provisional marks): they are more functions over the same snapshot.
+// decision-mode selectors (SB-FR-040: the mode, the review stack, a decision's
+// thread, a gate's provisional marks) are more functions over the same
+// snapshot, at the end of the module.
 
 import type {
   DeliveryDecision,
+  DeliveryGate,
+  DeliveryMode,
+  DeliveryReview,
   DeliverySteering,
   DeliveryUnit,
+  ProvisionalCase,
 } from "./delivery-observation-contract";
 import {
   classifyUnitStatus,
   isDecisionOpen,
+  isProvisionalGate,
+  isUnconfirmedProvisionalGate,
+  isUnreviewedAgentDecision,
   ownValue,
   type DeliveryGateView,
   type DeliveryProgress,
   type DeliverySnapshot,
+  type DeliveryThreadMessage,
   type UnitStatusKind,
 } from "./delivery-reducer";
 
-export { classifyUnitStatus, isDecisionOpen } from "./delivery-reducer";
+export {
+  classifyUnitStatus,
+  isDecisionOpen,
+  isProvisionalGate,
+  isUnconfirmedProvisionalGate,
+  isUnreviewedAgentDecision,
+} from "./delivery-reducer";
 
 export interface UnitStatusView {
   // The record's own status word, or null for a unit the snapshot does not carry.
@@ -142,4 +157,76 @@ export function selectNextBoundary(snapshot: DeliverySnapshot): DeliveryBoundary
 // `now` to compare against.
 export function selectStalenessAge(snapshot: DeliverySnapshot): number | null {
   return snapshot.staleness.ageMs;
+}
+
+// ── Decision mode (SB-FR-040) ──
+
+export function selectMode(snapshot: DeliverySnapshot): DeliveryMode {
+  return snapshot.mode;
+}
+
+export function selectReview(snapshot: DeliverySnapshot): DeliveryReview {
+  return snapshot.review;
+}
+
+// One card of the review stack: an agent decision the operator has not
+// reviewed, or a provisional gate the operator has not confirmed. `at` is when
+// the card arose (the decision's `decided_at`, else its `raised_at`; the gate's
+// `provisionalAt`), and the stack is ordered by it, oldest first.
+export type ReviewCard =
+  | { kind: "decision"; id: string; at: string; decision: DeliveryDecision }
+  | { kind: "gate"; id: string; at: string; gate: DeliveryGate; view: DeliveryGateView };
+
+function cardTime(at: string): number {
+  const parsed = Date.parse(at);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function decidedAt(decision: DeliveryDecision): string {
+  return decision.decided_at ?? decision.raised_at;
+}
+
+// The review stack: every unreviewed agent decision and every unconfirmed
+// provisional gate, oldest first. Two cards of one time keep snapshot order
+// (decisions before gates).
+export function selectReviewStack(snapshot: DeliverySnapshot): ReviewCard[] {
+  const cards: ReviewCard[] = [];
+  for (const decision of Object.values(snapshot.decisionsById)) {
+    if (isUnreviewedAgentDecision(decision)) {
+      cards.push({ kind: "decision", id: decision.id, at: decidedAt(decision), decision });
+    }
+  }
+  for (const view of Object.values(snapshot.gatesById)) {
+    if (isUnconfirmedProvisionalGate(view.gate)) {
+      cards.push({
+        kind: "gate",
+        id: view.gate.id,
+        at: view.provisionalAt ?? snapshot.staleness.updatedAt,
+        gate: view.gate,
+        view,
+      });
+    }
+  }
+  // Array.prototype.sort is stable, so equal times keep insertion order.
+  return cards.sort((a, b) => cardTime(a.at) - cardTime(b.at));
+}
+
+// A decision's thread in stream order; empty for a decision with no thread or
+// one the snapshot does not carry.
+export function selectDecisionThread(
+  snapshot: DeliverySnapshot,
+  decisionId: string,
+): DeliveryThreadMessage[] {
+  return ownValue(snapshot.threadsByDecisionId, decisionId) ?? [];
+}
+
+// A gate's provisional marks, one per gating case the session judged; empty for
+// a gate whose status is not `provisional` or that the snapshot does not carry.
+export function selectProvisionalMarks(
+  snapshot: DeliverySnapshot,
+  gateId: string,
+): ProvisionalCase[] {
+  const view = ownValue(snapshot.gatesById, gateId);
+  if (view === undefined || !isProvisionalGate(view.gate)) return [];
+  return view.gate.provisionalCases ?? [];
 }
