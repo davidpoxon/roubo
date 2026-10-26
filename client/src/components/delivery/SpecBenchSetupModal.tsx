@@ -188,11 +188,15 @@ export default function SpecBenchSetupModal({
               >
                 <p>
                   <span className="text-text-secondary">Spec </span>
-                  <span className="font-mono text-text-primary">{selected.slug}</span>
+                  <span data-testid="specbench-setup-summary-spec" className="font-mono text-text-primary">
+                    {selected.slug}
+                  </span>
                 </p>
                 <p>
                   <span className="text-text-secondary">Mode </span>
-                  <span className="text-text-primary">{modeLabel ?? "not chosen"}</span>
+                  <span data-testid="specbench-setup-summary-mode" className="text-text-primary">
+                    {modeLabel ?? "not chosen"}
+                  </span>
                 </p>
                 <p data-testid="specbench-setup-summary">
                   <span className="text-text-secondary">Plan </span>
