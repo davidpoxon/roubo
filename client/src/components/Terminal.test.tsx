@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Terminal from "./Terminal";
 
@@ -337,6 +337,86 @@ describe("Terminal", () => {
     expect(mockWs.send).toHaveBeenCalledWith(
       JSON.stringify({ type: "resize", cols: 80, rows: 24 }),
     );
+    restore();
+  });
+});
+
+describe("Terminal: re-sending its size to a session shared by several viewers", () => {
+  // The server applies the last size any viewer sent, so a viewer that comes
+  // back into view must re-send its own, even when its xterm did not resize.
+  const observerCallbacks: Array<() => void> = [];
+
+  beforeEach(() => {
+    observerCallbacks.length = 0;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observerCallbacks.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function connectWs() {
+    const ws = { readyState: WebSocket.OPEN, send: vi.fn() };
+    mockUseTerminalConnection.mockReturnValue({
+      wsRef: { current: ws },
+      state: "connected",
+      attempt: 0,
+      retry: vi.fn(),
+    } as never);
+    return ws;
+  }
+
+  const RESIZE = JSON.stringify({ type: "resize", cols: 80, rows: 24 });
+
+  it("SB-TC-031 re-sends its current size when its hidden panel is shown again", () => {
+    const ws = connectWs();
+    // Hidden at mount (jsdom reports zero dimensions), as the force-mounted
+    // Terminal tab is while the drill-in is open.
+    render(<Terminal sessionId="sess-1" active />);
+    expect(ws.send).not.toHaveBeenCalled();
+
+    const restore = stubDimensions();
+    act(() => observerCallbacks.forEach((callback) => callback()));
+    expect(ws.send).toHaveBeenCalledWith(RESIZE);
+
+    // A plain resize while already shown is left to term.onResize.
+    ws.send.mockClear();
+    act(() => observerCallbacks.forEach((callback) => callback()));
+    expect(ws.send).not.toHaveBeenCalled();
+    restore();
+  });
+
+  it("SB-TC-031 re-sends its current size when focus moves into the terminal", () => {
+    const restore = stubDimensions();
+    const ws = connectWs();
+    // Inactive, so the becoming-active re-send cannot stand in for this one.
+    const { container } = render(<Terminal sessionId="sess-1" active={false} />);
+    ws.send.mockClear();
+
+    const host = container.firstChild?.firstChild as HTMLElement;
+    fireEvent.focusIn(host);
+    expect(ws.send).toHaveBeenCalledWith(RESIZE);
+    restore();
+  });
+
+  it("SB-TC-031 re-sends its current size when it becomes the active tab", async () => {
+    const restore = stubDimensions();
+    const ws = connectWs();
+    const { rerender } = render(<Terminal sessionId="sess-1" active={false} />);
+    ws.send.mockClear();
+
+    rerender(<Terminal sessionId="sess-1" active />);
+    await vi.waitFor(() => expect(ws.send).toHaveBeenCalledWith(RESIZE));
     restore();
   });
 });

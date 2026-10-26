@@ -1423,6 +1423,9 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
         typeof msg.cols === "number" &&
         typeof msg.rows === "number"
       ) {
+        // The PTY has one size, so with several viewers the last size sent
+        // wins. Each client re-sends its own size when its terminal becomes
+        // active, is shown again or takes focus, so the viewer in use holds it.
         internal.pty?.resize(msg.cols, msg.rows);
       } else if (msg.type === "pong") {
         if (viewer.pongDeadline) {
