@@ -16,6 +16,7 @@
 
 import type {
   DeliveryDecision,
+  DeliveryDrift,
   DeliveryGate,
   DeliveryMode,
   DeliveryReview,
@@ -25,11 +26,13 @@ import type {
 } from "./delivery-observation-contract";
 import {
   classifyUnitStatus,
+  computeStaleness,
   isDecisionOpen,
   isProvisionalGate,
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
   ownValue,
+  type DeliveryStaleness,
   type DeliveryCaseProgress,
   type DeliveryEdge,
   type DeliveryGateView,
@@ -285,6 +288,139 @@ export function selectNextBoundary(snapshot: DeliverySnapshot): DeliveryBoundary
 // `now` to compare against.
 export function selectStalenessAge(snapshot: DeliverySnapshot): number | null {
   return snapshot.staleness.ageMs;
+}
+
+// ── Cost, health and drift (SB-FR-018, SB-FR-019, SB-FR-020, SB-NFR-006) ──
+
+// The staleness of the snapshot at `now`, from the record's `updated_at` and the
+// time of the last event the fold applied. A view passes its own clock, so the
+// stale indicator appears 2 minutes after the last event even when no new
+// snapshot arrives; without `now` it is the staleness the fold computed.
+export function selectStaleness(snapshot: DeliverySnapshot, now?: number): DeliveryStaleness {
+  if (now === undefined) return snapshot.staleness;
+  return computeStaleness(snapshot.staleness.updatedAt, snapshot.staleness.lastEventAt, now);
+}
+
+export interface BurnUnitCost {
+  unitId: string;
+  title: string;
+  costUsd: number;
+}
+
+export interface BurnRoleCost {
+  role: string;
+  costUsd: number;
+}
+
+// The burn meter (SB-FR-018): spend against the soft budget, with the cost per
+// unit (each unit's `cost_usd`, in stack order, units with no cost left out)
+// and per role (the budget's `by_role`, in its key order).
+export interface DeliveryBurn {
+  spentUsd: number;
+  softBudgetUsd: number;
+  estimateUsd: number;
+  // Spend over the soft budget, from 0 to 1; 1 once the budget is spent or when
+  // it is zero and anything is spent.
+  fill: number;
+  overBudget: boolean;
+  byUnit: BurnUnitCost[];
+  byRole: BurnRoleCost[];
+}
+
+export function selectBurn(snapshot: DeliverySnapshot): DeliveryBurn {
+  const { spent_usd: spentUsd, soft_budget_usd: softBudgetUsd } = snapshot.budget;
+  const fill =
+    softBudgetUsd > 0 ? Math.min(1, spentUsd / softBudgetUsd) : spentUsd > 0 ? 1 : 0;
+  const byUnit: BurnUnitCost[] = [];
+  for (const unit of selectUnitsInStackOrder(snapshot)) {
+    if (unit.cost_usd === undefined) continue;
+    byUnit.push({ unitId: unit.id, title: unit.title, costUsd: unit.cost_usd });
+  }
+  const byRole = Object.entries(snapshot.budget.by_role ?? {}).map(([role, costUsd]) => ({
+    role,
+    costUsd,
+  }));
+  return {
+    spentUsd,
+    softBudgetUsd,
+    estimateUsd: snapshot.budget.estimate_usd,
+    fill,
+    overBudget: spentUsd > softBudgetUsd,
+    byUnit,
+    byRole,
+  };
+}
+
+// The ids of the jammed units, in stack order (SB-FR-019).
+export function selectJammedUnits(snapshot: DeliverySnapshot): string[] {
+  const jammed = new Set(snapshot.jams);
+  return selectUnitsInStackOrder(snapshot)
+    .filter((unit) => jammed.has(unit.id))
+    .map((unit) => unit.id);
+}
+
+export function isJammedUnit(snapshot: DeliverySnapshot, unitId: string): boolean {
+  return snapshot.jams.includes(unitId);
+}
+
+// The drift ledger (SB-FR-020): every drift entry, oldest first, as the record
+// and the stream added them.
+export function selectDriftLedger(snapshot: DeliverySnapshot): DeliveryDrift[] {
+  return snapshot.drift;
+}
+
+// The health chip's one word (DESIGN.md Health chip): `blocked` while a unit is
+// jammed, else `stale` once the delivery has been quiet for 2 minutes, else
+// `fresh`. `disconnected` is the stream's word, which a view that holds the
+// stream state passes in.
+export type DeliveryHealthWord = "fresh" | "stale" | "disconnected" | "blocked";
+
+export interface DeliveryHealthView {
+  word: DeliveryHealthWord;
+  // What the chip opens: why the delivery reads as it does.
+  reason: string;
+  jammed: string[];
+  staleness: DeliveryStaleness;
+}
+
+function minutes(ms: number): string {
+  const whole = Math.floor(ms / 60_000);
+  return whole === 1 ? "1 minute" : `${whole} minutes`;
+}
+
+export function selectHealth(
+  snapshot: DeliverySnapshot,
+  now?: number,
+  options: { disconnected?: boolean } = {},
+): DeliveryHealthView {
+  const jammed = selectJammedUnits(snapshot);
+  const staleness = selectStaleness(snapshot, now);
+  if (jammed.length > 0) {
+    const names = jammed.join(", ");
+    return {
+      word: "blocked",
+      reason: `${jammed.length === 1 ? "Unit" : "Units"} ${names} ${jammed.length === 1 ? "is" : "are"} jammed`,
+      jammed,
+      staleness,
+    };
+  }
+  if (options.disconnected === true) {
+    return {
+      word: "disconnected",
+      reason: "The event stream is down, so the delivery may have moved since",
+      jammed,
+      staleness,
+    };
+  }
+  if (staleness.stale && staleness.quietMs !== null) {
+    return {
+      word: "stale",
+      reason: `No event for ${minutes(staleness.quietMs)}`,
+      jammed,
+      staleness,
+    };
+  }
+  return { word: "fresh", reason: "The delivery is moving", jammed, staleness };
 }
 
 // ── Decision mode (SB-FR-040) ──

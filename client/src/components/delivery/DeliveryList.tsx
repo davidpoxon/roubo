@@ -5,7 +5,9 @@ import { focusRing } from "../ui/focus-ring";
 import {
   GATE_MARKERS,
   classifyGateMarker,
+  isJammedMapUnit,
   isLiveUnit,
+  JAM_MARK_LABEL,
   rowAccessibleName,
   unitKey,
   unitStatusTone,
@@ -67,6 +69,7 @@ function UnitRow({
         type="button"
         data-testid={`unit-row-${unit.id}`}
         data-status={unit.status}
+        data-jammed={isJammedMapUnit(unit) ? "true" : undefined}
         aria-label={rowAccessibleName(unit, gates)}
         aria-current={selected ? "true" : undefined}
         onClick={() => {
@@ -99,8 +102,16 @@ function UnitRow({
         <span data-col="title" className="min-w-0 flex-1 truncate font-medium text-text-primary">
           {unit.title}
         </span>
-        <span data-col="status" className="w-24 shrink-0">
+        <span data-col="status" className="flex w-24 shrink-0 items-center gap-1">
           <StatusIndicator tone={unitStatusTone(unit)} label={unit.status} />
+          {isJammedMapUnit(unit) && (
+            <span
+              data-testid={`unit-jam-mark-${unit.id}`}
+              className="rounded-chip bg-danger-surface px-1 text-11 text-danger-text"
+            >
+              {JAM_MARK_LABEL}
+            </span>
+          )}
         </span>
         <span data-col="gate" className="w-40 shrink-0 truncate">
           {gates.length === 0 ? (

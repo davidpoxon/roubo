@@ -1,5 +1,5 @@
 // Delivery record fixtures for the Delivery tab suites (SB-FR-010). Each is a
-// conformant record at contract version 1.0.0.
+// conformant record at the contract version the shared module names.
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,

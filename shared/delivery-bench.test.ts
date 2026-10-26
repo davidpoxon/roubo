@@ -8,7 +8,10 @@ import {
   deliveryRoutePaths,
   isDeliveryReadError,
 } from "./delivery-bench";
-import { DeliveryRecordSchema } from "./delivery-observation-contract";
+import {
+  DELIVERY_RECORD_SCHEMA_VERSION,
+  DeliveryRecordSchema,
+} from "./delivery-observation-contract";
 
 const FIXTURE = fileURLToPath(new URL("./__fixtures__/delivery-record.json", import.meta.url));
 
@@ -105,7 +108,7 @@ describe("checkDeliveryRecord", () => {
     expect(check.error).toMatchObject({
       code: "DELIVERY_VERSION_MISMATCH",
       found: "2.0.0",
-      supported: "1.0.0",
+      supported: DELIVERY_RECORD_SCHEMA_VERSION,
     });
   });
 
@@ -127,6 +130,18 @@ describe("checkDeliveryRecord", () => {
       added_in_a_minor: { kept: true },
     });
     expect(check.ok).toBe(true);
+  });
+
+  it("reads a 1.0.0 record, from before the drift and per-role cost fields, as the version it knows", () => {
+    const check = checkDeliveryRecord({
+      ...fixture(),
+      $schema: "https://roubo.dev/schema/delivery-record/v1.0.0.json",
+      schemaVersion: "1.0.0",
+    });
+    expect(check.ok).toBe(true);
+    if (!check.ok) return;
+    expect(check.record.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
+    expect(check.record.budget.by_role).toBeUndefined();
   });
 
   it("checks the version before the sections, and the sections before the fields", () => {

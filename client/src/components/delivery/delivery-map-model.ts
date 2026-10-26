@@ -39,6 +39,15 @@ export function isDoneUnit(unit: DeliveryUnit): boolean {
   return classifyUnitStatus(unit.status) === "done";
 }
 
+// A unit whose status word reads as jammed carries the jam mark on the map
+// (SB-FR-019): the same reading as the snapshot's `jams`, so the mark, the
+// health chip and the notification agree.
+export function isJammedMapUnit(unit: DeliveryUnit): boolean {
+  return classifyUnitStatus(unit.status) === "jammed";
+}
+
+export const JAM_MARK_LABEL = "jammed";
+
 // ── Gate state ──
 //
 // A gate's marker reads its record status word as one of these kinds. Each kind
@@ -86,8 +95,14 @@ export function classifyGateMarker(gate: DeliveryGate): GateMarkerKind {
 
 // ── Accessible names ──
 
+// A jammed unit whose status word is not `jammed` itself (`blocked`, `stuck`,
+// ...) also names the jam, so the mark reaches the screen reader.
 export function unitAccessibleName(unit: DeliveryUnit): string {
-  return `${unit.id} ${unit.title}, ${unit.status}, stack ${unit.stack}, layer ${unit.layer}`;
+  const jam =
+    isJammedMapUnit(unit) && unit.status.toLowerCase() !== JAM_MARK_LABEL
+      ? `, ${JAM_MARK_LABEL}`
+      : "";
+  return `${unit.id} ${unit.title}, ${unit.status}${jam}, stack ${unit.stack}, layer ${unit.layer}`;
 }
 
 // A list row has no gate marker of its own, so its name also names its gates.

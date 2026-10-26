@@ -39,6 +39,7 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "agent-exited":
     case "agent-exited-unexpectedly":
     case "agent-launch-failed":
+    case "delivery-jam":
       return "action-needed";
     case "bench-ready":
     case "agent-fallback":
@@ -61,6 +62,10 @@ function persistBench(bench: Bench): void {
   stateService.updateBench(stateService.toPersistedBench(bench));
 }
 
+// `dedupeKey` tells apart notifications of one type and source that are about
+// different things: a repeat matches the notification with the same type,
+// source and key (absent matching absent), so the `delivery-jam` of unit B
+// does not replace the one of unit A, and a second jam of B updates B's.
 export function createNotification(
   bench: Bench,
   type: NotificationType,
@@ -68,6 +73,7 @@ export function createNotification(
   metadata?: Record<string, unknown>,
   launchFailure?: AgentLaunchFailure,
   unexpectedExit?: SessionUnexpectedExit,
+  dedupeKey?: string,
 ): BenchNotification {
   // `capturedOutput` is raw PTY bytes about to be persisted to state.json, so it
   // gets the same redaction plugin logs already apply (log-redaction.ts).
@@ -77,7 +83,8 @@ export function createNotification(
       : launchFailure;
 
   const existing = bench.notifications.find(
-    (n) => n.type === type && n.sourceSessionId === sourceSessionId,
+    (n) =>
+      n.type === type && n.sourceSessionId === sourceSessionId && n.dedupeKey === dedupeKey,
   );
   if (existing) {
     // A repeat that carries a payload replaces the whole payload, so a later
@@ -112,6 +119,7 @@ export function createNotification(
     type,
     priority: derivePriority(type),
     sourceSessionId,
+    ...(dedupeKey !== undefined && { dedupeKey }),
     metadata,
     createdAt: new Date().toISOString(),
     launchFailure: redactedFailure,
@@ -156,6 +164,25 @@ export function dismissOne(bench: Bench, notificationId: string): void {
       notifications: bench.notifications,
     });
   }
+}
+
+// Dismiss the notification of one type with one dedupe key, such as the
+// `delivery-jam` of a unit that is no longer jammed. Returns whether one went;
+// nothing is persisted or broadcast when none matched.
+export function dismissByKey(bench: Bench, type: NotificationType, dedupeKey: string): boolean {
+  const before = bench.notifications.length;
+  bench.notifications = bench.notifications.filter(
+    (n) => !(n.type === type && n.dedupeKey === dedupeKey),
+  );
+  if (bench.notifications.length === before) return false;
+  persistBench(bench);
+  sseService.broadcast({
+    type: "notifications",
+    projectId: bench.projectId,
+    benchId: bench.id,
+    notifications: bench.notifications,
+  });
+  return true;
 }
 
 export function dismissBySession(bench: Bench, sessionId: string): void {
