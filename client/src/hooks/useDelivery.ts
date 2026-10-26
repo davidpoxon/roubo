@@ -24,6 +24,46 @@ export function useDelivery(projectId: string, benchId: number) {
   });
 }
 
+/**
+ * The pull-request diff of a unit's layer (SB-FR-013). A diff between two
+ * commits never changes, so the read is keyed by the unit's head and never goes
+ * stale: a new head reads it again, a delivery frame does not.
+ */
+export function useDeliveryUnitDiff(
+  projectId: string,
+  benchId: number,
+  unitId: string,
+  head: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["delivery-unit-diff", projectId, benchId, unitId, head ?? null] as const,
+    queryFn: () => api.fetchDeliveryUnitDiff(projectId, benchId, unitId),
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * A done unit's recorded transcript (SB-FR-013): the delivery session
+ * terminal's scrollback between the unit's first and last event. Keyed by the
+ * seq of the unit's last event, so an event of the unit reads it again.
+ */
+export function useDeliveryUnitTranscript(
+  projectId: string,
+  benchId: number,
+  unitId: string,
+  lastSeq: number | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ["delivery-unit-transcript", projectId, benchId, unitId, lastSeq] as const,
+    queryFn: () => api.fetchDeliveryUnitTranscript(projectId, benchId, unitId),
+    retry: false,
+    staleTime: Infinity,
+    enabled,
+  });
+}
+
 function useDeliverySessionMutation<T>(
   projectId: string,
   benchId: number,

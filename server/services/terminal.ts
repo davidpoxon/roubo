@@ -136,6 +136,12 @@ interface InternalSession {
   pty: pty.IPty | null;
   ws: WebSocket | null;
   buffer: CircularBuffer<string>;
+  // The epoch milliseconds at which each chunk of `buffer` was written, in step
+  // with it: entry i is the time of chunk i. NaN marks a chunk whose time is not
+  // known (one restored from a file written before the times were kept). A
+  // Spec Bench's drill-in cuts a unit's transcript out of the scrollback by
+  // these times (SB-FR-013).
+  bufferTimes: CircularBuffer<number>;
   exitCode: number | null;
   pingTimer: ReturnType<typeof setInterval> | null;
   pongDeadline: ReturnType<typeof setTimeout> | null;
@@ -253,6 +259,26 @@ function generateLabel(
   return `Terminal ${index} - ${projectName} #${benchId}`;
 }
 
+/** Append one chunk to the scrollback with the time it was written. */
+function pushChunk(internal: InternalSession, chunk: string): void {
+  internal.buffer.push(chunk);
+  internal.bufferTimes.push(Date.now());
+}
+
+/**
+ * The chunk times of a persisted session, in step with its buffer. A file
+ * written before the times were kept, or one whose times do not match its
+ * buffer, gives NaN for every chunk: their times are not known. A null entry
+ * (how JSON writes NaN) is NaN again.
+ */
+function restoredBufferTimes(persisted: PersistedTerminalSession): number[] {
+  const times = persisted.bufferTimes;
+  if (!Array.isArray(times) || times.length !== persisted.buffer.length) {
+    return persisted.buffer.map(() => Number.NaN);
+  }
+  return times.map((time) => (typeof time === "number" ? time : Number.NaN));
+}
+
 function persistSession(id: string): void {
   const internal = sessions.get(id);
   if (!internal) return;
@@ -261,6 +287,7 @@ function persistSession(id: string): void {
   const data: PersistedTerminalSession = {
     session: internal.session,
     buffer: internal.buffer.toArray(),
+    bufferTimes: internal.bufferTimes.toArray(),
     persistedAt: new Date().toISOString(),
     ...(internal.launchFailure !== undefined && { launchFailure: internal.launchFailure }),
   };
@@ -583,6 +610,7 @@ function registerSession(
     pty: ptyProcess,
     ws: null,
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
+    bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
     exitCode: null,
     pingTimer: null,
     pongDeadline: null,
@@ -601,7 +629,7 @@ function registerSession(
   // The notice is pushed BEFORE any PTY output so it reads as a preamble to the
   // session rather than as something the agent said (AP-TC-072, AP-TC-074).
   if (opts.notice) {
-    internal.buffer.push(`\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
+    pushChunk(internal, `\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
   }
 
   // The child's OWN bytes, accumulated separately from `internal.buffer` because
@@ -618,7 +646,7 @@ function registerSession(
 
   // Buffer all PTY output (WS forwarding happens in handleWebSocket)
   ptyProcess.onData((data) => {
-    internal.buffer.push(data);
+    pushChunk(internal, data);
     if (ptyOutput.length < PTY_CAPTURE_LIMIT) ptyOutput += data;
     internal.lastOutputAt = Date.now();
     // Debounced flush: coalesces rapid output, also catches idle sessions
@@ -1045,6 +1073,26 @@ export function getSession(sessionId: string): TerminalSession | undefined {
   return sessions.get(sessionId)?.session;
 }
 
+/**
+ * The scrollback chunks of a session written between `fromMs` and `toMs` (epoch
+ * milliseconds, both inclusive), in the order they were written. A chunk whose
+ * time is not known falls in no span. Undefined when no such session exists.
+ */
+export function getSessionScrollback(
+  sessionId: string,
+  fromMs: number,
+  toMs: number,
+): string[] | undefined {
+  const internal = sessions.get(sessionId);
+  if (!internal) return undefined;
+  const chunks = internal.buffer.toArray();
+  const times = internal.bufferTimes.toArray();
+  return chunks.filter((_, index) => {
+    const time = times[index];
+    return time !== undefined && time >= fromMs && time <= toMs;
+  });
+}
+
 export function getSessions(projectId: string, benchId: number): TerminalSession[] {
   const key = benchKey(projectId, benchId);
   return Array.from(sessions.values())
@@ -1222,6 +1270,7 @@ export function loadPersistedSessions(): void {
         pty: null,
         ws: null,
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
+        bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
         exitCode: persisted.session.exitCode ?? null,
         pingTimer: null,
         pongDeadline: null,

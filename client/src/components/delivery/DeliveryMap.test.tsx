@@ -15,6 +15,9 @@ vi.mock("../../lib/api", async (importOriginal) => {
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
     fetchTerminals: vi.fn(),
+    fetchDeliveryEvents: vi.fn(),
+    fetchDeliveryUnitDiff: vi.fn(),
+    fetchDeliveryUnitTranscript: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
@@ -77,6 +80,22 @@ beforeEach(() => {
   vi.mocked(api.resumeDelivery).mockReset();
   vi.mocked(api.fetchTerminals).mockReset();
   vi.mocked(api.fetchTerminals).mockResolvedValue([]);
+  // A unit's drill-in reads its events, diff and transcript.
+  vi.mocked(api.fetchDeliveryEvents).mockResolvedValue({ events: [], acceptedSeq: 7 });
+  vi.mocked(api.fetchDeliveryUnitDiff).mockImplementation(async (_p, _b, unit) => ({
+    unit,
+    base: null,
+    head: null,
+    diff: "",
+    truncated: false,
+  }));
+  vi.mocked(api.fetchDeliveryUnitTranscript).mockImplementation(async (_p, _b, unit) => ({
+    unit,
+    sessionId: null,
+    from: null,
+    to: null,
+    lines: [],
+  }));
 });
 
 afterEach(() => {

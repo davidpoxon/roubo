@@ -89,6 +89,8 @@ import {
   isDeliveryReadError,
   type DeliveryEventsResponse,
   type DeliveryReadError,
+  type DeliveryUnitDiffResponse,
+  type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
 import { resolvedTheme } from "./theme";
 
@@ -569,6 +571,31 @@ export function fetchDeliveryEvents(
   const search = params.toString();
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/events${search ? `?${search}` : ""}`,
+  );
+}
+
+// The pull-request diff of a unit's layer (SB-FR-013): `git diff` in the bench
+// workspace from the head of the layer below (or the stack base) to the unit's
+// head. A 409 DELIVERY_DIFF_UNAVAILABLE names why git could not answer.
+export function fetchDeliveryUnitDiff(
+  projectId: string,
+  benchId: number,
+  unitId: string,
+): Promise<DeliveryUnitDiffResponse> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/units/${encodeURIComponent(unitId)}/diff`,
+  );
+}
+
+// What the delivery session terminal wrote between a unit's first and last
+// event, cut from its scrollback by time (SB-FR-013).
+export function fetchDeliveryUnitTranscript(
+  projectId: string,
+  benchId: number,
+  unitId: string,
+): Promise<DeliveryUnitTranscriptResponse> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/units/${encodeURIComponent(unitId)}/transcript`,
   );
 }
 

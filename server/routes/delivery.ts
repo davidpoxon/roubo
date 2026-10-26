@@ -56,6 +56,30 @@
 //                                                    for the session that already runs the
 //                                                    delivery; launches nothing. The same
 //                                                    two 409s as resume.
+//   GET  /:projectId/benches/:id/delivery/units/:unitId/diff
+//                                                 -> 200 DeliveryUnitDiffResponse
+//                                                    {unit, base, head, diff, truncated}:
+//                                                    `git diff <base> <head>` in the bench
+//                                                    workspace, from the head of the unit
+//                                                    below in its stack (or the stack
+//                                                    base, the merge base of HEAD and the
+//                                                    unit's head) to the unit's head; no
+//                                                    GitHub call. base, head null and diff
+//                                                    empty while the unit has no head
+//                                                    404 UNIT_NOT_FOUND: the record has no
+//                                                        such unit
+//                                                    409 DELIVERY_DIFF_UNAVAILABLE: a head
+//                                                        is not a commit id, or git failed
+//                                                    404 and 409 as the snapshot read
+//   GET  /:projectId/benches/:id/delivery/units/:unitId/transcript
+//                                                 -> 200 DeliveryUnitTranscriptResponse
+//                                                    {unit, sessionId, from, to, lines}:
+//                                                    the delivery session terminal's
+//                                                    scrollback written between the ts of
+//                                                    the unit's first and last accepted
+//                                                    event; no new file
+//                                                    404 UNIT_NOT_FOUND, and 404 and 409 as
+//                                                        the snapshot read
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
 // delivery-hooks.ts), which checks the delivery token. Launch, resume and the
@@ -77,8 +101,17 @@ import {
 } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
-import type { DeliveryEventsResponse } from "@roubo/shared/delivery-bench";
+import {
+  DELIVERY_DIFF_MAX_BYTES,
+  type DeliveryEventsResponse,
+  type DeliveryUnitDiffResponse,
+  type DeliveryUnitTranscriptResponse,
+} from "@roubo/shared/delivery-bench";
+import type { DeliveryEvent, DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
+import { foldDelivery, ownValue, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { deliveryAcceptedSeq, deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
+import { runCommand } from "../services/exec.js";
+import { getSessionScrollback } from "../services/terminal.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -209,6 +242,177 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
   };
   res.json(body);
 });
+
+// ── Unit drill-in reads (SB-FR-013) ──
+
+// A unit's head and the lower layer's head are commits the session wrote into
+// the record, so only a hex object name reaches git: nothing that git could
+// read as an option or a revision expression.
+const COMMIT_RE = /^[0-9a-f]{7,64}$/i;
+const DIFF_TIMEOUT_MS = 15_000;
+
+interface DrillInContext {
+  bench: Bench;
+  snapshot: DeliverySnapshot;
+  events: readonly DeliveryEvent[];
+  unit: DeliveryUnit;
+}
+
+// The bench, its folded record and its accepted events, and the unit the path
+// names; or the answer already sent when any of them is missing.
+function drillInContext(req: Request, res: Response): DrillInContext | undefined {
+  const bench = specBenchOf(req, res);
+  if (!bench) return undefined;
+  const loaded = loadBenchDeliveryRecord(bench);
+  if (!loaded.ok) {
+    res.status(409).json(loaded.error);
+    return undefined;
+  }
+  const events = deliveryEventsAfterRecord(
+    bench.projectId,
+    bench.id,
+    loaded.record,
+    benchDeliveryEventSpillPath(bench),
+  );
+  // The pure fold, not the route's memoised one: this read needs the units
+  // only, and leaves the memo to the snapshot read.
+  const snapshot = foldDelivery({ record: loaded.record, events });
+  const unitId = String(req.params.unitId);
+  const unit = ownValue(snapshot.unitsById, unitId);
+  if (unit === undefined) {
+    res.status(404).json({ error: `The delivery has no unit ${unitId}`, code: "UNIT_NOT_FOUND" });
+    return undefined;
+  }
+  return { bench, snapshot, events, unit };
+}
+
+function sendDiffUnavailable(res: Response, error: string): void {
+  res.status(409).json({ error, code: "DELIVERY_DIFF_UNAVAILABLE" });
+}
+
+// The head of the unit right below this one in its stack, when it has one.
+function lowerLayerHead(snapshot: DeliverySnapshot, unit: DeliveryUnit): string | undefined {
+  const members = ownValue(snapshot.stacks, unit.stack) ?? [];
+  const index = members.indexOf(unit.id);
+  if (index <= 0) return undefined;
+  const lowerId = members[index - 1];
+  return lowerId === undefined ? undefined : ownValue(snapshot.unitsById, lowerId)?.head;
+}
+
+router.get(
+  "/:projectId/benches/:id/delivery/units/:unitId/diff",
+  deliveryReadRateLimiter,
+  async (req, res) => {
+    const context = drillInContext(req, res);
+    if (!context) return;
+    const { bench, snapshot, unit } = context;
+    const head = unit.head;
+    if (head === undefined || head.length === 0) {
+      const body: DeliveryUnitDiffResponse = {
+        unit: unit.id,
+        base: null,
+        head: null,
+        diff: "",
+        truncated: false,
+      };
+      res.json(body);
+      return;
+    }
+    if (!COMMIT_RE.test(head)) {
+      sendDiffUnavailable(res, `The head of ${unit.id} is not a commit id: ${head}`);
+      return;
+    }
+    let base = lowerLayerHead(snapshot, unit);
+    if (base !== undefined && !COMMIT_RE.test(base)) {
+      sendDiffUnavailable(res, `The head below ${unit.id} is not a commit id: ${base}`);
+      return;
+    }
+    const cwd = bench.workspacePath;
+    if (base === undefined) {
+      // The stack base: where the unit's history leaves the workspace's own.
+      const mergeBase = await runCommand(
+        "git",
+        ["merge-base", "HEAD", head],
+        cwd,
+        undefined,
+        DIFF_TIMEOUT_MS,
+      );
+      const found = mergeBase.stdout.trim();
+      if (mergeBase.code !== 0 || !COMMIT_RE.test(found)) {
+        sendDiffUnavailable(
+          res,
+          `The stack base of ${unit.id} could not be found in the bench workspace: ${firstLine(mergeBase.stderr)}`,
+        );
+        return;
+      }
+      base = found;
+    }
+    const diff = await runCommand(
+      "git",
+      ["diff", "--no-color", "--no-ext-diff", base, head, "--"],
+      cwd,
+      undefined,
+      DIFF_TIMEOUT_MS,
+    );
+    if (diff.code !== 0) {
+      sendDiffUnavailable(
+        res,
+        `git diff of ${unit.id} failed in the bench workspace: ${firstLine(diff.stderr)}`,
+      );
+      return;
+    }
+    const bytes = Buffer.from(diff.stdout, "utf8");
+    const truncated = bytes.length > DELIVERY_DIFF_MAX_BYTES;
+    const body: DeliveryUnitDiffResponse = {
+      unit: unit.id,
+      base,
+      head,
+      diff: truncated
+        ? bytes.subarray(0, DELIVERY_DIFF_MAX_BYTES).toString("utf8")
+        : diff.stdout,
+      truncated,
+    };
+    res.json(body);
+  },
+);
+
+function firstLine(text: string): string {
+  return text.trim().split("\n")[0] ?? "";
+}
+
+router.get(
+  "/:projectId/benches/:id/delivery/units/:unitId/transcript",
+  deliveryReadRateLimiter,
+  (req, res) => {
+    const context = drillInContext(req, res);
+    if (!context) return;
+    const { bench, events, unit } = context;
+    const own = events.filter((event) => event.unit_id === unit.id);
+    const from = own[0]?.ts ?? null;
+    const to = own.at(-1)?.ts ?? null;
+    const sessionId = bench.deliverySessionId ?? null;
+    let lines: string[] = [];
+    let session: string | null = null;
+    if (sessionId !== null) {
+      const fromMs = from === null ? Number.NaN : Date.parse(from);
+      const toMs = to === null ? Number.NaN : Date.parse(to);
+      // A span that does not parse holds no chunk.
+      const scrollback = getSessionScrollback(sessionId, fromMs, toMs);
+      if (scrollback !== undefined) {
+        session = sessionId;
+        lines = scrollback;
+      }
+    }
+    const body: DeliveryUnitTranscriptResponse = {
+      unit: unit.id,
+      sessionId: session,
+      from,
+      to,
+      lines,
+    };
+    res.json(body);
+  },
+);
 
 function sendLaunchFailed(res: Response, err: unknown): void {
   const reason = err instanceof Error && err.message ? err.message : String(err);

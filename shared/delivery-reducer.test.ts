@@ -1146,6 +1146,21 @@ describe("foldDelivery event handlers", () => {
     });
     expect(snapshot.seams.plan).toBe(record.seams.plan);
   });
+
+  it("seam.ran records the unit the seam ran inside, from the payload or the envelope", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream(
+        ["seam.ran", { seam: "compaction-b", status: "ok" }, "B"],
+        ["seam.ran", { seam: "plan", status: "ok", unit_id: "C" }, "B"],
+        ["seam.ran", { seam: "results-merge", status: "ok" }],
+      ),
+    });
+    expect(snapshot.seams["compaction-b"].unit_id).toBe("B");
+    expect(snapshot.seams.plan.unit_id).toBe("C");
+    expect(snapshot.seams["results-merge"].unit_id).toBeUndefined();
+  });
 });
 
 describe("foldDelivery gate state and progress (SB-FR-011)", () => {

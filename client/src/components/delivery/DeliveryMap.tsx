@@ -15,6 +15,7 @@ import { focusRing } from "../ui/focus-ring";
 import { useBenchViewState } from "../../hooks/useBenchViewState";
 import DeliveryGraph from "./DeliveryGraph";
 import DeliveryList from "./DeliveryList";
+import UnitDrillIn from "./UnitDrillIn";
 import {
   DEFAULT_DELIVERY_MAP_VIEW,
   GATE_MARKERS,
@@ -39,6 +40,8 @@ export interface DeliveryMapProps {
   projectId: string;
   benchId: number;
   snapshot: DeliverySnapshot;
+  // The bench's delivery session terminal, which a unit's drill-in shows live.
+  deliverySessionId?: string;
 }
 
 const VIEWS: { id: DeliveryMapView; label: string }[] = [
@@ -46,7 +49,12 @@ const VIEWS: { id: DeliveryMapView; label: string }[] = [
   { id: "list", label: "List" },
 ];
 
-export default function DeliveryMap({ projectId, benchId, snapshot }: DeliveryMapProps) {
+export default function DeliveryMap({
+  projectId,
+  benchId,
+  snapshot,
+  deliverySessionId,
+}: DeliveryMapProps) {
   const viewState = useBenchViewState(projectId, benchId);
   const view = viewState.deliveryMapView ?? DEFAULT_DELIVERY_MAP_VIEW;
   const [selected, setSelected] = useState<MapTarget | null>(null);
@@ -128,21 +136,36 @@ export default function DeliveryMap({ projectId, benchId, snapshot }: DeliveryMa
       )}
 
       {opened !== null && (
-        <DrillIn snapshot={snapshot} target={opened} onClose={() => setOpened(null)} />
+        <DrillIn
+          projectId={projectId}
+          benchId={benchId}
+          snapshot={snapshot}
+          target={opened}
+          deliverySessionId={deliverySessionId}
+          onClose={() => setOpened(null)}
+        />
       )}
     </section>
   );
 }
 
-// The drill-in of the unit or gate last opened from the map. It names what the
-// snapshot holds for it; the unit's timeline and controls are not part of it.
+// The drill-in of the unit or gate last opened from the map. A unit's opens on
+// its timeline, with its terminal beside it and its diff and verify results
+// beneath (UnitDrillIn), then names what the snapshot holds for it; a gate's
+// names what the snapshot holds for the gate.
 function DrillIn({
+  projectId,
+  benchId,
   snapshot,
   target,
+  deliverySessionId,
   onClose,
 }: {
+  projectId: string;
+  benchId: number;
   snapshot: DeliverySnapshot;
   target: MapTarget;
+  deliverySessionId: string | undefined;
   onClose: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -169,7 +192,16 @@ function DrillIn({
         <Button onPress={onClose}>Close</Button>
       </div>
       {target.kind === "unit" ? (
-        <UnitDetail snapshot={snapshot} unitId={target.id} />
+        <>
+          <UnitDrillIn
+            projectId={projectId}
+            benchId={benchId}
+            snapshot={snapshot}
+            unitId={target.id}
+            {...(deliverySessionId !== undefined && { deliverySessionId })}
+          />
+          <UnitDetail snapshot={snapshot} unitId={target.id} />
+        </>
       ) : (
         <GateDetail snapshot={snapshot} gateId={target.id} />
       )}

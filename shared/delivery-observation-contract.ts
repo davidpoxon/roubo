@@ -278,11 +278,14 @@ export type DeliveryDrift = z.infer<typeof DeliveryDriftSchema>;
 //
 // Keyed by seam name: one entry per command the delivery tooling runs for the
 // bench (plan, merge results, gate status, and so on), with its last outcome.
+// `unit_id` names the unit the seam ran inside, so a unit's drill-in marks it
+// on that unit's timeline (SB-FR-013); a seam without one marks no unit.
 export const DeliverySeamSchema = z
   .object({
     status: StatusSchema,
     last_run_at: TimestampSchema.optional(),
     detail: z.string().optional(),
+    unit_id: IdSchema.optional(),
   })
   .loose();
 export type DeliverySeam = z.infer<typeof DeliverySeamSchema>;

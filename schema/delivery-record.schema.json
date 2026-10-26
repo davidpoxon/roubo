@@ -422,6 +422,10 @@
           },
           "detail": {
             "type": "string"
+          },
+          "unit_id": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["status"],
