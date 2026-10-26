@@ -1,7 +1,7 @@
 {
   "delivery-record.schema.json": {
     "version": "1.0.0",
-    "sha256": "66017e4bab5abe5499980c6526bc97d8835a9bb8e92ae691921e31fecf8259db"
+    "sha256": "7d9a6f9bcf0fef06255d569b2c7fbd7e8f53dbd0e4daaa3ea7fa8f2ba364b425"
   },
   "delivery-event.schema.json": {
     "version": "1.0.0",

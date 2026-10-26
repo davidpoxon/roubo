@@ -67,7 +67,7 @@ import {
   type ProvisionalCase,
   type ProvisionalMark,
 } from "./delivery-observation-contract";
-import type { BenchResults, TestCasesPlan } from "./testbench-contracts";
+import type { BenchResults, CaseResult, TestCasesPlan } from "./testbench-contracts";
 import {
   evaluateGate,
   indexResolutions,
@@ -159,11 +159,30 @@ export interface DeliveryProgressCount {
   total: number;
 }
 
+// One counted case of the progress (SB-FR-011): whether it is met, the verify
+// record it is judged by, and the unit that met it with that unit's pull
+// request, so a view can open the record and link the pull request.
+export interface DeliveryCaseProgress {
+  id: string;
+  met: boolean;
+  // The result the case is read by, exactly as the met reading takes it (see
+  // `computeProgress`). Null when the results are absent or not current, or no
+  // result is recorded for the case.
+  result: CaseResult | null;
+  // The unit that met the case: the last unit in the `after` list of the first
+  // gate (in record order) whose `cases` names it. Null when the case is not
+  // met, or no gate names it.
+  metBy: string | null;
+  // The `pr_url` of the `metBy` unit, or null when that unit has none.
+  prUrl: string | null;
+}
+
 // Progress counts test cases met and requirements covered (SB-FR-011), never
-// units done.
+// units done. `caseList` holds one entry per counted case, in plan order.
 export interface DeliveryProgress {
   cases: DeliveryProgressCount;
   requirements: DeliveryProgressCount;
+  caseList: DeliveryCaseProgress[];
 }
 
 export interface DeliveryStaleness {
@@ -611,6 +630,7 @@ const onUnitChanged: EventHandler = (state, event) => {
   if (isStringArray(payload.depends_on)) patch.depends_on = payload.depends_on;
   if (typeof payload.branch === "string") patch.branch = payload.branch;
   if (typeof payload.head === "string") patch.head = payload.head;
+  if (typeof payload.pr_url === "string") patch.pr_url = payload.pr_url;
   if (isNumber(payload.cost_usd)) patch.cost_usd = payload.cost_usd;
   if (Object.keys(patch).length === 0) return state;
   return { ...state, unitsById: { ...state.unitsById, [unitId]: merge(current, patch) } };
@@ -1130,29 +1150,44 @@ function verifyUnitOf(gate: DeliveryGate): VerifyUnit {
 // reads nothing), an override wins over the derived status, and an orphaned or
 // absent result is not met (`isCaseMet`). A case the lifecycle resolutions retire
 // leaves both totals, as it leaves the gating set. A requirement is covered when
-// every counted case that links it is met.
+// every counted case that links it is met. `caseList` carries the same reading
+// per case, with the unit that met it read from the record's gates and units
+// only (see `DeliveryCaseProgress`).
 function computeProgress(
   record: DeliveryRecord,
+  state: Pick<FoldState, "gates" | "unitsById">,
   plan: TestCasesPlan | undefined,
   results: DeliveryResults | undefined,
   lifecycle: GateLifecycle | undefined,
 ): DeliveryProgress {
   if (plan === undefined) {
-    return { cases: { met: 0, total: 0 }, requirements: { met: 0, total: 0 } };
+    return { cases: { met: 0, total: 0 }, requirements: { met: 0, total: 0 }, caseList: [] };
   }
   const resolutionById = indexResolutions(lifecycle);
   const current =
     results !== undefined && results.planHash === record.plan_hash ? results : undefined;
   const requirementCases = new Map<string, { total: number; met: number }>();
+  const caseList: DeliveryCaseProgress[] = [];
   let total = 0;
   let met = 0;
   for (const planCase of plan.cases) {
     if (resolutionById.get(planCase.id)?.status === "retired") continue;
     total += 1;
-    const caseMet =
-      current !== undefined &&
-      isCaseMet(readCaseResult(planCase.id, current.caseResults, resolutionById, lifecycle));
+    const result =
+      current === undefined
+        ? undefined
+        : readCaseResult(planCase.id, current.caseResults, resolutionById, lifecycle);
+    const caseMet = isCaseMet(result);
     if (caseMet) met += 1;
+    const metBy = caseMet ? unitThatMet(state.gates, planCase.id) : null;
+    const metByUnit = metBy === null ? undefined : ownValue(state.unitsById, metBy);
+    caseList.push({
+      id: planCase.id,
+      met: caseMet,
+      result: result ?? null,
+      metBy,
+      prUrl: metByUnit?.pr_url ?? null,
+    });
     for (const requirementId of planCase.linked_requirement_ids) {
       const entry = requirementCases.get(requirementId) ?? { total: 0, met: 0 };
       entry.total += 1;
@@ -1167,7 +1202,16 @@ function computeProgress(
   return {
     cases: { met, total },
     requirements: { met: covered, total: requirementCases.size },
+    caseList,
   };
+}
+
+// The unit that met a case: the last unit in the `after` list of the first gate
+// whose `cases` names it, or null when no gate names it.
+function unitThatMet(gates: readonly DeliveryGate[], caseId: string): string | null {
+  const gate = gates.find((candidate) => candidate.cases.includes(caseId));
+  if (gate === undefined || gate.after.length === 0) return null;
+  return gate.after[gate.after.length - 1];
 }
 
 export function computeStaleness(updatedAt: string, now: number | undefined): DeliveryStaleness {
@@ -1220,7 +1264,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     drift: state.drift,
     lifecycle: state.lifecycle,
     seams: state.seams,
-    progress: computeProgress(record, plan, results, lifecycle),
+    progress: computeProgress(record, state, plan, results, lifecycle),
     staleness: computeStaleness(record.updated_at, now),
   };
   if (state.gap !== undefined) {

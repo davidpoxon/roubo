@@ -128,6 +128,10 @@ export const DeliveryUnitSchema = z
     // The unit branch and its last commit, once the unit has a worktree.
     branch: z.string().optional(),
     head: z.string().optional(),
+    // The pull request of the unit branch, once the delivery session opened
+    // one. A view links a case the unit met to it (SB-FR-011). A plain string,
+    // like `branch`: a reader links it only when it is an http(s) URL.
+    pr_url: z.string().optional(),
     cost_usd: z.number().min(0).optional(),
   })
   .loose();

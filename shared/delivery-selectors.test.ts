@@ -15,6 +15,7 @@ import {
   selectGateAnchors,
   selectGatesAfterUnit,
   selectGateState,
+  selectMetCases,
   selectMode,
   selectNextBoundary,
   selectOpenDecisions,
@@ -29,6 +30,7 @@ import {
   selectUnitStatus,
   selectUnitsInStackOrder,
 } from "./delivery-selectors.js";
+import type { CaseResult, TestCasesPlan } from "./testbench-contracts.js";
 
 const fixtureRecord = (): DeliveryRecord => {
   const raw: unknown = JSON.parse(
@@ -141,7 +143,70 @@ describe("delivery selectors", () => {
     expect(selectProgress(snapshot)).toEqual({
       cases: { met: 0, total: 0 },
       requirements: { met: 0, total: 0 },
+      caseList: [],
     });
+  });
+
+  it("SB-TC-022 counts 3 of 10 cases met and covered requirements while A and B are done", () => {
+    const record = fixtureRecord();
+    const caseId = (n: number) => `DEMO-TC-${String(n).padStart(3, "0")}`;
+    const ids = Array.from({ length: 10 }, (_, index) => caseId(index + 1));
+    const requirementOf = (index: number) =>
+      index < 2 ? "DEMO-FR-001" : index < 3 ? "DEMO-FR-002" : "DEMO-FR-003";
+    const plan: TestCasesPlan = {
+      $schema: "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json",
+      schemaVersion: "1.2.0",
+      specSlug: "demo",
+      // DEMO-FR-001 links the first two cases, DEMO-FR-002 the third, DEMO-FR-003 the rest.
+      cases: ids.map((id, index) => ({
+        id,
+        title: id,
+        area: "demo",
+        level: 1,
+        type: "functional",
+        steps: [],
+        tags: [],
+        linked_requirement_ids: [requirementOf(index)],
+        linked_user_story_ids: [],
+      })),
+    };
+    const passed: CaseResult = { observationMarks: {}, derivedStatus: "passed", notes: [] };
+    const snapshot = foldDelivery({
+      record: {
+        ...record,
+        stack: {
+          ...record.stack,
+          gates: [
+            { id: "gate-after-b", after: ["B"], status: "pending", cases: ids.slice(0, 5) },
+            { id: "gate-after-c", after: ["C"], status: "pending", cases: ids.slice(5) },
+          ],
+        },
+        units: record.units.map((unit) =>
+          unit.id === "B"
+            ? { ...unit, status: "done", pr_url: "https://github.com/demo/demo/pull/2" }
+            : unit,
+        ),
+      },
+      events: [],
+      plan,
+      results: {
+        planHash: record.plan_hash,
+        updatedAt: "2026-10-16T09:30:00Z",
+        caseResults: { [ids[0]]: passed, [ids[1]]: passed, [ids[2]]: passed },
+      },
+    });
+
+    const progress = selectProgress(snapshot);
+    expect(progress.cases).toEqual({ met: 3, total: 10 });
+    // DEMO-FR-001 and DEMO-FR-002 are covered; DEMO-FR-003 has unmet cases.
+    expect(progress.requirements).toEqual({ met: 2, total: 3 });
+    // The gate the cases met reads the same way.
+    expect(selectGateState(snapshot, "gate-after-b")?.state.status).toBe("pending");
+    expect(selectMetCases(snapshot).map((entry) => [entry.id, entry.metBy, entry.prUrl])).toEqual([
+      [ids[0], "B", "https://github.com/demo/demo/pull/2"],
+      [ids[1], "B", "https://github.com/demo/demo/pull/2"],
+      [ids[2], "B", "https://github.com/demo/demo/pull/2"],
+    ]);
   });
 
   it("selectUnitsInStackOrder walks the stacks base first, then unlisted units", () => {
