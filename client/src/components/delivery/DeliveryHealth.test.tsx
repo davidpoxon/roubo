@@ -10,6 +10,7 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { fourUnitRecord, unitChanged, unitEvent } from "../../test/delivery-fixtures";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
+import DeliveryJams from "./DeliveryJams";
 import DeliveryRail from "./DeliveryHealth";
 
 afterEach(() => {
@@ -161,5 +162,26 @@ describe("Drift ledger", () => {
     expect(row).toHaveTextContent("scope");
     expect(row).toHaveTextContent("Unit B grew");
     expect(row).toHaveTextContent("no spec-layer pull request");
+  });
+});
+
+describe("Jam list", () => {
+  it("lists each jammed unit with its id, title and status word, and drops a unit that resumes", () => {
+    const record = fourUnitRecord();
+    const { rerender } = render(<DeliveryJams snapshot={foldDelivery({ record, events: [] })} />);
+    expect(screen.getByTestId("delivery-jams")).toHaveTextContent("No unit is jammed");
+
+    const jammed = [unitChanged(8, "B", "jammed"), unitChanged(9, "C", "stuck")];
+    rerender(<DeliveryJams snapshot={foldDelivery({ record, events: jammed })} />);
+    const rows = screen.getAllByTestId(/^delivery-jam-row-/);
+    expect(rows.map((row) => row.dataset.unit)).toEqual(["B", "C"]);
+    expect(rows[0]).toHaveTextContent("BSecondjammed");
+    expect(rows[1]).toHaveTextContent("CThirdstuck");
+
+    const resumed = [...jammed, unitChanged(10, "B", "running")];
+    rerender(<DeliveryJams snapshot={foldDelivery({ record, events: resumed })} />);
+    expect(screen.getAllByTestId(/^delivery-jam-row-/).map((row) => row.dataset.unit)).toEqual([
+      "C",
+    ]);
   });
 });
