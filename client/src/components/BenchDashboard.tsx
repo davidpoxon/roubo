@@ -12,6 +12,7 @@ import type {
   NormalizedIssue,
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
+  SpecBenchBindMode,
 } from "@roubo/shared";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
@@ -30,6 +31,7 @@ import { useProjectIntegration } from "../hooks/useProjectIntegration";
 import { useSettings } from "../hooks/useSettings";
 import { DEFAULT_TESTBENCH_SETTINGS } from "@roubo/shared";
 import SpecPickerModal from "./testbench/SpecPickerModal";
+import SpecBenchSetupModal from "./delivery/SpecBenchSetupModal";
 import { setBenchActiveTab } from "../hooks/useBenchViewState";
 
 export type ProjectOutletContext = {
@@ -37,6 +39,9 @@ export type ProjectOutletContext = {
   pendingAssignments: Map<number, { externalId: string; issueTitle: string }>;
   isLoading: boolean;
   openCreateBench: () => void;
+  // Spec Bench set up (SB-FR-001): opens the Set up Spec Bench dialog. The
+  // Benches page offers the control only when the handler is supplied.
+  openSpecBenchSetup?: () => void;
   pickIssueForBench: (position: number) => void;
   // TestBench create flow (#467). Only offered when the feature is enabled; the
   // handler opens the spec-picker modal for the empty slot.
@@ -78,6 +83,8 @@ export default function BenchDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [showIssuePicker, setShowIssuePicker] = useState(false);
   const [showSpecPicker, setShowSpecPicker] = useState(false);
+  const [showSpecBenchSetup, setShowSpecBenchSetup] = useState(false);
+  const [specBenchSetupError, setSpecBenchSetupError] = useState<string | null>(null);
   const { open: openRegisterModal } = useRegisterProjectModal();
   const [branchConflict, setBranchConflict] = useState<
     (BranchConflictInfo & { externalId: string }) | null
@@ -332,6 +339,35 @@ export default function BenchDashboard() {
     [projectId, createBench, navigate, addToast],
   );
 
+  const openSpecBenchSetup = useCallback(() => {
+    setSpecBenchSetupError(null);
+    setShowSpecBenchSetup(true);
+  }, []);
+
+  // Create a Spec Bench bound to the picked spec folder and delivery mode
+  // (SB-FR-001). The dialog closes on success and the Benches page shows the
+  // new bench's card while it prepares; the bench opens on its Delivery tab.
+  const handleSpecBenchConfirm = useCallback(
+    (focusedSpecPath: string, deliveryMode: SpecBenchBindMode) => {
+      if (!projectId) return;
+      setSpecBenchSetupError(null);
+      createBench.mutate(
+        { projectId, variant: "specbench", focusedSpecPath, deliveryMode },
+        {
+          onSuccess: () => {
+            setShowSpecBenchSetup(false);
+          },
+          onError: (err) => {
+            setSpecBenchSetupError(
+              err instanceof Error && err.message ? err.message : "Failed to set up Spec Bench",
+            );
+          },
+        },
+      );
+    },
+    [projectId, createBench],
+  );
+
   const outletContext = useMemo(
     () =>
       ({
@@ -339,6 +375,7 @@ export default function BenchDashboard() {
         pendingAssignments,
         isLoading,
         openCreateBench,
+        openSpecBenchSetup,
         pickIssueForBench: handleEmptyBenchPickIssue,
         testBenchEnabled,
         onCreateTestBench: handleCreateTestBench,
@@ -359,6 +396,7 @@ export default function BenchDashboard() {
       pendingAssignments,
       isLoading,
       openCreateBench,
+      openSpecBenchSetup,
       handleEmptyBenchPickIssue,
       testBenchEnabled,
       handleCreateTestBench,
@@ -559,6 +597,18 @@ export default function BenchDashboard() {
               projectId={projectId}
               onCreate={handleSpecPickerCreate}
               isCreating={createBench.isPending}
+            />
+          )}
+
+          {/* Mounted only while open, so each set up starts from no choice. */}
+          {projectId && showSpecBenchSetup && (
+            <SpecBenchSetupModal
+              isOpen
+              onClose={() => setShowSpecBenchSetup(false)}
+              projectId={projectId}
+              onConfirm={handleSpecBenchConfirm}
+              isCreating={createBench.isPending}
+              error={specBenchSetupError}
             />
           )}
 

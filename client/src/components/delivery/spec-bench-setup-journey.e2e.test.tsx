@@ -13,7 +13,8 @@
 // is the network: `fetch` and `EventSource` reach an in-process Roubo server
 // stand-in below, which answers each route the journey calls with the body and
 // the status the real route answers (server/routes/benches.ts,
-// server/routes/delivery.ts, server/routes/delivery-hooks.ts), folds the record
+// server/routes/delivery.ts, server/routes/delivery-hooks.ts,
+// server/routes/specbench-specs.ts), folds the record
 // and the accepted events through the shared delivery reducer as GET /delivery
 // does, and checks the delivery token on the event endpoint. A request to any
 // other route answers 404 and is listed in the failure output, so a step that
@@ -54,6 +55,7 @@ import {
   type DeliveryEventsResponse,
   type DeliveryReadError,
   type DeliveryStreamFrame,
+  type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
 
@@ -291,6 +293,9 @@ class RouboServerStandIn {
     if (method === "GET" && path === `${base}/testbench/specs`) {
       return respond(200, { specs: [discoveredFixtureSpec()], invalid: [] });
     }
+    if (method === "GET" && path === `${base}/specbench/specs/${SPEC_SLUG}/summary`) {
+      return respond(200, fixtureSpecSummary());
+    }
     if ((match = new RegExp(`^${base}/benches/(\\d+)$`).exec(path)) && method === "GET") {
       const bench = this.benches.find((b) => b.id === Number(match?.[1]));
       return bench
@@ -502,6 +507,14 @@ function discoveredFixtureSpec() {
     },
     lifecycle: { archived: false, reason: null, supersededBy: null, recordError: null },
   };
+}
+
+// GET /specbench/specs/fixture-spec/summary, as the real route counts the
+// spec's work-units.json: the fixture spec plans the record fixture's units
+// and gates, so its delivery units and its verify gates are those of the record.
+function fixtureSpecSummary(): SpecBenchSpecSummary {
+  const record = initialRecord();
+  return { slug: SPEC_SLUG, units: record.units.length, gates: record.stack.gates.length };
 }
 
 // ── The fake delivery tooling ──
@@ -719,11 +732,16 @@ describe("Spec Bench setup journey", () => {
         await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
         await user.click(choice(setupDialog(), /^launch/i));
         await waitFor(() => {
-          const text = setupDialog().textContent ?? "";
-          expect(text).toContain(SPEC_SLUG);
-          expect(text).toMatch(/launch/i);
-          expect(text).toMatch(/\b4 units\b/i);
-          expect(text).toMatch(/\b2 gates\b/i);
+          const dialog = setupDialog();
+          const text = dialog.textContent ?? "";
+          const shown = `the dialog reads "${text}"`;
+          // textContent runs the text of neighbouring elements together, so the
+          // counts are matched element by element, as the operator reads them.
+          const reads = (pattern: RegExp) => within(dialog).queryAllByText(pattern).length > 0;
+          expect(text, shown).toContain(SPEC_SLUG);
+          expect(text, shown).toMatch(/launch/i);
+          expect(reads(/\b4 units\b/i), shown).toBe(true);
+          expect(reads(/\b2 gates\b/i), shown).toBe(true);
         });
       },
     );
