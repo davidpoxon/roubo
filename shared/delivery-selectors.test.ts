@@ -8,6 +8,7 @@ import {
   type DeliveryRecord,
 } from "./delivery-observation-contract.js";
 import { foldDelivery } from "./delivery-reducer.js";
+import { resolvePlan } from "./lifecycle-resolver.js";
 import {
   selectDecisionThread,
   selectDependencyEdges,
@@ -206,6 +207,83 @@ describe("delivery selectors", () => {
       [ids[0], "B", "https://github.com/demo/demo/pull/2"],
       [ids[1], "B", "https://github.com/demo/demo/pull/2"],
       [ids[2], "B", "https://github.com/demo/demo/pull/2"],
+    ]);
+  });
+
+  it("SB-TC-022 leaves a case no gate names and a retired gating case out of the cases met", () => {
+    const record = fixtureRecord();
+    const caseId = (n: number) => `DEMO-TC-${String(n).padStart(3, "0")}`;
+    const ids = Array.from({ length: 12 }, (_, index) => caseId(index + 1));
+    const plan: TestCasesPlan = {
+      $schema: "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json",
+      schemaVersion: "1.2.0",
+      specSlug: "demo",
+      cases: ids.map((id, index) => ({
+        id,
+        title: id,
+        area: "demo",
+        level: 1,
+        type: "functional",
+        steps: [],
+        tags: [],
+        // DEMO-FR-001 links the first three cases, DEMO-FR-009 only the one no
+        // gate names, and DEMO-FR-002 the rest.
+        linked_requirement_ids: [
+          index < 3 ? "DEMO-FR-001" : index === 10 ? "DEMO-FR-009" : "DEMO-FR-002",
+        ],
+        linked_user_story_ids: [],
+        // The twelfth case is retired.
+        ...(index === 11 && { lifecycle: { state: "retired" as const, reason: "Obsolete" } }),
+      })),
+    };
+    const passed: CaseResult = { observationMarks: {}, derivedStatus: "passed", notes: [] };
+    const snapshot = foldDelivery({
+      record: {
+        ...record,
+        stack: {
+          ...record.stack,
+          gates: [
+            { id: "gate-after-b", after: ["B"], status: "pending", cases: ids.slice(0, 5) },
+            // The eleventh case is in no gate; the retired twelfth is.
+            {
+              id: "gate-after-c",
+              after: ["C"],
+              status: "pending",
+              cases: [...ids.slice(5, 10), ids[11]],
+            },
+          ],
+        },
+      },
+      events: [],
+      plan,
+      results: {
+        planHash: record.plan_hash,
+        updatedAt: "2026-10-16T09:30:00Z",
+        caseResults: {
+          [ids[0]]: passed,
+          [ids[1]]: passed,
+          [ids[2]]: passed,
+          [ids[10]]: passed,
+          [ids[11]]: passed,
+        },
+      },
+      lifecycle: {
+        resolutions: resolvePlan(plan, {
+          plans: new Map([["demo", plan]]),
+          specLifecycles: new Map(),
+        }),
+      },
+    });
+
+    const progress = selectProgress(snapshot);
+    expect(progress.cases).toEqual({ met: 3, total: 10 });
+    // DEMO-FR-001 is covered; DEMO-FR-002 has unmet cases; DEMO-FR-009 links no
+    // counted case, so it is not a requirement of the stat.
+    expect(progress.requirements).toEqual({ met: 1, total: 2 });
+    expect(progress.caseList.map((entry) => entry.id)).toEqual(ids.slice(0, 10));
+    expect(selectMetCases(snapshot).map((entry) => entry.id)).toEqual(ids.slice(0, 3));
+    expect(selectGateState(snapshot, "gate-after-c")?.state.lifecycleExcludedCaseIds).toEqual([
+      ids[11],
     ]);
   });
 

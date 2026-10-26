@@ -1292,17 +1292,98 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
         "DEMO-TC-003": caseResult("passed"),
       }),
     });
-    const byId = Object.fromEntries(snapshot.progress.caseList.map((entry) => [entry.id, entry]));
     expect(snapshot.unitsById.C.pr_url).toBe("https://github.com/demo/demo/pull/3");
-    expect(byId["DEMO-TC-003"]).toMatchObject({
-      met: true,
-      metBy: "C",
-      prUrl: "https://github.com/demo/demo/pull/3",
+    // Only the case a gate names is counted.
+    expect(snapshot.progress.caseList).toEqual([
+      {
+        id: "DEMO-TC-003",
+        met: true,
+        result: caseResult("passed"),
+        metBy: "C",
+        prUrl: "https://github.com/demo/demo/pull/3",
+      },
+    ]);
+  });
+
+  it("SB-TC-022 leaves a passed case that no gate names out of both totals", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record: {
+        ...record,
+        stack: {
+          ...record.stack,
+          gates: [{ id: "gate-after-c", after: ["C"], status: "pending", cases: ["DEMO-TC-003"] }],
+        },
+      },
+      events: [],
+      plan: PLAN,
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("passed"),
+        "DEMO-TC-003": caseResult("failed"),
+      }),
     });
-    // Met, but no gate names it: no unit met it.
-    expect(byId["DEMO-TC-001"]).toMatchObject({ met: true, metBy: null, prUrl: null });
-    // Not met, and no result recorded.
-    expect(byId["DEMO-TC-002"]).toMatchObject({ met: false, result: null, metBy: null });
+    // TC-001 and TC-002 passed, but no gate names them, so neither enters the
+    // stat, and DEMO-FR-001, which only they link, is not counted either.
+    expect(snapshot.progress.cases).toEqual({ met: 0, total: 1 });
+    expect(snapshot.progress.requirements).toEqual({ met: 0, total: 1 });
+    expect(snapshot.progress.caseList.map((entry) => entry.id)).toEqual(["DEMO-TC-003"]);
+  });
+
+  it("SB-TC-022 leaves a case its gate's level policy excludes out of both totals", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: {
+        ...PLAN,
+        cases: PLAN.cases.map((testCase) =>
+          testCase.id === "DEMO-TC-002" ? { ...testCase, level: 3 } : testCase,
+        ),
+      },
+      results: results(record.plan_hash, {
+        "DEMO-TC-001": caseResult("passed"),
+        "DEMO-TC-002": caseResult("failed"),
+        "DEMO-TC-003": caseResult("passed"),
+      }),
+    });
+    // The L3 case is not gating, so its failure neither counts nor blocks a requirement.
+    expect(snapshot.progress.cases).toEqual({ met: 2, total: 2 });
+    expect(snapshot.progress.requirements).toEqual({ met: 2, total: 2 });
+    expect(snapshot.progress.caseList.map((entry) => entry.id)).toEqual([
+      "DEMO-TC-001",
+      "DEMO-TC-003",
+    ]);
+    expect(snapshot.gatesById["gate-after-b"].state.status).toBe("passed");
+  });
+
+  it("SB-TC-022 counts a gating case the plan lacks as not met, after the plan's cases", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record: {
+        ...record,
+        stack: {
+          ...record.stack,
+          gates: [
+            {
+              id: "gate-after-b",
+              after: ["B"],
+              status: "pending",
+              cases: ["DEMO-TC-404", "DEMO-TC-001"],
+            },
+          ],
+        },
+      },
+      events: [],
+      plan: PLAN,
+      results: results(record.plan_hash, { "DEMO-TC-001": caseResult("passed") }),
+    });
+    expect(snapshot.progress.cases).toEqual({ met: 1, total: 2 });
+    expect(snapshot.progress.caseList.map((entry) => [entry.id, entry.met])).toEqual([
+      ["DEMO-TC-001", true],
+      ["DEMO-TC-404", false],
+    ]);
+    expect(snapshot.gatesById["gate-after-b"].state.status).toBe("pending");
   });
 
   it("SB-TC-022 counts a met case's unit with no pull request as having none", () => {
@@ -1322,7 +1403,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
   });
 
   describe("with lifecycle resolutions", () => {
-    it("drops a retired case from the totals as the gate drops it from its set", () => {
+    it("SB-TC-022 drops a retired case from the totals as the gate drops it from its set", () => {
       const record = fixtureRecord();
       const snapshot = foldDelivery({
         record,
@@ -1339,6 +1420,10 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
         cases: { met: 2, total: 2 },
         requirements: { met: 2, total: 2 },
       });
+      expect(snapshot.progress.caseList.map((entry) => entry.id)).toEqual([
+        "DEMO-TC-001",
+        "DEMO-TC-003",
+      ]);
       const gate = snapshot.gatesById["gate-after-b"].state;
       expect(gate.status).toBe("passed");
       expect(gate.gatingCaseIds).toEqual(["DEMO-TC-001"]);

@@ -216,9 +216,9 @@ export function readCaseResult(
 }
 
 // A case is met when it has a result, that result is not orphaned, and its
-// effective status is `passed`: the one reading of "passed" the gate's PASSED rung
-// and the delivery reducer's progress count both apply (VG-FR-004, VG-NFR-007,
-// SB-FR-011).
+// effective status is `passed`: the reading of "passed" the gate's PASSED rung
+// applies (VG-FR-004, VG-NFR-007). The delivery reducer's progress count does not
+// call it: it takes each case's met reading from `evaluateGate` itself (SB-FR-011).
 export function isCaseMet(result: CaseResult | undefined): boolean {
   return (
     result !== undefined && result.orphaned !== true && effectiveCaseStatus(result) === "passed"
