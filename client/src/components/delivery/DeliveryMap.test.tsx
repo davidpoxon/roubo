@@ -265,6 +265,21 @@ describe("Delivery map", () => {
     expect(screen.queryByTestId("delivery-drill-in")).not.toBeInTheDocument();
   });
 
+  it("shows a gate's state and the count of the cases it gates under the pointer", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      foldDelivery({ record: fourUnitRecord(), events: [] }),
+    );
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const marker = await screen.findByTestId("gate-marker-gate-after-c");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(marker).toHaveAccessibleDescription("passed · 1 case gated");
+
+    await userEvent.hover(marker);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("passed · 1 case gated");
+    await userEvent.unhover(marker);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
   it("opens the drill-in of a unit from its list row", async () => {
     localStorage.setItem(
       "roubo-bench-view-state",
