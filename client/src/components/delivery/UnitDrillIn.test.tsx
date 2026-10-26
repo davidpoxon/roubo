@@ -30,14 +30,6 @@ vi.mock("../../lib/api", async (importOriginal) => {
   };
 });
 
-// The live terminal is xterm over a socket; a stand-in keeps its one input, the
-// textarea xterm reads keys from, so the keyboard path can be driven.
-vi.mock("../Terminal", () => ({
-  default: ({ sessionId }: { sessionId: string }) => (
-    <textarea aria-label={`Live delivery terminal ${sessionId}`} data-testid="live-terminal" />
-  ),
-}));
-
 import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import DeliveryTabPanel from "./DeliveryTabPanel";
@@ -292,16 +284,26 @@ describe("Unit drill-in", () => {
     // No input is accepted: nothing in the panel takes text, and typing over the
     // transcript changes nothing.
     expect(within(terminal).queryByRole("textbox")).not.toBeInTheDocument();
-    expect(within(terminal).queryByTestId("live-terminal")).not.toBeInTheDocument();
+    expect(within(terminal).queryByTestId("unit-terminal-live")).not.toBeInTheDocument();
     await userEvent.type(transcript, "rm -rf");
     expect(transcript.textContent).toBe("built A\nthe suite passed\n");
 
-    // Step 2: B is active, so its terminal is the live delivery session.
+    // Step 2: B is active, so its terminal is the live delivery session, which
+    // the bench's Terminal tab holds; the panel opens that tab on the session
+    // (UnitDrillIn.terminal-socket.test.tsx mounts the two together).
     await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
     const active = await openUnit("B");
     const live = within(active).getByRole("region", { name: "Terminal of unit B" });
-    expect(within(live).getByRole("textbox", { name: "Live delivery terminal session-1" }));
+    expect(within(live).getByTestId("unit-terminal-live")).toHaveTextContent(
+      "Unit B works in the bench's delivery session, live in the Terminal tab.",
+    );
     expect(within(live).queryByTestId("unit-transcript-label")).not.toBeInTheDocument();
+    await userEvent.click(within(live).getByRole("button", { name: "Open the live terminal" }));
+    const view = JSON.parse(localStorage.getItem("roubo-bench-view-state") ?? "{}");
+    expect(view["demo:3"]).toMatchObject({
+      activeTab: "terminal",
+      activeTerminalSessionId: "session-1",
+    });
   });
 
   it("SB-TC-031 replays a done unit's transcript after the record carries all its events", async () => {
@@ -337,7 +339,7 @@ describe("Unit drill-in", () => {
     expect(within(terminal).getByTestId("unit-transcript-label")).toBeInTheDocument();
   });
 
-  it("SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst responsive", async () => {
+  it("SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst with keys still working", async () => {
     record = withStatus(fourUnitRecord(), { B: "running" });
     log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
     renderWithProviders(<Harness />);
@@ -352,13 +354,22 @@ describe("Unit drill-in", () => {
     });
     expect(performance.now() - posted).toBeLessThan(2_000);
 
-    // Step 2: 1,000 more events in one minute, posted in ten batches.
+    // Step 2: 1,000 more events in one minute, posted in ten batches. Between
+    // each post and its render, a key on the page still does its work: the
+    // shortcut that leaves the terminal moves the focus to the next panel. The
+    // 100 ms bound itself is not measured here: jsdom dispatches a key
+    // synchronously, so no render can delay it and a timing would prove nothing.
+    const opener = screen.getByRole("button", { name: "Open the live terminal" });
+    const diffPanel = screen.getByRole("region", { name: "Diff of unit B" });
     for (let batch = 0; batch < 10; batch += 1) {
       const events = Array.from({ length: 100 }, (_, index) => {
         const seq = 10 + batch * 100 + index;
         return unitEvent(seq, "B", "note", { text: `Turn ${seq}` }, at(42 + batch, index % 60));
       });
       post(...events);
+      opener.focus();
+      fireEvent.keyDown(opener, { key: "F6" });
+      expect(diffPanel).toHaveFocus();
       const last = events.at(-1)?.seq ?? 0;
       await waitFor(() => expect(screen.getByTestId(`timeline-event-${last}`)).toBeInTheDocument());
     }
@@ -370,15 +381,6 @@ describe("Unit drill-in", () => {
     expect(screen.queryByTestId("timeline-event-9")).not.toBeInTheDocument();
     // The timeline keeps scrolling inside its own box.
     expect(screen.getByTestId("unit-timeline-list").className).toContain("overflow-y-auto");
-
-    // Input on the page responds within 100 ms: the shortcut that leaves the
-    // terminal moves the focus to the Diff panel.
-    const input = screen.getByTestId("live-terminal");
-    input.focus();
-    const pressed = performance.now();
-    fireEvent.keyDown(input, { key: "F6" });
-    expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
-    expect(performance.now() - pressed).toBeLessThan(100);
   }, 60_000);
 
   it("SB-TC-033 reaches every panel by keyboard with its name, leaves the terminal by shortcut and has no axe findings", async () => {
@@ -401,14 +403,15 @@ describe("Unit drill-in", () => {
     expect(terminal).toHaveFocus();
     expect(terminal).toHaveAccessibleDescription(/Press F6 to leave the terminal/);
     await user.tab();
-    expect(screen.getByTestId("live-terminal")).toHaveFocus();
-    // The terminal keeps Tab for itself, so F6 is the way out.
+    const opener = screen.getByRole("button", { name: "Open the live terminal" });
+    expect(opener).toHaveFocus();
+    // F6 leaves the terminal for the next panel.
     await user.keyboard("{F6}");
     expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
     // Shift+F6 from inside the terminal goes back to the timeline.
-    screen.getByTestId("live-terminal").focus();
+    opener.focus();
     await user.keyboard("{Shift>}{F6}{/Shift}");
     expect(screen.getByRole("region", { name: "Timeline of unit B" })).toHaveFocus();
 
