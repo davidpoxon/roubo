@@ -119,6 +119,30 @@ export function eventText(event: DeliveryEvent): string {
   return event.type;
 }
 
+/** Where an event's output sits in a unit's transcript text: [start, end). */
+export interface TranscriptMatch {
+  start: number;
+  end: number;
+}
+
+/**
+ * The output in a unit's transcript text that an event matches: the last
+ * occurrence of the first of the event's own words that the transcript holds,
+ * tried in order: the payload's `output`, then the keys its timeline row reads
+ * (see `eventText`). The last occurrence, as an event follows the output it
+ * reports. Null when the transcript holds none of them.
+ */
+export function matchEventOutput(text: string, event: DeliveryEvent): TranscriptMatch | null {
+  const { payload } = event;
+  for (const key of ["output", "text", "summary", "detail", "question", "title"] as const) {
+    const needle = payload[key];
+    if (!isString(needle)) continue;
+    const start = text.lastIndexOf(needle);
+    if (start >= 0) return { start, end: start + needle.length };
+  }
+  return null;
+}
+
 /** The mono detail line naming the role, attempt and turn, when the event names any. */
 export function eventDetail(event: DeliveryEvent): string | null {
   const { role, attempt, turn } = event.payload;
