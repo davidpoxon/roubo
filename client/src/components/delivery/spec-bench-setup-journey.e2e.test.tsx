@@ -736,15 +736,27 @@ describe("Spec Bench setup journey", () => {
         await user.click(choice(setupDialog(), /^launch/i));
         await waitFor(() => {
           const dialog = setupDialog();
-          const text = dialog.textContent ?? "";
-          const shown = `the dialog reads "${text}"`;
-          // textContent runs the text of neighbouring elements together, so the
-          // counts are matched element by element, as the operator reads them.
-          const reads = (pattern: RegExp) => within(dialog).queryAllByText(pattern).length > 0;
-          expect(text, shown).toContain(SPEC_SLUG);
-          expect(text, shown).toMatch(/launch/i);
-          expect(reads(/\b4 units\b/i), shown).toBe(true);
-          expect(reads(/\b2 gates\b/i), shown).toBe(true);
+          // The spec list and the mode buttons show the slug and the word
+          // Launch before any pick, so the checks read the Summary section,
+          // which reflects only what the operator picked and chose.
+          const summary = within(dialog).queryByRole("region", { name: "Summary" });
+          if (!summary) {
+            throw new Error(`the dialog shows no Summary section; it reads "${dialog.textContent}"`);
+          }
+          const shown = `the Summary reads "${summary.textContent ?? ""}"`;
+          const scope = within(summary);
+          expect(scope.getByTestId("specbench-setup-summary-spec"), shown).toHaveTextContent(
+            new RegExp(`^${SPEC_SLUG}$`),
+          );
+          expect(scope.getByTestId("specbench-setup-summary-mode"), shown).toHaveTextContent(
+            /^Launch$/,
+          );
+          const plan = scope.getByTestId("specbench-setup-summary");
+          expect(plan, shown).toHaveTextContent(/\b4 units\b/i);
+          expect(plan, shown).toHaveTextContent(/\b2 gates\b/i);
+          const launch = choice(dialog, /^launch/i);
+          const pressed = launch.getAttribute("aria-checked") ?? launch.getAttribute("aria-pressed");
+          expect(pressed, "the Launch toggle is not the chosen mode").toBe("true");
         });
       },
     );
