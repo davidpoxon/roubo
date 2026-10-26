@@ -673,7 +673,9 @@ class RouboServer {
     this.app.use("/api/hooks", modules.hooks.default);
     this.app.use((req: express.Request, res: express.Response) => {
       this.unrouted.push(`${req.method} ${req.originalUrl}`);
-      res.status(404).json({ error: `No route serves ${req.method} ${req.path}`, code: "NOT_FOUND" });
+      res
+        .status(404)
+        .json({ error: `No route serves ${req.method} ${req.path}`, code: "NOT_FOUND" });
     });
     // The page's notification stream is a client of the real broadcast.
     modules.sse.addClient({
