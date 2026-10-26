@@ -426,7 +426,8 @@ class RouboServerStandIn {
     const body: DeliveryEventsResponse = {
       events: accepted.filter(
         (event) =>
-          (after === null || event.seq > Number(after)) && (unit === null || event.unit_id === unit),
+          (after === null || event.seq > Number(after)) &&
+          (unit === null || event.unit_id === unit),
       ),
       acceptedSeq: accepted.at(-1)?.seq ?? loaded.record.last_event_seq,
     };
@@ -548,7 +549,9 @@ class FakeDeliveryTooling {
       body: JSON.stringify({ events }),
     });
     if (res.status !== 202) {
-      throw new Error(`the event endpoint answered ${res.status}: ${JSON.stringify(await res.json())}`);
+      throw new Error(
+        `the event endpoint answered ${res.status}: ${JSON.stringify(await res.json())}`,
+      );
     }
     return res.status;
   }
