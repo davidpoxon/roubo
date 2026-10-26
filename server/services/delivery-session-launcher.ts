@@ -36,6 +36,7 @@ import { createNotification } from "./notification.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
 import { mintDeliveryToken } from "./delivery-token-registry.js";
+import { forgetDeliveryEventLog } from "./delivery-event-log.js";
 
 const DEFAULT_ROUBO_PORT = "3335";
 
@@ -255,6 +256,9 @@ function notifyLaunchFailed(bench: Bench, reason: string): void {
  */
 export function bindDeliveryOnCreate(bench: Bench): Promise<void> {
   const k = bindingKey(bench.projectId, bench.id);
+  // A new workspace holds no record yet, so nothing the bench accepted before
+  // carries over: its delivery starts its sequence again.
+  forgetDeliveryEventLog(bench.projectId, bench.id);
   const binding = (async () => {
     await benchManager.whenWorkspaceProvisioned(bench.projectId, bench.id);
     const live = benchManager.getBench(bench.projectId, bench.id);

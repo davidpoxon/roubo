@@ -15,7 +15,7 @@ Roubo runs as a local Electron app or a local Node server. In both modes the API
 | Production / app | `http://localhost:3333` |
 | `npm run dev`    | `http://localhost:3335` |
 
-CORS is open (`Access-Control-Allow-Origin: *`); any browser-based tool on the same machine can call the API directly. Request bodies must be JSON with `Content-Type: application/json`. The JSON body limit is **210 KB**.
+CORS is open (`Access-Control-Allow-Origin: *`); any browser-based tool on the same machine can call the API directly. Request bodies must be JSON with `Content-Type: application/json`. The JSON body limit is **210 KB**, except on `POST /api/hooks/delivery-event`, whose limit is **2 MB** so a full batch of 1,000 delivery events fits.
 
 ## Authentication
 

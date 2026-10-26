@@ -6,8 +6,8 @@
 // does not extend the one it folded (see `createDeliveryReducer`). A route that
 // serves a snapshot reads the record and the events, calls `foldDeliverySnapshot`
 // (already-validated inputs) or `foldDeliveryJson` (raw JSON), and sends the
-// result. GET /delivery in routes/delivery.ts does this with no events yet: it
-// folds the record alone until event ingestion lands.
+// result. GET /delivery in routes/delivery.ts does this with the record and the
+// accepted events above its last_event_seq (services/delivery-event-log).
 
 import {
   validateDeliveryEvent,

@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { Bench, BenchNotification, BenchStatus, ComponentStatusValue } from "@roubo/shared";
+import type { DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 
 export interface NotificationEvent {
   type: "notifications";
@@ -32,7 +33,16 @@ export interface ComponentStatusChangeEvent {
   ts: number;
 }
 
-export type SseEvent = NotificationEvent | BenchStatusEvent | ComponentStatusChangeEvent;
+export type SseEvent =
+  | NotificationEvent
+  | BenchStatusEvent
+  | ComponentStatusChangeEvent
+  | DeliveryStreamFrame;
+
+// The reconnection delay a client's EventSource waits after the connection
+// drops, sent once when the client connects. It keeps the reconnect well inside
+// the 5 seconds SB-TC-054 allows, whatever the browser's own default is.
+export const SSE_RETRY_MS = 2_000;
 
 const clients = new Set<Response>();
 
@@ -50,7 +60,7 @@ export function addClient(res: Response): void {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
-  res.write(":ok\n\n");
+  res.write(`:ok\nretry: ${SSE_RETRY_MS}\n\n`);
 
   clients.add(res);
   res.on("close", () => {
@@ -76,6 +86,15 @@ export function broadcastBenchStatus(bench: Bench): void {
     benchId: bench.id,
     status: bench.status,
   });
+}
+
+/**
+ * Broadcast that a bench accepted a batch of delivery events (SB-FR-008). The
+ * frame carries the accepted seq and no event: the client reads the snapshot
+ * again.
+ */
+export function broadcastDeliveryFrame(projectId: string, benchId: number, seq: number): void {
+  broadcast({ type: "delivery", projectId, benchId, change: "snapshot", seq });
 }
 
 /**

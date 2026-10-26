@@ -7,8 +7,8 @@
 //   - verifyVariantState: the focused spec folder, and the pin when one is
 //     recorded, must still be on disk.
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
-//     session, then revokes the delivery token; the bench manager removes the
-//     workspace after that (SB-TC-005).
+//     session, then revokes the delivery token and drops the events held for
+//     the bench; the bench manager removes the workspace after that (SB-TC-005).
 //
 // The session writes the delivery record to `.specifications/<slug>/` inside the
 // bench workspace, and the record goes with the workspace when Clear bench or
@@ -26,6 +26,7 @@ import {
   type VariantTeardownContext,
 } from "../services/variant-host-registry.js";
 import { revokeDeliveryToken } from "../services/delivery-token-registry.js";
+import { forgetDeliveryEventLog } from "../services/delivery-event-log.js";
 
 /** The pin path of a bench when it passes the safe-path allowlist, else undefined. */
 function safePinPath(bench: Bench): string | undefined {
@@ -78,10 +79,11 @@ export const specbenchVariantHost: VariantHost = {
       ctx.stopSession(sessionId);
     }
     bench.deliverySitting = undefined;
-    // 3. The delivery token (SB-FR-003). The bench manager persists the bench
-    // right after this step, so the revoked hash is written down before the
-    // workspace goes.
+    // 3. The delivery token (SB-FR-003) and the events held for the bench. The
+    // bench manager persists the bench right after this step, so the revoked
+    // hash is written down before the workspace goes.
     revokeDeliveryToken(bench);
+    forgetDeliveryEventLog(bench.projectId, bench.id);
   },
 };
 
