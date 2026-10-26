@@ -44,7 +44,7 @@ export function useDeliveryUnitDiff(
 }
 
 /**
- * A done unit's recorded transcript (SB-FR-013): the delivery session
+ * A done or jammed unit's recorded transcript (SB-FR-013): the delivery session
  * terminal's scrollback between the unit's first and last event. Keyed by the
  * seq of the unit's last event, so an event of the unit reads it again.
  */
