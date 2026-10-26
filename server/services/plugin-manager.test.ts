@@ -132,9 +132,12 @@ vi.mock("node:child_process", async (importOriginal) => {
 // registerHostHandlers is the first await in spawnPlugin after the child is
 // live. Gate it so a test can crash the child inside that wiring window, or
 // fail the wiring outright. `failOnClose` instead fails the wiring the moment
-// the connection closes, as the real wiring does when the child dies, which can
-// run before the child's `exit` event. Both are one-shot, so a respawn is never
-// held, and off by default, so every other test sees the real function.
+// the connection closes or is disposed, as the real wiring does when the child
+// dies. The close can run before or after the child's `exit` event. When the
+// exit comes first, handleChildExit disposes the connection, and vscode-jsonrpc
+// sends no close event after a dispose, so waiting on the close alone would
+// never settle. Both are one-shot, so a respawn is never held, and off by
+// default, so every other test sees the real function.
 const hostHandlersControl = vi.hoisted(() => ({
   gate: null as Promise<void> | null,
   failOnClose: false,
@@ -149,7 +152,15 @@ vi.mock("./plugin-host-api.js", async (importOriginal) => {
       if (gate) await gate;
       if (hostHandlersControl.failOnClose) {
         hostHandlersControl.failOnClose = false;
-        await new Promise<void>((resolve) => args[0].onClose(() => resolve()));
+        const connection = args[0];
+        await new Promise<void>((resolve) => {
+          connection.onClose(() => resolve());
+          const dispose = connection.dispose.bind(connection);
+          connection.dispose = () => {
+            resolve();
+            dispose();
+          };
+        });
         throw new Error("Connection is closed.");
       }
       return actual.registerHostHandlers(...args);
@@ -1970,10 +1981,11 @@ describe("restart budget (IP-TC-015)", () => {
   }, 30_000);
 
   // A child that dies mid-wiring closes its connection, and the wiring then
-  // throws on it. The close is processed before the child's `exit` event, so
-  // the throw can reach spawnPlugin while the child still looks live. That is
-  // still a crash: it must be charged to the budget and respawned, not filed
-  // as an RPC init failure the host stopped on purpose.
+  // throws on it. Node does not order the child's `exit` event against its
+  // stdout reaching EOF, so the two tests below pin each order in turn. When the
+  // close is processed first, the throw reaches spawnPlugin while the child
+  // still looks live. That is still a crash: it must be charged to the budget
+  // and respawned, not filed as an RPC init failure the host stopped on purpose.
   it("treats wiring that fails on a connection closed by a crash as a crash", async () => {
     hostHandlersControl.failOnClose = true;
     sandbox = await makeSandbox({ bundled: ["echo"] });
@@ -1986,8 +1998,69 @@ describe("restart budget (IP-TC-015)", () => {
       return !!r && r.pid !== null;
     }, 8_000);
     const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
+    const stdout = need(mgr.__test.getEntry("echo")?.process?.stdout, "echo stdout");
+    // Close the connection before the crash, so the close is processed while
+    // the child is still alive and its `exit` cannot have landed yet.
+    const stdoutClosed = new Promise<void>((resolve) => stdout.once("close", () => resolve()));
+    stdout.destroy();
+    await stdoutClosed;
     process.kill(pid, "SIGKILL");
     await init;
+    // spawnPlugin resolves only once the crash is handled, never "enabled"
+    // for the dead child.
+    const settled = findRecord(mgr.listInstalled(), "echo");
+    expect(settled.pid).toBeNull();
+    expect(settled.restartHistory).toHaveLength(1);
+
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.status === "enabled" && r.pid !== null && r.pid !== pid;
+    }, 8_000);
+    const rec = findRecord(mgr.listInstalled(), "echo");
+    expect(rec.restartHistory.map((e) => e.reason)).toEqual(["unexpected-exit"]);
+    expect(rec.lastError).toBeNull();
+  }, 30_000);
+
+  // The other order: the child's `exit` lands before its stdout EOF.
+  // handleChildExit then disposes the connection, and a disposed connection
+  // never reports its close, so the wiring has to fail on the dispose instead.
+  it("treats wiring that fails on a connection disposed by a crash's exit as a crash", async () => {
+    hostHandlersControl.failOnClose = true;
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    const init = mgr.initialize();
+    await waitFor(() => {
+      const r = getManager()
+        .listInstalled()
+        .find((p) => p.id === "echo");
+      return !!r && r.pid !== null;
+    }, 8_000);
+    const pid = need(findRecord(mgr.listInstalled(), "echo").pid, "pid");
+    const child = need(mgr.__test.getEntry("echo")?.process, "echo child");
+    // Hold back the `close` of the streams the connection reads and writes, so
+    // the connection cannot close before the exit is handled. Replay any held
+    // close once spawnPlugin has settled.
+    const releases = [child.stdout, child.stdin].map((stream) => {
+      const s = need(stream, "echo stdio");
+      const emit = s.emit.bind(s);
+      let held = false;
+      s.emit = ((event: string | symbol, ...args: unknown[]) => {
+        if (event === "close") {
+          held = true;
+          return true;
+        }
+        return emit(event, ...args);
+      }) as typeof s.emit;
+      return () => {
+        s.emit = emit;
+        if (held) s.emit("close");
+      };
+    });
+    process.kill(pid, "SIGKILL");
+    await init;
+    for (const release of releases) release();
     // spawnPlugin resolves only once the crash is handled, never "enabled"
     // for the dead child.
     const settled = findRecord(mgr.listInstalled(), "echo");
