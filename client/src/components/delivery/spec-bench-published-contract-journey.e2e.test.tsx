@@ -20,17 +20,28 @@
 // BenchesTab with the real BenchCard), the bench page (BenchDetail with the
 // real Delivery tab, its health rail, progress, map and its view of cost,
 // health and controls), the real React Query hooks, the real `lib/api` request
-// layer and the real notification stream hook. The one stand-in is the
-// network: `fetch` and `EventSource` reach an in-process Roubo server stand-in
-// below, which answers each route the journey calls with the body and the
-// status the real route answers (server/routes/benches.ts,
-// server/routes/delivery.ts, server/routes/delivery-hooks.ts), reads the record
-// with the shared record check the record loader runs, and folds the record and
-// the accepted events through the shared delivery reducer as GET /delivery
-// does. A request to any other route answers 404 and is listed in the failure
-// output. The hooks and components that the journey does not cross (projects,
-// integration, settings, plugins, terminals, logs, issue controls) are stubbed
-// as in the page suites.
+// layer and the real notification stream hook.
+//
+// On the server side the real routers answer every request the journey's
+// observations rest on: server/routes/benches.ts creates the bench (the 201 of
+// step 2), server/routes/delivery.ts serves the snapshot and the attach handout
+// (the attach 201), and server/routes/delivery-hooks.ts takes the batch (the
+// 202 of step 3). They run in-process on one express app, mounted as
+// server/index.ts mounts them, and `fetch` reaches them through supertest, as
+// the route suites do. Behind them run the real delivery session launcher, the
+// real token registry, the real record loader over a record on disk in a
+// temporary bench workspace, the real event log, the real snapshot fold and
+// the real notification stream broadcast, which reaches the page's
+// `EventSource`. The bench manager is a stand-in that keeps the benches in
+// memory and makes each workspace a temporary folder, since provisioning a
+// worktree is no part of this journey, and the services that the journey does
+// not cross (plugins, tools, terminals, persisted state) are mocked as in the
+// route suites. Three reads of the page that no observation rests on (the
+// global bench list, the testbench spec list and the terminal list) are
+// answered empty here, and a request that nothing serves answers 404 and is
+// listed in the failure output. The client hooks and components that the
+// journey does not cross (projects, integration, settings, plugins, terminals,
+// logs, issue controls) are stubbed as in the page suites.
 //
 // Attach mode launches nothing: the author's tooling already runs. It writes
 // its record into the spec folder of the bench workspace, and takes its token
@@ -40,31 +51,153 @@
 // divergence reports the step that diverged, the expected versus the actual at
 // that step, and the owning slice(s) from this journey's blocked-by set.
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import express from "express";
+import request from "supertest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Bench, RegisteredProject } from "@roubo/shared";
+import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import {
-  validateDeliveryEvent,
-  type DeliveryEvent,
-  type DeliveryRecord,
-} from "@roubo/shared/delivery-observation-contract";
-import { foldDelivery, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import {
-  DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
+  DELIVERY_RECORD_FILE,
   DELIVERY_RECORD_SECTIONS,
   checkDeliveryRecord,
-  type DeliveryEventsResponse,
   type DeliveryLaunchDescriptor,
-  type DeliveryReadError,
   type DeliveryRecordSection,
-  type DeliveryStreamFrame,
 } from "@roubo/shared/delivery-bench";
+
+// ── Server services the journey does not cross ──
+//
+// The bench manager keeps the benches in memory, and each workspace is a
+// temporary folder that holds the bench's spec folder. The rest are mocked as
+// in the route suites: the routers import them, and the journey calls none.
+
+const benchStore = vi.hoisted(() => ({
+  benches: [] as Bench[],
+  workspaceRoot: "",
+}));
+
+vi.mock("../../../../server/services/bench-manager.js", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  class BenchError extends Error {
+    code: string;
+    constructor(message: string, code: string) {
+      super(message);
+      this.name = "BenchError";
+      this.code = code;
+    }
+  }
+  const createBench = vi.fn(
+    (
+      projectId: string,
+      _branch: string | undefined,
+      options?: { variant?: string; focusedSpecPath?: string; delivery?: { mode: string } },
+    ): Bench => {
+      if (projectId !== "demo") {
+        throw new BenchError(`Project ${projectId} not found`, "PROJECT_NOT_FOUND");
+      }
+      if (options?.focusedSpecPath !== ".specifications/fixture-spec") {
+        throw new BenchError("The fixture project has one spec, fixture-spec", "INVALID_FOCUS");
+      }
+      const id = benchStore.benches.length + 1;
+      const workspacePath = path.join(benchStore.workspaceRoot, `bench-${id}`);
+      fs.mkdirSync(path.join(workspacePath, options.focusedSpecPath), { recursive: true });
+      const bench: Bench = {
+        id,
+        projectId,
+        branch: `bench-${id}`,
+        workspacePath,
+        status: "preparing",
+        ports: {},
+        components: {},
+        createdAt: new Date().toISOString(),
+        provisioningSteps: [],
+        teardownSteps: [],
+        notifications: [],
+        variant: "specbench",
+        focusedSpecPath: `/repos/demo/${options.focusedSpecPath}`,
+        deliveryBindMode: options.delivery?.mode === "launch" ? "launch" : "attach",
+      };
+      benchStore.benches.push(bench);
+      return bench;
+    },
+  );
+  return {
+    BenchError,
+    createBench,
+    getBenches: vi.fn((projectId: string) =>
+      benchStore.benches.filter((bench) => bench.projectId === projectId),
+    ),
+    getBench: vi.fn((projectId: string, benchId: number) =>
+      benchStore.benches.find((bench) => bench.projectId === projectId && bench.id === benchId),
+    ),
+    isBenchLive: vi.fn((projectId: string, benchId: number) =>
+      benchStore.benches.some((bench) => bench.projectId === projectId && bench.id === benchId),
+    ),
+    whenWorkspaceProvisioned: vi.fn(async () => undefined),
+  };
+});
+vi.mock("../../../../server/services/state.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, updateBench: vi.fn(), loadSettings: vi.fn(() => ({})) };
+});
+vi.mock("../../../../server/services/terminal.js", () => ({
+  getSession: vi.fn(),
+  getSessionScrollback: vi.fn(),
+}));
+vi.mock("../../../../server/services/plugin-manager.js", () => ({
+  invoke: vi.fn(),
+  getAgentManifests: vi.fn(() => []),
+  getRecord: vi.fn(),
+  getConnection: vi.fn(),
+  HOST_API_VERSION: "1.4.0",
+}));
+vi.mock("../../../../server/services/tool-launcher.js", () => ({
+  getResolvedTools: vi.fn(),
+  executeTool: vi.fn(),
+}));
+vi.mock("../../../../server/services/issue-assignment.js", () => ({
+  createBenchAndAssignFromIssue: vi.fn(),
+}));
+vi.mock("../../../../server/services/issue-formatting.js", () => ({
+  assignedIssueFetchId: vi.fn(),
+}));
+vi.mock("../../../../server/services/agent-presets.js", () => ({
+  listAgentPresets: vi.fn(() => []),
+}));
+vi.mock("../../../../server/services/agent-launch-pipeline.js", () => ({
+  resolveLaunchAgentId: vi.fn(),
+}));
+vi.mock("../../../../server/services/agent-permissions.js", () => ({
+  toLaunchPermissions: vi.fn(),
+}));
+vi.mock("../../../../server/services/project-registry.js", () => ({
+  getProject: vi.fn(),
+  resolveEnforceIssueDependencies: vi.fn(() => false),
+}));
+vi.mock("../../../../server/services/active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(),
+}));
+vi.mock("../../../../server/services/start-gate.js", () => ({
+  assertGateOpen: vi.fn(),
+  fetchIssueForStart: vi.fn(),
+}));
+vi.mock("../../../../server/services/git-state.js", () => ({
+  getDirtyState: vi.fn(),
+}));
+vi.mock("../../../../server/services/jig-manager.js", () => ({}));
+vi.mock("../../../../server/routes/plugin-route-helpers.js", () => ({
+  getActivePluginOrRespond: vi.fn(),
+  fetchPluginComments: vi.fn(),
+  resolveActivePluginQuiet: vi.fn(),
+}));
 
 // ── Stubs for what the journey does not cross ──
 
@@ -150,17 +283,18 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// The blocked-by slices come first, by title and FR id. A slice that a step
-// also crosses but that sits outside the blocked-by set is labelled apart.
+// The blocked-by slices come first, by their exact title and FR ids. A slice
+// that a step also crosses but that sits outside the blocked-by set is
+// labelled apart.
 const OWNERS = {
   contract:
-    "delivery observation contract: the published record and event schemas (SB-FR-005, SB-FR-006, SB-NFR-007)",
-  attach:
-    "launch, attach and resume a Spec Bench's delivery session, with the attach token handout (SB-FR-002, SB-FR-003)",
-  ingest: "token-gated event ingest with sequence checks and a stream frame (SB-FR-007)",
+    "'Delivery observation contract in shared with generated schema and drift coverage' (SB-FR-005, SB-FR-006, SB-NFR-007)",
+  ingest: "'Token-gated event ingest, sequence checks and the delivery stream frame' (SB-FR-007)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
+  attach:
+    "launch, attach and resume a Spec Bench's delivery session, with the attach token handout (SB-FR-002, SB-FR-003)",
   setup: "Spec Bench variant and its set up from a spec folder (SB-FR-001)",
   deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
   map: "delivery map graph and list views (SB-FR-010)",
@@ -392,9 +526,7 @@ const AGENT_SPECIFIC = new Set([
 
 function agentSpecific(path: string): boolean {
   const name = path.split(/[.[\]*]+/).pop() ?? "";
-  return name
-    .split(/[_\-$]+|(?=[A-Z])/)
-    .some((word) => AGENT_SPECIFIC.has(word.toLowerCase()));
+  return name.split(/[_\-$]+|(?=[A-Z])/).some((word) => AGENT_SPECIFIC.has(word.toLowerCase()));
 }
 
 // What the author writes by hand: one delivery of one unit, in the field names
@@ -449,9 +581,9 @@ function writeRecordAndBatch(): AuthorDocuments {
   return { record, batch };
 }
 
-// ── The network stand-in ──
+// ── The Roubo server ──
 
-interface StandInResponse {
+interface RoutedResponse {
   ok: boolean;
   status: number;
   statusText: string;
@@ -462,7 +594,7 @@ function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function respond(status: number, body: unknown): StandInResponse {
+function respond(status: number, body: unknown): RoutedResponse {
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -479,13 +611,91 @@ interface FakeEventSource {
   close: () => void;
 }
 
-class RouboServerStandIn {
-  benches: Bench[] = [];
+// The real routers and the real notification stream broadcast, loaded once the
+// mocks above are in place. Each specifier is built at run time so that the
+// client's type check, whose root is client/src, does not take in the server's
+// sources; the shape the journey uses of each module is declared here.
+const SERVER_ROOT = "../../../../server";
+
+interface RouterModule {
+  default: express.Router;
+}
+
+interface DeliveryHooksModule extends RouterModule {
+  deliveryEventBodyParser: express.RequestHandler;
+}
+
+interface SseModule {
+  addClient: (res: express.Response) => void;
+  _resetClientsForTest: () => void;
+}
+
+interface EventLogModule {
+  forgetDeliveryEventLog: () => void;
+}
+
+interface ServerModules {
+  benches: RouterModule;
+  delivery: RouterModule;
+  hooks: DeliveryHooksModule;
+  sse: SseModule;
+  eventLog: EventLogModule;
+}
+
+async function loadServerModule<T>(file: string): Promise<T> {
+  return (await import(/* @vite-ignore */ `${SERVER_ROOT}/${file}`)) as T;
+}
+
+async function loadServerModules(): Promise<ServerModules> {
+  return {
+    benches: await loadServerModule<RouterModule>("routes/benches.js"),
+    delivery: await loadServerModule<RouterModule>("routes/delivery.js"),
+    hooks: await loadServerModule<DeliveryHooksModule>("routes/delivery-hooks.js"),
+    sse: await loadServerModule<SseModule>("services/sse.js"),
+    eventLog: await loadServerModule<EventLogModule>("services/delivery-event-log.js"),
+  };
+}
+
+type SupertestMethod = (url: string) => request.Test;
+
+class RouboServer {
   unrouted: string[] = [];
-  private records = new Map<number, unknown>();
-  private events = new Map<number, DeliveryEvent[]>();
-  private tokens = new Map<number, string>();
+  private readonly app = express();
   private streams: FakeEventSource[] = [];
+
+  // The routers mounted as server/index.ts mounts them: the event route's own
+  // body parser first, then the global JSON parser, then the routers.
+  constructor(modules: ServerModules) {
+    this.app.use(DELIVERY_EVENT_HOOK_PATH, modules.hooks.deliveryEventBodyParser);
+    this.app.use(express.json({ limit: "210kb" }));
+    this.app.use("/api/projects", modules.benches.default);
+    this.app.use("/api/projects", modules.delivery.default);
+    this.app.use("/api/hooks", modules.hooks.default);
+    this.app.use((req: express.Request, res: express.Response) => {
+      this.unrouted.push(`${req.method} ${req.originalUrl}`);
+      res.status(404).json({ error: `No route serves ${req.method} ${req.path}`, code: "NOT_FOUND" });
+    });
+    // The page's notification stream is a client of the real broadcast.
+    modules.sse.addClient({
+      setHeader: () => undefined,
+      flushHeaders: () => undefined,
+      on: () => undefined,
+      write: (chunk: string) => {
+        this.toStreams(chunk);
+        return true;
+      },
+    } as unknown as express.Response);
+  }
+
+  private toStreams(chunk: string): void {
+    for (const line of chunk.split("\n")) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice("data: ".length);
+      for (const stream of this.streams) {
+        if (stream.readyState === 1) stream.onmessage?.({ data } as MessageEvent);
+      }
+    }
+  }
 
   openStream(): FakeEventSource {
     const source: FakeEventSource = {
@@ -501,231 +711,43 @@ class RouboServerStandIn {
     return source;
   }
 
-  // The tooling writes its record into the spec folder of the bench workspace.
+  // The tooling writes its record into the spec folder of the bench workspace,
+  // once the workspace is ready.
   writeWorkspaceRecord(benchId: number, record: unknown): void {
-    this.records.set(benchId, copy(record));
+    const bench = benchStore.benches.find((b) => b.id === benchId);
+    if (!bench) throw new Error(`the bench manager holds no bench ${benchId}`);
+    bench.status = "active";
+    const folder = join(bench.workspacePath, SPEC_FOLDER);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, DELIVERY_RECORD_FILE), `${JSON.stringify(record, null, 2)}\n`);
   }
 
-  workspaceReady(benchId: number): void {
-    const bench = this.benches.find((b) => b.id === benchId);
-    if (bench) bench.status = "active";
+  // The three reads of the page that no observation of the journey rests on,
+  // answered empty: their routers (the global bench list, testbench, terminals)
+  // reach services that this journey does not cross.
+  private pageOnlyRead(method: string, path: string): RoutedResponse | undefined {
+    if (method !== "GET") return undefined;
+    const base = `/api/projects/${PROJECT_ID}`;
+    if (path === "/api/benches") return respond(200, copy(benchStore.benches));
+    if (path === `${base}/testbench/specs`) return respond(200, { specs: [], invalid: [] });
+    if (new RegExp(`^${base}/benches/\\d+/terminals$`).test(path)) return respond(200, []);
+    return undefined;
   }
 
-  async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<StandInResponse> {
+  // Every other request goes to the real routers, in-process, through
+  // supertest.
+  async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<RoutedResponse> {
     const url = new URL(String(input), "http://localhost");
     const method = (init?.method ?? "GET").toUpperCase();
-    const headers = (init?.headers ?? {}) as Record<string, string>;
-    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
-    const base = `/api/projects/${PROJECT_ID}`;
-    const path = url.pathname;
-    let match: RegExpExecArray | null;
-
-    if (method === "GET" && (path === `${base}/benches` || path === "/api/benches")) {
-      return respond(200, copy(this.benches));
+    const pageOnly = this.pageOnlyRead(method, url.pathname);
+    if (pageOnly) return pageOnly;
+    const agent = request(this.app) as unknown as Record<string, SupertestMethod>;
+    let pending = agent[method.toLowerCase()](`${url.pathname}${url.search}`);
+    for (const [name, value] of Object.entries((init?.headers ?? {}) as Record<string, string>)) {
+      pending = pending.set(name, value);
     }
-    if (method === "POST" && path === `${base}/benches`) return this.createBench(body);
-    if (method === "GET" && path === `${base}/testbench/specs`) {
-      return respond(200, { specs: [], invalid: [] });
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)$`).exec(path)) && method === "GET") {
-      const bench = this.benches.find((b) => b.id === Number(match?.[1]));
-      return bench
-        ? respond(200, copy(bench))
-        : respond(404, { error: "Bench not found", code: "NOT_FOUND" });
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)/terminals$`).exec(path))) {
-      return respond(200, []);
-    }
-    // Opening a bench clears its notifications; the fixture bench has none.
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/notifications$`).exec(path)) &&
-      method === "DELETE"
-    ) {
-      return respond(200, []);
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)/delivery$`).exec(path)) && method === "GET") {
-      return this.readDelivery(Number(match[1]));
-    }
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/events$`).exec(path)) &&
-      method === "GET"
-    ) {
-      return this.readEvents(Number(match[1]), url.searchParams);
-    }
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/attach$`).exec(path)) &&
-      method === "POST"
-    ) {
-      return this.attach(Number(match[1]));
-    }
-    if (method === "POST" && path === DELIVERY_EVENT_HOOK_PATH) {
-      return this.ingest(url.searchParams, headers.Authorization, body);
-    }
-    this.unrouted.push(`${method} ${path}${url.search}`);
-    return respond(404, { error: `The stand-in serves no ${method} ${path}`, code: "NOT_FOUND" });
-  }
-
-  // POST /api/projects/:projectId/benches with variant specbench in attach
-  // mode: the bench binds the spec folder and launches nothing.
-  private createBench(body: unknown): StandInResponse {
-    const request = (body ?? {}) as {
-      variant?: unknown;
-      focusedSpecPath?: unknown;
-      delivery?: { mode?: unknown } | null;
-    };
-    if (
-      request.variant !== "specbench" ||
-      request.focusedSpecPath !== SPEC_FOLDER ||
-      request.delivery?.mode !== "attach"
-    ) {
-      return respond(400, {
-        error: "The journey sets up an attach-mode specbench from fixture-spec",
-        code: "INVALID",
-      });
-    }
-    const id = this.benches.length + 1;
-    const bench: Bench = {
-      id,
-      projectId: PROJECT_ID,
-      branch: `bench-${id}`,
-      workspacePath: `/workspaces/${PROJECT_ID}/bench-${id}`,
-      status: "preparing",
-      ports: {},
-      components: {},
-      createdAt: new Date().toISOString(),
-      provisioningSteps: [],
-      teardownSteps: [],
-      notifications: [],
-      variant: "specbench",
-      focusedSpecPath: `${REPO_PATH}/${SPEC_FOLDER}`,
-      deliveryBindMode: "attach",
-    };
-    this.benches.push(bench);
-    return respond(201, copy(bench));
-  }
-
-  // POST <delivery>/attach: a fresh token in the launch descriptor, for the
-  // session that already runs the delivery. It launches nothing.
-  private attach(benchId: number): StandInResponse {
-    const bench = this.benches.find((b) => b.id === benchId);
-    if (!bench) return respond(404, { error: "Bench not found", code: "NOT_FOUND" });
-    const token = `token-${benchId}-${Math.random().toString(36).slice(2)}`;
-    this.tokens.set(benchId, token);
-    const query = new URLSearchParams({ projectId: PROJECT_ID, benchId: String(benchId) });
-    const descriptor: DeliveryLaunchDescriptor = {
-      eventUrl: `http://localhost:4000${DELIVERY_EVENT_HOOK_PATH}?${query.toString()}`,
-      controlsUrl: `http://localhost:4000${DELIVERY_CONTROLS_HOOK_PATH}?${query.toString()}`,
-      token,
-    };
-    return respond(201, descriptor);
-  }
-
-  // The record loader's read: the contract major, then the required sections,
-  // then the full schema.
-  private loadRecord(
-    benchId: number,
-  ): { ok: true; record: DeliveryRecord } | { ok: false; error: DeliveryReadError } {
-    const raw = this.records.get(benchId);
-    if (raw === undefined) {
-      return {
-        ok: false,
-        error: {
-          code: "DELIVERY_RECORD_MISSING",
-          error: "The delivery session has not written the delivery record yet",
-        },
-      };
-    }
-    const checked = checkDeliveryRecord(raw);
-    return checked.ok ? { ok: true, record: checked.record } : checked;
-  }
-
-  private readDelivery(benchId: number): StandInResponse {
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    const events = this.events.get(benchId) ?? [];
-    return respond(200, foldDelivery({ record: loaded.record, events, now: Date.now() }));
-  }
-
-  private readEvents(benchId: number, query: URLSearchParams): StandInResponse {
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    const after = query.get("after");
-    const unit = query.get("unit");
-    const accepted = this.events.get(benchId) ?? [];
-    const body: DeliveryEventsResponse = {
-      events: accepted.filter(
-        (item) =>
-          (after === null || item.seq > Number(after)) && (unit === null || item.unit_id === unit),
-      ),
-      acceptedSeq: accepted.at(-1)?.seq ?? loaded.record.last_event_seq,
-    };
-    if (unit !== null) body.folded = 0;
-    return respond(200, body);
-  }
-
-  // POST /api/hooks/delivery-event: the token first, then the envelopes and
-  // their delivery, then the sequence, then a delivery frame on the
-  // notification stream.
-  private ingest(
-    query: URLSearchParams,
-    authorization: string | null,
-    body: unknown,
-  ): StandInResponse {
-    const benchId = Number(query.get("benchId"));
-    const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? "")?.[1];
-    if (
-      query.get("projectId") !== PROJECT_ID ||
-      token === undefined ||
-      this.tokens.get(benchId) !== token
-    ) {
-      return respond(401, { error: "A valid delivery token is required", code: "UNAUTHORIZED" });
-    }
-    const raw =
-      typeof body === "object" && body !== null && "events" in body
-        ? (body as { events: unknown[] }).events
-        : [body];
-    const loaded = this.loadRecord(benchId);
-    const accepted = this.events.get(benchId) ?? [];
-    let seq = accepted.at(-1)?.seq ?? (loaded.ok ? loaded.record.last_event_seq : 0);
-    for (const [index, item] of raw.entries()) {
-      const validated = validateDeliveryEvent(item);
-      if (!validated.ok) {
-        return respond(400, {
-          error: `Invalid delivery event at index ${index}: ${validated.errors.join("; ")}`,
-          code: "INVALID_EVENT",
-        });
-      }
-      if (loaded.ok && validated.data.delivery_id !== loaded.record.delivery_id) {
-        return respond(400, {
-          error: `The event at index ${index} names another delivery`,
-          code: "INVALID_EVENT",
-          field: "delivery_id",
-          index,
-        });
-      }
-      if (validated.data.seq !== seq + 1) {
-        return respond(409, {
-          error: `Expected seq ${seq + 1}, got ${validated.data.seq}`,
-          code: "SEQ_GAP",
-        });
-      }
-      seq = validated.data.seq;
-      accepted.push(validated.data);
-    }
-    this.events.set(benchId, accepted);
-    const frame: DeliveryStreamFrame = {
-      type: "delivery",
-      projectId: PROJECT_ID,
-      benchId,
-      change: "snapshot",
-      seq,
-    };
-    for (const stream of this.streams) {
-      if (stream.readyState === 1) {
-        stream.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
-      }
-    }
-    return respond(202, { acceptedSeq: seq });
+    const res = typeof init?.body === "string" ? await pending.send(init.body) : await pending;
+    return respond(res.status, res.body as unknown);
   }
 }
 
@@ -736,25 +758,19 @@ class RouboServerStandIn {
 // to the event URL with that token.
 class AuthorTooling {
   constructor(
-    private readonly server: RouboServerStandIn,
+    private readonly server: RouboServer,
     private readonly documents: AuthorDocuments,
   ) {}
 
   writeRecord(benchId: number): void {
-    this.server.workspaceReady(benchId);
     this.server.writeWorkspaceRecord(benchId, this.documents.record);
   }
 
-  async attach(benchId: number): Promise<DeliveryLaunchDescriptor> {
+  async attach(benchId: number): Promise<{ status: number; body: unknown }> {
     const res = await fetch(`/api/projects/${PROJECT_ID}/benches/${benchId}/delivery/attach`, {
       method: "POST",
     });
-    if (res.status !== 201) {
-      throw new Error(
-        `the attach handout answered ${res.status}: ${JSON.stringify(await res.json())}`,
-      );
-    }
-    return (await res.json()) as DeliveryLaunchDescriptor;
+    return { status: res.status, body: await res.json() };
   }
 
   async postBatch(
@@ -774,7 +790,8 @@ class AuthorTooling {
 
 // ── Failure-output wrapper ──
 
-let server: RouboServerStandIn;
+let serverModules: ServerModules;
+let server: RouboServer;
 
 async function step<T>(
   label: string,
@@ -820,9 +837,20 @@ function renderRoubo() {
   );
 }
 
+beforeAll(async () => {
+  benchStore.workspaceRoot = mkdtempSync(join(tmpdir(), "spec-bench-journey-"));
+  serverModules = await loadServerModules();
+});
+
+afterAll(() => {
+  rmSync(benchStore.workspaceRoot, { recursive: true, force: true });
+});
+
 beforeEach(() => {
   localStorage.clear();
-  server = new RouboServerStandIn();
+  benchStore.benches.length = 0;
+  serverModules.eventLog.forgetDeliveryEventLog();
+  server = new RouboServer(serverModules);
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init)),
@@ -842,6 +870,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  serverModules.sse._resetClientsForTest();
+  serverModules.eventLog.forgetDeliveryEventLog();
 });
 
 // The parts of the Delivery tab that the snapshot renders: the health rail,
@@ -880,11 +910,18 @@ const SNAPSHOT_KEYS_OF_SECTION: Record<DeliveryRecordSection, (keyof DeliverySna
   lifecycle: ["lifecycle"],
 };
 
-// Step 2: the attach-mode create, then the bench opened on the record.
+interface AttachedSpecBench {
+  benchId: number;
+  descriptor: DeliveryLaunchDescriptor;
+}
+
+// Step 2: the attach-mode create on the real bench route, the record in the
+// workspace, the attach handout on the real delivery route, then the bench
+// opened on the record.
 async function setUpAttachedSpecBench(
   user: ReturnType<typeof userEvent.setup>,
   tooling: AuthorTooling,
-): Promise<number> {
+): Promise<AttachedSpecBench> {
   const res = await fetch(`/api/projects/${PROJECT_ID}/benches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -899,6 +936,12 @@ async function setUpAttachedSpecBench(
   expect(created.deliveryBindMode).toBe("attach");
   const benchId = created.id;
   tooling.writeRecord(benchId);
+
+  const handout = await tooling.attach(benchId);
+  expect(handout.status, `the attach route answered ${JSON.stringify(handout.body)}`).toBe(201);
+  const descriptor = handout.body as DeliveryLaunchDescriptor;
+  expect(typeof descriptor.token, "the attach handout carries no token").toBe("string");
+  expect(new URL(descriptor.eventUrl).pathname).toBe(DELIVERY_EVENT_HOOK_PATH);
 
   const read = await fetch(`/api/projects/${PROJECT_ID}/benches/${benchId}/delivery`);
   const snapshot = (await read.json()) as unknown;
@@ -929,7 +972,7 @@ async function setUpAttachedSpecBench(
     "attached to a running delivery",
   );
   expect(screen.getByTestId(`unit-node-${UNIT_ID}`)).toHaveAttribute("data-status", "pending");
-  return benchId;
+  return { benchId, descriptor };
 }
 
 describe("Spec Bench published contract journey", () => {
@@ -945,19 +988,18 @@ describe("Spec Bench published contract journey", () => {
     );
     const tooling = new AuthorTooling(server, documents);
 
-    const benchId = await step(
+    const { descriptor } = await step(
       "2. Set up a Spec Bench in attach mode against that record",
-      "the create route answers 201, and the snapshot renders every section",
-      owners(["attach", "contract"], ["setup", "deliveryTab"]),
+      "the create route and the attach handout each answer 201, and the snapshot renders every section",
+      owners(["contract"], ["attach", "setup", "deliveryTab"]),
       () => setUpAttachedSpecBench(user, tooling),
     );
 
     await step(
       "3. Post the batch with the bench token",
       `the event endpoint answers 202, and the map shows ${UNIT_ID} running within ${MAP_UPDATE_BUDGET_MS} ms`,
-      owners(["ingest", "attach"], ["map"]),
+      owners(["ingest"], ["attach", "map"]),
       async () => {
-        const descriptor = await tooling.attach(benchId);
         const posted = Date.now();
         const answer = await tooling.postBatch(descriptor);
         expect(answer.status, `the event endpoint answered ${JSON.stringify(answer.body)}`).toBe(
