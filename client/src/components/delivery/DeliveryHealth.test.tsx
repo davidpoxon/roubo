@@ -10,6 +10,7 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { fourUnitRecord, unitChanged, unitEvent } from "../../test/delivery-fixtures";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
+import DeliveryJams from "./DeliveryJams";
 import DeliveryRail from "./DeliveryHealth";
 
 afterEach(() => {
@@ -20,11 +21,7 @@ afterEach(() => {
 const LAST_EVENT = "2026-10-16T10:00:00Z";
 
 // An event of the whole delivery, which names no unit.
-function deliveryEvent(
-  seq: number,
-  type: string,
-  payload: Record<string, unknown>,
-): DeliveryEvent {
+function deliveryEvent(seq: number, type: string, payload: Record<string, unknown>): DeliveryEvent {
   return {
     $schema: DELIVERY_EVENT_SCHEMA_ID,
     schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
@@ -70,7 +67,10 @@ describe("Delivery rail", () => {
   it("reads disconnected while the stream is down and the delivery is not jammed", () => {
     vi.useFakeTimers({ now: Date.parse(LAST_EVENT) });
     render(
-      <DeliveryRail snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })} disconnected />,
+      <DeliveryRail
+        snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })}
+        disconnected
+      />,
     );
     expect(screen.getByTestId("delivery-health-chip")).toHaveAttribute(
       "data-health",
@@ -153,13 +153,32 @@ describe("Drift ledger", () => {
 
   it("shows an entry from before the spec-edit fields by its kind and detail", () => {
     const record = fourUnitRecord();
-    record.drift = [
-      { kind: "scope", detail: "Unit B grew", detected_at: "2026-10-16T09:01:00Z" },
-    ];
+    record.drift = [{ kind: "scope", detail: "Unit B grew", detected_at: "2026-10-16T09:01:00Z" }];
     render(<DeliveryDriftLedger snapshot={foldDelivery({ record, events: [] })} />);
     const row = screen.getByTestId("delivery-drift-row-0");
     expect(row).toHaveTextContent("scope");
     expect(row).toHaveTextContent("Unit B grew");
     expect(row).toHaveTextContent("no spec-layer pull request");
+  });
+});
+
+describe("Jam list", () => {
+  it("lists each jammed unit with its id, title and status word, and drops a unit that resumes", () => {
+    const record = fourUnitRecord();
+    const { rerender } = render(<DeliveryJams snapshot={foldDelivery({ record, events: [] })} />);
+    expect(screen.getByTestId("delivery-jams")).toHaveTextContent("No unit is jammed");
+
+    const jammed = [unitChanged(8, "B", "jammed"), unitChanged(9, "C", "stuck")];
+    rerender(<DeliveryJams snapshot={foldDelivery({ record, events: jammed })} />);
+    const rows = screen.getAllByTestId(/^delivery-jam-row-/);
+    expect(rows.map((row) => row.dataset.unit)).toEqual(["B", "C"]);
+    expect(rows[0]).toHaveTextContent("BSecondjammed");
+    expect(rows[1]).toHaveTextContent("CThirdstuck");
+
+    const resumed = [...jammed, unitChanged(10, "B", "running")];
+    rerender(<DeliveryJams snapshot={foldDelivery({ record, events: resumed })} />);
+    expect(screen.getAllByTestId(/^delivery-jam-row-/).map((row) => row.dataset.unit)).toEqual([
+      "C",
+    ]);
   });
 });
