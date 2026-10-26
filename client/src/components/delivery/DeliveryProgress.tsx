@@ -3,6 +3,7 @@ import type { DeliveryCaseProgress, DeliverySnapshot } from "@roubo/shared/deliv
 import { selectMetCases, selectProgress } from "@roubo/shared/delivery-selectors";
 import type { Verification } from "@roubo/shared/testbench-contracts";
 import Button from "../ui/Button";
+import { isWebUrl } from "./web-url";
 
 // Progress on the Delivery tab (SB-FR-011, SB-US-003): counted in test cases
 // met and requirements covered, never in units done. Each met case opens its
@@ -11,7 +12,7 @@ import Button from "../ui/Button";
 interface DeliveryStatProps {
   testId: string;
   eyebrow: string;
-  value: number;
+  value: number | string;
   note: string;
   // The meter's fill, from 0 to 1. Absent, the stat has no meter.
   fill?: number;
@@ -20,7 +21,8 @@ interface DeliveryStatProps {
 // A Delivery stat (DESIGN.md): a mono eyebrow, a value, a note and an optional
 // meter whose fill is the only accent on the strip. The space between the value
 // and the note keeps the figure readable as one phrase ("3 of 10 cases met").
-function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliveryStatProps) {
+// The burn meter (DeliveryBurn) is one too.
+export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliveryStatProps) {
   return (
     <div data-testid={testId} className="flex flex-col items-start gap-1 bg-bg-surface p-3">
       <span className="font-mono text-11 font-medium text-text-secondary">{eyebrow}</span>
@@ -62,16 +64,6 @@ export function DeliveryProgressStats({ snapshot }: { snapshot: DeliverySnapshot
       />
     </div>
   );
-}
-
-// Only an http(s) URL becomes a link: `pr_url` is a string the session writes.
-function isWebUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
 }
 
 function verifiedLine(verification: Verification): string {

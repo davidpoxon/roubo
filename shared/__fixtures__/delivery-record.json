@@ -1,6 +1,6 @@
 {
-  "$schema": "https://roubo.dev/schema/delivery-record/v1.0.0.json",
-  "schemaVersion": "1.0.0",
+  "$schema": "https://roubo.dev/schema/delivery-record/v1.1.0.json",
+  "schemaVersion": "1.1.0",
   "delivery_id": "demo-delivery-1",
   "spec_slug": "demo",
   "plan_hash": "3f6c2a9b1d4e8f7a0c5b6d2e9f1a4b7c8d0e3f6a1b2c4d5e6f7a8b9c0d1e2f3a",

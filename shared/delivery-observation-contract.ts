@@ -39,6 +39,12 @@
 // "Decision-mode event payloads") and `validateDeliveryEvent` checks them, so a
 // malformed one fails with an error that names the payload field. All of this
 // joins 1.0.0: no version has shipped.
+//
+// Record 1.1.0 (SB-FR-018, SB-FR-020) adds two optional, additive parts: a
+// per-role cost map on the budget (`by_role`), and the spec-edit fields of a
+// drift entry (`file`, `summary`, `ids`, `pr_url`). A 1.0.0 record still reads:
+// it is the same major (see checkDeliveryRecord in delivery-bench.ts). The event
+// envelope did not change and stays at 1.0.0.
 
 import { z } from "zod";
 
@@ -47,8 +53,8 @@ import { z } from "zod";
 // Each published document carries a `$schema` URI whose path embeds a semver
 // and a matching `schemaVersion` string. The two schemas version independently.
 
-export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.0.0.json";
-export const DELIVERY_RECORD_SCHEMA_VERSION = "1.0.0";
+export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.1.0.json";
+export const DELIVERY_RECORD_SCHEMA_VERSION = "1.1.0";
 
 export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v1.0.0.json";
 export const DELIVERY_EVENT_SCHEMA_VERSION = "1.0.0";
@@ -230,11 +236,16 @@ export const DeliverySteeringSchema = z
 export type DeliverySteering = z.infer<typeof DeliverySteeringSchema>;
 
 // ── budget ──
+//
+// `by_role` (1.1.0) is the spend so far per role, keyed by role name as `roles`
+// is, for the burn meter's per-role breakdown (SB-FR-018). The per-unit
+// breakdown reads each unit's own `cost_usd`.
 export const DeliveryBudgetSchema = z
   .object({
     estimate_usd: z.number().min(0),
     soft_budget_usd: z.number().min(0),
     spent_usd: z.number().min(0),
+    by_role: z.record(IdSchema, z.number().min(0)).optional(),
   })
   .loose();
 export type DeliveryBudget = z.infer<typeof DeliveryBudgetSchema>;
@@ -264,12 +275,22 @@ export type DeliveryHealth = z.infer<typeof DeliveryHealthSchema>;
 //
 // Something moved under the delivery: the spec changed after the plan was
 // made, or a worktree carries work no unit of the delivery made.
+//
+// A spec edit (1.1.0, SB-FR-020) also names the spec `file` it changed, a one
+// line `summary`, the `ids` it minted (requirement, story or case ids) and
+// `pr_url`, the pull request of the spec layer that carries the edit. A plain
+// string, like a unit's `pr_url`: a reader links it only when it is an http(s)
+// URL.
 export const DeliveryDriftSchema = z
   .object({
     kind: z.string().min(1),
     detail: z.string().min(1),
     detected_at: TimestampSchema,
     unit_id: IdSchema.optional(),
+    file: z.string().min(1).optional(),
+    summary: BoundedLineSchema.optional(),
+    ids: z.array(IdSchema).optional(),
+    pr_url: z.string().optional(),
   })
   .loose();
 export type DeliveryDrift = z.infer<typeof DeliveryDriftSchema>;

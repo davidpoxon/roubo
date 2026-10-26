@@ -23,6 +23,7 @@ import { makeBench } from "../test/fixtures.js";
 import {
   createNotification,
   dismissBenchLevelForBench,
+  dismissByKey,
   dismissBySession,
   dismissOne,
   dismissWaitingForSession,
@@ -758,5 +759,84 @@ describe("getNotifications", () => {
     const result = getNotifications(bench);
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("dedupe key and delivery-jam", () => {
+  it("SB-TC-047: keeps one delivery-jam per unit, keyed by the unit id, at action-needed", () => {
+    const bench = makeBench();
+
+    const forB = createNotification(
+      bench,
+      "delivery-jam",
+      undefined,
+      { unitId: "B" },
+      undefined,
+      undefined,
+      "B",
+    );
+    const forC = createNotification(
+      bench,
+      "delivery-jam",
+      undefined,
+      { unitId: "C" },
+      undefined,
+      undefined,
+      "C",
+    );
+
+    expect(bench.notifications).toHaveLength(2);
+    expect(forB.dedupeKey).toBe("B");
+    expect(forB.priority).toBe("action-needed");
+    expect(forC).not.toBe(forB);
+
+    // A repeat for B updates B's notification and leaves C's alone.
+    const again = createNotification(
+      bench,
+      "delivery-jam",
+      undefined,
+      { unitId: "B", status: "stuck" },
+      undefined,
+      undefined,
+      "B",
+    );
+    expect(again).toBe(forB);
+    expect(bench.notifications).toHaveLength(2);
+    expect(forB.metadata).toEqual({ unitId: "B", status: "stuck" });
+  });
+
+  it("matches a notification with no key only to a repeat with no key", () => {
+    const bench = makeBench();
+    const bare = createNotification(bench, "bench-error");
+    const keyed = createNotification(
+      bench,
+      "bench-error",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "x",
+    );
+    expect(keyed).not.toBe(bare);
+    expect(bare.dedupeKey).toBeUndefined();
+    expect(Object.keys(bare)).not.toContain("dedupeKey");
+    expect(createNotification(bench, "bench-error")).toBe(bare);
+  });
+
+  it("SB-TC-047: dismissByKey removes only the named unit's delivery-jam, and persists and broadcasts once", () => {
+    const bench = makeBench();
+    createNotification(bench, "delivery-jam", undefined, undefined, undefined, undefined, "B");
+    createNotification(bench, "delivery-jam", undefined, undefined, undefined, undefined, "C");
+    vi.clearAllMocks();
+
+    expect(dismissByKey(bench, "delivery-jam", "B")).toBe(true);
+    expect(bench.notifications.map((n) => n.dedupeKey)).toEqual(["C"]);
+    expect(mockUpdateBench).toHaveBeenCalledTimes(1);
+    expect(mockBroadcast).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    expect(dismissByKey(bench, "delivery-jam", "B")).toBe(false);
+    expect(mockUpdateBench).not.toHaveBeenCalled();
+    expect(mockBroadcast).not.toHaveBeenCalled();
   });
 });

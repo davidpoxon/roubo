@@ -11,13 +11,18 @@ import {
   useResumeDelivery,
 } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
+import DeliveryBurn from "./DeliveryBurn";
+import DeliveryDriftLedger from "./DeliveryDriftLedger";
+import DeliveryRail from "./DeliveryHealth";
 import DeliveryMap from "./DeliveryMap";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
-// progress in cases met and requirements covered (SB-FR-011) and its controls
-// when the record conforms, or the named error when it does not. No
+// health rail (SB-FR-019, SB-NFR-006), its progress in cases met and
+// requirements covered (SB-FR-011), its burn meter (SB-FR-018), its map, its
+// drift ledger (SB-FR-020) and its controls when the record conforms, or the
+// named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -130,8 +135,10 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
+      <DeliveryRail snapshot={snapshot} />
       <DeliveryProgressStats snapshot={snapshot} />
       <DeliveryMetCases snapshot={snapshot} />
+      <DeliveryBurn snapshot={snapshot} />
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-13">
         <dt className="text-text-secondary">Lifecycle</dt>
@@ -152,6 +159,8 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
           deliverySessionId: bench.deliverySessionId,
         })}
       />
+
+      <DeliveryDriftLedger snapshot={snapshot} />
 
       <p className="text-12 text-text-secondary">
         Sending answers, steering notes and tier changes is not available on this bench yet.

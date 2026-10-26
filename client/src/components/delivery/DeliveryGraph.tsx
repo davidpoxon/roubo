@@ -10,7 +10,9 @@ import {
   classifyGateMarker,
   dependencyLine,
   gateAccessibleName,
+  isJammedMapUnit,
   isLiveUnit,
+  JAM_MARK_LABEL,
   unitAccessibleName,
   unitStatusTone,
   type DeliveryMapLayout,
@@ -124,6 +126,7 @@ function UnitNode({
   const { unit } = item;
   const target: MapTarget = { kind: "unit", id: unit.id };
   const live = isLiveUnit(unit);
+  const jammed = isJammedMapUnit(unit);
   return (
     <li>
       <button
@@ -131,6 +134,7 @@ function UnitNode({
         data-testid={`unit-node-${unit.id}`}
         data-key={item.key}
         data-status={unit.status}
+        data-jammed={jammed ? "true" : undefined}
         aria-label={unitAccessibleName(unit)}
         aria-describedby={detailId}
         aria-current={selected ? "true" : undefined}
@@ -152,6 +156,14 @@ function UnitNode({
       >
         <span className="flex items-center gap-2 font-mono text-11 font-medium text-text-body">
           {unit.id}
+          {jammed && (
+            <span
+              data-testid={`unit-jam-mark-${unit.id}`}
+              className="rounded-chip bg-danger-surface px-1 text-11 text-danger-text"
+            >
+              {JAM_MARK_LABEL}
+            </span>
+          )}
         </span>
         <span className="truncate w-full text-12 font-medium text-text-primary">{unit.title}</span>
         <span className="flex items-center gap-2">

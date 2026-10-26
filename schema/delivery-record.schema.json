@@ -4,11 +4,11 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "https://roubo.dev/schema/delivery-record/v1.0.0.json"
+      "const": "https://roubo.dev/schema/delivery-record/v1.1.0.json"
     },
     "schemaVersion": {
       "type": "string",
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "delivery_id": {
       "type": "string",
@@ -333,6 +333,17 @@
         "spent_usd": {
           "type": "number",
           "minimum": 0
+        },
+        "by_role": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
         }
       },
       "required": ["estimate_usd", "soft_budget_usd", "spent_usd"],
@@ -396,6 +407,25 @@
           "unit_id": {
             "type": "string",
             "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "pr_url": {
+            "type": "string"
           }
         },
         "required": ["kind", "detail", "detected_at"],
@@ -496,7 +526,7 @@
     "updated_at"
   ],
   "additionalProperties": {},
-  "$id": "https://roubo.dev/schema/delivery-record/v1.0.0.json",
+  "$id": "https://roubo.dev/schema/delivery-record/v1.1.0.json",
   "title": "Delivery record",
   "description": "One document describing a spec delivery at a point in time (SB-FR-005). Unknown keys are kept: a minor version adds fields, a major version removes them."
 }

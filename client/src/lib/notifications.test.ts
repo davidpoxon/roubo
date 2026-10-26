@@ -113,8 +113,20 @@ describe("formatNotification", () => {
     "component-error",
     "agent-exited",
     "agent-exited-unexpectedly",
+    "delivery-jam",
   ];
   const infoTypes: NotificationType[] = ["bench-ready"];
+
+  it("SB-TC-047: names the jammed unit in a delivery-jam notification", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-jam"),
+      metadata: { unitId: "B", status: "jammed" },
+    };
+    expect(formatNotification(n)).toEqual({
+      title: "Delivery unit jammed",
+      body: "Unit B of the delivery is jammed and waits for you",
+    });
+  });
 
   for (const type of [...actionNeededTypes, ...infoTypes]) {
     it(`returns title and body for ${type}`, () => {
