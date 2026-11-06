@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013).
+// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -106,10 +106,34 @@
 //                                                    404 DECISION_NOT_FOUND: the folded
 //                                                        delivery has no such decision
 //                                                    409 DECISION_NOT_OPEN: the decision
-//                                                        is settled already
+//                                                        is settled already, a defaulted
+//                                                        one included (its default is
+//                                                        applied: overturn it instead)
 //                                                    409 DECISION_ANSWER_PENDING: an
 //                                                        answer to the decision waits for
 //                                                        its read-back (`control_seq`)
+//                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/overturn
+//        body {option}                          -> 202 DeliveryOutboxControl: an
+//                                                    overturn control of a defaulted
+//                                                    decision (SB-FR-015), issued as an
+//                                                    answer is; the session reads it
+//                                                    back with a decision.overturned
+//                                                    for the decision, or an event that
+//                                                    names its control_seq
+//                                                    400 INVALID_BODY + field: `option`
+//                                                        is not a non-empty string, not
+//                                                        one of the decision's options,
+//                                                        or the option already applied
+//                                                        (field `option`), or the control
+//                                                        fails the control contract
+//                                                    404 DECISION_NOT_FOUND: as the answer
+//                                                    409 DECISION_NOT_DEFAULTED: the
+//                                                        decision's status is not
+//                                                        `defaulted`
+//                                                    409 DECISION_OVERTURN_PENDING: an
+//                                                        overturn of the decision waits
+//                                                        for its read-back (`control_seq`)
 //                                                    404 and 409 as the snapshot read
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
@@ -139,12 +163,15 @@ import {
   type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
 import type {
+  DeliveryDecision,
   DeliveryEvent,
   DeliveryRecord,
   DeliveryUnit,
 } from "@roubo/shared/delivery-observation-contract";
+import type { Author } from "@roubo/shared/testbench-contracts";
 import {
   foldDelivery,
+  isDecisionDefaulted,
   isDecisionOpen,
   ownValue,
   type DeliverySnapshot,
@@ -506,41 +533,113 @@ function sendInvalidBody(res: Response, field: string, error: string): void {
   res.status(400).json({ error, code: "INVALID_BODY", field });
 }
 
+interface DecisionControlContext {
+  bench: Bench;
+  record: DeliveryRecord;
+  snapshot: DeliverySnapshot;
+  decisionId: string;
+  decision: DeliveryDecision;
+  option: string;
+  author: Author;
+}
+
+// What a decision control needs: the Spec Bench, a non-empty `option` in the
+// body, the operator's identity, the folded delivery and the decision the path
+// names; or the answer already sent when any of them is missing.
+async function decisionControlContext(
+  req: Request,
+  res: Response,
+): Promise<DecisionControlContext | undefined> {
+  const bench = specBenchOf(req, res);
+  if (!bench) return undefined;
+  const option: unknown = (req.body as { option?: unknown } | undefined)?.option;
+  if (typeof option !== "string" || option.length === 0) {
+    sendInvalidBody(res, "option", "option must be a non-empty string");
+    return undefined;
+  }
+  // The operator Roubo knows: the git identity of the bench workspace, in the
+  // results writer's Author shape. Resolved before the checks, so nothing
+  // awaits between the checks and the issue.
+  const identity = await resolveGitIdentity(bench.workspacePath);
+  const loaded = loadBenchDeliveryRecord(bench);
+  if (!loaded.ok) {
+    res.status(409).json(loaded.error);
+    return undefined;
+  }
+  const events = deliveryEventsAfterRecord(
+    bench.projectId,
+    bench.id,
+    loaded.record,
+    benchDeliveryEventSpillPath(bench),
+  );
+  const snapshot = foldDelivery({ record: loaded.record, events });
+  const decisionId = String(req.params.decisionId);
+  const decision = ownValue(snapshot.decisionsById, decisionId);
+  if (decision === undefined) {
+    res
+      .status(404)
+      .json({ error: `The delivery has no decision ${decisionId}`, code: "DECISION_NOT_FOUND" });
+    return undefined;
+  }
+  return {
+    bench,
+    record: loaded.record,
+    snapshot,
+    decisionId,
+    decision,
+    option,
+    author:
+      identity.isSentinel === true
+        ? { name: identity.name, email: identity.email, isSentinel: true }
+        : { name: identity.name, email: identity.email },
+  };
+}
+
+// Issues a decision control and answers 202 with it, or 400 when it fails the
+// control contract.
+function issueDecisionControl(
+  res: Response,
+  context: DecisionControlContext,
+  kind: "decision-answer" | "overturn",
+): void {
+  const { bench, record, snapshot, decisionId, option, author } = context;
+  const issued = issueDeliveryControl(bench, {
+    deliveryId: record.delivery_id,
+    kind,
+    targetId: decisionId,
+    body: { option },
+    author,
+  });
+  if (!issued.ok) {
+    sendInvalidBody(
+      res,
+      issued.errors[0]?.split(":")[0] ?? "body",
+      `The control fails the control contract: ${issued.errors.join("; ")}`,
+    );
+    return;
+  }
+  // The control adds no event, so the seq is unchanged: a `controls` frame is
+  // one the client never skips, so it reads the snapshot again and shows the
+  // control pending.
+  broadcastDeliveryFrame(bench.projectId, bench.id, snapshot.seq, "controls");
+  res.status(202).json(issued.control);
+}
+
+// The outstanding control of one kind that targets the decision, if any.
+function waitingControl(bench: Bench, kind: "decision-answer" | "overturn", decisionId: string) {
+  return deliveryControlsOf(bench).find(
+    (control) =>
+      control.kind === kind && control.target_id === decisionId && isControlOutstanding(control),
+  );
+}
+
 router.post(
   "/:projectId/benches/:id/delivery/decisions/:decisionId/answer",
   deliveryControlRateLimiter,
   async (req, res) => {
-    const bench = specBenchOf(req, res);
-    if (!bench) return;
-    const option: unknown = (req.body as { option?: unknown } | undefined)?.option;
-    if (typeof option !== "string" || option.length === 0) {
-      sendInvalidBody(res, "option", "option must be a non-empty string");
-      return;
-    }
-    // The operator Roubo knows: the git identity of the bench workspace, in the
-    // results writer's Author shape. Resolved before the checks, so nothing
-    // awaits between the checks and the issue.
-    const identity = await resolveGitIdentity(bench.workspacePath);
-    const loaded = loadBenchDeliveryRecord(bench);
-    if (!loaded.ok) {
-      res.status(409).json(loaded.error);
-      return;
-    }
-    const events = deliveryEventsAfterRecord(
-      bench.projectId,
-      bench.id,
-      loaded.record,
-      benchDeliveryEventSpillPath(bench),
-    );
-    const snapshot = foldDelivery({ record: loaded.record, events });
-    const decisionId = String(req.params.decisionId);
-    const decision = ownValue(snapshot.decisionsById, decisionId);
-    if (decision === undefined) {
-      res
-        .status(404)
-        .json({ error: `The delivery has no decision ${decisionId}`, code: "DECISION_NOT_FOUND" });
-      return;
-    }
+    const context = await decisionControlContext(req, res);
+    if (!context) return;
+    const { bench, decisionId, decision, option } = context;
     if (!isDecisionOpen(decision)) {
       res.status(409).json({
         error: `The decision ${decisionId} is ${decision.status} already`,
@@ -553,12 +652,7 @@ router.post(
       sendInvalidBody(res, "option", `option must be one of the options of ${decisionId}`);
       return;
     }
-    const waiting = deliveryControlsOf(bench).find(
-      (control) =>
-        control.kind === "decision-answer" &&
-        control.target_id === decisionId &&
-        isControlOutstanding(control),
-    );
+    const waiting = waitingControl(bench, "decision-answer", decisionId);
     if (waiting !== undefined) {
       res.status(409).json({
         error: `An answer to ${decisionId} waits for the session to read it back`,
@@ -567,29 +661,48 @@ router.post(
       });
       return;
     }
-    const issued = issueDeliveryControl(bench, {
-      deliveryId: loaded.record.delivery_id,
-      kind: "decision-answer",
-      targetId: decisionId,
-      body: { option },
-      author:
-        identity.isSentinel === true
-          ? { name: identity.name, email: identity.email, isSentinel: true }
-          : { name: identity.name, email: identity.email },
-    });
-    if (!issued.ok) {
+    issueDecisionControl(res, context, "decision-answer");
+  },
+);
+
+router.post(
+  "/:projectId/benches/:id/delivery/decisions/:decisionId/overturn",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const context = await decisionControlContext(req, res);
+    if (!context) return;
+    const { bench, decisionId, decision, option } = context;
+    if (!isDecisionDefaulted(decision)) {
+      res.status(409).json({
+        error: `The decision ${decisionId} is ${decision.status}, not defaulted`,
+        code: "DECISION_NOT_DEFAULTED",
+        status: decision.status,
+      });
+      return;
+    }
+    if (!decision.options.includes(option)) {
+      sendInvalidBody(res, "option", `option must be one of the options of ${decisionId}`);
+      return;
+    }
+    const applied = decision.chosen ?? decision.default;
+    if (option === applied) {
       sendInvalidBody(
         res,
-        issued.errors[0]?.split(":")[0] ?? "body",
-        `The control fails the control contract: ${issued.errors.join("; ")}`,
+        "option",
+        `option must be another option than ${applied}, which ${decisionId} applies already`,
       );
       return;
     }
-    // The answer adds no event, so the seq is unchanged: a `controls` frame is
-    // one the client never skips, so it reads the snapshot again and shows the
-    // answer pending.
-    broadcastDeliveryFrame(bench.projectId, bench.id, snapshot.seq, "controls");
-    res.status(202).json(issued.control);
+    const waiting = waitingControl(bench, "overturn", decisionId);
+    if (waiting !== undefined) {
+      res.status(409).json({
+        error: `An overturn of ${decisionId} waits for the session to read it back`,
+        code: "DECISION_OVERTURN_PENDING",
+        control_seq: waiting.control_seq,
+      });
+      return;
+    }
+    issueDecisionControl(res, context, "overturn");
   },
 );
 

@@ -13,6 +13,7 @@ import {
   classifyUnitStatus,
   createDeliveryReducer,
   foldDelivery,
+  isDecisionDefaulted,
   isDecisionOpen,
   isProvisionalGate,
   isUnconfirmedProvisionalGate,
@@ -1069,6 +1070,71 @@ describe("foldDelivery event handlers", () => {
     });
     expect(snapshot.decisionsById["decision-1"].status).toBe("answered");
     expect(isDecisionOpen(snapshot.decisionsById["decision-1"])).toBe(false);
+  });
+
+  it("SB-TC-038: decision.defaulted applies the default and leaves the decision open to an overturn", () => {
+    const record = fixtureRecord();
+    const events = stream(["decision.defaulted", { decision_id: "decision-1" }]);
+    const decision = foldDelivery({ record, events }).decisionsById["decision-1"];
+    expect(decision).toMatchObject({
+      status: "defaulted",
+      chosen: "one file per unit",
+      defaulted_at: "2026-10-16T10:00:00Z",
+    });
+    expect(isDecisionOpen(decision)).toBe(false);
+    expect(isDecisionDefaulted(decision)).toBe(true);
+  });
+
+  it("decision.defaulted keeps a named chosen option it offers and skips an unknown decision", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["decision.defaulted", { id: "decision-1", chosen: "one file per stack" }],
+      ["decision.defaulted", { decision_id: "decision-9" }],
+      ["decision.defaulted", { decision_id: "constructor" }],
+    );
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.decisionsById["decision-1"].chosen).toBe("one file per stack");
+    expect(Object.hasOwn(snapshot.decisionsById, "decision-9")).toBe(false);
+    expect(Object.hasOwn(snapshot.decisionsById, "constructor")).toBe(false);
+  });
+
+  it("decision.defaulted falls back to the default when chosen is not an option", () => {
+    const record = fixtureRecord();
+    const events = stream(["decision.defaulted", { decision_id: "decision-1", chosen: "three" }]);
+    expect(foldDelivery({ record, events }).decisionsById["decision-1"].chosen).toBe(
+      "one file per unit",
+    );
+  });
+
+  it("SB-TC-038: decision.overturned applies the new option over the default", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["decision.defaulted", { decision_id: "decision-1" }],
+      ["decision.overturned", { decision_id: "decision-1", option: "one file per stack" }],
+    );
+    const decision = foldDelivery({ record, events }).decisionsById["decision-1"];
+    expect(decision).toMatchObject({
+      status: "overturned",
+      chosen: "one file per stack",
+      default: "one file per unit",
+      overturned_at: "2026-10-16T10:00:00Z",
+    });
+    expect(isDecisionDefaulted(decision)).toBe(false);
+    expect(isDecisionOpen(decision)).toBe(false);
+  });
+
+  it("decision.overturned skips an option the decision does not offer and an unknown decision", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["decision.defaulted", { decision_id: "decision-1" }],
+      ["decision.overturned", { decision_id: "decision-1", chosen: "three" }],
+      ["decision.overturned", { decision_id: "decision-1" }],
+      ["decision.overturned", { decision_id: "decision-9", chosen: "one" }],
+    );
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.decisionsById["decision-1"].status).toBe("defaulted");
+    expect(snapshot.decisionsById["decision-1"].chosen).toBe("one file per unit");
+    expect(Object.hasOwn(snapshot.decisionsById, "decision-9")).toBe(false);
   });
 
   it("steering.added adds a steering note by steering_id or id", () => {

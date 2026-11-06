@@ -40,6 +40,7 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "agent-exited-unexpectedly":
     case "agent-launch-failed":
     case "delivery-jam":
+    case "delivery-decision":
       return "action-needed";
     case "bench-ready":
     case "agent-fallback":

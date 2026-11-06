@@ -1871,7 +1871,10 @@ export type NotificationType =
   | "agent-exited-unexpectedly"
   // A unit of a Spec Bench's delivery reads as jammed (SB-FR-019). One per
   // unit: its dedupe key is the unit id.
-  | "delivery-jam";
+  | "delivery-jam"
+  // The delivery session of a Spec Bench raised a decision (SB-FR-014). One
+  // per decision: its dedupe key is the decision id.
+  | "delivery-decision";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -1882,7 +1885,8 @@ export interface BenchNotification {
   sourceSessionId?: string;
   /**
    * Tells apart notifications of one type and source that are about different
-   * things, such as the `delivery-jam` of each unit (keyed by the unit id). A
+   * things, such as the `delivery-jam` of each unit (keyed by the unit id) or
+   * the `delivery-decision` of each decision (keyed by the decision id). A
    * repeat with the same type, source and key updates the one notification.
    */
   dedupeKey?: string;
