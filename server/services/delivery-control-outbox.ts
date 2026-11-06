@@ -24,8 +24,10 @@
 // decision an answer control targets, or a `decision.overturned` for the
 // decision an overturn control targets, or a `review.outcome` for the decision
 // a review control targets (`accepted` for a `review_accept`, `overturned` for
-// an `overturn`), marks the control `applied`. A control stays `pending` until
-// then, but for a review action (a control issued with `reviewAction`: a
+// an `overturn`), marks the control `applied`. A `review.outcome` with the
+// other outcome settles the review all the same: it marks an outstanding review
+// action on that decision `superseded`, so no later read serves it. A control
+// stays `pending` until then, but for a review action (a control issued with `reviewAction`: a
 // `review_accept`, or an `overturn` of an agent decision): the read that serves
 // it marks it `delivered`, so the bench knows the tooling has it.
 //
@@ -303,10 +305,23 @@ function readsBack(event: DeliveryEvent, control: DeliveryOutboxControl): boolea
   return false;
 }
 
+// Whether an accepted event settles the review of the decision a review
+// action targets, whatever outcome it states.
+function settlesReview(event: DeliveryEvent, control: DeliveryOutboxControl): boolean {
+  if (event.type !== "review.outcome" || !isReviewControl(control)) return false;
+  if (event.delivery_id !== control.delivery_id) return false;
+  const payload = event.payload as Record<string, unknown>;
+  const decisionId = payloadString(payload, "decision_id") ?? payloadString(payload, "id");
+  return decisionId !== undefined && decisionId === control.target_id;
+}
+
 /**
  * Marks `applied` each outstanding durable control that one of the accepted
- * events reads back, and persists the queue when one changed. Returns the
- * control_seqs it marked.
+ * events reads back, and persists the queue when one changed. A review action
+ * whose decision a `review.outcome` settles with the other outcome (an accept
+ * the session overturned, or an overturn it accepted) is marked `superseded`
+ * instead, so no read serves it again. Returns the control_seqs it marked
+ * `applied`.
  */
 export function applyDeliveryControlReadBacks(
   bench: Bench,
@@ -315,13 +330,21 @@ export function applyDeliveryControlReadBacks(
   const queue = bench.deliveryControlQueue;
   if (queue === undefined || queue.length === 0 || events.length === 0) return [];
   const applied: number[] = [];
+  let changed = false;
   const next = queue.map((control) => {
     if (!isControlOutstanding(control)) return control;
-    if (!events.some((event) => readsBack(event, control))) return control;
-    applied.push(control.control_seq);
-    return { ...control, status: "applied" as const };
+    if (events.some((event) => readsBack(event, control))) {
+      applied.push(control.control_seq);
+      changed = true;
+      return { ...control, status: "applied" as const };
+    }
+    if (events.some((event) => settlesReview(event, control))) {
+      changed = true;
+      return { ...control, status: "superseded" as const };
+    }
+    return control;
   });
-  if (applied.length > 0) {
+  if (changed) {
     bench.deliveryControlQueue = next;
     persist(bench);
   }

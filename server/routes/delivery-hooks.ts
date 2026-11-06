@@ -79,8 +79,9 @@
 // control targets, a decision.overturned for the decision an overturn
 // control targets, or a review.outcome for the decision a review_accept
 // (`accepted`) or an overturn (`overturned`) targets) marks that control
-// `applied` in the outbox before the 202 (see
-// services/delivery-control-outbox.ts).
+// `applied` in the outbox before the 202. A review.outcome with the other
+// outcome marks an outstanding review action on that decision `superseded`
+// instead, so no later read serves it (see services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.

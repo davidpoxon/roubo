@@ -182,7 +182,9 @@
 //                                                 one, which then reads `superseded` and
 //                                                 leaves the controls read. The read
 //                                                 that serves a review action marks it
-//                                                 `delivered`.
+//                                                 `delivered`. A review.outcome for the
+//                                                 decision with the other outcome marks
+//                                                 the action `superseded`.
 //   POST /:projectId/benches/:id/delivery/approve
 //        body {reason?}                         -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
