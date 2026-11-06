@@ -767,6 +767,74 @@ describe("Review actions on an agent decision", () => {
     expect(reviewed.body).toMatchObject({ code: "ALREADY_REVIEWED", status: "overturned" });
   });
 
+  it("SB-TC-085 a pending overturn is superseded by a review.outcome that accepts the decision", async () => {
+    const { bench, token } = await benchWithOpenReview();
+    const overturned = await overturn(bench, LATER_DECISION, { option: "keep them" });
+    expect(overturned.status).toBe(202);
+
+    // The session accepts the decision on its own before the tooling reads.
+    const posted = await postEvents(bench, token, [reviewOutcome(10, LATER_DECISION, "accepted")]);
+    expect(posted.status).toBe(202);
+    const after = await snapshotOf(bench);
+    expect(after.controls.map((c) => [c.control_seq, c.status])).toEqual([[1, "superseded"]]);
+    expect(lastPersisted(bench.id)?.deliveryControlQueue?.[0]?.status).toBe("superseded");
+
+    const read = await readControls(bench, token, "0");
+    expect(read.status).toBe(200);
+    expect(read.body).toEqual({ controls: [], latestSeq: 1 });
+    expect((await snapshotOf(bench)).controls[0]?.status).toBe("superseded");
+  });
+
+  it("SB-TC-085 a pending accept is superseded by a review.outcome that overturns the decision", async () => {
+    const { bench, token } = await benchWithOpenReview();
+    const accepted = await accept(bench, DECIDED_DECISION);
+    expect(accepted.status).toBe(202);
+
+    const posted = await postEvents(bench, token, [
+      reviewOutcome(10, DECIDED_DECISION, "overturned"),
+    ]);
+    expect(posted.status).toBe(202);
+    expect((await snapshotOf(bench)).controls.map((c) => c.status)).toEqual(["superseded"]);
+
+    const read = await readControls(bench, token, "0");
+    expect(read.status).toBe(200);
+    expect(read.body).toEqual({ controls: [], latestSeq: 1 });
+  });
+
+  it("SB-TC-087 a delivered review action is applied by its own outcome and superseded by the other", async () => {
+    const { bench, token } = await benchWithOpenReview();
+    const accepted = await accept(bench, DECIDED_DECISION);
+    const overturned = await overturn(bench, LATER_DECISION, { option: "keep them" });
+    expect(accepted.status).toBe(202);
+    expect(overturned.status).toBe(202);
+    const read = await readControls(bench, token, "0");
+    expect(read.body.controls.map((c: { status: string }) => c.status)).toEqual([
+      "delivered",
+      "delivered",
+    ]);
+
+    // The accept reads back as applied; the overturn's decision was accepted
+    // instead, so the overturn is superseded.
+    const posted = await postEvents(bench, token, [
+      reviewOutcome(10, DECIDED_DECISION, "accepted"),
+      reviewOutcome(11, LATER_DECISION, "accepted"),
+    ]);
+    expect(posted.status).toBe(202);
+    expect((await snapshotOf(bench)).controls.map((c) => [c.control_seq, c.status])).toEqual([
+      [1, "applied"],
+      [2, "superseded"],
+    ]);
+    // A read serves the applied accept as applied, and never the overturn.
+    const again = await readControls(bench, token, "0");
+    expect(
+      again.body.controls.map((c: { control_seq: number; status: string }) => [
+        c.control_seq,
+        c.status,
+      ]),
+    ).toEqual([[1, "applied"]]);
+    expect(again.body.latestSeq).toBe(2);
+  });
+
   it("an accept or an overturn sent again before the tooling reads answers with the same control", async () => {
     const { bench } = await benchWithOpenReview();
     const first = await accept(bench, DECIDED_DECISION);
