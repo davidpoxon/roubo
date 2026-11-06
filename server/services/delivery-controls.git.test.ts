@@ -416,11 +416,18 @@ describe("Answering a decision", () => {
     const read = await readControls(bench, token, "0");
     expect(read.status).toBe(200);
     expect(validateDeliveryControlReadResponse(read.body).ok).toBe(true);
-    expect(read.body).toEqual({ controls: [posted.body], latestSeq: 1 });
+    expect(read.body).toEqual({
+      controls: [{ ...posted.body, status: "delivered" }],
+      latestSeq: 1,
+    });
     const none = await readControls(bench, token, "1");
     expect(none.body).toEqual({ controls: [], latestSeq: 1 });
-    // A read leaves a durable control pending: only its read-back applies it.
-    expect((await readControls(bench, token)).body.controls[0].status).toBe("pending");
+    // A read marks a durable control delivered and saves it so; only its
+    // read-back applies it.
+    expect((await readControls(bench, token)).body.controls[0].status).toBe("delivered");
+    expect(lastPersisted(bench.id)?.deliveryControlQueue).toEqual([
+      { ...posted.body, status: "delivered" },
+    ]);
 
     // Step 3: the read-back marks the answer applied and drops the decision.
     const echoed = await postEvents(bench, token, [answered(8, OPEN_DECISION)]);
@@ -567,7 +574,7 @@ describe("Overturning a default", () => {
     });
     expect(sse.broadcastDeliveryFrame).toHaveBeenCalledWith("demo", bench.id, 8, "controls");
     expect((await readControls(bench, token, "0")).body).toEqual({
-      controls: [posted.body],
+      controls: [{ ...posted.body, status: "delivered" }],
       latestSeq: 1,
     });
 
@@ -944,7 +951,10 @@ describe("The controls endpoint", () => {
     expect(read.status).toBe(200);
     // The volatile control is not in the restored outbox, but its seq is not
     // issued again.
-    expect(read.body).toEqual({ controls: [first.body], latestSeq: 2 });
+    expect(read.body).toEqual({
+      controls: [{ ...first.body, status: "delivered" }],
+      latestSeq: 2,
+    });
     // The pending answer still holds the decision.
     expect((await answer(restarted, OPEN_DECISION)).body.code).toBe("DECISION_ANSWER_PENDING");
 
@@ -956,7 +966,7 @@ describe("The controls endpoint", () => {
     });
     expect(pause.ok && pause.control.control_seq).toBe(3);
     expect((await readControls(restarted, token, "1")).body.controls).toMatchObject([
-      { control_seq: 3, kind: "pause", status: "pending" },
+      { control_seq: 3, kind: "pause", status: "delivered" },
     ]);
     expect(lastPersisted(bench.id)?.deliveryControlQueue?.map((c) => c.control_seq)).toEqual([
       1, 3,
@@ -1042,12 +1052,13 @@ describe("The controls endpoint", () => {
       .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=1&wait=0`)
       .set("Authorization", `Bearer ${token}`);
     expect(read.status).toBe(200);
-    expect(read.body).toEqual({ controls: [overturn.control, message], latestSeq: 3 });
+    const delivered = { ...overturn.control, status: "delivered" };
+    expect(read.body).toEqual({ controls: [delivered, message], latestSeq: 3 });
     // A read with a wait returns at once when a control above `after` is there.
     // The thread message was served once, so only the overturn is left.
     const started = performance.now();
     const durableOnly = await startRead(bench, token, 1, 5000);
-    expect(durableOnly.body).toEqual({ controls: [overturn.control], latestSeq: 3 });
+    expect(durableOnly.body).toEqual({ controls: [delivered], latestSeq: 3 });
     expect(durableOnly.at - started).toBeLessThan(2000);
     expect(hasDeliveryControlWaiter(bench)).toBe(false);
   });
@@ -1077,7 +1088,12 @@ describe("The controls endpoint", () => {
       if (!issued.ok) throw new Error(issued.errors.join("; "));
       const reply = await held.reply;
       expect(reply.status).toBe(200);
-      expect(reply.body).toEqual({ controls: [issued.control], latestSeq: seq });
+      // A read serves a durable control as delivered, a volatile one as queued.
+      const served =
+        issued.control.durability === "durable"
+          ? { ...issued.control, status: "delivered" }
+          : issued.control;
+      expect(reply.body).toEqual({ controls: [served], latestSeq: seq });
       latencies.push(reply.at - appendedAt);
     }
     expect(latencies).toHaveLength(20);

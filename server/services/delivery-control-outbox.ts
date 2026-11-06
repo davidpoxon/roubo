@@ -31,10 +31,10 @@
 // a review control targets (`accepted` for a `review_accept`, `overturned` for
 // an `overturn`), marks the control `applied`. A `review.outcome` with the
 // other outcome settles the review all the same: it marks an outstanding review
-// action on that decision `superseded`, so no later read serves it. A control
-// stays `pending` until then, but for a review action (a control issued with `reviewAction`: a
-// `review_accept`, or an `overturn` of an agent decision): the read that serves
-// it marks it `delivered`, so the bench knows the tooling has it.
+// action on that decision `superseded`, so no later read serves it. The read
+// that serves a pending durable control marks it `delivered`, so the bench knows
+// the tooling has it; it stays `delivered` until the read-back or the record
+// shows its effect.
 //
 // A control issued with `supersedes` marks each pending control it names
 // `superseded` in the same write (an operator's second review action on a card
@@ -46,7 +46,8 @@
 // action leaves it once the record shows its decision reviewed with the outcome
 // it asked for (`accepted` for a `review_accept`, `overturned` for an
 // `overturn`), and a `mode_switch` once the record states its mode with no
-// other switch on its way. A review action whose decision the record shows
+// other switch on its way (see `pruneDeliveryControls` for a switch that a later
+// one overtook). A review action whose decision the record shows
 // reviewed with the other outcome is marked `superseded` instead, as the event
 // read-back marks it, so no read serves it again. So a `delivered` control
 // that the record does not show applied stays queued, and a read with
@@ -100,8 +101,8 @@ function benchKey(projectId: string, benchId: number): string {
 // The statuses of a control the tooling has not acted on yet.
 const OUTSTANDING: ReadonlySet<DeliveryControlStatus> = new Set(["pending", "queued", "delivered"]);
 
-// An operator's review action on an agent decision's card: the read that serves
-// one marks it `delivered`.
+// An operator's review action on an agent decision's card. Once a read has
+// served one, nothing replaces it (409 REVIEW_ACTION_DELIVERED).
 export function isReviewControl(control: DeliveryOutboxControl): boolean {
   return control.reviewAction === true;
 }
@@ -297,20 +298,14 @@ export function hasServableDeliveryControl(bench: Bench, after: number): boolean
  * The read reply of the outbox: the controls above `after` in control_seq
  * order, and the latest control_seq. A superseded control is never served. A
  * volatile control is served once: the read that returns it drops it from
- * memory. A pending review action the read serves is marked `delivered`, and
- * the reply carries it so.
+ * memory. Each pending durable control the read serves is marked `delivered`
+ * and persisted, and the reply carries it so.
  */
 export function readDeliveryControls(bench: Bench, after: number): DeliveryControlReadReply {
   const key = benchKey(bench.projectId, bench.id);
   const delivered = new Set(
     deliveryControlsOf(bench)
-      .filter(
-        (c) =>
-          c.control_seq > after &&
-          c.durability === "durable" &&
-          c.status === "pending" &&
-          isReviewControl(c),
-      )
+      .filter((c) => c.control_seq > after && c.durability === "durable" && c.status === "pending")
       .map((c) => c.control_seq),
   );
   if (delivered.size > 0) {
@@ -433,9 +428,13 @@ function switchedMode(control: DeliveryOutboxControl): unknown {
  * reviewed with the other outcome reads `superseded`. A control of another
  * delivery is left as it is. Returns the queue itself when nothing changes.
  *
- * A `mode_switch` is judged by the last one in the queue: when the record
- * states that one's mode and no switch is pending, every `mode_switch` of the
- * delivery has had its effect or been overtaken by it, so all of them go.
+ * A `mode_switch` is judged against the last one in the queue: when the record
+ * states that one's mode and no switch is pending, a switch to that mode goes,
+ * and so does an earlier switch to another mode that no read has served (or
+ * that the tooling has applied): the last one overtook it. An earlier switch to
+ * another mode that a read served (`delivered`) stays, because the record does
+ * not show its effect and the tooling may still apply it; the last switch then
+ * stays too, so a replay ends at the operator's last mode.
  */
 export function pruneDeliveryControls(
   queue: readonly DeliveryOutboxControl[],
@@ -458,6 +457,13 @@ export function pruneDeliveryControls(
     lastSwitch !== undefined &&
     switchedMode(lastSwitch) === record.mode.value &&
     (pending === null || pending === record.mode.value);
+  // An earlier switch to another mode that the tooling has read but the record
+  // does not show applied.
+  const servedOther = (control: DeliveryOutboxControl): boolean =>
+    control !== lastSwitch &&
+    control.status === "delivered" &&
+    switchedMode(control) !== record.mode.value;
+  const keepLast = ownSwitches.some(servedOther);
 
   let changed = false;
   const next: DeliveryOutboxControl[] = [];
@@ -467,8 +473,11 @@ export function pruneDeliveryControls(
       continue;
     }
     if (control.kind === "mode_switch" && modeShown) {
-      changed = true;
-      continue;
+      const stays = control === lastSwitch ? keepLast : servedOther(control);
+      if (!stays) {
+        changed = true;
+        continue;
+      }
     }
     const asked = reviewOutcomeOf(control);
     const shown = control.target_id === undefined ? undefined : reviews.get(control.target_id);

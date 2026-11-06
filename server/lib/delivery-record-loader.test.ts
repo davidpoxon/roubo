@@ -139,7 +139,7 @@ function specBench(): Bench {
 
 function issue(
   bench: Bench,
-  kind: "review_accept" | "overturn" | "mode_switch",
+  kind: "review_accept" | "overturn" | "mode_switch" | "decision-answer",
   targetId: string | undefined,
   body: Record<string, unknown>,
 ): DeliveryOutboxControl {
@@ -149,7 +149,7 @@ function issue(
     ...(targetId !== undefined && { targetId }),
     body,
     author: AUTHOR,
-    ...(kind !== "mode_switch" && { reviewAction: true }),
+    ...((kind === "review_accept" || kind === "overturn") && { reviewAction: true }),
   });
   if (!issued.ok) throw new Error(issued.errors.join("; "));
   return issued.control;
@@ -237,6 +237,84 @@ describe("loadBenchDeliveryRecord prunes the control queue", () => {
     issue(bench, "mode_switch", undefined, { mode: "attended" });
     loadBenchDeliveryRecord(bench);
     expect(bench.deliveryControlQueue).toMatchObject([{ kind: "mode_switch", control_seq: 3 }]);
+  });
+
+  it("SB-TC-091 a read marks every durable control it serves delivered, and a restart serves it again", () => {
+    writeRecord({});
+    const bench = specBench();
+    const toAttended = issue(bench, "mode_switch", undefined, { mode: "attended" });
+    const answer = issue(bench, "decision-answer", "D-9", { option: OPTIONS[1] });
+    expect(bench.deliveryControlQueue?.map((c) => c.status)).toEqual(["pending", "pending"]);
+
+    // The read serves both and marks both delivered, in the reply, on the
+    // bench and in what state.json holds.
+    expect(readDeliveryControls(bench, 0).controls).toMatchObject([
+      { control_seq: toAttended.control_seq, kind: "mode_switch", status: "delivered" },
+      { control_seq: answer.control_seq, kind: "decision-answer", status: "delivered" },
+    ]);
+    expect(bench.deliveryControlQueue?.map((c) => [c.kind, c.status])).toEqual([
+      ["mode_switch", "delivered"],
+      ["decision-answer", "delivered"],
+    ]);
+    const saved = vi.mocked(stateService.updateBench).mock.calls.at(-1)?.[0];
+    expect(saved?.deliveryControlQueue?.map((c) => [c.kind, c.status])).toEqual([
+      ["mode_switch", "delivered"],
+      ["decision-answer", "delivered"],
+    ]);
+
+    // A restart with the record still in auto: a load keeps both, and a read
+    // with after=0 serves both again.
+    forgetDeliveryControlMemory();
+    const restarted = makeBench({
+      variant: "specbench",
+      focusedSpecPath,
+      workspacePath: workspace,
+      ...(saved?.deliveryControlQueue !== undefined && {
+        deliveryControlQueue: saved.deliveryControlQueue,
+      }),
+      ...(saved?.deliveryControlSeq !== undefined && {
+        deliveryControlSeq: saved.deliveryControlSeq,
+      }),
+    });
+    expect(loadBenchDeliveryRecord(restarted).ok).toBe(true);
+    expect(readDeliveryControls(restarted, 0).controls).toMatchObject([
+      { control_seq: toAttended.control_seq, status: "delivered" },
+      { control_seq: answer.control_seq, status: "delivered" },
+    ]);
+
+    // The record shows the mode attended: the load clears the switch only.
+    writeRecord({}, { value: "attended", pending: null });
+    expect(loadBenchDeliveryRecord(restarted).ok).toBe(true);
+    expect(restarted.deliveryControlQueue).toMatchObject([
+      { control_seq: answer.control_seq, kind: "decision-answer", status: "delivered" },
+    ]);
+  });
+
+  it("keeps a delivered mode switch that a later unread one overtook, so a replay ends at the last mode", () => {
+    writeRecord({});
+    const bench = specBench();
+    const toAttended = issue(bench, "mode_switch", undefined, { mode: "attended" });
+    // The tooling reads the switch to attended, but the record still states auto.
+    readDeliveryControls(bench, 0);
+    const backToAuto = issue(bench, "mode_switch", undefined, { mode: "auto" });
+
+    // The record states auto, the mode of the last switch, yet it does not show
+    // the delivered switch to attended applied: both stay, in order.
+    loadBenchDeliveryRecord(bench);
+    expect(bench.deliveryControlQueue).toMatchObject([
+      { control_seq: toAttended.control_seq, status: "delivered" },
+      { control_seq: backToAuto.control_seq, status: "pending" },
+    ]);
+
+    // A pending switch overtaken by a later one goes as before.
+    const pendingAttended = issue(bench, "mode_switch", undefined, { mode: "attended" });
+    const lastAuto = issue(bench, "mode_switch", undefined, { mode: "auto" });
+    loadBenchDeliveryRecord(bench);
+    expect(bench.deliveryControlQueue?.map((c) => c.control_seq)).toEqual([
+      toAttended.control_seq,
+      lastAuto.control_seq,
+    ]);
+    expect(pendingAttended.control_seq).toBeLessThan(lastAuto.control_seq);
   });
 
   it("prunes nothing when given only the paths of a bench", () => {
