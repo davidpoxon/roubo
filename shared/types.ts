@@ -1721,8 +1721,11 @@ export interface BenchDeliverySitting {
  * One control of a Spec Bench's outbox (SB-FR-014): a control of the delivery
  * control contract, stamped with the operator who issued it, in the results
  * writer's Author shape (the git identity of the bench workspace).
+ * `reviewAction` marks an operator's review action on an agent decision's card
+ * (SB-FR-035): a `review_accept`, or an `overturn` of an agent decision. The
+ * read that serves one marks it `delivered`.
  */
-export type DeliveryOutboxControl = DeliveryControl & { author: Author };
+export type DeliveryOutboxControl = DeliveryControl & { author: Author; reviewAction?: true };
 
 export interface Bench {
   id: number;

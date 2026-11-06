@@ -122,6 +122,26 @@ export function useDecisionControl(projectId: string, benchId: number) {
   });
 }
 
+export type ReviewActionRequest =
+  { kind: "accept"; decisionId: string } | { kind: "overturn"; decisionId: string; option: string };
+
+/**
+ * Accepts an agent decision, or overturns it with another option, from its
+ * review card (SB-FR-035). The control lands in the bench's outbox, so the
+ * snapshot is read again once the request settles.
+ */
+export function useReviewAction(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: ReviewActionRequest) =>
+      action.kind === "accept"
+        ? api.acceptDeliveryDecision(projectId, benchId, action.decisionId)
+        : api.overturnDeliveryDecision(projectId, benchId, action.decisionId, action.option),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
 /**
  * Approves the delivery (SB-FR-034). The server refuses it with 409
  * REVIEW_OPEN while a review is open.

@@ -5,25 +5,33 @@ import type { DeliveryDecision } from "@roubo/shared/delivery-observation-contra
 import type { DeliverySnapshot, DeliveryThreadMessage } from "@roubo/shared/delivery-reducer";
 import {
   selectDecisionThread,
+  selectNextBoundary,
   selectReviewStack,
   selectReviewedAgentDecisions,
 } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
+import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
+import { useReviewAction, type ReviewActionRequest } from "../../hooks/useDelivery";
 
 // The agent decisions on the decision pile (SB-FR-033, SB-FR-034, SB-NFR-009),
 // the Review card of DESIGN.md. Each decision the session made on its own in
 // auto mode waits here for the operator's review, oldest first. The oldest card
 // is the live top card under the 2px accent rule: its badge, a mono origin line
 // naming where it was decided and the units it affects, the question, the
-// choice, the rationale and its Discuss action, which shows the decision's
-// thread read-only. A lower card shows only its title bar,
+// choice, the rationale and its actions (SB-FR-035): Accept, Overturn with
+// another option, and Discuss, which shows the decision's thread read-only
+// while a review is open; during a run the thread is unavailable and the card
+// says why. A lower card shows only its title bar,
 // and raises on click or Enter, so a pile of a hundred cards renders one body.
 // A reviewed card leaves with `drop-away` and the next oldest rises.
 //
 // The badge reads `to review` while a review is open, `decided` during a run,
 // and `queued` while an operator's review control on the decision waits in the
-// outbox; this card issues none itself. Every text the
+// outbox. Accept and Overturn issue that control; once one is queued, a line
+// names when the session reads it (the next unit boundary, or the resume) and
+// the actions dim. They stay enabled, so a second action supersedes the first,
+// until the session has read it. Every text the
 // session wrote (the question, the choice, the rationale, a reply, a summary)
 // renders as a React text node: never as markup, and never as a link.
 
@@ -32,24 +40,41 @@ export const REVIEW_DROP_AWAY_MS = 150;
 
 const OUTSTANDING_STATUSES: ReadonlySet<string> = new Set(["pending", "queued", "delivered"]);
 
+interface QueuedAction {
+  action: "accept" | "overturn";
+  // The session has read it: nothing replaces it now.
+  delivered: boolean;
+}
+
 // The operator's outstanding review control on a decision, if any: an accept,
-// or an overturn, which is also a review outcome. The card only reads it.
+// or an overturn, which is also a review outcome.
 function queuedAction(
   controls: readonly DeliveryControl[],
   decisionId: string,
-): "accept" | "overturn" | undefined {
-  let action: "accept" | "overturn" | undefined;
+): QueuedAction | undefined {
+  let queued: QueuedAction | undefined;
   for (const control of controls) {
     if (control.target_id !== decisionId || !OUTSTANDING_STATUSES.has(control.status)) continue;
-    if (control.kind === "review_accept") action = "accept";
-    else if (control.kind === "overturn") action = "overturn";
+    const delivered = control.status === "delivered";
+    if (control.kind === "review_accept") queued = { action: "accept", delivered };
+    else if (control.kind === "overturn") queued = { action: "overturn", delivered };
   }
-  return action;
+  return queued;
+}
+
+// When the session reads a queued action: at the next unit boundary while the
+// delivery runs, else when it resumes.
+function readsAt(snapshot: DeliverySnapshot): string {
+  const boundary = selectNextBoundary(snapshot);
+  if (snapshot.lifecycle.state.toLowerCase() !== "running" || boundary === null) {
+    return "on resume";
+  }
+  return `next boundary: ${boundary.unitId} ${boundary.kind === "finish" ? "finishes" : "starts"}`;
 }
 
 type ReviewWord = "to review" | "decided" | "queued";
 
-function reviewWord(reviewOpen: boolean, queued: string | undefined): ReviewWord {
+function reviewWord(reviewOpen: boolean, queued: QueuedAction | undefined): ReviewWord {
   if (queued !== undefined) return "queued";
   return reviewOpen ? "to review" : "decided";
 }
@@ -90,19 +115,35 @@ function ThreadMessage({ message }: { message: DeliveryThreadMessage }) {
   );
 }
 
+// Why the thread is unavailable during a run.
+export const REVIEW_THREAD_UNAVAILABLE =
+  "The thread opens at a review: while the delivery runs, the session reads no message.";
+
 function TopCard({
   decision,
   word,
   queued,
+  readsAtText,
+  reviewOpen,
+  isSending,
+  onAction,
   thread,
 }: {
   decision: DeliveryDecision;
   word: ReviewWord;
-  queued: "accept" | "overturn" | undefined;
+  queued: QueuedAction | undefined;
+  readsAtText: string;
+  reviewOpen: boolean;
+  isSending: boolean;
+  onAction: (action: ReviewActionRequest) => void;
   thread: readonly DeliveryThreadMessage[];
 }) {
-  const [discussing, setDiscussing] = useState(false);
+  const [discussingAtReview, setDiscussing] = useState(false);
+  const [overturning, setOverturning] = useState(false);
+  const discussing = reviewOpen && discussingAtReview;
   const threadId = `review-thread-${decision.id}`;
+  const actionsDisabled = isSending || queued?.delivered === true;
+  const others = decision.options.filter((option) => option !== decision.chosen);
   return (
     <article
       data-testid={`review-card-${decision.id}`}
@@ -129,22 +170,74 @@ function TopCard({
           {decision.rationale}
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        data-testid="review-actions"
+        data-dimmed={queued !== undefined ? "true" : "false"}
+        className={`flex flex-wrap items-center gap-2 ${queued !== undefined ? "opacity-60" : ""}`}
+      >
+        <Button
+          isDisabled={actionsDisabled}
+          onPress={() => {
+            setOverturning(false);
+            onAction({ kind: "accept", decisionId: decision.id });
+          }}
+        >
+          Accept
+        </Button>
+        <Button
+          aria-expanded={overturning}
+          isDisabled={actionsDisabled || others.length === 0}
+          onPress={() => setOverturning((open) => !open)}
+        >
+          Overturn
+        </Button>
         <Button
           aria-expanded={discussing}
           aria-controls={discussing ? threadId : undefined}
+          aria-describedby={reviewOpen ? undefined : `${threadId}-unavailable`}
+          isDisabled={!reviewOpen}
           onPress={() => setDiscussing((open) => !open)}
         >
           Discuss
         </Button>
       </div>
+      {overturning && !actionsDisabled && (
+        <div
+          role="group"
+          aria-label={`Overturn ${decision.id} with`}
+          className="flex flex-wrap gap-2"
+        >
+          {others.map((option) => (
+            <Button
+              key={option}
+              onPress={() => {
+                setOverturning(false);
+                onAction({ kind: "overturn", decisionId: decision.id, option });
+              }}
+            >
+              {option}
+            </Button>
+          ))}
+        </div>
+      )}
+      {!reviewOpen && (
+        <p
+          id={`${threadId}-unavailable`}
+          data-testid="review-thread-unavailable"
+          className="text-12 text-text-secondary"
+        >
+          {REVIEW_THREAD_UNAVAILABLE}
+        </p>
+      )}
       {queued !== undefined && (
         <p>
           <span
             data-testid="review-queued"
             className="rounded-chip bg-accent-muted px-1.5 py-0.5 text-11 font-medium text-accent-text"
           >
-            {queued} queued · next boundary
+            {queued.delivered
+              ? `${queued.action} read by the session`
+              : `${queued.action} queued · ${readsAtText}`}
           </span>
         </p>
       )}
@@ -165,7 +258,16 @@ function TopCard({
   );
 }
 
-export default function ReviewPile({ snapshot }: { snapshot: DeliverySnapshot }) {
+export default function ReviewPile({
+  projectId,
+  benchId,
+  snapshot,
+}: {
+  projectId: string;
+  benchId: number;
+  snapshot: DeliverySnapshot;
+}) {
+  const review = useReviewAction(projectId, benchId);
   const cards = selectReviewStack(snapshot).flatMap((card) =>
     card.kind === "decision" ? [card.decision] : [],
   );
@@ -199,6 +301,18 @@ export default function ReviewPile({ snapshot }: { snapshot: DeliverySnapshot })
 
   const top = cards.find((decision) => decision.id === raisedId) ?? cards[0];
   const lower = cards.filter((decision) => decision !== top);
+  const topQueued = top === undefined ? undefined : queuedAction(snapshot.controls, top.id);
+
+  const act = (action: ReviewActionRequest) => {
+    review.mutate(action, {
+      onSuccess: () =>
+        setAnnouncement(
+          action.kind === "accept"
+            ? `Accepted ${action.decisionId}, queued until the session reads it.`
+            : `Overturned ${action.decisionId} to ${action.option}, queued until the session reads it.`,
+        ),
+    });
+  };
 
   return (
     <section
@@ -219,13 +333,23 @@ export default function ReviewPile({ snapshot }: { snapshot: DeliverySnapshot })
           <p className="text-13 text-text-primary">{decision.question}</p>
         </div>
       ))}
+      {review.isError && (
+        <Callout role="alert" title="The review action was not sent">
+          {review.error.message}
+        </Callout>
+      )}
       {top !== undefined && (
         <ul aria-label="Review pile" className="space-y-2">
           <li key={`top-${top.id}`}>
             <TopCard
+              key={top.id}
               decision={top}
-              word={reviewWord(reviewOpen, queuedAction(snapshot.controls, top.id))}
-              queued={queuedAction(snapshot.controls, top.id)}
+              word={reviewWord(reviewOpen, topQueued)}
+              queued={topQueued}
+              readsAtText={readsAt(snapshot)}
+              reviewOpen={reviewOpen}
+              isSending={review.isPending}
+              onAction={act}
               thread={selectDecisionThread(snapshot, top.id)}
             />
           </li>

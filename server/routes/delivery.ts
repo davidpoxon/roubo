@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-034).
+// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -135,6 +135,56 @@
 //                                                        overturn of the decision waits
 //                                                        for its read-back (`control_seq`)
 //                                                    404 and 409 as the snapshot read
+//                                                 An agent decision (author `agent`) is
+//                                                 a review card instead (SB-FR-035): the
+//                                                 overturn is a review action, as the
+//                                                 accept below, at an open review or
+//                                                 during a run
+//                                                    202 DeliveryOutboxControl: the
+//                                                        overturn control, with
+//                                                        `reviewAction: true`, read back by a
+//                                                        review.outcome `overturned` for
+//                                                        the decision
+//                                                    400 INVALID_OPTION + field `option`:
+//                                                        not one of the decision's options,
+//                                                        or the option it chose already
+//                                                    409 ALREADY_REVIEWED and 409
+//                                                        REVIEW_ACTION_DELIVERED, as the
+//                                                        accept
+//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/accept
+//        body {summary?}                        -> 202 DeliveryOutboxControl: a
+//                                                    review_accept control of an agent
+//                                                    decision (SB-FR-035), with
+//                                                    `reviewAction: true`, issued as an
+//                                                    answer is, at an open review or
+//                                                    during a run; the session reads it
+//                                                    back with a review.outcome
+//                                                    `accepted` for the decision
+//                                                    400 INVALID_BODY + field: `summary`
+//                                                        is given and not a string, or the
+//                                                        control fails the control contract
+//                                                    404 DECISION_NOT_FOUND: as the answer
+//                                                    409 NOT_AGENT_DECISION: the session
+//                                                        asked the decision; answer it
+//                                                    409 ALREADY_REVIEWED: a review.outcome
+//                                                        for the decision landed
+//                                                    409 REVIEW_ACTION_DELIVERED: the
+//                                                        tooling has read a review action
+//                                                        on the decision (`control_seq`)
+//                                                    404 and 409 as the snapshot read
+//                                                 A review action (an accept, or an
+//                                                 overturn of an agent decision) is
+//                                                 idempotent: the same action again,
+//                                                 with the same option for an overturn,
+//                                                 answers 202 with the control already
+//                                                 pending. Another action before the
+//                                                 tooling reads supersedes the pending
+//                                                 one, which then reads `superseded` and
+//                                                 leaves the controls read. The read
+//                                                 that serves a review action marks it
+//                                                 `delivered`. A review.outcome for the
+//                                                 decision with the other outcome marks
+//                                                 the action `superseded`.
 //   POST /:projectId/benches/:id/delivery/approve
 //        body {reason?}                         -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
@@ -175,11 +225,12 @@ import {
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
-import type {
-  DeliveryDecision,
-  DeliveryEvent,
-  DeliveryRecord,
-  DeliveryUnit,
+import {
+  AGENT_AUTHOR,
+  type DeliveryDecision,
+  type DeliveryEvent,
+  type DeliveryRecord,
+  type DeliveryUnit,
 } from "@roubo/shared/delivery-observation-contract";
 import type { Author } from "@roubo/shared/testbench-contracts";
 import type { DeliveryControlKind } from "@roubo/shared/delivery-control-contract";
@@ -201,6 +252,7 @@ import { resolveGitIdentity } from "../services/git-helpers.js";
 import {
   deliveryControlsOf,
   isControlOutstanding,
+  isReviewControl,
   issueDeliveryControl,
 } from "../services/delivery-control-outbox.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
@@ -650,13 +702,15 @@ function optionalBodyText(
 }
 
 // Issues a control and answers 202 with it, or 400 when it fails the control
-// contract.
+// contract. `review` marks a review action on an agent decision, with the
+// pending review actions it supersedes.
 function issueControl(
   res: Response,
   context: ControlContext,
   kind: DeliveryControlKind,
   targetId: string | undefined,
   body: Record<string, unknown>,
+  review?: { supersedes: readonly number[] },
 ): void {
   const { bench, record, snapshot, author } = context;
   const issued = issueDeliveryControl(bench, {
@@ -665,6 +719,7 @@ function issueControl(
     ...(targetId !== undefined && { targetId }),
     body,
     author,
+    ...(review !== undefined && { reviewAction: true, supersedes: review.supersedes }),
   });
   if (!issued.ok) {
     sendInvalidBody(
@@ -721,6 +776,95 @@ router.post(
   },
 );
 
+// ── Review actions on an agent decision (SB-FR-035) ──
+
+function isAgentDecision(decision: DeliveryDecision): boolean {
+  return decision.author === AGENT_AUTHOR;
+}
+
+// Answers 409 ALREADY_REVIEWED when a review outcome for the decision landed.
+function sendIfReviewed(res: Response, decisionId: string, decision: DeliveryDecision): boolean {
+  const status = decision.review?.status ?? "unreviewed";
+  if (status === "unreviewed") return false;
+  res.status(409).json({
+    error: `The decision ${decisionId} is ${status} already`,
+    code: "ALREADY_REVIEWED",
+    status,
+  });
+  return true;
+}
+
+// Issues a review action (an accept or an overturn) on an agent decision. The
+// same action again, with the same option for an overturn, answers with the
+// pending control; another action supersedes the pending one. Once the tooling
+// has read an action on the decision, nothing replaces it.
+function issueReviewAction(
+  res: Response,
+  context: ControlContext,
+  decisionId: string,
+  kind: "review_accept" | "overturn",
+  body: Record<string, unknown>,
+): void {
+  const actions = deliveryControlsOf(context.bench).filter(
+    (control) =>
+      isReviewControl(control) &&
+      control.target_id === decisionId &&
+      isControlOutstanding(control),
+  );
+  const delivered = actions.find((control) => control.status !== "pending");
+  if (delivered !== undefined) {
+    res.status(409).json({
+      error: `The session has read a review action on ${decisionId} already`,
+      code: "REVIEW_ACTION_DELIVERED",
+      control_seq: delivered.control_seq,
+    });
+    return;
+  }
+  const same = actions.find(
+    (control) =>
+      control.kind === kind &&
+      (kind === "review_accept" || (control.body as { option?: unknown }).option === body.option),
+  );
+  if (same !== undefined) {
+    res.status(202).json(same);
+    return;
+  }
+  issueControl(res, context, kind, decisionId, body, {
+    supersedes: actions.map((control) => control.control_seq),
+  });
+}
+
+router.post(
+  "/:projectId/benches/:id/delivery/decisions/:decisionId/accept",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const summary = optionalBodyText(req, res, "summary");
+    if (!summary.ok) return;
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    const target = pathDecision(req, res, context.snapshot);
+    if (!target) return;
+    const { decisionId, decision } = target;
+    if (!isAgentDecision(decision)) {
+      res.status(409).json({
+        error: `The session asked the decision ${decisionId}: answer it instead`,
+        code: "NOT_AGENT_DECISION",
+      });
+      return;
+    }
+    if (sendIfReviewed(res, decisionId, decision)) return;
+    issueReviewAction(
+      res,
+      context,
+      decisionId,
+      "review_accept",
+      summary.value === undefined ? {} : { summary: summary.value },
+    );
+  },
+);
+
 router.post(
   "/:projectId/benches/:id/delivery/decisions/:decisionId/overturn",
   deliveryControlRateLimiter,
@@ -728,6 +872,19 @@ router.post(
     const context = await decisionControlContext(req, res);
     if (!context) return;
     const { bench, decisionId, decision, option } = context;
+    if (isAgentDecision(decision)) {
+      if (sendIfReviewed(res, decisionId, decision)) return;
+      if (!decision.options.includes(option) || option === decision.chosen) {
+        res.status(400).json({
+          error: `option must be one of the options of ${decisionId} other than the one it chose`,
+          code: "INVALID_OPTION",
+          field: "option",
+        });
+        return;
+      }
+      issueReviewAction(res, context, decisionId, "overturn", { option });
+      return;
+    }
     if (!isDecisionDefaulted(decision)) {
       res.status(409).json({
         error: `The decision ${decisionId} is ${decision.status}, not defaulted`,
