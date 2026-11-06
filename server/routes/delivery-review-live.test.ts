@@ -462,12 +462,12 @@ describe("Agent decisions and the review call over the live path", () => {
     expect(decisionNotifications()).toHaveLength(1);
     expect(frames).toHaveLength(framesBefore);
 
-    // Step 3: the session accepts D-1 and posts its review.outcome; D-1 leaves
-    // the pile and D-2 is the top card. The card offers no Accept action in
-    // this slice, and nothing lands in the outbox.
+    // Step 3: the session accepts D-1 on its own and posts its review.outcome;
+    // D-1 leaves the pile and D-2 is the top card. The card offers Accept, and
+    // nothing lands in the outbox until the operator presses it.
     expect(
-      within(reviewCard("D-1") as HTMLElement).queryByRole("button", { name: "Accept" }),
-    ).toBeNull();
+      within(reviewCard("D-1") as HTMLElement).getByRole("button", { name: "Accept" }),
+    ).toBeEnabled();
     await post([event("review.outcome", { decision_id: "D-1", status: "accepted" })]);
     await waitFor(() => expect(reviewCard("D-1")).not.toBeInTheDocument(), { timeout: 3000 });
     expect(reviewCard("D-2")).toHaveAttribute("data-position", "top");
@@ -596,11 +596,13 @@ describe("Agent decisions and the review call over the live path", () => {
     expect(screen.queryByTestId("delivery-approve-reason")).not.toBeInTheDocument();
   });
 
-  it("offers no accept route, and refuses an approval with a bad reason", async () => {
+  it("accepts an agent decision as a review_accept control, and refuses an approval with a bad reason", async () => {
     await post([decided("D-1", 1)]);
     const accept = await operatorPost("decisions/D-1/accept", {});
-    expect(accept.status).toBe(404);
-    expect((await readControls()).controls).toEqual([]);
+    expect(accept.status).toBe(202);
+    expect((await readControls()).controls).toMatchObject([
+      { kind: "review_accept", target_id: "D-1", status: "delivered" },
+    ]);
 
     const badReason = await operatorPost("approve", { reason: ["no"] });
     expect(badReason.status).toBe(400);

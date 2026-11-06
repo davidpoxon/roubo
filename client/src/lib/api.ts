@@ -654,8 +654,9 @@ export function answerDeliveryDecision(
 }
 
 // Overturn the applied default of a defaulted decision with another of its
-// options (SB-FR-015): 202 with the overturn control, pending until the session
-// reads it back.
+// options (SB-FR-015), or an agent decision's choice at its review
+// (SB-FR-035): 202 with the overturn control, pending until the session reads
+// it back.
 export function overturnDeliveryDecision(
   projectId: string,
   benchId: number,
@@ -665,6 +666,19 @@ export function overturnDeliveryDecision(
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/decisions/${encodeURIComponent(decisionId)}/overturn`,
     { method: "POST", body: JSON.stringify({ option }) },
+  );
+}
+
+// Accept an agent decision as it stands (SB-FR-035): 202 with the review_accept
+// control, pending until the session reads it back.
+export function acceptDeliveryDecision(
+  projectId: string,
+  benchId: number,
+  decisionId: string,
+): Promise<DeliveryOutboxControl> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/decisions/${encodeURIComponent(decisionId)}/accept`,
+    { method: "POST", body: JSON.stringify({}) },
   );
 }
 
