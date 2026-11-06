@@ -27,7 +27,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag_name || github.ref }}
 
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -120,7 +120,7 @@ jobs:
           repository: davidpoxon/roubo-plugins
           path: roubo-plugins
 
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           registry-url: 'https://registry.npmjs.org'
