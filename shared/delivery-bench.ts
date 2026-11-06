@@ -69,11 +69,18 @@ export function deliveryRoutePaths(projectId: string, benchId: number): Delivery
 // batch. The frame carries no event: `change: "snapshot"` tells the client to
 // read the snapshot again, and a frame whose seq the client already holds is
 // one it can skip.
+//
+// `change: "controls"` is sent when the bench's control outbox changed with no
+// new event, such as after a decision answer (SB-FR-014). Its seq is the
+// current accepted seq, which the client may already hold, so the client never
+// skips it and always reads the snapshot again.
+export type DeliveryStreamChange = "snapshot" | "controls";
+
 export interface DeliveryStreamFrame {
   type: "delivery";
   projectId: string;
   benchId: number;
-  change: "snapshot";
+  change: DeliveryStreamChange;
   seq: number;
 }
 

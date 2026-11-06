@@ -319,7 +319,9 @@ describe("Answering a decision", () => {
     });
     // It is in the outbox in state.json before the answer.
     expect(lastPersisted(bench.id)?.deliveryControlQueue).toEqual([posted.body]);
-    expect(sse.broadcastDeliveryFrame).toHaveBeenCalledWith("demo", bench.id, 7);
+    // The answer adds no event, so its frame is a `controls` one that a client
+    // already holding seq 7 does not skip.
+    expect(sse.broadcastDeliveryFrame).toHaveBeenCalledWith("demo", bench.id, 7, "controls");
 
     // The snapshot shows the decision answered and pending read-back.
     const pending = await snapshotOf(bench);

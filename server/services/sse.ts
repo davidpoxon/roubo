@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import type { Bench, BenchNotification, BenchStatus, ComponentStatusValue } from "@roubo/shared";
-import type { DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
+import type { DeliveryStreamChange, DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 
 export interface NotificationEvent {
   type: "notifications";
@@ -89,12 +89,18 @@ export function broadcastBenchStatus(bench: Bench): void {
 }
 
 /**
- * Broadcast that a bench accepted a batch of delivery events (SB-FR-008). The
- * frame carries the accepted seq and no event: the client reads the snapshot
- * again.
+ * Broadcast that a bench accepted a batch of delivery events (SB-FR-008), or,
+ * with `change: "controls"`, that its control outbox changed with no new event
+ * (SB-FR-014). The frame carries the accepted seq and no event: the client
+ * reads the snapshot again, and it never skips a `controls` frame.
  */
-export function broadcastDeliveryFrame(projectId: string, benchId: number, seq: number): void {
-  broadcast({ type: "delivery", projectId, benchId, change: "snapshot", seq });
+export function broadcastDeliveryFrame(
+  projectId: string,
+  benchId: number,
+  seq: number,
+  change: DeliveryStreamChange = "snapshot",
+): void {
+  broadcast({ type: "delivery", projectId, benchId, change, seq });
 }
 
 /**
