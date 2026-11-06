@@ -13,6 +13,7 @@ import {
   useResumeDelivery,
 } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
+import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
@@ -28,7 +29,8 @@ import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
 // default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
-// to review on the same pile (SB-FR-033), and the controls, among them Approve,
+// to review on the same pile (SB-FR-033), the boundary panel with the steering
+// composer (SB-FR-016, SB-FR-017), and the controls, among them Approve,
 // which waits while a review is open (SB-FR-034), when the
 // record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
@@ -202,13 +204,13 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
           sessionLive={sessionLive}
         />
 
-        <p className="text-12 text-text-secondary">
-          Sending steering notes and tier changes is not available on this bench yet.
-        </p>
-
         <section data-testid="delivery-steering-controls" aria-label="Steering">
-          <Button isDisabled>Add steering note</Button>
+          <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
         </section>
+
+        <p className="text-12 text-text-secondary">
+          Changing a role's tier is not available on this bench yet.
+        </p>
 
         <section
           data-testid="delivery-role-controls"
