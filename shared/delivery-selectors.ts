@@ -474,8 +474,7 @@ export interface DeliveryBurn {
 
 export function selectBurn(snapshot: DeliverySnapshot): DeliveryBurn {
   const { spent_usd: spentUsd, soft_budget_usd: softBudgetUsd } = snapshot.budget;
-  const fill =
-    softBudgetUsd > 0 ? Math.min(1, spentUsd / softBudgetUsd) : spentUsd > 0 ? 1 : 0;
+  const fill = softBudgetUsd > 0 ? Math.min(1, spentUsd / softBudgetUsd) : spentUsd > 0 ? 1 : 0;
   const byUnit: BurnUnitCost[] = [];
   for (const unit of selectUnitsInStackOrder(snapshot)) {
     if (unit.cost_usd === undefined) continue;
@@ -494,6 +493,123 @@ export function selectBurn(snapshot: DeliverySnapshot): DeliveryBurn {
     byUnit,
     byRole,
   };
+}
+
+// ── Lifecycle and the role matrix (SB-FR-021, SB-FR-022) ──
+
+// The lifecycle states the bench knows, matched case-insensitively: the
+// running state and the states a pause, a wind-down and an approval lead to.
+// Any other word is `other`.
+export type DeliveryLifecycleState = "running" | "paused" | "wound_down" | "complete" | "other";
+
+const LIFECYCLE_STATES: Readonly<Record<string, DeliveryLifecycleState>> = {
+  running: "running",
+  paused: "paused",
+  wound_down: "wound_down",
+  complete: "complete",
+};
+
+export function classifyLifecycleState(state: string): DeliveryLifecycleState {
+  return ownValue(LIFECYCLE_STATES, state.toLowerCase()) ?? "other";
+}
+
+const LIFECYCLE_HEALTH: Partial<
+  Record<DeliveryLifecycleState, { word: DeliveryHealthWord; reason: string }>
+> = {
+  paused: { word: "paused", reason: "The delivery is paused: resume it to go on" },
+  wound_down: {
+    word: "wound down",
+    reason: "The delivery is wound down: resume it to go on",
+  },
+  complete: { word: "complete", reason: "The delivery is complete" },
+};
+
+// An operator action on the delivery's lifecycle, as its route names it.
+export type DeliveryLifecycleAction = "pause" | "wind-down" | "resume" | "approve";
+
+// The lifecycle states each action is open in. A resume is open while the
+// delivery reads `running` too: a session that ended without a pause leaves the
+// record running, and the resume launches it again (the bench's own live
+// session is refused apart, by the resume route). Nothing acts on a complete
+// delivery, nor on a state the bench does not know.
+const LIFECYCLE_ACTION_STATES: Readonly<
+  Record<DeliveryLifecycleAction, ReadonlySet<DeliveryLifecycleState>>
+> = {
+  pause: new Set(["running"]),
+  "wind-down": new Set(["running", "paused"]),
+  resume: new Set(["running", "paused", "wound_down"]),
+  approve: new Set(["running", "paused", "wound_down"]),
+};
+
+const LIFECYCLE_ACTION_WORDS: Readonly<Record<DeliveryLifecycleAction, string>> = {
+  pause: "paused",
+  "wind-down": "wound down",
+  resume: "resumed",
+  approve: "approved",
+};
+
+export interface LifecycleActionAvailability {
+  available: boolean;
+  // The record's lifecycle state, as it is recorded.
+  state: string;
+  // Why the action is not open, naming the state; null when it is.
+  reason: string | null;
+}
+
+// Whether a lifecycle action is open in the delivery's lifecycle state. The
+// lifecycle routes and the lifecycle buttons read the same answer, so a button
+// is enabled exactly when its route would not answer 409 WRONG_LIFECYCLE_STATE.
+export function selectLifecycleAction(
+  snapshot: DeliverySnapshot,
+  action: DeliveryLifecycleAction,
+): LifecycleActionAvailability {
+  const state = snapshot.lifecycle.state;
+  if (LIFECYCLE_ACTION_STATES[action].has(classifyLifecycleState(state))) {
+    return { available: true, state, reason: null };
+  }
+  return {
+    available: false,
+    state,
+    reason: `The delivery is ${state}, so it cannot be ${LIFECYCLE_ACTION_WORDS[action]}`,
+  };
+}
+
+// One row of the role matrix (DESIGN.md Role matrix row): the role, the tier
+// in effect, the tier a change asked for while its role-change control waits
+// for the session's read-back (null when none waits), and the role's spend so
+// far from the budget's `by_role` (null when the budget names none).
+export interface RoleMatrixRow {
+  role: string;
+  tier: string;
+  pendingTier: string | null;
+  pendingControlSeq: number | null;
+  spentUsd: number | null;
+}
+
+// Every role of the delivery in the record's key order, each with the last
+// outstanding role-change control that targets it. The control stops waiting
+// on its read-back (a `roles.applied` that names its control_seq), which also
+// makes its tier the role's current one.
+export function selectRoleMatrix(snapshot: DeliverySnapshot): RoleMatrixRow[] {
+  const pending = new Map<string, { tier: string; controlSeq: number }>();
+  for (const control of snapshot.controls) {
+    if (control.kind !== "role-change" || !isOutstandingControl(control)) continue;
+    const tier = (control.body as { tier?: unknown }).tier;
+    if (control.target_id === undefined || typeof tier !== "string") continue;
+    pending.set(control.target_id, { tier, controlSeq: control.control_seq });
+  }
+  const byRole = snapshot.budget.by_role ?? {};
+  return Object.entries(snapshot.roles).map(([role, value]) => {
+    const waiting = pending.get(role);
+    const spent = ownValue(byRole, role);
+    return {
+      role,
+      tier: value.tier,
+      pendingTier: waiting?.tier ?? null,
+      pendingControlSeq: waiting?.controlSeq ?? null,
+      spentUsd: typeof spent === "number" ? spent : null,
+    };
+  });
 }
 
 // The ids of the jammed units, in stack order (SB-FR-019).
@@ -515,10 +631,13 @@ export function selectDriftLedger(snapshot: DeliverySnapshot): DeliveryDrift[] {
 }
 
 // The health chip's one word (DESIGN.md Health chip): `blocked` while a unit is
-// jammed, else `stale` once the delivery has been quiet for 2 minutes, else
-// `fresh`. `disconnected` is the stream's word, which a view that holds the
-// stream state passes in.
-export type DeliveryHealthWord = "fresh" | "stale" | "disconnected" | "blocked";
+// jammed, else `disconnected` while the stream is down (the stream's word, which
+// a view that holds the stream state passes in), else the lifecycle's word while
+// the delivery is paused, wound down or complete (SB-FR-022), else `stale` once
+// the delivery has been quiet for 2 minutes, else `fresh`. A paused delivery
+// sends no event, so its lifecycle word goes before `stale`.
+export type DeliveryHealthWord =
+  "fresh" | "stale" | "disconnected" | "blocked" | "paused" | "wound down" | "complete";
 
 export interface DeliveryHealthView {
   word: DeliveryHealthWord;
@@ -556,6 +675,10 @@ export function selectHealth(
       jammed,
       staleness,
     };
+  }
+  const lifecycle = LIFECYCLE_HEALTH[classifyLifecycleState(snapshot.lifecycle.state)];
+  if (lifecycle !== undefined) {
+    return { ...lifecycle, jammed, staleness };
   }
   if (staleness.stale && staleness.quietMs !== null) {
     return {
@@ -651,6 +774,55 @@ export function selectApprovalAvailability(snapshot: DeliverySnapshot): Approval
     available: false,
     reason: `A review is open with ${cards} to review: approve once the review is done`,
   };
+}
+
+// The gates whose gating cases are not all met, in record order: a gate whose
+// evaluated state is not `passed`. A gate with no gating case holds nothing
+// back. A `stale` gate (no plan, no results, or results for another plan)
+// counts as unmet: nothing shows its cases met.
+export function selectUnmetGates(snapshot: DeliverySnapshot): string[] {
+  return Object.values(snapshot.gatesById)
+    .filter((view) => view.state.status !== "passed" && view.state.status !== "no_gating_cases")
+    .map((view) => view.gate.id);
+}
+
+// Why the delivery cannot be approved now (SB-FR-022, SB-FR-034), or null when
+// it can. The checks run in order and the first that refuses answers: the
+// lifecycle state, then an open review, then an unmet gating case. A later
+// check (an unconfirmed provisional mark) slots in as one more step. The
+// approve route answers 409 with the refusal's `code`, and the Approve button
+// reads the same refusal.
+export type ApprovalRefusal =
+  | { code: "WRONG_LIFECYCLE_STATE"; reason: string; state: string }
+  | { code: "REVIEW_OPEN"; reason: string; unreviewed: string[] }
+  | { code: "GATING_UNMET"; reason: string; gates: string[] };
+
+export function selectApprovalRefusal(snapshot: DeliverySnapshot): ApprovalRefusal | null {
+  const lifecycle = selectLifecycleAction(snapshot, "approve");
+  if (!lifecycle.available) {
+    return {
+      code: "WRONG_LIFECYCLE_STATE",
+      reason: lifecycle.reason ?? "",
+      state: lifecycle.state,
+    };
+  }
+  const review = selectApprovalAvailability(snapshot);
+  if (!review.available) {
+    return {
+      code: "REVIEW_OPEN",
+      reason: review.reason ?? "",
+      unreviewed: snapshot.review.unreviewed,
+    };
+  }
+  const gates = selectUnmetGates(snapshot);
+  if (gates.length > 0) {
+    return {
+      code: "GATING_UNMET",
+      reason: `A gating case is not met at ${gates.join(", ")}: approve once every gating case is met`,
+      gates,
+    };
+  }
+  return null;
 }
 
 // A decision's thread in stream order; empty for a decision with no thread or

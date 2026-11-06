@@ -7,10 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bench, DeliveryOutboxControl } from "@roubo/shared";
-import type {
-  DeliveryDecision,
-  DeliveryRecord,
-} from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryDecision, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 
 vi.mock("../services/state.js", async (importOriginal) => ({
   updateBench: vi.fn(),

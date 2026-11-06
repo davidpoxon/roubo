@@ -165,7 +165,11 @@ export default function BoundaryPanel({
   const settled = selectSteeringNotes(snapshot).filter((note) => note.state !== "queued");
   return (
     <div className="space-y-3">
-      <section data-testid="delivery-boundary-panel" aria-label="Next boundary" className="space-y-2">
+      <section
+        data-testid="delivery-boundary-panel"
+        aria-label="Next boundary"
+        className="space-y-2"
+      >
         <h3 className="text-13 font-medium text-text-primary">Next boundary</h3>
         <p data-testid="boundary-name" className="font-mono text-12 text-text-body">
           {boundaryText(boundary)}

@@ -136,7 +136,7 @@ describe("DeliveryTabPanel", () => {
     );
     expect(screen.getByRole("button", { name: "one file per stack" })).toBeInTheDocument();
     expect(screen.getByTestId("delivery-steering-controls")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "main: balanced" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Model of main" })).toHaveValue("balanced");
     expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
   });
 

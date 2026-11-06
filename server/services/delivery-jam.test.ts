@@ -45,7 +45,15 @@ describe("applyDeliveryJamNotifications", () => {
       event(9, "unit.changed", "C", { status: "blocked" }),
     ]);
     expect(vi.mocked(notification.createNotification).mock.calls).toEqual([
-      [bench, "delivery-jam", undefined, { unitId: "B", status: "jammed" }, undefined, undefined, "B"],
+      [
+        bench,
+        "delivery-jam",
+        undefined,
+        { unitId: "B", status: "jammed" },
+        undefined,
+        undefined,
+        "B",
+      ],
       [
         bench,
         "delivery-jam",

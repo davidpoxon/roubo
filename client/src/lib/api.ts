@@ -711,8 +711,42 @@ export function sendDeliverySteeringNote(
   });
 }
 
-// Approve the delivery (SB-FR-034): 202 with the approval control, or 409
-// REVIEW_OPEN while a review is open.
+// Change a role's model tier (SB-FR-021): 202 with the role-change control,
+// pending until the session reads it back with a roles.applied.
+export function changeDeliveryRole(
+  projectId: string,
+  benchId: number,
+  role: string,
+  tier: string,
+): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/roles`, {
+    method: "PUT",
+    body: JSON.stringify({ role, tier }),
+  });
+}
+
+// Pause the delivery, or wind it down (SB-FR-022): 202 with the pause or
+// wind-down control, or 409 WRONG_LIFECYCLE_STATE naming the state.
+export function pauseDelivery(projectId: string, benchId: number): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/pause`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function windDownDelivery(
+  projectId: string,
+  benchId: number,
+): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/wind-down`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+// Approve the delivery (SB-FR-022, SB-FR-034): 202 with the approval control,
+// or 409 WRONG_LIFECYCLE_STATE once it is complete, REVIEW_OPEN while a review
+// is open, or GATING_UNMET while a gating case is unmet.
 export function approveDelivery(
   projectId: string,
   benchId: number,
