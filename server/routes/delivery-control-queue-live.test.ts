@@ -37,10 +37,7 @@ import {
   DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
 } from "@roubo/shared/delivery-bench";
-import type {
-  DeliveryDecision,
-  DeliveryRecord,
-} from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryDecision, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 
 vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
@@ -129,9 +126,7 @@ function agentDecision(
 // The record of four units A, B, C and D, a stack of A, B and C, and gates
 // after B and after C, in auto mode and wound down, with the agent decisions
 // D-1 to D-4 pending review, but those the reviews given settle.
-function windDownRecord(
-  reviews: Record<string, "accepted" | "overturned"> = {},
-): DeliveryRecord {
+function windDownRecord(reviews: Record<string, "accepted" | "overturned"> = {}): DeliveryRecord {
   const record = JSON.parse(fs.readFileSync(FIXTURE_RECORD, "utf8")) as DeliveryRecord;
   const unreviewed = DECISIONS.filter((id) => reviews[id] === undefined);
   return {
@@ -235,7 +230,9 @@ function Harness() {
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)));
+  return render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)),
+  );
 }
 
 async function card(id: string): Promise<HTMLElement> {
@@ -263,8 +260,9 @@ async function expectQueuedBadges(
     const top = await raise(user, id);
     expect(within(top).getByTestId("review-badge")).toHaveTextContent(`${id} · queued`);
     await waitFor(() =>
-      expect(within(screen.getByTestId(`review-card-${id}`)).getByTestId("review-queued"))
-        .toHaveTextContent(`${action} queued · on resume`),
+      expect(
+        within(screen.getByTestId(`review-card-${id}`)).getByTestId("review-queued"),
+      ).toHaveTextContent(`${action} queued · on resume`),
     );
   }
 }

@@ -80,8 +80,10 @@ function renderPile(events: DeliveryEvent[], controls: DeliveryControl[] = []) {
 }
 
 function issued(kind: "decision-answer" | "overturn", id: string, option: string) {
-  return { ...control(kind, id, option), author: { name: "Ada", email: "ada@example.test" } } as
-    DeliveryOutboxControl;
+  return {
+    ...control(kind, id, option),
+    author: { name: "Ada", email: "ada@example.test" },
+  } as DeliveryOutboxControl;
 }
 
 beforeEach(() => {
@@ -111,9 +113,7 @@ describe("DecisionPile", () => {
     expect(within(top).getByRole("button", { name: "one file per stack" })).toBeInTheDocument();
     expect(top).toHaveTextContent("default one file per unit");
 
-    rerender(
-      <DecisionPile projectId="demo" benchId={3} snapshot={snapshotOf([FIRST, SECOND])} />,
-    );
+    rerender(<DecisionPile projectId="demo" benchId={3} snapshot={snapshotOf([FIRST, SECOND])} />);
     expect(screen.getByTestId("decision-card-decision-b")).toHaveAttribute("data-position", "top");
     const lower = screen.getByTestId("decision-card-decision-a");
     expect(lower).toHaveAttribute("data-position", "lower");
@@ -200,7 +200,10 @@ describe("DecisionPile", () => {
         snapshot={snapshotOf(
           [
             FIRST,
-            decisionEvent(9, "decision.answered", { decision_id: "decision-a", answer: OPTIONS[1] }),
+            decisionEvent(9, "decision.answered", {
+              decision_id: "decision-a",
+              answer: OPTIONS[1],
+            }),
           ],
           [control("decision-answer", "decision-a", OPTIONS[1], "applied")],
         )}
@@ -219,7 +222,10 @@ describe("DecisionPile", () => {
 
   it("SB-TC-038 a defaulted decision shows its default applied and pending overturn, overturns it, and shows the new option once overturned", async () => {
     const user = userEvent.setup();
-    const defaulted = [FIRST, decisionEvent(9, "decision.defaulted", { decision_id: "decision-a" })];
+    const defaulted = [
+      FIRST,
+      decisionEvent(9, "decision.defaulted", { decision_id: "decision-a" }),
+    ];
     const { rerender } = renderPile([FIRST]);
     rerender(<DecisionPile projectId="demo" benchId={3} snapshot={snapshotOf(defaulted)} />);
 

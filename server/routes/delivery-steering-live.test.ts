@@ -256,7 +256,9 @@ function Harness() {
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)));
+  return render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)),
+  );
 }
 
 async function snapshotShown(): Promise<void> {
@@ -375,9 +377,7 @@ describe("Steering composer and boundary panel over the live path", () => {
     await waitFor(() => expect(boundaryName()).toHaveTextContent("C finishes"), {
       timeout: 3000,
     });
-    const stillQueued = within(screen.getByTestId("boundary-queue")).getByTestId(
-      "steering-note-1",
-    );
+    const stillQueued = within(screen.getByTestId("boundary-queue")).getByTestId("steering-note-1");
     expect(stillQueued).toHaveAttribute("data-state", "queued");
     expect(screen.queryByTestId("steering-notes-settled")).not.toBeInTheDocument();
 

@@ -71,10 +71,7 @@ import {
   type DeliveryControlReadReply,
   type DeliveryControlStatus,
 } from "@roubo/shared/delivery-control-contract";
-import type {
-  DeliveryEvent,
-  DeliveryRecord,
-} from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import type { Author } from "@roubo/shared/testbench-contracts";
 import * as stateService from "./state.js";
 
@@ -282,10 +279,7 @@ export function releaseDeliveryControlWaiters(): void {
  * `after` and is not `superseded`. The read and its hold gate share this test,
  * so a read is held whenever it would serve nothing.
  */
-export function isServableDeliveryControl(
-  control: DeliveryOutboxControl,
-  after: number,
-): boolean {
+export function isServableDeliveryControl(control: DeliveryOutboxControl, after: number): boolean {
   return control.control_seq > after && control.status !== "superseded";
 }
 
@@ -449,7 +443,8 @@ export function pruneDeliveryControls(
     (control) => control.kind === "mode_switch" && control.delivery_id === record.delivery_id,
   );
   const lastSwitch = ownSwitches.reduce<DeliveryOutboxControl | undefined>(
-    (last, control) => (last === undefined || control.control_seq > last.control_seq ? control : last),
+    (last, control) =>
+      last === undefined || control.control_seq > last.control_seq ? control : last,
     undefined,
   );
   const pending = record.mode.pending ?? null;

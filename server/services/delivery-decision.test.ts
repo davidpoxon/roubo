@@ -59,7 +59,10 @@ beforeEach(() => {
 describe("applyDeliveryDecisionNotifications", () => {
   it("SB-TC-036: raises a delivery-decision keyed by the decision id for each raised decision", () => {
     const bench = makeBench();
-    applyDeliveryDecisionNotifications(bench, [raised(8, "decision-1", "A"), raised(9, "decision-2")]);
+    applyDeliveryDecisionNotifications(bench, [
+      raised(8, "decision-1", "A"),
+      raised(9, "decision-2"),
+    ]);
     expect(vi.mocked(notification.createNotification).mock.calls).toEqual([
       [
         bench,
@@ -274,10 +277,14 @@ describe("applyDeliveryDecisionNotifications: agent decisions and review calls",
   it("SB-TC-103: a review.opened listing 100 decisions raises one notification with the count 100", () => {
     const bench = makeBench();
     const ids = Array.from({ length: 100 }, (_, index) => `D-${index + 1}`);
-    applyBatch(bench, [], [
-      ...ids.map((id, index) => decided(8 + index, id, index)),
-      event(108, "review.opened", { trigger: "boundary", unreviewed: ids }),
-    ]);
+    applyBatch(
+      bench,
+      [],
+      [
+        ...ids.map((id, index) => decided(8 + index, id, index)),
+        event(108, "review.opened", { trigger: "boundary", unreviewed: ids }),
+      ],
+    );
     expect(reviewCalls()).toEqual([
       [
         bench,

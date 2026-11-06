@@ -258,11 +258,7 @@ function ThreadComposer({
         </Button>
       </form>
       {disabled && (
-        <p
-          id={noticeId}
-          data-testid="review-thread-notice"
-          className="text-12 text-text-secondary"
-        >
+        <p id={noticeId} data-testid="review-thread-notice" className="text-12 text-text-secondary">
           {REVIEW_THREAD_NO_SESSION}
         </p>
       )}

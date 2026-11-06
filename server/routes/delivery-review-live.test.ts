@@ -48,6 +48,12 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
+import {
+  TEST_CASES_SCHEMA_ID,
+  TEST_RESULTS_SCHEMA_ID,
+  TEST_RESULTS_SCHEMA_VERSION,
+  type TestCasesPlan,
+} from "@roubo/shared/testbench-contracts";
 
 vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
@@ -80,6 +86,7 @@ import { forgetDeliveryEventLog } from "../services/delivery-event-log.js";
 import { hashDeliveryToken } from "../services/delivery-token-registry.js";
 import { getNotifications } from "../services/notification.js";
 import { _resetClientsForTest, getClientCount } from "../services/sse.js";
+import { computePlanHash } from "../lib/testbench-store.js";
 import { makeBench } from "../test/fixtures.js";
 import deliveryHooksRouter, { deliveryEventBodyParser } from "./delivery-hooks.js";
 import deliveryRouter from "./delivery.js";
@@ -314,7 +321,9 @@ function Harness() {
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)));
+  return render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)),
+  );
 }
 
 async function snapshotShown(): Promise<void> {
@@ -324,6 +333,45 @@ async function snapshotShown(): Promise<void> {
 }
 
 const reviewCard = (id: string) => screen.queryByTestId(`review-card-${id}`);
+
+// A plan of the record's gating cases with every one of them passed, and the
+// record at that plan's hash, in the bench workspace's spec folder.
+function writeSpecWithEveryCaseMet(): void {
+  const specFolder = path.join(bench.workspacePath, ".specifications", "fixture-spec");
+  const plan: TestCasesPlan = {
+    $schema: TEST_CASES_SCHEMA_ID,
+    schemaVersion: "1.2.0",
+    specSlug: "fixture-spec",
+    cases: ["DEMO-TC-001", "DEMO-TC-002", "DEMO-TC-003"].map((id) => ({
+      id,
+      title: id,
+      area: "demo",
+      level: 1,
+      type: "functional",
+      steps: [],
+      tags: [],
+      linked_requirement_ids: ["DEMO-FR-001"],
+      linked_user_story_ids: [],
+    })),
+  };
+  const planHash = computePlanHash(plan);
+  const passed = { observationMarks: {}, derivedStatus: "passed", notes: [] };
+  fs.writeFileSync(path.join(specFolder, "test-cases.json"), JSON.stringify(plan));
+  fs.writeFileSync(
+    path.join(specFolder, "test-results.json"),
+    JSON.stringify({
+      $schema: TEST_RESULTS_SCHEMA_ID,
+      schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
+      planHash,
+      caseResults: Object.fromEntries(plan.cases.map((entry) => [entry.id, passed])),
+      updatedAt: "2026-10-16T09:30:00Z",
+    }),
+  );
+  fs.writeFileSync(
+    path.join(specFolder, "delivery-observation.json"),
+    `${JSON.stringify({ ...autoRecord(), plan_hash: planHash }, null, 2)}\n`,
+  );
+}
 
 beforeEach(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "delivery-review-live-"));
@@ -449,9 +497,9 @@ describe("Agent decisions and the review call over the live path", () => {
     );
     await waitFor(
       () =>
-        expect(within(reviewCard("D-1") as HTMLElement).getByTestId("review-badge")).toHaveTextContent(
-          "D-1 · to review",
-        ),
+        expect(
+          within(reviewCard("D-1") as HTMLElement).getByTestId("review-badge"),
+        ).toHaveTextContent("D-1 · to review"),
       { timeout: 3000 },
     );
 
@@ -553,6 +601,9 @@ describe("Agent decisions and the review call over the live path", () => {
   });
 
   it("SB-TC-097 approval is refused with REVIEW_OPEN while a review is open, and accepted once it is done", async () => {
+    // Approval also waits for every gating case (SB-FR-022), so this spec's
+    // gating cases are all met.
+    writeSpecWithEveryCaseMet();
     await post([
       decided("D-1", 1),
       decided("D-2", 2),

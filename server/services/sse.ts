@@ -34,10 +34,7 @@ export interface ComponentStatusChangeEvent {
 }
 
 export type SseEvent =
-  | NotificationEvent
-  | BenchStatusEvent
-  | ComponentStatusChangeEvent
-  | DeliveryStreamFrame;
+  NotificationEvent | BenchStatusEvent | ComponentStatusChangeEvent | DeliveryStreamFrame;
 
 // The reconnection delay a client's EventSource waits after the connection
 // drops, sent once when the client connects. It keeps the reconnect well inside

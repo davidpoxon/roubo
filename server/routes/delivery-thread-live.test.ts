@@ -210,9 +210,7 @@ async function readControls(): Promise<{ controls: Array<Record<string, unknown>
 }
 
 async function snapshotControls(): Promise<Array<Record<string, unknown>>> {
-  const res = await nodeFetch(
-    `${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`,
-  );
+  const res = await nodeFetch(`${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`);
   expect(res.status).toBe(200);
   return ((await res.json()) as { controls: Array<Record<string, unknown>> }).controls;
 }
@@ -313,7 +311,9 @@ function Harness() {
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)));
+  return render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)),
+  );
 }
 
 async function topCard(id: string): Promise<HTMLElement> {
@@ -448,7 +448,12 @@ describe("The discussion thread on a review card over the live path", () => {
     // Step 2: the fake tooling reads the message with the decision id.
     const read = await readControls();
     expect(read.controls).toMatchObject([
-      { control_seq: controlSeq, kind: "thread_message", target_id: "D-1", body: { text: question } },
+      {
+        control_seq: controlSeq,
+        kind: "thread_message",
+        target_id: "D-1",
+        body: { text: question },
+      },
     ]);
     // A second read serves it no more, and the card keeps the question.
     expect((await readControls()).controls).toEqual([]);
@@ -475,21 +480,22 @@ describe("The discussion thread on a review card over the live path", () => {
     expect(reply).toHaveClass("bg-bg-base");
     expect(within(shownThread).queryByTestId("review-thread-waiting")).toBeNull();
     // The question stays above its answer.
-    expect(within(shownThread).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      expect.stringContaining(question),
-      expect.stringContaining(answer),
-    ]);
+    expect(
+      within(shownThread)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual([expect.stringContaining(question), expect.stringContaining(answer)]);
 
     // Step 4: accept D-1, and the session's outcome carries a summary.
-    await user.click(within(screen.getByTestId("review-card-D-1")).getByRole("button", { name: "Accept" }));
+    await user.click(
+      within(screen.getByTestId("review-card-D-1")).getByRole("button", { name: "Accept" }),
+    );
     await waitFor(
       () => expect(screen.getByTestId("review-card-D-1")).toHaveTextContent("accept queued"),
       { timeout: 3000 },
     );
     const summary = "The operator asked why one file per stack; the session kept it.";
-    await post([
-      event("review.outcome", { decision_id: "D-1", status: "accepted", summary }),
-    ]);
+    await post([event("review.outcome", { decision_id: "D-1", status: "accepted", summary })]);
     const shown = await screen.findByTestId("review-summary-D-1", {}, { timeout: 3000 });
     expect(shown.textContent).toBe(summary);
     await waitFor(() => expect(screen.queryByTestId("review-card-D-1")).toBeNull(), {
@@ -609,10 +615,9 @@ describe("The discussion thread on a review card over the live path", () => {
     // Step 2: a reply for D-1 after the restart shows without its question.
     const answer = "One file per stack keeps the reads down.";
     await post([event("review.reply", { decision_id: "D-1", text: answer, in_reply_to: "1" })]);
-    await waitFor(
-      () => expect(screen.getByTestId("review-thread-D-1")).toHaveTextContent(answer),
-      { timeout: 3000 },
-    );
+    await waitFor(() => expect(screen.getByTestId("review-thread-D-1")).toHaveTextContent(answer), {
+      timeout: 3000,
+    });
     const items = within(screen.getByTestId("review-thread-D-1")).getAllByRole("listitem");
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveAttribute("data-from", "session");

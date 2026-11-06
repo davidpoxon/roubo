@@ -1,5 +1,6 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-034, SB-FR-035).
+// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
+// SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -49,10 +50,17 @@
 //                                                    409 DELIVERY_SESSION_LIVE and
 //                                                        BENCH_UNAVAILABLE, as resume
 //   POST /:projectId/benches/:id/delivery/resume  -> 202 the session launched again with
-//                                                    the record's resume argument
-//                                                    409 DELIVERY_SESSION_LIVE: the session
-//                                                        the bench launched still runs or is
-//                                                        starting
+//                                                    the record's resume argument, from a
+//                                                    paused, wound down or running
+//                                                    lifecycle state (a session that ended
+//                                                    without a pause leaves it running)
+//                                                    409 WRONG_LIFECYCLE_STATE + state: the
+//                                                        lifecycle state is complete, or
+//                                                        one the bench does not know
+//                                                    409 DELIVERY_SESSION_LIVE + state: the
+//                                                        session the bench launched still
+//                                                        runs or is starting; `state` and
+//                                                        the error name the lifecycle state
 //                                                    409 BENCH_UNAVAILABLE: the bench is
 //                                                        clearing or in error
 //   POST /:projectId/benches/:id/delivery/attach  -> 201 attach mode's token handout: a
@@ -226,6 +234,38 @@
 //                                                        control fails the control
 //                                                        contract
 //                                                    404 and 409 as the snapshot read
+//   PUT  /:projectId/benches/:id/delivery/roles
+//        body {role, tier}                    -> 202 DeliveryOutboxControl: a
+//                                                    role-change control with target_id
+//                                                    the role and body {tier}, issued as
+//                                                    an answer is (SB-FR-021); the
+//                                                    session reads it back with a
+//                                                    roles.applied {role, tier,
+//                                                    control_seq}, which makes the tier
+//                                                    the role's current one
+//                                                    400 INVALID_BODY + field: `role` is
+//                                                        not a role of the folded record,
+//                                                        `tier` is not a non-blank string,
+//                                                        or the control fails the control
+//                                                        contract
+//                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/pause
+//        body {reason?}                       -> 202 DeliveryOutboxControl: a pause
+//                                                    control of the delivery, with no
+//                                                    target, issued as an answer is
+//                                                    (SB-FR-022), from the running state
+//   POST /:projectId/benches/:id/delivery/wind-down
+//        body {reason?}                       -> 202 DeliveryOutboxControl: a wind-down
+//                                                    control, as the pause, from the
+//                                                    running or the paused state
+//                                                 Both:
+//                                                    400 INVALID_BODY + field: `reason`
+//                                                        is given and not a string
+//                                                    409 WRONG_LIFECYCLE_STATE + state:
+//                                                        the folded record's lifecycle
+//                                                        state, which the error names, is
+//                                                        not one the action is open in
+//                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/approve
 //        body {reason?}                       -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
@@ -233,11 +273,21 @@
 //                                                    is
 //                                                    400 INVALID_BODY + field: `reason`
 //                                                        is given and not a string
+//                                                 409 the first refusal of the checks, in
+//                                                 this order (selectApprovalRefusal,
+//                                                 which the Approve control reads too):
+//                                                    409 WRONG_LIFECYCLE_STATE + state:
+//                                                        the delivery is complete, or in a
+//                                                        state the bench does not know
 //                                                    409 REVIEW_OPEN: the folded record's
 //                                                        review status is `open`
 //                                                        (`unreviewed` lists the decisions
-//                                                        it waits on); the Approve control
-//                                                        reads the same selector
+//                                                        it waits on)
+//                                                    409 GATING_UNMET + gates: a gate's
+//                                                        gating cases are not all met, read
+//                                                        from the spec's plan and results
+//                                                        in the workspace as the snapshot
+//                                                        reads them (`gates` lists them)
 //                                                    404 and 409 as the snapshot read
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
@@ -283,7 +333,11 @@ import {
   ownValue,
   type DeliverySnapshot,
 } from "@roubo/shared/delivery-reducer";
-import { selectApprovalAvailability } from "@roubo/shared/delivery-selectors";
+import {
+  selectApprovalRefusal,
+  selectLifecycleAction,
+  type DeliveryLifecycleAction,
+} from "@roubo/shared/delivery-selectors";
 import {
   deliveryAcceptedSeq,
   deliveryEventsAfterRecord,
@@ -344,12 +398,22 @@ function specBenchOf(req: Request, res: Response): Bench | undefined {
 // A launch, a resume or a handout mints a new token, which revokes the one
 // before it, so none goes ahead while the bench's own session runs or the bench
 // is going.
-function sendLaunchBlocked(res: Response, bench: Bench, block: DeliveryLaunchBlock): void {
+// A resume passes the record's lifecycle state, which the refusal then names.
+function sendLaunchBlocked(
+  res: Response,
+  bench: Bench,
+  block: DeliveryLaunchBlock,
+  lifecycleState?: string,
+): void {
   if (block === "session_live") {
     res.status(409).json({
-      error: "The delivery session of this bench is still running",
+      error:
+        lifecycleState === undefined
+          ? "The delivery session of this bench is still running"
+          : `The delivery is ${lifecycleState} and the delivery session of this bench is still running`,
       code: "DELIVERY_SESSION_LIVE",
       ...(bench.deliverySessionId !== undefined && { sessionId: bench.deliverySessionId }),
+      ...(lifecycleState !== undefined && { state: lifecycleState }),
     });
     return;
   }
@@ -661,10 +725,13 @@ interface DecisionControlContext extends ControlContext {
 }
 
 // The operator's identity and the folded delivery of the bench; or the answer
-// already sent when the record cannot be read.
+// already sent when the record cannot be read. With `verify`, the fold also
+// reads the spec's plan, results and lifecycle in the workspace, as the
+// snapshot read does, so the gates carry their evaluated state.
 async function controlContext(
   bench: Bench,
   res: Response,
+  options: { verify?: boolean } = {},
 ): Promise<ControlContext | undefined> {
   // The operator Roubo knows: the git identity of the bench workspace, in the
   // results writer's Author shape. Resolved before the checks, so nothing
@@ -681,7 +748,11 @@ async function controlContext(
     loaded.record,
     benchDeliveryEventSpillPath(bench),
   );
-  const snapshot = foldDelivery({ record: loaded.record, events });
+  const snapshot = foldDelivery({
+    record: loaded.record,
+    events,
+    ...(options.verify === true && loadBenchDeliveryVerifyInputs(bench)),
+  });
   return {
     bench,
     record: loaded.record,
@@ -852,9 +923,7 @@ function issueReviewAction(
 ): void {
   const actions = deliveryControlsOf(context.bench).filter(
     (control) =>
-      isReviewControl(control) &&
-      control.target_id === decisionId &&
-      isControlOutstanding(control),
+      isReviewControl(control) && control.target_id === decisionId && isControlOutstanding(control),
   );
   const delivered = actions.find((control) => control.status !== "pending");
   if (delivered !== undefined) {
@@ -1049,7 +1118,11 @@ router.post(
     }
     const appliesAt = body?.applies_at;
     if (typeof appliesAt !== "string" || appliesAt.length === 0) {
-      sendInvalidBody(res, "applies_at", "applies_at must name the unit boundary the note lands at");
+      sendInvalidBody(
+        res,
+        "applies_at",
+        "applies_at must name the unit boundary the note lands at",
+      );
       return;
     }
     const context = await controlContext(bench, res);
@@ -1072,26 +1145,97 @@ router.post(
     if (!bench) return;
     const reason = optionalBodyText(req, res, "reason");
     if (!reason.ok) return;
-    const context = await controlContext(bench, res);
+    // The gates' evaluated state decides the gating check, so the fold reads
+    // the plan and the results as the snapshot read does.
+    const context = await controlContext(bench, res, { verify: true });
     if (!context) return;
-    // The folded review decides, as the Approve control does: nothing is
-    // approved while a review is open (SB-FR-034).
-    const approval = selectApprovalAvailability(context.snapshot);
-    if (!approval.available) {
-      res.status(409).json({
-        error: approval.reason,
-        code: "REVIEW_OPEN",
-        unreviewed: context.snapshot.review.unreviewed,
-      });
+    // The folded record decides, as the Approve control does: nothing is
+    // approved in a state an approval is not open in, while a review is open
+    // (SB-FR-034), or while a gating case is unmet (SB-FR-022).
+    const refusal = selectApprovalRefusal(context.snapshot);
+    if (refusal !== null) {
+      const { reason: error, ...rest } = refusal;
+      res.status(409).json({ error, ...rest });
       return;
     }
-    issueControl(
-      res,
-      context,
-      "approval",
-      undefined,
-      reason.value === undefined ? {} : { reason: reason.value },
-    );
+    issueControl(res, context, "approval", undefined, reasonBody(reason.value));
+  },
+);
+
+function reasonBody(reason: string | undefined): Record<string, unknown> {
+  return reason === undefined ? {} : { reason };
+}
+
+// Answers 409 WRONG_LIFECYCLE_STATE, naming the state, when the folded
+// record's lifecycle state is not one the action is open in.
+function sendIfWrongLifecycleState(
+  res: Response,
+  snapshot: DeliverySnapshot,
+  action: DeliveryLifecycleAction,
+): boolean {
+  const availability = selectLifecycleAction(snapshot, action);
+  if (availability.available) return false;
+  res.status(409).json({
+    error: availability.reason,
+    code: "WRONG_LIFECYCLE_STATE",
+    state: availability.state,
+  });
+  return true;
+}
+
+// Pause and wind-down (SB-FR-022): a delivery-wide control with an optional
+// reason, issued once the lifecycle state allows it.
+function lifecycleControlRoute(action: "pause" | "wind-down") {
+  return async (req: Request, res: Response): Promise<void> => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const reason = optionalBodyText(req, res, "reason");
+    if (!reason.ok) return;
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    if (sendIfWrongLifecycleState(res, context.snapshot, action)) return;
+    issueControl(res, context, action, undefined, reasonBody(reason.value));
+  };
+}
+
+router.post(
+  "/:projectId/benches/:id/delivery/pause",
+  deliveryControlRateLimiter,
+  lifecycleControlRoute("pause"),
+);
+
+router.post(
+  "/:projectId/benches/:id/delivery/wind-down",
+  deliveryControlRateLimiter,
+  lifecycleControlRoute("wind-down"),
+);
+
+// ── The role matrix (SB-FR-021) ──
+
+router.put(
+  "/:projectId/benches/:id/delivery/roles",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const body = req.body as { role?: unknown; tier?: unknown } | undefined;
+    const role = body?.role;
+    if (typeof role !== "string" || role.length === 0) {
+      sendInvalidBody(res, "role", "role must name a role of the delivery");
+      return;
+    }
+    const tier = body?.tier;
+    if (typeof tier !== "string" || tier.trim().length === 0) {
+      sendInvalidBody(res, "tier", "tier must be a non-blank string");
+      return;
+    }
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    if (ownValue(context.snapshot.roles, role) === undefined) {
+      sendInvalidBody(res, "role", `role must name a role of the delivery, and ${role} is none`);
+      return;
+    }
+    issueControl(res, context, "role-change", role, { tier });
   },
 );
 
@@ -1161,9 +1305,21 @@ router.post(
       res.status(409).json(loaded.error);
       return;
     }
+    // The folded lifecycle state, as the Resume control reads it (SB-FR-022).
+    const snapshot = foldDelivery({
+      record: loaded.record,
+      events: deliveryEventsAfterRecord(
+        bench.projectId,
+        bench.id,
+        loaded.record,
+        benchDeliveryEventSpillPath(bench),
+      ),
+    });
+    if (sendIfWrongLifecycleState(res, snapshot, "resume")) return;
+    const state = snapshot.lifecycle.state;
     const early = deliveryLaunchBlock(bench);
     if (early !== undefined) {
-      sendLaunchBlocked(res, bench, early);
+      sendLaunchBlocked(res, bench, early, state);
       return;
     }
     // The create-time launch may still be on its way: wait for it, so its
@@ -1178,7 +1334,7 @@ router.post(
       });
     } catch (err) {
       if (err instanceof DeliveryLaunchBlockedError) {
-        sendLaunchBlocked(res, bench, err.block);
+        sendLaunchBlocked(res, bench, err.block, state);
         return;
       }
       sendLaunchFailed(res, err);

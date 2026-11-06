@@ -281,7 +281,8 @@ describe("delivery observation contract: record fixture", () => {
     ] as const) {
       const broken = validateDeliveryRecord({ ...fixture, drift: [{ ...edit, [field]: value }] });
       expect(broken.ok).toBe(false);
-      if (!broken.ok) expect(broken.errors.some((e) => e.startsWith(`drift.0.${field}`))).toBe(true);
+      if (!broken.ok)
+        expect(broken.errors.some((e) => e.startsWith(`drift.0.${field}`))).toBe(true);
     }
   });
 
@@ -293,7 +294,8 @@ describe("delivery observation contract: record fixture", () => {
       budget: { ...budget, by_role: { main: 0.1, "unit-coder": 0.32 } },
     });
     expect(withRoles.ok).toBe(true);
-    if (withRoles.ok) expect(withRoles.data.budget.by_role).toEqual({ main: 0.1, "unit-coder": 0.32 });
+    if (withRoles.ok)
+      expect(withRoles.data.budget.by_role).toEqual({ main: 0.1, "unit-coder": 0.32 });
 
     const negative = validateDeliveryRecord({
       ...fixture,

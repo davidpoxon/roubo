@@ -349,11 +349,13 @@ afterEach(async () => {
 
 // A launch-mode Spec Bench whose session has written the record, and its token.
 async function benchWithRecord(): Promise<{ bench: Bench; token: string }> {
-  const res = await request(app).post("/demo/benches").send({
-    variant: "specbench",
-    focusedSpecPath: ".specifications/fixture-spec",
-    delivery: { mode: "launch" },
-  });
+  const res = await request(app)
+    .post("/demo/benches")
+    .send({
+      variant: "specbench",
+      focusedSpecPath: ".specifications/fixture-spec",
+      delivery: { mode: "launch" },
+    });
   expect(res.status).toBe(201);
   const created = res.body as Bench;
   await benchManager.whenWorkspaceProvisioned("demo", created.id);
@@ -546,8 +548,11 @@ describe("Overturning a default", () => {
 
     // The session goes on with the default.
     expect(
-      (await postEvents(bench, token, [decisionEvent(8, "decision.defaulted", { decision_id: OPEN_DECISION })]))
-        .status,
+      (
+        await postEvents(bench, token, [
+          decisionEvent(8, "decision.defaulted", { decision_id: OPEN_DECISION }),
+        ])
+      ).status,
     ).toBe(202);
     const defaulted = (await snapshotOf(bench)).decisionsById[OPEN_DECISION];
     expect(defaulted).toMatchObject({ status: "defaulted", chosen: OPTION });
@@ -630,9 +635,7 @@ function accept(bench: Bench, decisionId: string, body: unknown = {}) {
 }
 
 function reviewCardIds(snapshot: DeliverySnapshot): string[] {
-  return selectReviewStack(snapshot).flatMap((card) =>
-    card.kind === "decision" ? [card.id] : [],
-  );
+  return selectReviewStack(snapshot).flatMap((card) => (card.kind === "decision" ? [card.id] : []));
 }
 
 // A bench whose record states an open review of the fixture's agent decision
@@ -917,7 +920,9 @@ describe("The controls endpoint", () => {
       expect(read.body).toMatchObject({ code: "INVALID_QUERY", field: "after" });
     }
     const open = await request(app)
-      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=0&wait=0&cursor=x`)
+      .get(
+        `/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=0&wait=0&cursor=x`,
+      )
       .set("Authorization", `Bearer ${token}`);
     expect(open.status).toBe(200);
     expect(open.body).toEqual({ controls: [], latestSeq: 0 });
