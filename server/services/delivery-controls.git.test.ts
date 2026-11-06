@@ -113,8 +113,13 @@ import {
 import { forgetDeliveryEventLog } from "./delivery-event-log.js";
 import {
   forgetDeliveryControlMemory,
+  hasDeliveryControlWaiter,
   issueDeliveryControl,
+  releaseDeliveryControlWaiters,
 } from "./delivery-control-outbox.js";
+import { mintDeliveryToken, revokeDeliveryToken } from "./delivery-token-registry.js";
+import type { AddressInfo } from "node:net";
+import type { Server } from "node:http";
 import { resolveGitIdentity } from "./git-helpers.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -177,6 +182,78 @@ function readControls(bench: Bench, token: string | undefined, after?: string) {
   );
   if (token !== undefined) req.set("Authorization", `Bearer ${token}`);
   return req;
+}
+
+// The app on a real port, for reads that stay open across other requests.
+let listening: Server | undefined;
+
+async function baseUrl(): Promise<string> {
+  if (listening === undefined) {
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+    listening = server;
+  }
+  return `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
+}
+
+interface HeldReply {
+  status: number;
+  body: Record<string, unknown>;
+  // When the reply arrived, by performance.now().
+  at: number;
+}
+
+// Starts a control read with a wait over a real connection.
+async function startRead(
+  bench: Bench,
+  token: string,
+  after: number,
+  wait: number,
+  signal?: AbortSignal,
+): Promise<HeldReply> {
+  const url = `${await baseUrl()}/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=${after}&wait=${wait}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
+  return {
+    status: res.status,
+    body: (await res.json()) as Record<string, unknown>,
+    at: performance.now(),
+  };
+}
+
+async function until(check: () => boolean, what: string): Promise<void> {
+  for (let i = 0; i < 1000; i++) {
+    if (check()) return;
+    await new Promise((r) => setTimeout(r, 2));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+// Starts a control read with a wait, and resolves once the bench holds it.
+async function holdRead(
+  bench: Bench,
+  token: string,
+  after: number,
+  wait: number,
+  signal?: AbortSignal,
+): Promise<{ reply: Promise<HeldReply> }> {
+  expect(hasDeliveryControlWaiter(bench)).toBe(false);
+  const reply = startRead(bench, token, after, wait, signal);
+  // Keep a rejection from going unhandled while the hold is awaited.
+  reply.catch(() => undefined);
+  await until(() => hasDeliveryControlWaiter(bench), "the read to be held");
+  return { reply };
+}
+
+function threadMessage(bench: Bench, text: string) {
+  const issued = issueDeliveryControl(bench, {
+    deliveryId: DELIVERY_ID,
+    kind: "thread_message",
+    targetId: OPEN_DECISION,
+    body: { text },
+    author: { name: "Ada Operator", email: "ada@example.test" },
+  });
+  if (!issued.ok) throw new Error(issued.errors.join("; "));
+  return issued.control;
 }
 
 function answer(bench: Bench, decisionId: string, body: unknown = { option: OPTION }) {
@@ -254,7 +331,14 @@ beforeEach(() => {
   app.use("/api/hooks", deliveryHooksRouter);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  releaseDeliveryControlWaiters();
+  if (listening !== undefined) {
+    const server = listening;
+    listening = undefined;
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
   benchManager.dropProjectBenches("demo");
   unregisterVariantHost("specbench");
   resetDeliveryLaunchExecutor();
@@ -410,7 +494,7 @@ describe("The controls endpoint", () => {
       expect(read.body).toMatchObject({ code: "INVALID_QUERY", field: "after" });
     }
     const open = await request(app)
-      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=0&wait=0`)
+      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=0&wait=0&cursor=x`)
       .set("Authorization", `Bearer ${token}`);
     expect(open.status).toBe(200);
     expect(open.body).toEqual({ controls: [], latestSeq: 0 });
@@ -462,6 +546,170 @@ describe("The controls endpoint", () => {
       1, 3,
     ]);
     expect(lastPersisted(bench.id)?.deliveryControlSeq).toBe(3);
+  });
+
+  it("SB-TC-100 a read with a wait is held, returns as soon as a control is appended, and ends on a second read, a revoke or a bad wait", async () => {
+    const { bench, token } = await benchWithRecord();
+    expect((await answer(bench, OPEN_DECISION)).status).toBe(202);
+
+    // Step 1: a wait of 5,000 ms with no new control stays open, then returns
+    // 200 with an empty list and the latest sequence number.
+    const started = performance.now();
+    const quiet = await holdRead(bench, token, 1, 5000);
+    const timedOut = await quiet.reply;
+    expect(timedOut.status).toBe(200);
+    expect(timedOut.body).toEqual({ controls: [], latestSeq: 1 });
+    expect(validateDeliveryControlReadResponse(timedOut.body).ok).toBe(true);
+    expect(timedOut.at - started).toBeGreaterThanOrEqual(4900);
+    expect(hasDeliveryControlWaiter(bench)).toBe(false);
+
+    // Step 2: the same read again returns a thread message from the bench
+    // before its wait ends.
+    const again = await holdRead(bench, token, 1, 5000);
+    const sentAt = performance.now();
+    const message = threadMessage(bench, "Why one file per unit?");
+    const woken = await again.reply;
+    expect(woken.status).toBe(200);
+    expect(woken.body).toEqual({ controls: [message], latestSeq: 2 });
+    expect(woken.at - sentAt).toBeLessThan(2000);
+
+    // Step 3: a second held read for the same bench ends the first with the
+    // superseded reply, and is held in its place.
+    const first = await holdRead(bench, token, 2, 5000);
+    const second = startRead(bench, token, 2, 5000);
+    const superseded = await first.reply;
+    expect(superseded.status).toBe(200);
+    expect(superseded.body).toEqual({ controls: [], superseded: true });
+    expect(validateDeliveryControlReadResponse(superseded.body).ok).toBe(true);
+    await until(() => hasDeliveryControlWaiter(bench), "the second read to be held");
+    const pause = issueDeliveryControl(bench, {
+      deliveryId: DELIVERY_ID,
+      kind: "pause",
+      body: {},
+      author: { name: "Ada Operator", email: "ada@example.test" },
+    });
+    expect(pause.ok).toBe(true);
+    expect((await second).body).toMatchObject({ controls: [{ control_seq: 3 }], latestSeq: 3 });
+
+    // Step 4: a wait over 25,000 ms is refused.
+    const tooLong = await request(app)
+      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=3&wait=30000`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body).toMatchObject({ code: "INVALID_WAIT", field: "wait" });
+
+    // Step 5: a token revoke ends a held read with 401.
+    const revoked = await holdRead(bench, token, 3, 5000);
+    revokeDeliveryToken(bench);
+    const refused = await revoked.reply;
+    expect(refused.status).toBe(401);
+    expect(refused.body).toMatchObject({ code: "UNAUTHORIZED" });
+    expect(hasDeliveryControlWaiter(bench)).toBe(false);
+  }, 20_000);
+
+  it("SB-TC-100 a read with no wait after a mixed batch returns every control in sequence order, and latestSeq is the highest", async () => {
+    const { bench, token } = await benchWithRecord();
+    expect((await answer(bench, OPEN_DECISION)).status).toBe(202);
+
+    // Step 6: an overturn and a thread message, then a read with no wait.
+    const overturn = issueDeliveryControl(bench, {
+      deliveryId: DELIVERY_ID,
+      kind: "overturn",
+      targetId: DECIDED_DECISION,
+      body: { option: OPTION, reason: "Prefer one file per unit" },
+      author: { name: "Ada Operator", email: "ada@example.test" },
+    });
+    if (!overturn.ok) throw new Error(overturn.errors.join("; "));
+    const message = threadMessage(bench, "Why accept it?");
+
+    const read = await request(app)
+      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&after=1&wait=0`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(read.status).toBe(200);
+    expect(read.body).toEqual({ controls: [overturn.control, message], latestSeq: 3 });
+    // A read with a wait returns at once when a control above `after` is there.
+    // The thread message was served once, so only the overturn is left.
+    const started = performance.now();
+    const durableOnly = await startRead(bench, token, 1, 5000);
+    expect(durableOnly.body).toEqual({ controls: [overturn.control], latestSeq: 3 });
+    expect(durableOnly.at - started).toBeLessThan(2000);
+    expect(hasDeliveryControlWaiter(bench)).toBe(false);
+  });
+
+  it("SB-TC-101 each of 20 controls appended to a held read reaches it within 2 seconds", async () => {
+    const { bench, token } = await benchWithRecord();
+    const author = { name: "Ada Operator", email: "ada@example.test" };
+    const latencies: number[] = [];
+    for (let seq = 1; seq <= 20; seq++) {
+      const held = await holdRead(bench, token, seq - 1, 5000);
+      const appendedAt = performance.now();
+      const issued =
+        seq % 2 === 0
+          ? issueDeliveryControl(bench, {
+              deliveryId: DELIVERY_ID,
+              kind: "steering-note",
+              body: { note: `Note ${seq}`, unit_ids: [] },
+              author,
+            })
+          : issueDeliveryControl(bench, {
+              deliveryId: DELIVERY_ID,
+              kind: "thread_message",
+              targetId: OPEN_DECISION,
+              body: { text: `Message ${seq}` },
+              author,
+            });
+      if (!issued.ok) throw new Error(issued.errors.join("; "));
+      const reply = await held.reply;
+      expect(reply.status).toBe(200);
+      expect(reply.body).toEqual({ controls: [issued.control], latestSeq: seq });
+      latencies.push(reply.at - appendedAt);
+    }
+    expect(latencies).toHaveLength(20);
+    for (const latency of latencies) expect(latency).toBeLessThan(2000);
+  });
+
+  it("answers 400 INVALID_WAIT for a wait that is not an integer from 0 to 25,000, and 401 for a bad token", async () => {
+    const { bench, token } = await benchWithRecord();
+    for (const wait of ["-1", "x", "1.5", "25001", ""]) {
+      const read = await request(app)
+        .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&wait=${wait}`)
+        .set("Authorization", `Bearer ${token}`);
+      expect(read.status).toBe(400);
+      expect(read.body).toMatchObject({ code: "INVALID_WAIT", field: "wait" });
+    }
+    const atCap = startRead(bench, token, 0, 25_000);
+    await until(() => hasDeliveryControlWaiter(bench), "the read at the cap to be held");
+    releaseDeliveryControlWaiters();
+    expect((await atCap).body).toEqual({ controls: [], latestSeq: 0 });
+
+    const bad = await request(app)
+      .get(`/api/hooks/delivery-controls?projectId=demo&benchId=${bench.id}&wait=1000`)
+      .set("Authorization", "Bearer not-the-token");
+    expect(bad.status).toBe(401);
+    expect(hasDeliveryControlWaiter(bench)).toBe(false);
+  });
+
+  it("drops the waiter when the reader closes, ends a held read with 200 and an empty list on shutdown, and with 401 on a new token", async () => {
+    const { bench, token } = await benchWithRecord();
+
+    const aborter = new AbortController();
+    const closing = await holdRead(bench, token, 0, 5000, aborter.signal);
+    aborter.abort();
+    await expect(closing.reply).rejects.toThrow();
+    await until(() => !hasDeliveryControlWaiter(bench), "the waiter to go");
+
+    const shutdown = await holdRead(bench, token, 0, 5000);
+    releaseDeliveryControlWaiters();
+    const ended = await shutdown.reply;
+    expect(ended.status).toBe(200);
+    expect(ended.body).toEqual({ controls: [], latestSeq: 0 });
+
+    // A new token, as a relaunch mints, ends a read held with the old one.
+    const stale = await holdRead(bench, token, 0, 5000);
+    const fresh = mintDeliveryToken(bench);
+    expect((await stale.reply).status).toBe(401);
+    const read = await readControls(bench, fresh, "0");
+    expect(read.status).toBe(200);
   });
 
   it("drops the outbox when the bench is cleared", async () => {

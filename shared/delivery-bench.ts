@@ -38,9 +38,13 @@ import type { SpecBenchDecisionMode } from "./types";
 //
 //   POST <events>        one event envelope or a batch of them (SB-FR-007)
 //   GET <controls>       the control outbox the session reads, above `after`
-//                        (SB-FR-014)
+//                        (SB-FR-014), held up to `wait` ms for the next
+//                        control when none is there yet (SB-FR-041)
 export const DELIVERY_EVENT_HOOK_PATH = "/api/hooks/delivery-event";
 export const DELIVERY_CONTROLS_HOOK_PATH = "/api/hooks/delivery-controls";
+// The longest `wait` a control read takes, in ms. It stays under Node's default
+// request timeouts, so a held read never meets one.
+export const DELIVERY_CONTROL_WAIT_MAX_MS = 25_000;
 
 export interface DeliveryRoutePaths {
   base: string;
