@@ -7,7 +7,11 @@
 //            and a delivery frame goes out on GET /api/notifications/stream.
 //            A unit.changed whose status reads as jammed raises the bench's
 //            delivery-jam notification for the unit, and one whose status does
-//            not dismisses it (see services/delivery-jam.ts)
+//            not dismisses it (see services/delivery-jam.ts). A
+//            decision.raised raises the bench's delivery-decision
+//            notification for the decision, one per decision id, and a
+//            decision.answered or decision.overturned dismisses it (see
+//            services/delivery-decision.ts)
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
 //            bench the query names (another bench's token included). Also when
 //            the query names no Spec Bench, so a caller without a token learns
@@ -61,7 +65,8 @@
 //     ignored.
 //
 // An accepted event that reads a control back (one whose payload names the
-// control's control_seq, or a decision.answered for the decision an answer
+// control's control_seq, a decision.answered for the decision an answer
+// control targets, or a decision.overturned for the decision an overturn
 // control targets) marks that control `applied` in the outbox before the 202
 // (see services/delivery-control-outbox.ts).
 //
@@ -93,6 +98,7 @@ import {
   waitForDeliveryControl,
 } from "../services/delivery-control-outbox.js";
 import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
+import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
 
@@ -246,6 +252,9 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // A unit.changed that jams a unit raises its delivery-jam notification, and
   // one that moves it on dismisses it (SB-FR-019).
   applyDeliveryJamNotifications(bench, result.events);
+  // A decision.raised raises its delivery-decision notification, once per
+  // decision, and an answer or an overturn that lands dismisses it (SB-FR-014).
+  applyDeliveryDecisionNotifications(bench, result.events);
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);

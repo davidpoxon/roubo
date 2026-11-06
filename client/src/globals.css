@@ -99,8 +99,9 @@
 }
 
 /* Motion. DESIGN.md records five keyframes (spin, status-pulse, rise-in,
-   slide-under, drop-away); the first three are implemented here and the pile's
-   two land with it. DESIGN.md suppresses every one of them under
+   slide-under, drop-away); spin is Tailwind's, and the other four are
+   implemented here: slide-under and drop-away move the cards of the delivery
+   decision pile. DESIGN.md suppresses every one of them under
    prefers-reduced-motion: reduce. The
    keyframes here are only attached under no-preference, and the reduce block
    below also stops Tailwind's animate-spin and snaps every transition. */
@@ -125,6 +126,28 @@
   }
 }
 
+@keyframes slide-under {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drop-away {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .animate-status-pulse {
     animation: status-pulse 2s ease-in-out infinite;
@@ -132,6 +155,14 @@
 
   .animate-rise-in {
     animation: rise-in var(--motion-duration-standard) var(--motion-easing-standard);
+  }
+
+  .animate-slide-under {
+    animation: slide-under var(--motion-duration-standard) var(--motion-easing-standard);
+  }
+
+  .animate-drop-away {
+    animation: drop-away var(--motion-duration-fast) var(--motion-easing-accelerate) forwards;
   }
 }
 

@@ -1,6 +1,7 @@
 import type {
   RegisteredProject,
   Bench,
+  DeliveryOutboxControl,
   CreateBenchRequest,
   BrowseDirectoryResponse,
   RepoScanResult,
@@ -635,6 +636,36 @@ export function launchDelivery(
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+// Answer an open decision with one of its options (SB-FR-014): 202 with the
+// decision-answer control the bench's outbox now holds, pending until the
+// session reads it back.
+export function answerDeliveryDecision(
+  projectId: string,
+  benchId: number,
+  decisionId: string,
+  option: string,
+): Promise<DeliveryOutboxControl> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/decisions/${encodeURIComponent(decisionId)}/answer`,
+    { method: "POST", body: JSON.stringify({ option }) },
+  );
+}
+
+// Overturn the applied default of a defaulted decision with another of its
+// options (SB-FR-015): 202 with the overturn control, pending until the session
+// reads it back.
+export function overturnDeliveryDecision(
+  projectId: string,
+  benchId: number,
+  decisionId: string,
+  option: string,
+): Promise<DeliveryOutboxControl> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/decisions/${encodeURIComponent(decisionId)}/overturn`,
+    { method: "POST", body: JSON.stringify({ option }) },
+  );
 }
 
 /** The named read error of a delivery record, when an error carries one. */

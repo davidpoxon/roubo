@@ -114,8 +114,20 @@ describe("formatNotification", () => {
     "agent-exited",
     "agent-exited-unexpectedly",
     "delivery-jam",
+    "delivery-decision",
   ];
   const infoTypes: NotificationType[] = ["bench-ready"];
+
+  it("SB-TC-036: shows the question of a delivery-decision notification", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-decision"),
+      metadata: { decisionId: "decision-1", question: "One file per unit or one per stack?" },
+    };
+    expect(formatNotification(n)).toEqual({
+      title: "Delivery decision",
+      body: "One file per unit or one per stack?",
+    });
+  });
 
   it("SB-TC-047: names the jammed unit in a delivery-jam notification", () => {
     const n = {

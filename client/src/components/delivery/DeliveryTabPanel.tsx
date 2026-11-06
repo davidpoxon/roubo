@@ -2,7 +2,6 @@ import { useRef } from "react";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { selectOpenDecisions } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import {
@@ -12,6 +11,7 @@ import {
   useResumeDelivery,
 } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
+import DecisionPile from "./DecisionPile";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
 import DeliveryRail from "./DeliveryHealth";
@@ -24,8 +24,9 @@ import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 // health rail (SB-FR-019, SB-NFR-006), its progress in cases met and
 // requirements covered (SB-FR-011), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
-// ledger (SB-FR-020) and the controls, when the record conforms, or the named
-// error when it does not. No
+// ledger (SB-FR-020), the decision pile where a decision is answered or its
+// default overturned in place (SB-FR-014, SB-FR-015) and the controls, when the
+// record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -131,7 +132,6 @@ function LaunchDeliveryControl({ bench }: { bench: Bench }) {
 }
 
 function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: DeliverySnapshot }) {
-  const decisions = selectOpenDecisions(snapshot);
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
   const resumeBlocked = useSessionStartBlocked(bench);
@@ -186,31 +186,11 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
 
         <DeliveryDriftLedger snapshot={snapshot} />
 
-        <p className="text-12 text-text-secondary">
-          Sending answers, steering notes and tier changes is not available on this bench yet.
-        </p>
+        <DecisionPile projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
 
-        <section
-          data-testid="delivery-decision-controls"
-          aria-label="Decisions"
-          className="space-y-2"
-        >
-          {decisions.length === 0 && (
-            <p className="text-13 text-text-secondary">No open decisions</p>
-          )}
-          {decisions.map((decision) => (
-            <div key={decision.id} className="space-y-1">
-              <p className="text-13 text-text-body">{decision.question}</p>
-              <div className="flex flex-wrap gap-2">
-                {decision.options.map((option) => (
-                  <Button key={option} isDisabled>
-                    {option}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </section>
+        <p className="text-12 text-text-secondary">
+          Sending steering notes and tier changes is not available on this bench yet.
+        </p>
 
         <section data-testid="delivery-steering-controls" aria-label="Steering">
           <Button isDisabled>Add steering note</Button>
