@@ -585,8 +585,10 @@ router.post(
       );
       return;
     }
-    // The client reads the snapshot again and shows the answer pending.
-    broadcastDeliveryFrame(bench.projectId, bench.id, snapshot.seq);
+    // The answer adds no event, so the seq is unchanged: a `controls` frame is
+    // one the client never skips, so it reads the snapshot again and shows the
+    // answer pending.
+    broadcastDeliveryFrame(bench.projectId, bench.id, snapshot.seq, "controls");
     res.status(202).json(issued.control);
   },
 );

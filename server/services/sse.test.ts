@@ -84,6 +84,21 @@ describe("broadcastDeliveryFrame", () => {
     expect(res.write).toHaveBeenCalledWith(`data: ${JSON.stringify(frame)}\n\n`);
     res._trigger("close");
   });
+
+  it("writes a controls frame when the outbox changed with no new event", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+    broadcastDeliveryFrame("proj-1", 3, 41, "controls");
+    const frame = {
+      type: "delivery",
+      projectId: "proj-1",
+      benchId: 3,
+      change: "controls",
+      seq: 41,
+    };
+    expect(res.write).toHaveBeenCalledWith(`data: ${JSON.stringify(frame)}\n\n`);
+    res._trigger("close");
+  });
 });
 
 describe("broadcast", () => {
