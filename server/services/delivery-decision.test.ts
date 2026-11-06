@@ -117,3 +117,99 @@ describe("applyDeliveryDecisionNotifications", () => {
     expect(notification.dismissByKey).not.toHaveBeenCalled();
   });
 });
+
+describe("applyDeliveryDecisionNotifications: agent decisions and review calls", () => {
+  function decided(seq: number, decisionId: string): DeliveryEvent {
+    return event(
+      seq,
+      "decision.decided",
+      {
+        decision_id: decisionId,
+        question: `Question of ${decisionId}?`,
+        options: ["one", "two"],
+        default: "one",
+        chosen: "two",
+        rationale: `<script>alert("${decisionId}")</script>`,
+        affected_units: ["B", "C"],
+      },
+      "B",
+    );
+  }
+
+  it("SB-TC-080: a decision.decided raises no notification, and a decision.raised still raises one", () => {
+    const bench = makeBench();
+    applyDeliveryDecisionNotifications(bench, [decided(8, "D-1")]);
+    expect(notification.createNotification).not.toHaveBeenCalled();
+
+    applyDeliveryDecisionNotifications(bench, [raised(9, "D-9", "B")]);
+    expect(vi.mocked(notification.createNotification).mock.calls).toEqual([
+      [
+        bench,
+        "delivery-decision",
+        undefined,
+        { decisionId: "D-9", question: "Question of D-9?", unitId: "B" },
+        undefined,
+        undefined,
+        "D-9",
+      ],
+    ]);
+  });
+
+  it("SB-TC-081: a review.opened raises one notification keyed by delivery, trigger and oldest card, with a count only", () => {
+    const bench = makeBench();
+    applyDeliveryDecisionNotifications(bench, [
+      event(10, "review.opened", { trigger: "boundary", unreviewed: ["D-1", "D-2", "D-3"] }),
+    ]);
+    expect(vi.mocked(notification.createNotification).mock.calls).toEqual([
+      [
+        bench,
+        "delivery-decision",
+        undefined,
+        { review: true, count: 3 },
+        undefined,
+        undefined,
+        "review:demo-delivery-1:boundary:D-1",
+      ],
+    ]);
+  });
+
+  it("SB-TC-083: the review notification carries no text the session wrote", () => {
+    const bench = makeBench();
+    applyDeliveryDecisionNotifications(
+      bench,
+      [decided(8, "D-1"), event(9, "review.opened", { trigger: "gate" })],
+      () => ["D-1", "D-2"],
+    );
+    expect(notification.createNotification).toHaveBeenCalledTimes(1);
+    const metadata = vi.mocked(notification.createNotification).mock.calls[0][3];
+    expect(metadata).toEqual({ review: true, count: 2 });
+    expect(JSON.stringify(metadata)).not.toMatch(/script|Question|alert/);
+  });
+
+  it("SB-TC-103: a review.opened listing 100 decisions raises one notification with the count 100", () => {
+    const bench = makeBench();
+    const ids = Array.from({ length: 100 }, (_, index) => `D-${index + 1}`);
+    applyDeliveryDecisionNotifications(bench, [
+      ...ids.map((id, index) => decided(8 + index, id)),
+      event(108, "review.opened", { trigger: "boundary", unreviewed: ids }),
+    ]);
+    expect(vi.mocked(notification.createNotification).mock.calls).toEqual([
+      [
+        bench,
+        "delivery-decision",
+        undefined,
+        { review: true, count: 100 },
+        undefined,
+        undefined,
+        "review:demo-delivery-1:boundary:D-1",
+      ],
+    ]);
+  });
+
+  it("raises nothing for a review.opened with nothing to review", () => {
+    const bench = makeBench();
+    applyDeliveryDecisionNotifications(bench, [event(10, "review.opened", { unreviewed: [] })]);
+    applyDeliveryDecisionNotifications(bench, [event(11, "review.opened", {})]);
+    expect(notification.createNotification).not.toHaveBeenCalled();
+  });
+});

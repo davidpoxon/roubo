@@ -129,6 +129,26 @@ describe("formatNotification", () => {
     });
   });
 
+  it("SB-TC-081: composes a review call's notification from its count alone", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-decision"),
+      dedupeKey: "review:demo-delivery-1:boundary:D-1",
+      metadata: { review: true, count: 3 },
+    };
+    expect(formatNotification(n)).toEqual({
+      title: "Delivery review",
+      body: "3 agent decisions wait for your review",
+    });
+  });
+
+  it("SB-TC-103: carries the count 100 in a review call's notification", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-decision"),
+      metadata: { review: true, count: 100 },
+    };
+    expect(formatNotification(n).body).toBe("100 agent decisions wait for your review");
+  });
+
   it("SB-TC-047: names the jammed unit in a delivery-jam notification", () => {
     const n = {
       ...makeNotification("action-needed", "delivery-jam"),

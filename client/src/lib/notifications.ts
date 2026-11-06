@@ -80,6 +80,22 @@ export function formatNotification(notification: BenchNotification): {
       body: `Unit ${unitId} of the delivery is jammed and waits for you`,
     };
   }
+  // A review call (SB-FR-034) is composed from its count alone: no text the
+  // session wrote reaches it (SB-NFR-009).
+  const count = notification.metadata?.count;
+  if (
+    notification.type === "delivery-decision" &&
+    notification.metadata?.review === true &&
+    typeof count === "number"
+  ) {
+    return {
+      title: "Delivery review",
+      body:
+        count === 1
+          ? "1 agent decision waits for your review"
+          : `${count} agent decisions wait for your review`,
+    };
+  }
   const question = notification.metadata?.question;
   if (
     notification.type === "delivery-decision" &&

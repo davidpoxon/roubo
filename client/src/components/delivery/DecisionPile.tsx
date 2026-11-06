@@ -8,6 +8,7 @@ import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
 import { useDecisionControl, type DecisionControlKind } from "../../hooks/useDelivery";
+import ReviewPile from "./ReviewPile";
 
 // The decision pile of the Delivery tab (SB-FR-014, SB-FR-015, SB-NFR-004), the
 // Decision item of DESIGN.md. Every question the delivery session asked that is
@@ -23,6 +24,9 @@ import { useDecisionControl, type DecisionControlKind } from "../../hooks/useDel
 // decision shows its default as applied and pending overturn, and Overturn
 // offers the other options; an overturned one shows the option that replaced
 // its default. The pile announces each change of state in a polite live region.
+//
+// The decisions the session made on its own in auto mode join the pile as
+// Review cards, oldest first, beneath the questions (see ReviewPile).
 
 // How long a leaving card stays for its drop-away: motion.duration.fast.
 export const DECISION_DROP_AWAY_MS = 150;
@@ -381,6 +385,7 @@ export default function DecisionPile({
           })}
         </ul>
       )}
+      <ReviewPile projectId={projectId} benchId={benchId} snapshot={snapshot} />
     </section>
   );
 }

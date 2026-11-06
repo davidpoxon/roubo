@@ -10,8 +10,12 @@
 //            not dismisses it (see services/delivery-jam.ts). A
 //            decision.raised raises the bench's delivery-decision
 //            notification for the decision, one per decision id, and a
-//            decision.answered or decision.overturned dismisses it (see
-//            services/delivery-decision.ts)
+//            decision.answered or decision.overturned dismisses it. A
+//            decision.decided raises none. A review.opened raises one
+//            delivery-decision notification for the review call, keyed by
+//            the delivery, the trigger and the oldest unreviewed decision,
+//            whose metadata carries the count to review and no session text
+//            (see services/delivery-decision.ts)
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
 //            bench the query names (another bench's token included). Also when
 //            the query names no Spec Bench, so a caller without a token learns
@@ -66,8 +70,9 @@
 //
 // An accepted event that reads a control back (one whose payload names the
 // control's control_seq, a decision.answered for the decision an answer
-// control targets, or a decision.overturned for the decision an overturn
-// control targets) marks that control `applied` in the outbox before the 202
+// control targets, a decision.overturned for the decision an overturn
+// control targets, or a review.outcome for the decision a review_accept or an
+// overturn control targets) marks that control `applied` in the outbox before the 202
 // (see services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
@@ -94,7 +99,8 @@ import {
   readDeliveryControls,
   waitForDeliveryControl,
 } from "../services/delivery-control-outbox.js";
-import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
+import { foldDelivery } from "@roubo/shared/delivery-reducer";
+import { deliveryEventsAfterRecord, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
@@ -251,7 +257,19 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   applyDeliveryJamNotifications(bench, result.events);
   // A decision.raised raises its delivery-decision notification, once per
   // decision, and an answer or an overturn that lands dismisses it (SB-FR-014).
-  applyDeliveryDecisionNotifications(bench, result.events);
+  // A review.opened raises one for the review call (SB-FR-034); one that lists
+  // no decision reviews what the folded delivery holds unreviewed.
+  const record = loaded.ok ? loaded.record : undefined;
+  applyDeliveryDecisionNotifications(bench, result.events, () => {
+    if (record === undefined) return [];
+    const accepted = deliveryEventsAfterRecord(
+      bench.projectId,
+      bench.id,
+      record,
+      benchDeliveryEventSpillPath(bench),
+    );
+    return foldDelivery({ record, events: accepted }).review.unreviewed;
+  });
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
