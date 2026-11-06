@@ -12,14 +12,22 @@
 // decision and answers it again raises nothing.
 //
 // A decision the session decided on its own (`decision.decided`, auto mode)
-// raises nothing: it waits on the review stack (SB-FR-033). A `review.opened`
-// raises one `delivery-decision` notification for the review call (SB-FR-034),
-// keyed by the delivery, the trigger and the oldest unreviewed decision, so the
-// same review call again raises none. Its metadata carries the count of
-// decisions to review and nothing the session wrote (SB-NFR-009): no question,
-// rationale, summary or reply reaches it.
+// raises nothing: it waits on the review stack (SB-FR-033). A batch that holds
+// a `review.opened` raises one `delivery-decision` notification for the review
+// call (SB-FR-034). It reads the folded delivery after the batch, not the
+// event's own list: the fold drops a listed id that names no unreviewed agent
+// decision and adds every unreviewed agent decision the list leaves out, so
+// the count is the number of decision cards on the pile and the oldest card is
+// the first of them by decided_at, as the review stack orders it. Only the
+// trigger comes from the event. The notification is keyed by the delivery, the
+// trigger and that oldest card, so the same review call again raises none, and
+// a fold with no open review or no decision card raises nothing. Its metadata
+// carries the count of decisions to review and nothing the session wrote
+// (SB-NFR-009): no question, rationale, summary or reply reaches it.
 import type { Bench } from "@roubo/shared";
 import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
+import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import { selectReviewStack } from "@roubo/shared/delivery-selectors";
 import { createNotification, dismissByKey } from "./notification.js";
 
 export const DELIVERY_DECISION_RAISED_TYPE = "decision.raised";
@@ -75,50 +83,56 @@ export function reviewNotificationKey(
   return `review:${deliveryId}:${trigger ?? ""}:${oldestId}`;
 }
 
-function payloadIds(payload: Record<string, unknown>, key: string): string[] | undefined {
-  const value = payload[key];
-  if (!Array.isArray(value)) return undefined;
-  return value.every((entry) => typeof entry === "string" && entry.length > 0)
-    ? (value as string[])
-    : undefined;
+/**
+ * The decision cards of the folded delivery's open review, oldest first by
+ * decided_at as the review stack orders them; empty when no review is open.
+ */
+export function openReviewDecisionIds(snapshot: DeliverySnapshot): string[] {
+  if (snapshot.review.status !== "open") return [];
+  const listed = new Set(snapshot.review.unreviewed);
+  return selectReviewStack(snapshot)
+    .filter((card) => card.kind === "decision" && listed.has(card.id))
+    .map((card) => card.id);
 }
 
-function applyReviewNotifications(
+function applyReviewNotification(
   bench: Bench,
   events: readonly DeliveryEvent[],
-  unreviewedNow: () => readonly string[],
+  foldedNow: () => DeliverySnapshot | undefined,
 ): void {
-  for (const event of events) {
-    if (event.type !== DELIVERY_REVIEW_OPENED_TYPE) continue;
-    const payload = event.payload as Record<string, unknown>;
-    // The event lists the decisions to review oldest first; one that lists
-    // none reviews what the folded delivery holds unreviewed.
-    const unreviewed = payloadIds(payload, "unreviewed") ?? unreviewedNow();
-    const oldest = unreviewed[0];
-    if (oldest === undefined) continue;
-    createNotification(
-      bench,
-      "delivery-decision",
-      undefined,
-      { review: true, count: unreviewed.length },
-      undefined,
-      undefined,
-      reviewNotificationKey(event.delivery_id, payloadString(payload, "trigger"), oldest),
-    );
-  }
+  // The last review.opened of the batch names the trigger; nothing else is
+  // read from the event.
+  const opened = events.filter((event) => event.type === DELIVERY_REVIEW_OPENED_TYPE).at(-1);
+  if (opened === undefined) return;
+  const snapshot = foldedNow();
+  if (snapshot === undefined) return;
+  const cards = openReviewDecisionIds(snapshot);
+  const oldest = cards[0];
+  if (oldest === undefined) return;
+  const trigger = payloadString(opened.payload as Record<string, unknown>, "trigger");
+  createNotification(
+    bench,
+    "delivery-decision",
+    undefined,
+    { review: true, count: cards.length },
+    undefined,
+    undefined,
+    reviewNotificationKey(opened.delivery_id, trigger, oldest),
+  );
 }
 
 /**
  * Raises and dismisses the decision notifications of the accepted events.
- * `unreviewedNow` answers the folded delivery's unreviewed decisions, oldest
- * first, for a `review.opened` that lists none; it is read only then.
+ * `foldedNow` answers the folded delivery after the events, or undefined when
+ * there is no record to fold; it is read only when the events hold a
+ * `review.opened`.
  */
 export function applyDeliveryDecisionNotifications(
   bench: Bench,
   events: readonly DeliveryEvent[],
-  unreviewedNow: () => readonly string[] = () => [],
+  foldedNow: () => DeliverySnapshot | undefined = () => undefined,
 ): void {
-  applyReviewNotifications(bench, events, unreviewedNow);
+  applyReviewNotification(bench, events, foldedNow);
   for (const [decisionId, notice] of lastNoticeByDecision(events)) {
     if (notice.kind === "raised") {
       createNotification(

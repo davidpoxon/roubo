@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { DeliveryOutboxControl } from "@roubo/shared";
 import {
   DELIVERY_CONTROL_SCHEMA_ID,
   DELIVERY_CONTROL_SCHEMA_VERSION,
@@ -12,12 +11,6 @@ import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract"
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
 import { renderWithProviders } from "../../test/renderWithProviders";
-
-vi.mock("../../lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../lib/api")>();
-  return { ...actual, acceptDeliveryDecision: vi.fn(), fetchDelivery: vi.fn() };
-});
-import * as api from "../../lib/api";
 import ReviewPile from "./ReviewPile";
 
 const OPTIONS = ["one file per unit", "one file per stack"];
@@ -49,6 +42,8 @@ function other(seq: number, type: string, payload: Record<string, unknown>): Del
   return unitEvent(seq, "B", type, payload, "2026-10-16T10:31:00Z");
 }
 
+// An operator's accept of the decision in the outbox, as the snapshot carries
+// it; the pile only reads it.
 function acceptControl(decisionId: string, status = "pending"): DeliveryControl {
   return {
     $schema: DELIVERY_CONTROL_SCHEMA_ID,
@@ -65,26 +60,10 @@ function acceptControl(decisionId: string, status = "pending"): DeliveryControl 
 }
 
 function pileOf(events: DeliveryEvent[], controls: DeliveryControl[] = []) {
-  return (
-    <ReviewPile
-      projectId="demo"
-      benchId={3}
-      snapshot={foldDelivery({ record: autoRecord(), events, controls })}
-    />
-  );
+  return <ReviewPile snapshot={foldDelivery({ record: autoRecord(), events, controls })} />;
 }
 
 const card = (id: string) => screen.getByTestId(`review-card-${id}`);
-
-beforeEach(() => {
-  vi.mocked(api.acceptDeliveryDecision).mockImplementation(
-    async (_p, _b, id) =>
-      ({
-        ...acceptControl(id),
-        author: { name: "Ada", email: "ada@example.test" },
-      }) as DeliveryOutboxControl,
-  );
-});
 
 afterEach(() => {
   cleanup();
@@ -107,7 +86,7 @@ describe("ReviewPile", () => {
     expect(within(top).getByTestId("review-badge")).toHaveTextContent("D-1 · decided");
   });
 
-  it("SB-TC-081: at a review the oldest card is on top reading to review, Accept queues it, and the next oldest rises after its outcome", async () => {
+  it("SB-TC-081: at a review the oldest card is on top reading to review, and the next oldest rises after its outcome", () => {
     const events = [
       decided(8, "D-2", 2),
       decided(9, "D-1", 1),
@@ -120,22 +99,12 @@ describe("ReviewPile", () => {
     expect(card("D-2")).toHaveAttribute("data-position", "lower");
     expect(card("D-3")).toHaveAttribute("data-position", "lower");
 
-    const user = userEvent.setup();
-    await user.click(within(card("D-1")).getByRole("button", { name: "Accept" }));
-    expect(api.acceptDeliveryDecision).toHaveBeenCalledWith("demo", 3, "D-1");
-
-    rerender(pileOf(events, [acceptControl("D-1")]));
-    expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · queued");
-    expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
-      "accept queued · next boundary",
-    );
-    expect(within(card("D-1")).getByRole("button", { name: "Accept" })).toBeDisabled();
+    // The card offers no Accept action in this slice: the session posts the
+    // outcome.
+    expect(within(card("D-1")).queryByRole("button", { name: "Accept" })).toBeNull();
 
     rerender(
-      pileOf(
-        [...events, other(12, "review.outcome", { decision_id: "D-1", status: "accepted" })],
-        [acceptControl("D-1", "applied")],
-      ),
+      pileOf([...events, other(12, "review.outcome", { decision_id: "D-1", status: "accepted" })]),
     );
     expect(screen.queryByTestId("review-card-D-1")).not.toBeInTheDocument();
     expect(card("D-2")).toHaveAttribute("data-position", "top");
@@ -199,6 +168,18 @@ describe("ReviewPile", () => {
     expect(
       within(screen.getByRole("list", { name: "Review pile" })).getAllByTestId("review-rationale"),
     ).toHaveLength(1);
+  });
+
+  it("reads queued while an operator's review control on the card waits in the outbox", () => {
+    const events = [
+      decided(8, "D-1", 1),
+      other(9, "review.opened", { trigger: "boundary", unreviewed: ["D-1"] }),
+    ];
+    renderWithProviders(pileOf(events, [acceptControl("D-1")]));
+    expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · queued");
+    expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
+      "accept queued · next boundary",
+    );
   });
 
   it("renders nothing when no agent decision waits or was reviewed", () => {
