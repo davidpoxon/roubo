@@ -124,6 +124,27 @@ describe("BenchCard", () => {
       expect(badge.className).toContain("text-accent-text");
     });
 
+    it("SB-TC-079: a Spec Bench in auto mode reads Spec Bench · auto in its variant badge", () => {
+      makeDefaultMutations();
+      const { unmount } = renderCard(
+        makeBench({
+          variant: "specbench",
+          deliveryBindMode: "launch",
+          deliveryDecisionMode: "auto",
+        }),
+      );
+      expect(screen.getByTestId("bench-variant-badge")).toHaveTextContent("Spec Bench · auto");
+      unmount();
+      renderCard(
+        makeBench({
+          variant: "specbench",
+          deliveryBindMode: "launch",
+          deliveryDecisionMode: "attended",
+        }),
+      );
+      expect(screen.getByTestId("bench-variant-badge").textContent).toBe("Spec Bench");
+    });
+
     it("SB-TC-008: shows no variant badge on a plain bench or a TestBench", () => {
       makeDefaultMutations();
       const { unmount } = renderCard(makeBench());

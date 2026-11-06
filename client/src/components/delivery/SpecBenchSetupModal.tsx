@@ -9,12 +9,15 @@ import {
   ToggleButtonGroup,
 } from "react-aria-components";
 import { AlertTriangle, Check, FileText, Workflow } from "lucide-react";
-import type { SpecBenchBindMode } from "@roubo/shared";
+import type { SpecBenchBindMode, SpecBenchDecisionMode } from "@roubo/shared";
+import { DEFAULT_SPEC_BENCH_DECISION_MODE } from "@roubo/shared";
 import { stampAriaModal } from "../../lib/aria-modal";
 import { useTestbenchSpecs } from "../../hooks/useTestbenchSpecs";
 import { useSpecBenchSpecSummary } from "../../hooks/useSpecBenchSpecSummary";
 import type { DiscoveredSpec } from "../../lib/api";
 import Spinner from "../Spinner";
+import ModeSwitch from "./ModeSwitch";
+import { DECISION_MODE_OPTIONS } from "./decision-modes";
 
 // The two ways a Spec Bench binds to its delivery (SB-FR-001, SB-FR-002).
 const MODES: Array<{ id: SpecBenchBindMode; label: string; description: string }> = [
@@ -40,10 +43,11 @@ const ROW_CLASS = (selected: boolean) =>
   }`;
 
 // The Set up Spec Bench dialog (SB-FR-001, SB-US-001): pick a spec of the
-// project, choose how the bench binds to its delivery, read the spec, the mode
-// and a summary of the spec's units and gates, then confirm. Confirm calls
-// onConfirm with the spec folder and the mode, and the host owns the create
-// call. Dismissal never calls onConfirm.
+// project, choose how the bench binds to its delivery and, for a launch, who
+// decides in it (SB-FR-031: attended by default), read the spec, the mode and a
+// summary of the spec's units and gates, then confirm. Confirm calls onConfirm
+// with the spec folder, the mode and the decision mode, and the host owns the
+// create call. Dismissal never calls onConfirm.
 export default function SpecBenchSetupModal({
   isOpen,
   onClose,
@@ -55,7 +59,11 @@ export default function SpecBenchSetupModal({
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
-  onConfirm: (focusedSpecPath: string, mode: SpecBenchBindMode) => void;
+  onConfirm: (
+    focusedSpecPath: string,
+    mode: SpecBenchBindMode,
+    decisionMode: SpecBenchDecisionMode,
+  ) => void;
   isCreating?: boolean;
   error?: string | null;
 }) {
@@ -63,6 +71,9 @@ export default function SpecBenchSetupModal({
   const specs = (specsQuery.data?.specs ?? []).filter((spec) => !spec.lifecycle.archived);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [mode, setMode] = useState<SpecBenchBindMode | null>(null);
+  const [decisionMode, setDecisionMode] = useState<SpecBenchDecisionMode>(
+    DEFAULT_SPEC_BENCH_DECISION_MODE,
+  );
   const selected = specs.find((spec) => spec.path === selectedPath) ?? null;
   const summary = useSpecBenchSpecSummary(projectId, isOpen && selected ? selected.slug : null);
   const modeLabel = MODES.find((m) => m.id === mode)?.label ?? null;
@@ -70,6 +81,7 @@ export default function SpecBenchSetupModal({
   const handleClose = () => {
     setSelectedPath(null);
     setMode(null);
+    setDecisionMode(DEFAULT_SPEC_BENCH_DECISION_MODE);
     onClose();
   };
 
@@ -181,6 +193,10 @@ export default function SpecBenchSetupModal({
               </ToggleButtonGroup>
             </div>
 
+            {/* An attached delivery already runs in its own decision mode, so
+                only a launch offers the choice. */}
+            {mode !== "attach" && <ModeSwitch value={decisionMode} onChange={setDecisionMode} />}
+
             {selected && (
               <section
                 aria-label="Summary"
@@ -201,6 +217,17 @@ export default function SpecBenchSetupModal({
                     {modeLabel ?? "not chosen"}
                   </span>
                 </p>
+                {mode === "launch" && (
+                  <p>
+                    <span className="text-text-secondary">Decisions </span>
+                    <span
+                      data-testid="specbench-setup-summary-decisions"
+                      className="text-text-primary"
+                    >
+                      {DECISION_MODE_OPTIONS.find((option) => option.id === decisionMode)?.label}
+                    </span>
+                  </p>
+                )}
                 <p data-testid="specbench-setup-summary">
                   <span className="text-text-secondary">Plan </span>
                   {summary.isLoading && <span className="text-text-secondary">Reading...</span>}
@@ -235,7 +262,7 @@ export default function SpecBenchSetupModal({
             </Button>
             <Button
               onPress={() => {
-                if (selected && mode) onConfirm(specFolderOf(selected), mode);
+                if (selected && mode) onConfirm(specFolderOf(selected), mode, decisionMode);
               }}
               isDisabled={!canConfirm}
               className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface not-disabled:active:bg-accent-active"

@@ -74,6 +74,7 @@ import type {
   FileFixIssueRequest,
   FixIssueRecord,
   SpecBenchBindMode,
+  SpecBenchDecisionMode,
 } from "@roubo/shared";
 import type {
   Note,
@@ -277,10 +278,12 @@ export function createBench(
     // TestBench variant (#467): when "testbench", the create path binds the bench
     // to focusedSpecPath rather than to an issue/branch. A Spec Bench
     // ("specbench", SB-FR-001) binds to its spec folder and names how it binds
-    // to its delivery in `deliveryMode`.
+    // to its delivery in `deliveryMode`, and in launch mode who decides in the
+    // delivery in `decisionMode` (SB-FR-031).
     variant?: "testbench" | "specbench";
     focusedSpecPath?: string;
     deliveryMode?: SpecBenchBindMode;
+    decisionMode?: SpecBenchDecisionMode;
   } = {},
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
@@ -293,7 +296,13 @@ export function createBench(
   if (opts.branchConflictResolution) body.branchConflictResolution = opts.branchConflictResolution;
   if (opts.variant) body.variant = opts.variant;
   if (opts.focusedSpecPath) body.focusedSpecPath = opts.focusedSpecPath;
-  if (opts.deliveryMode) body.delivery = { mode: opts.deliveryMode };
+  if (opts.deliveryMode) {
+    body.delivery = {
+      mode: opts.deliveryMode,
+      ...(opts.deliveryMode === "launch" &&
+        opts.decisionMode && { decisionMode: opts.decisionMode }),
+    };
+  }
   return request(`/projects/${projectId}/benches`, {
     method: "POST",
     body: JSON.stringify(body),
