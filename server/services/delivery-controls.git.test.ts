@@ -780,6 +780,42 @@ describe("Review actions on an agent decision", () => {
     expect((await snapshotOf(bench)).controls[0]?.status).toBe("superseded");
   });
 
+  it("SB-TC-087 a read with a wait whose only control above the cursor is superseded is held until the wait ends or a control is issued", async () => {
+    const { bench, token } = await benchWithOpenReview();
+    expect((await accept(bench, DECIDED_DECISION)).status).toBe(202);
+    expect(
+      (await postEvents(bench, token, [reviewOutcome(10, DECIDED_DECISION, "overturned")])).status,
+    ).toBe(202);
+    expect((await snapshotOf(bench)).controls.map((c) => [c.control_seq, c.status])).toEqual([
+      [1, "superseded"],
+    ]);
+
+    // Nothing to serve above the cursor: the read is held until its wait ends.
+    const started = performance.now();
+    const quiet = await holdRead(bench, token, 0, 500);
+    const timedOut = await quiet.reply;
+    expect(timedOut.status).toBe(200);
+    expect(timedOut.body).toEqual({ controls: [], latestSeq: 1 });
+    expect(timedOut.at - started).toBeGreaterThanOrEqual(450);
+
+    // The same read is held again, and a newly issued control ends it.
+    const again = await holdRead(bench, token, 0, 5000);
+    const pause = issueDeliveryControl(bench, {
+      deliveryId: DELIVERY_ID,
+      kind: "pause",
+      body: {},
+      author: { name: "Ada Operator", email: "ada@example.test" },
+    });
+    expect(pause.ok).toBe(true);
+    const woken = await again.reply;
+    expect(woken.status).toBe(200);
+    expect(woken.body).toMatchObject({
+      controls: [{ control_seq: 2, kind: "pause" }],
+      latestSeq: 2,
+    });
+    expect((woken.body.controls as unknown[]).length).toBe(1);
+  }, 10_000);
+
   it("SB-TC-085 a pending accept is superseded by a review.outcome that overturns the decision", async () => {
     const { bench, token } = await benchWithOpenReview();
     const accepted = await accept(bench, DECIDED_DECISION);

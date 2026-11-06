@@ -35,8 +35,9 @@
 // `superseded` in the same write (an operator's second review action on a card
 // before the tooling read the first). A read never serves a superseded control.
 //
-// A read with a `wait` and nothing to return waits here for the next issued
-// control (SB-FR-041): `waitForDeliveryControl` keeps one waiter per bench in
+// A read with a `wait` and nothing to serve (`hasServableDeliveryControl`: a
+// superseded control above its cursor counts as nothing) waits here for the
+// next issued control (SB-FR-041): `waitForDeliveryControl` keeps one waiter per bench in
 // memory, and `issueDeliveryControl` wakes it. A second waiter for the same
 // bench ends the first as superseded. A token revoke or a new token ends it as
 // revoked (see delivery-token-registry.ts), and a server shutdown ends every
@@ -242,6 +243,23 @@ export function releaseDeliveryControlWaiters(): void {
 }
 
 /**
+ * Whether a read with the cursor `after` serves the control: it lies above
+ * `after` and is not `superseded`. The read and its hold gate share this test,
+ * so a read is held whenever it would serve nothing.
+ */
+export function isServableDeliveryControl(
+  control: DeliveryOutboxControl,
+  after: number,
+): boolean {
+  return control.control_seq > after && control.status !== "superseded";
+}
+
+/** Whether a read of the bench with the cursor `after` serves any control. */
+export function hasServableDeliveryControl(bench: Bench, after: number): boolean {
+  return deliveryControlsOf(bench).some((control) => isServableDeliveryControl(control, after));
+}
+
+/**
  * The read reply of the outbox: the controls above `after` in control_seq
  * order, and the latest control_seq. A superseded control is never served. A
  * volatile control is served once: the read that returns it drops it from
@@ -267,8 +285,8 @@ export function readDeliveryControls(bench: Bench, after: number): DeliveryContr
     );
     persist(bench);
   }
-  const controls = deliveryControlsOf(bench).filter(
-    (control) => control.control_seq > after && control.status !== "superseded",
+  const controls = deliveryControlsOf(bench).filter((control) =>
+    isServableDeliveryControl(control, after),
   );
   const served = new Set(
     controls.filter((c) => c.durability === "volatile").map((c) => c.control_seq),
