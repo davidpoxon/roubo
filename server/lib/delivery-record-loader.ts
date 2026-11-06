@@ -13,7 +13,8 @@
 // Nothing is cached: every read goes back to the file and checks it against the
 // record schema, so a record edited on disk, or read again after a restart, is
 // validated again before any view sees it. A record that fails gives one named
-// error (see checkDeliveryRecord in @roubo/shared/delivery-bench).
+// error (see checkDeliveryRecord in @roubo/shared/delivery-bench). Each load
+// of a bench's record prunes the bench's control queue against it (SB-FR-037).
 import fs from "node:fs";
 import path from "node:path";
 import type { Bench } from "@roubo/shared";
@@ -24,6 +25,7 @@ import {
   type DeliveryRecordCheck,
 } from "@roubo/shared/delivery-bench";
 import type { DeliveryFoldInputs } from "@roubo/shared/delivery-reducer";
+import { pruneDeliveryControlQueue } from "../services/delivery-control-outbox.js";
 import { MissingPlanError, readPlanAndResults } from "./testbench-store.js";
 import { buildPlanLifecycle } from "./plan-lifecycle.js";
 import {
@@ -65,9 +67,15 @@ function unsafePath(err: UnsafePathError): DeliveryRecordCheck {
   };
 }
 
-/** Loads the delivery record of a Spec Bench from its workspace. */
+/**
+ * Loads the delivery record of a Spec Bench from its workspace. Given the bench
+ * itself, every load that gives a conformant record also prunes the bench's
+ * control queue against it (SB-FR-037, see pruneDeliveryControlQueue): each
+ * queued control whose effect the record shows leaves the queue, and the bench
+ * is saved when the queue changed. Delivery alone never clears a control.
+ */
 export function loadBenchDeliveryRecord(
-  bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
+  bench: Pick<Bench, "workspacePath" | "focusedSpecPath"> | Bench,
 ): DeliveryRecordCheck {
   let folder: string;
   try {
@@ -76,7 +84,15 @@ export function loadBenchDeliveryRecord(
     if (err instanceof UnsafePathError) return unsafePath(err);
     throw err;
   }
-  return loadDeliveryRecord(folder);
+  const loaded = loadDeliveryRecord(folder);
+  if (loaded.ok && isWholeBench(bench)) pruneDeliveryControlQueue(bench, loaded.record);
+  return loaded;
+}
+
+// Whether the loader was given the bench itself, whose control queue it
+// prunes, and not only the two paths it reads the record from.
+function isWholeBench(bench: Pick<Bench, "workspacePath" | "focusedSpecPath">): bench is Bench {
+  return "projectId" in bench && "id" in bench;
 }
 
 /**
