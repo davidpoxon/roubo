@@ -11,11 +11,14 @@
 //            decision.raised raises the bench's delivery-decision
 //            notification for the decision, one per decision id, and a
 //            decision.answered or decision.overturned dismisses it. A
-//            decision.decided raises none. A review.opened raises one
-//            delivery-decision notification for the review call, keyed by
-//            the delivery, the trigger and the oldest unreviewed decision,
-//            whose metadata carries the count to review and no session text
-//            (see services/delivery-decision.ts)
+//            decision.decided raises none. A batch with a review.opened
+//            raises one delivery-decision notification for the review call,
+//            read from the folded delivery after the batch: its count is the
+//            decision cards of the open review and its key names the
+//            delivery, the event's trigger and the oldest of those cards by
+//            decided_at. The event's own list is not read. The metadata
+//            carries the count and no session text (see
+//            services/delivery-decision.ts)
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
 //            bench the query names (another bench's token included). Also when
 //            the query names no Spec Bench, so a caller without a token learns
@@ -70,9 +73,8 @@
 //
 // An accepted event that reads a control back (one whose payload names the
 // control's control_seq, a decision.answered for the decision an answer
-// control targets, a decision.overturned for the decision an overturn
-// control targets, or a review.outcome for the decision a review_accept or an
-// overturn control targets) marks that control `applied` in the outbox before the 202
+// control targets, or a decision.overturned for the decision an overturn
+// control targets) marks that control `applied` in the outbox before the 202
 // (see services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
@@ -260,18 +262,18 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   applyDeliveryJamNotifications(bench, result.events);
   // A decision.raised raises its delivery-decision notification, once per
   // decision, and an answer or an overturn that lands dismisses it (SB-FR-014).
-  // A review.opened raises one for the review call (SB-FR-034); one that lists
-  // no decision reviews what the folded delivery holds unreviewed.
+  // A review.opened raises one for the review call (SB-FR-034), counted and
+  // keyed from the folded delivery after this batch.
   const record = loaded.ok ? loaded.record : undefined;
   applyDeliveryDecisionNotifications(bench, result.events, () => {
-    if (record === undefined) return [];
+    if (record === undefined) return undefined;
     const accepted = deliveryEventsAfterRecord(
       bench.projectId,
       bench.id,
       record,
       benchDeliveryEventSpillPath(bench),
     );
-    return foldDelivery({ record, events: accepted }).review.unreviewed;
+    return foldDelivery({ record, events: accepted });
   });
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);

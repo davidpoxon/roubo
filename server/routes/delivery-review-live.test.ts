@@ -6,8 +6,7 @@
 //
 // What runs for real: an HTTP server on a loopback port with the delivery
 // event and control routes (routes/delivery-hooks.ts) and their body parser,
-// the delivery routes (routes/delivery.ts: the snapshot read, accept and
-// approve), the notification stream (routes/notifications.ts and
+// the delivery routes (routes/delivery.ts: the snapshot read and approve), the notification stream (routes/notifications.ts and
 // services/sse.ts), the delivery token check, the bench's event log, the
 // control outbox, the record loader over a record in a bench workspace on
 // disk, the decision notification rule (services/delivery-decision.ts) and the
@@ -463,27 +462,42 @@ describe("Agent decisions and the review call over the live path", () => {
     expect(decisionNotifications()).toHaveLength(1);
     expect(frames).toHaveLength(framesBefore);
 
-    // Step 3: the operator accepts D-1, the tooling reads the accept and posts
-    // its outcome; D-1 leaves the pile and D-2 is the top card.
-    const user = userEvent.setup();
-    await user.click(
-      within(reviewCard("D-1") as HTMLElement).getByRole("button", { name: "Accept" }),
-    );
-    await waitFor(
-      () =>
-        expect(within(reviewCard("D-1") as HTMLElement).getByTestId("review-badge")).toHaveTextContent(
-          "D-1 · queued",
-        ),
-      { timeout: 3000 },
-    );
-    const read = await readControls();
-    expect(read.controls).toEqual([
-      expect.objectContaining({ kind: "review_accept", target_id: "D-1", status: "pending" }),
-    ]);
+    // Step 3: the session accepts D-1 and posts its review.outcome; D-1 leaves
+    // the pile and D-2 is the top card. The card offers no Accept action in
+    // this slice, and nothing lands in the outbox.
+    expect(
+      within(reviewCard("D-1") as HTMLElement).queryByRole("button", { name: "Accept" }),
+    ).toBeNull();
     await post([event("review.outcome", { decision_id: "D-1", status: "accepted" })]);
     await waitFor(() => expect(reviewCard("D-1")).not.toBeInTheDocument(), { timeout: 3000 });
     expect(reviewCard("D-2")).toHaveAttribute("data-position", "top");
-    expect(bench.deliveryControlQueue?.[0]?.status).toBe("applied");
+    expect((await readControls()).controls).toEqual([]);
+  });
+
+  it("SB-TC-081 a review call that lists nothing, or a decision already reviewed, notifies for the cards on the pile", async () => {
+    await post([decided("D-1", 1)]);
+    // An empty list while D-1 waits: the fold reviews D-1, and so does the
+    // notification.
+    await post([event("review.opened", { trigger: "boundary", unreviewed: [] })]);
+    expect(decisionNotifications()).toEqual([
+      expect.objectContaining({
+        dedupeKey: "review:demo-delivery-1:boundary:D-1",
+        metadata: { review: true, count: 1 },
+      }),
+    ]);
+
+    // D-1 is reviewed and D-2 waits; a list that still names D-1 counts one card
+    // and keys on D-2, the card on the pile.
+    await post([
+      event("review.outcome", { decision_id: "D-1", status: "accepted" }),
+      decided("D-2", 2),
+    ]);
+    await post([event("review.opened", { trigger: "gate", unreviewed: ["D-1", "D-2"] })]);
+    const latest = decisionNotifications().find((n) => n.dedupeKey?.includes(":gate:"));
+    expect(latest).toMatchObject({
+      dedupeKey: "review:demo-delivery-1:gate:D-2",
+      metadata: { review: true, count: 1 },
+    });
   });
 
   it("SB-TC-083 session text renders as literal characters and stays out of the review notification", async () => {
@@ -582,35 +596,11 @@ describe("Agent decisions and the review call over the live path", () => {
     expect(screen.queryByTestId("delivery-approve-reason")).not.toBeInTheDocument();
   });
 
-  it("refuses an accept of a decision that waits for no review, a second accept, and a bad body", async () => {
-    await post([
-      decided("D-1", 1),
-      event(
-        "decision.raised",
-        { decision_id: "D-9", question: "Which parser?", options: OPTIONS, default: OPTIONS[0] },
-        "B",
-      ),
-    ]);
-    const missing = await operatorPost("decisions/D-404/accept", {});
-    expect(missing.status).toBe(404);
-    expect(await missing.json()).toMatchObject({ code: "DECISION_NOT_FOUND" });
-    const raisedOnly = await operatorPost("decisions/D-9/accept", {});
-    expect(raisedOnly.status).toBe(409);
-    expect(await raisedOnly.json()).toMatchObject({ code: "DECISION_NOT_UNREVIEWED" });
-    const badBody = await operatorPost("decisions/D-1/accept", { summary: 7 });
-    expect(badBody.status).toBe(400);
-    expect(await badBody.json()).toMatchObject({ code: "INVALID_BODY", field: "summary" });
-
-    const first = await operatorPost("decisions/D-1/accept", { summary: "Looks right." });
-    expect(first.status).toBe(202);
-    expect(await first.json()).toMatchObject({
-      kind: "review_accept",
-      target_id: "D-1",
-      body: { summary: "Looks right." },
-    });
-    const second = await operatorPost("decisions/D-1/accept", {});
-    expect(second.status).toBe(409);
-    expect(await second.json()).toMatchObject({ code: "REVIEW_ACCEPT_PENDING", control_seq: 1 });
+  it("offers no accept route, and refuses an approval with a bad reason", async () => {
+    await post([decided("D-1", 1)]);
+    const accept = await operatorPost("decisions/D-1/accept", {});
+    expect(accept.status).toBe(404);
+    expect((await readControls()).controls).toEqual([]);
 
     const badReason = await operatorPost("approve", { reason: ["no"] });
     expect(badReason.status).toBe(400);

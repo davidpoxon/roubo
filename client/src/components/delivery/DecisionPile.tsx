@@ -385,7 +385,7 @@ export default function DecisionPile({
           })}
         </ul>
       )}
-      <ReviewPile projectId={projectId} benchId={benchId} snapshot={snapshot} />
+      <ReviewPile snapshot={snapshot} />
     </section>
   );
 }

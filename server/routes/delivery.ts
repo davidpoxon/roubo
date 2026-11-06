@@ -135,27 +135,6 @@
 //                                                        overturn of the decision waits
 //                                                        for its read-back (`control_seq`)
 //                                                    404 and 409 as the snapshot read
-//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/accept
-//        body {summary?}                        -> 202 DeliveryOutboxControl: a
-//                                                    review_accept control of an
-//                                                    agent decision (SB-FR-034), issued
-//                                                    as an answer is; the session reads
-//                                                    it back with a review.outcome for
-//                                                    the decision, or an event that
-//                                                    names its control_seq
-//                                                    400 INVALID_BODY + field: `summary`
-//                                                        is given and not a string, or
-//                                                        the control fails the control
-//                                                        contract
-//                                                    404 DECISION_NOT_FOUND: as the answer
-//                                                    409 DECISION_NOT_UNREVIEWED: the
-//                                                        decision is not an agent decision
-//                                                        that waits for review (`review`
-//                                                        names its review status)
-//                                                    409 REVIEW_ACCEPT_PENDING: an accept
-//                                                        of the decision waits for its
-//                                                        read-back (`control_seq`)
-//                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/approve
 //        body {reason?}                         -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
@@ -208,7 +187,6 @@ import {
   foldDelivery,
   isDecisionDefaulted,
   isDecisionOpen,
-  isUnreviewedAgentDecision,
   ownValue,
   type DeliverySnapshot,
 } from "@roubo/shared/delivery-reducer";
@@ -781,46 +759,6 @@ router.post(
       return;
     }
     issueControl(res, context, "overturn", decisionId, { option });
-  },
-);
-
-router.post(
-  "/:projectId/benches/:id/delivery/decisions/:decisionId/accept",
-  deliveryControlRateLimiter,
-  async (req, res) => {
-    const bench = specBenchOf(req, res);
-    if (!bench) return;
-    const summary = optionalBodyText(req, res, "summary");
-    if (!summary.ok) return;
-    const context = await controlContext(bench, res);
-    if (!context) return;
-    const target = pathDecision(req, res, context.snapshot);
-    if (!target) return;
-    const { decisionId, decision } = target;
-    if (!isUnreviewedAgentDecision(decision)) {
-      res.status(409).json({
-        error: `The decision ${decisionId} is not an agent decision that waits for review`,
-        code: "DECISION_NOT_UNREVIEWED",
-        ...(decision.review !== undefined && { review: decision.review.status }),
-      });
-      return;
-    }
-    const waiting = waitingControl(bench, "review_accept", decisionId);
-    if (waiting !== undefined) {
-      res.status(409).json({
-        error: `An accept of ${decisionId} waits for the session to read it back`,
-        code: "REVIEW_ACCEPT_PENDING",
-        control_seq: waiting.control_seq,
-      });
-      return;
-    }
-    issueControl(
-      res,
-      context,
-      "review_accept",
-      decisionId,
-      summary.value === undefined ? {} : { summary: summary.value },
-    );
   },
 );
 

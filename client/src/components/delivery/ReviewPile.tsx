@@ -9,21 +9,21 @@ import {
   selectReviewedAgentDecisions,
 } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
-import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
-import { useReviewAccept } from "../../hooks/useDelivery";
 
 // The agent decisions on the decision pile (SB-FR-033, SB-FR-034, SB-NFR-009),
 // the Review card of DESIGN.md. Each decision the session made on its own in
 // auto mode waits here for the operator's review, oldest first. The oldest card
 // is the live top card under the 2px accent rule: its badge, a mono origin line
 // naming where it was decided and the units it affects, the question, the
-// choice, the rationale and its actions. A lower card shows only its title bar,
+// choice, the rationale and its Discuss action, which shows the decision's
+// thread read-only. A lower card shows only its title bar,
 // and raises on click or Enter, so a pile of a hundred cards renders one body.
 // A reviewed card leaves with `drop-away` and the next oldest rises.
 //
 // The badge reads `to review` while a review is open, `decided` during a run,
-// and `queued` once the operator's action waits in the outbox. Every text the
+// and `queued` while an operator's review control on the decision waits in the
+// outbox; this card issues none itself. Every text the
 // session wrote (the question, the choice, the rationale, a reply, a summary)
 // renders as a React text node: never as markup, and never as a link.
 
@@ -32,8 +32,8 @@ export const REVIEW_DROP_AWAY_MS = 150;
 
 const OUTSTANDING_STATUSES: ReadonlySet<string> = new Set(["pending", "queued", "delivered"]);
 
-// The operator's outstanding review action on a decision, if any: an accept,
-// or an overturn, which is also a review outcome.
+// The operator's outstanding review control on a decision, if any: an accept,
+// or an overturn, which is also a review outcome. The card only reads it.
 function queuedAction(
   controls: readonly DeliveryControl[],
   decisionId: string,
@@ -95,15 +95,11 @@ function TopCard({
   word,
   queued,
   thread,
-  isSending,
-  onAccept,
 }: {
   decision: DeliveryDecision;
   word: ReviewWord;
   queued: "accept" | "overturn" | undefined;
   thread: readonly DeliveryThreadMessage[];
-  isSending: boolean;
-  onAccept: () => void;
 }) {
   const [discussing, setDiscussing] = useState(false);
   const threadId = `review-thread-${decision.id}`;
@@ -134,9 +130,6 @@ function TopCard({
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" isDisabled={isSending || queued !== undefined} onPress={onAccept}>
-          Accept
-        </Button>
         <Button
           aria-expanded={discussing}
           aria-controls={discussing ? threadId : undefined}
@@ -172,21 +165,12 @@ function TopCard({
   );
 }
 
-export default function ReviewPile({
-  projectId,
-  benchId,
-  snapshot,
-}: {
-  projectId: string;
-  benchId: number;
-  snapshot: DeliverySnapshot;
-}) {
+export default function ReviewPile({ snapshot }: { snapshot: DeliverySnapshot }) {
   const cards = selectReviewStack(snapshot).flatMap((card) =>
     card.kind === "decision" ? [card.decision] : [],
   );
   const reviewed = selectReviewedAgentDecisions(snapshot);
   const reviewOpen = snapshot.review.status === "open";
-  const accept = useReviewAccept(projectId, benchId);
   const [raisedId, setRaisedId] = useState<string | undefined>(undefined);
   const [announcement, setAnnouncement] = useState("");
   const [leaving, setLeaving] = useState<DeliveryDecision[]>([]);
@@ -216,16 +200,6 @@ export default function ReviewPile({
   const top = cards.find((decision) => decision.id === raisedId) ?? cards[0];
   const lower = cards.filter((decision) => decision !== top);
 
-  const sendAccept = (decisionId: string) => {
-    accept.mutate(
-      { decisionId },
-      {
-        onSuccess: () =>
-          setAnnouncement(`Accepted ${decisionId}, queued until the session applies it.`),
-      },
-    );
-  };
-
   return (
     <section
       data-testid="delivery-review-pile"
@@ -235,11 +209,6 @@ export default function ReviewPile({
       <div role="status" aria-live="polite" className="sr-only" data-testid="review-announcer">
         {announcement}
       </div>
-      {accept.isError && (
-        <Callout role="alert" title="The accept was not sent">
-          {accept.error.message}
-        </Callout>
-      )}
       {leaving.map((decision) => (
         <div
           key={`leaving-${decision.id}`}
@@ -258,8 +227,6 @@ export default function ReviewPile({
               word={reviewWord(reviewOpen, queuedAction(snapshot.controls, top.id))}
               queued={queuedAction(snapshot.controls, top.id)}
               thread={selectDecisionThread(snapshot, top.id)}
-              isSending={accept.isPending}
-              onAccept={() => sendAccept(top.id)}
             />
           </li>
           {lower.map((decision) => (
