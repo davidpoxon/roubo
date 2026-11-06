@@ -22,7 +22,7 @@
 //
 // Addressing. The unit an event is about is the envelope's `unit_id`. Every
 // other entity is named by a payload key: `gate_id`, `decision_id` (or `id`),
-// `steering_id` (or `id`), `seam`.
+// `steering_id` (or `id`), `seam`, `role`.
 //
 // Seq rules. An event whose `seq` is at or below the accepted seq (the record's
 // `last_event_seq`, then the last applied event) is ignored. The next event must
@@ -387,6 +387,14 @@ export interface DeliveryPlannedPayload {
 
 export type LifecycleChangedPayload = Partial<DeliveryLifecycle>;
 
+// The tooling applied a change of one role's tier (SB-FR-021): one role per
+// event, named by the payload key `role`, as the role-change control's
+// `target_id` names it, and `control_seq` names that control.
+export interface RolesAppliedPayload extends ReadBackPayload {
+  role?: string;
+  tier?: string;
+}
+
 export type UnitChangedPayload = Partial<Omit<DeliveryUnit, "id">>;
 
 export interface GateChangedPayload extends Partial<Omit<DeliveryGate, "id">> {
@@ -681,6 +689,18 @@ const onLifecycleChanged: EventHandler = (state, event) => {
   if (isString(payload.ended_at) || payload.ended_at === null) patch.ended_at = payload.ended_at;
   if (Object.keys(patch).length === 0) return state;
   return { ...state, lifecycle: merge(state.lifecycle, patch) };
+};
+
+// A `roles.applied` makes the payload's tier the role's current tier, keeping
+// the role's other keys. A role the record does not carry yet is added, since
+// the tooling applied it. A payload without a role or a tier is skipped.
+const onRolesApplied: EventHandler = (state, event) => {
+  const payload = event.payload as RolesAppliedPayload;
+  if (!isString(payload.role) || !isString(payload.tier)) return state;
+  const current = ownValue(state.roles, payload.role);
+  const roles: Record<string, DeliveryRole> = { ...state.roles };
+  setOwnValue(roles, payload.role, { ...current, tier: payload.tier });
+  return { ...state, roles };
 };
 
 const onUnitChanged: EventHandler = (state, event) => {
@@ -1192,6 +1212,7 @@ const onGateConfirmed: EventHandler = (state, event) => {
 export const EVENT_HANDLERS: Readonly<Record<string, EventHandler>> = {
   "delivery.planned": onDeliveryPlanned,
   "lifecycle.changed": onLifecycleChanged,
+  "roles.applied": onRolesApplied,
   "unit.changed": onUnitChanged,
   "gate.changed": onGateChanged,
   "decision.raised": onDecisionRaised,

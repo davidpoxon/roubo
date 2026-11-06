@@ -188,13 +188,51 @@ export function useSteeringNote(projectId: string, benchId: number) {
 }
 
 /**
- * Approves the delivery (SB-FR-034). The server refuses it with 409
- * REVIEW_OPEN while a review is open.
+ * Approves the delivery (SB-FR-022, SB-FR-034). The server refuses it with a
+ * 409 once the delivery is complete, while a review is open, or while a
+ * gating case is unmet.
  */
 export function useApproveDelivery(projectId: string, benchId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.approveDelivery(projectId, benchId),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
+/**
+ * Pauses the delivery or winds it down (SB-FR-022). The control lands in the
+ * bench's outbox, so the snapshot is read again once the request settles; the
+ * health chip follows the session's `lifecycle.changed`.
+ */
+export function useLifecycleControl(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: "pause" | "wind-down") =>
+      action === "pause"
+        ? api.pauseDelivery(projectId, benchId)
+        : api.windDownDelivery(projectId, benchId),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
+export interface RoleChangeRequest {
+  role: string;
+  tier: string;
+}
+
+/**
+ * Changes a role's model tier (SB-FR-021). The role-change control lands in
+ * the bench's outbox, so the snapshot, which lists the outbox, is read again
+ * once the request settles, and the row shows pending until the read-back.
+ */
+export function useRoleChange(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ role, tier }: RoleChangeRequest) =>
+      api.changeDeliveryRole(projectId, benchId, role, tier),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
   });

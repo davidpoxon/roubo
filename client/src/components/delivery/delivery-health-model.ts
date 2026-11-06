@@ -9,12 +9,17 @@ import type { StatusTone } from "../ui/styles";
 export const DELIVERY_HEALTH_TICK_MS = 5_000;
 
 // DESIGN.md Health chip: stale takes `status-preparing`, disconnected and
-// blocked take `status-error`.
+// blocked take `status-error`. The lifecycle words (SB-FR-022) take
+// `status-idle` while the delivery is paused or wound down, and
+// `status-active` once it is complete.
 export const HEALTH_TONES: Record<DeliveryHealthWord, StatusTone> = {
   fresh: "active",
   stale: "preparing",
   disconnected: "error",
   blocked: "error",
+  paused: "idle",
+  "wound down": "idle",
+  complete: "active",
 };
 
 // The chip's label always carries the word; a blocked delivery also names the
