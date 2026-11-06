@@ -427,7 +427,9 @@ export interface DecisionOverturnedPayload extends ReadBackPayload {
   overturned_at?: string;
 }
 
-export interface SteeringAddedPayload extends Partial<Omit<DeliverySteering, "id">> {
+// `control_seq` names the steering-note control the event reads back.
+export interface SteeringAddedPayload
+  extends Partial<Omit<DeliverySteering, "id">>, ReadBackPayload {
   steering_id?: string;
   id?: string;
 }
@@ -825,6 +827,10 @@ const onDecisionOverturned: EventHandler = (state, event) => {
   return { ...state, decisionsById };
 };
 
+// A `steering.added` whose payload carries a `control_seq` is the session's
+// read-back of the operator's steering-note control (SB-FR-016): its note is
+// the read-back text, and the entry keeps that `control_seq` (a loose key of the
+// steering entry), so a view can put the read-back beside the note it answers.
 const onSteeringAdded: EventHandler = (state, event) => {
   const payload = event.payload as SteeringAddedPayload;
   const id = isString(payload.steering_id) ? payload.steering_id : payload.id;
@@ -835,6 +841,9 @@ const onSteeringAdded: EventHandler = (state, event) => {
     unit_ids: isStringArray(payload.unit_ids) ? [...payload.unit_ids] : [],
     created_at: isString(payload.created_at) ? payload.created_at : event.ts,
   };
+  if (Number.isSafeInteger(payload.control_seq) && (payload.control_seq as number) >= 1) {
+    steering.control_seq = payload.control_seq;
+  }
   return { ...state, steeringById: { ...state.steeringById, [id]: steering } };
 };
 
