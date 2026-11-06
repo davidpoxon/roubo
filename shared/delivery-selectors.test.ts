@@ -7,6 +7,11 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract.js";
+import {
+  DELIVERY_CONTROL_SCHEMA_ID,
+  DELIVERY_CONTROL_SCHEMA_VERSION,
+  type DeliveryControl,
+} from "./delivery-control-contract.js";
 import { foldDelivery } from "./delivery-reducer.js";
 import { resolvePlan } from "./lifecycle-resolver.js";
 import {
@@ -27,8 +32,10 @@ import {
   selectReview,
   selectReviewStack,
   selectReviewedAgentDecisions,
+  selectBoundaryPanel,
   selectStalenessAge,
   selectSteeringFor,
+  selectSteeringNotes,
   selectUnitDependencies,
   selectUnitStack,
   selectUnitStatus,
@@ -362,6 +369,113 @@ describe("delivery selectors", () => {
     expect(selectOpenDecisions(snapshot, "B")).toEqual([]);
     expect(selectSteeringFor(snapshot, "A")).toEqual([]);
     expect(selectSteeringFor(snapshot, "C").map((note) => note.id)).toEqual(["steering-1"]);
+  });
+
+  describe("steering notes and the boundary panel", () => {
+    function control(
+      seq: number,
+      kind: "steering-note" | "role-change" | "approval",
+      status: DeliveryControl["status"],
+      body: Record<string, unknown>,
+      targetId?: string,
+    ): DeliveryControl {
+      return {
+        $schema: DELIVERY_CONTROL_SCHEMA_ID,
+        schemaVersion: DELIVERY_CONTROL_SCHEMA_VERSION,
+        delivery_id: "demo-delivery-1",
+        control_seq: seq,
+        kind,
+        ...(targetId !== undefined && { target_id: targetId }),
+        body,
+        durability: "durable",
+        issued_at: "2026-10-16T10:00:00Z",
+        status,
+      } as DeliveryControl;
+    }
+
+    const note = (seq: number, status: DeliveryControl["status"], text = `Note ${seq}.`) =>
+      control(seq, "steering-note", status, { note: text, unit_ids: [], applies_at: "B" });
+
+    it("SB-TC-039 selectSteeringNotes reads a note queued until its read-back, then applied with the read-back text", () => {
+      const record = fixtureRecord();
+      const queued = foldDelivery({
+        record,
+        events: [event(8, "unit.changed", { status: "done" }, "B")],
+        controls: [note(1, "delivered")],
+      });
+      expect(selectSteeringNotes(queued)).toEqual([
+        {
+          controlSeq: 1,
+          note: "Note 1.",
+          appliesAt: "B",
+          state: "queued",
+          readBack: null,
+          issuedAt: "2026-10-16T10:00:00Z",
+        },
+      ]);
+
+      const applied = foldDelivery({
+        record,
+        events: [
+          event(8, "unit.changed", { status: "done" }, "B"),
+          event(9, "steering.added", {
+            steering_id: "s-2",
+            note: "Will do from C on.",
+            control_seq: 1,
+          }),
+        ],
+        controls: [note(1, "applied")],
+      });
+      expect(applied.steeringById["s-2"]?.control_seq).toBe(1);
+      expect(selectSteeringNotes(applied)).toEqual([
+        expect.objectContaining({ controlSeq: 1, state: "applied", readBack: "Will do from C on." }),
+      ]);
+    });
+
+    it("SB-TC-039 selectSteeringNotes leaves out a superseded note and reads a refused one as rejected", () => {
+      const snapshot = foldDelivery({
+        record: fixtureRecord(),
+        events: [],
+        controls: [note(1, "superseded"), note(2, "rejected"), note(3, "pending")],
+      });
+      expect(selectSteeringNotes(snapshot).map((view) => [view.controlSeq, view.state])).toEqual([
+        [2, "rejected"],
+        [3, "queued"],
+      ]);
+    });
+
+    it("SB-TC-040 selectBoundaryPanel names the next boundary and lists every queued note and role change", () => {
+      const record = fixtureRecord();
+      const controls = [
+        control(1, "role-change", "pending", { tier: "balanced" }, "unit-coder"),
+        note(2, "delivered"),
+        control(3, "approval", "pending", {}),
+      ];
+      const before = selectBoundaryPanel(foldDelivery({ record, events: [], controls }));
+      expect(before.boundary).toMatchObject({ unitId: "B", kind: "finish" });
+      expect(before.queued).toEqual([
+        { kind: "role-change", controlSeq: 1, role: "unit-coder", tier: "balanced" },
+        { kind: "steering-note", controlSeq: 2, note: "Note 2.", appliesAt: "B" },
+      ]);
+
+      // After the boundary event with the read-backs of both.
+      const after = selectBoundaryPanel(
+        foldDelivery({
+          record,
+          events: [
+            event(8, "unit.changed", { status: "done" }, "B"),
+            event(9, "unit.changed", { status: "running" }, "C"),
+          ],
+          controls: [
+            control(1, "role-change", "applied", { tier: "balanced" }, "unit-coder"),
+            note(2, "applied"),
+            control(3, "approval", "pending", {}),
+          ],
+        }),
+      );
+      expect(after.boundary).toMatchObject({ unitId: "C", kind: "finish" });
+      expect(after.queued).toEqual([]);
+    });
   });
 
   it("SB-TC-036: selectDecisionPile puts the newest decision on top and keeps defaulted and overturned ones", () => {

@@ -25,6 +25,7 @@ import {
   type DeliveryUnit,
   type ProvisionalCase,
 } from "./delivery-observation-contract";
+import type { DeliveryControl } from "./delivery-control-contract";
 import {
   DECISION_DEFAULTED_STATUS,
   DECISION_OVERTURNED_STATUS,
@@ -309,6 +310,123 @@ export function selectNextBoundary(snapshot: DeliverySnapshot): DeliveryBoundary
     decisions: selectOpenDecisions(snapshot, pending.id),
     steering: selectSteeringFor(snapshot, pending.id),
   };
+}
+
+// ── Steering and the boundary panel (SB-FR-016, SB-FR-017) ──
+
+// The statuses of a control the session has not read back yet.
+const OUTSTANDING_CONTROL_STATUSES: ReadonlySet<string> = new Set([
+  "pending",
+  "queued",
+  "delivered",
+]);
+
+function isOutstandingControl(control: DeliveryControl): boolean {
+  return OUTSTANDING_CONTROL_STATUSES.has(control.status);
+}
+
+// Where a steering note is: queued until the session reads it back, applied
+// once it has, or rejected when the session refused it.
+export type SteeringNoteState = "queued" | "applied" | "rejected";
+
+// One operator steering note of the outbox, as the Steering note component of
+// DESIGN.md shows it.
+export interface SteeringNoteView {
+  controlSeq: number;
+  note: string;
+  // The unit boundary the composer named, or null when the control names none.
+  appliesAt: string | null;
+  state: SteeringNoteState;
+  // The session's read-back: the note of the `steering.added` that names this
+  // control's control_seq, or null while there is none.
+  readBack: string | null;
+  issuedAt: string;
+}
+
+function steeringNoteOf(control: DeliveryControl): { note: string; appliesAt: string | null } {
+  const body = control.body as { note?: unknown; applies_at?: unknown };
+  return {
+    note: typeof body.note === "string" ? body.note : "",
+    appliesAt:
+      typeof body.applies_at === "string" && body.applies_at.length > 0 ? body.applies_at : null,
+  };
+}
+
+// The read-back text of each steering-note control, by control_seq: the note of
+// each steering entry that names one.
+function steeringReadBacks(snapshot: DeliverySnapshot): Map<number, string> {
+  const readBacks = new Map<number, string>();
+  for (const entry of Object.values(snapshot.steeringById)) {
+    const seq = (entry as { control_seq?: unknown }).control_seq;
+    if (typeof seq === "number") readBacks.set(seq, entry.note);
+  }
+  return readBacks;
+}
+
+// Every steering note the operator sent, in control_seq order: queued ones,
+// applied ones with their read-back, and refused ones. A superseded note is
+// left out. A note is applied only once the session has read it back: the
+// boundary alone moves nothing.
+export function selectSteeringNotes(snapshot: DeliverySnapshot): SteeringNoteView[] {
+  const readBacks = steeringReadBacks(snapshot);
+  const notes: SteeringNoteView[] = [];
+  for (const control of snapshot.controls) {
+    if (control.kind !== "steering-note") continue;
+    let state: SteeringNoteState;
+    if (isOutstandingControl(control)) state = "queued";
+    else if (control.status === "applied") state = "applied";
+    else if (control.status === "rejected") state = "rejected";
+    else continue;
+    const { note, appliesAt } = steeringNoteOf(control);
+    notes.push({
+      controlSeq: control.control_seq,
+      note,
+      appliesAt,
+      state,
+      readBack: state === "applied" ? (readBacks.get(control.control_seq) ?? null) : null,
+      issuedAt: control.issued_at,
+    });
+  }
+  return notes;
+}
+
+// One item queued for the next unit boundary: a steering note, or a change of
+// a role's tier.
+export type BoundaryQueueItem =
+  | { kind: "steering-note"; controlSeq: number; note: string; appliesAt: string | null }
+  | { kind: "role-change"; controlSeq: number; role: string; tier: string };
+
+// The boundary panel: the next unit boundary, and everything queued for it.
+export interface BoundaryPanelView {
+  boundary: DeliveryBoundary | null;
+  queued: BoundaryQueueItem[];
+}
+
+// The next unit boundary and every steering note and role change that waits
+// for it in the outbox, in control_seq order. An item leaves the queue only on
+// its read-back, so after a boundary with read-backs the panel names the
+// following boundary with an empty queue.
+export function selectBoundaryPanel(snapshot: DeliverySnapshot): BoundaryPanelView {
+  const queued: BoundaryQueueItem[] = [];
+  for (const control of snapshot.controls) {
+    if (!isOutstandingControl(control)) continue;
+    if (control.kind === "steering-note") {
+      queued.push({
+        kind: "steering-note",
+        controlSeq: control.control_seq,
+        ...steeringNoteOf(control),
+      });
+    } else if (control.kind === "role-change") {
+      const tier = (control.body as { tier?: unknown }).tier;
+      queued.push({
+        kind: "role-change",
+        controlSeq: control.control_seq,
+        role: control.target_id ?? "",
+        tier: typeof tier === "string" ? tier : "",
+      });
+    }
+  }
+  return { boundary: selectNextBoundary(snapshot), queued };
 }
 
 // Milliseconds since the record's `updated_at`, or null when the fold had no

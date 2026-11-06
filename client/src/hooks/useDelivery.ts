@@ -166,6 +166,27 @@ export function useThreadMessage(projectId: string, benchId: number) {
   });
 }
 
+export interface SteeringNoteRequest {
+  text: string;
+  // The unit boundary the note lands at.
+  appliesAt: string;
+}
+
+/**
+ * Sends a steering note for the next unit boundary (SB-FR-016). The control
+ * lands in the bench's outbox, so the snapshot is read again once the request
+ * settles, and the note shows queued.
+ */
+export function useSteeringNote(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ text, appliesAt }: SteeringNoteRequest) =>
+      api.sendDeliverySteeringNote(projectId, benchId, text, appliesAt),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
 /**
  * Approves the delivery (SB-FR-034). The server refuses it with 409
  * REVIEW_OPEN while a review is open.
