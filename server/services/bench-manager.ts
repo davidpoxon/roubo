@@ -298,6 +298,9 @@ export function initialize() {
       }),
       ...(ps.gatePin !== undefined && { gatePin: ps.gatePin }),
       ...(ps.deliveryTokenHash !== undefined && { deliveryTokenHash: ps.deliveryTokenHash }),
+      ...(ps.deliveryControlQueue !== undefined && {
+        deliveryControlQueue: ps.deliveryControlQueue,
+      }),
       ...(ps.deliverySitting !== undefined && { deliverySitting: ps.deliverySitting }),
       ...(ps.deliveryLastViewedSeq !== undefined && {
         deliveryLastViewedSeq: ps.deliveryLastViewedSeq,

@@ -34,7 +34,8 @@
 // is written to the outbox and survives a restart of the bench; a volatile one
 // is held for the next read only, so a thread message the tooling never read
 // is lost, never replayed. The three kinds and the read response are defined
-// here; the routes that serve them come with a later unit.
+// here. GET /api/hooks/delivery-controls answers the read response; the routes
+// that issue the three kinds are not built yet.
 
 import { z } from "zod";
 import { DELIVERY_TEXT_MAX_LENGTH, DeliveryModeValueSchema } from "./delivery-observation-contract";

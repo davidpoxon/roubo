@@ -9,6 +9,8 @@ import type {
   JigSettings,
 } from "./config-schema.js";
 import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
+import type { DeliveryControl } from "./delivery-control-contract.js";
+import type { Author } from "./testbench-contracts.js";
 import type {
   AgentCliStep,
   AgentInstallGuidance,
@@ -1715,6 +1717,13 @@ export interface BenchDeliverySitting {
   openedAt: string;
 }
 
+/**
+ * One control of a Spec Bench's outbox (SB-FR-014): a control of the delivery
+ * control contract, stamped with the operator who issued it, in the results
+ * writer's Author shape (the git identity of the bench workspace).
+ */
+export type DeliveryOutboxControl = DeliveryControl & { author: Author };
+
 export interface Bench {
   id: number;
   projectId: string;
@@ -1781,6 +1790,13 @@ export interface Bench {
   gatePin?: BenchGatePin;
   /** Spec Bench only: hash of the token the delivery session presents. */
   deliveryTokenHash?: string;
+  /**
+   * Spec Bench only: the durable controls of the bench's outbox, in
+   * `control_seq` order (SB-FR-014). Written to state.json before the control
+   * is answered, so the outbox survives a restart and `control_seq` goes on
+   * from its last value; goes with the bench. A volatile control is never here.
+   */
+  deliveryControlQueue?: DeliveryOutboxControl[];
   /**
    * Spec Bench only: the terminal session of the main delivery session that
    * this bench last launched, at set-up, at a launch again or at resume.
@@ -2128,6 +2144,8 @@ export interface PersistedBench {
   gatePin?: BenchGatePin;
   /** Persisted mirror of Bench.deliveryTokenHash. Spec Bench only. */
   deliveryTokenHash?: string;
+  /** Persisted mirror of Bench.deliveryControlQueue. Spec Bench only. */
+  deliveryControlQueue?: DeliveryOutboxControl[];
   /** Persisted mirror of Bench.deliverySitting. Spec Bench only. */
   deliverySitting?: BenchDeliverySitting;
   /** Persisted mirror of Bench.deliveryLastViewedSeq. Spec Bench only. */
