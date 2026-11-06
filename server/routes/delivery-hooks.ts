@@ -58,9 +58,10 @@
 //            `review_accept`, or an `overturn` of an agent decision, which
 //            carries `reviewAction: true`): the read that serves it marks it
 //            `delivered`. A `superseded` control is never served. With no
-//            control above `after` and a `wait` above 0 (absent: 0), the read is held until a control is issued, then
-//            answers with it, or until the wait ends, then answers with an
-//            empty list (SB-FR-041). A server shutdown answers a held read
+//            control to serve above `after` (none, or only superseded ones)
+//            and a `wait` above 0 (absent: 0), the read is held until a
+//            control is issued, then answers with it, or until the wait ends,
+//            then answers with an empty list (SB-FR-041). A server shutdown answers a held read
 //            with an empty list too
 //        200 DeliveryControlReadSuperseded {controls: [], superseded: true}: a
 //            second held read for the same bench ended this one. A bench holds
@@ -103,7 +104,7 @@ import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import {
   applyDeliveryControlReadBacks,
   deliveryControlLatestSeq,
-  deliveryControlsOf,
+  hasServableDeliveryControl,
   readDeliveryControls,
   waitForDeliveryControl,
 } from "../services/delivery-control-outbox.js";
@@ -328,8 +329,9 @@ router.get("/delivery-controls", deliveryControlsRateLimiter, (req, res) => {
     }
   }
 
-  // A control above `after` is there, or the read does not wait: answer now.
-  if (wait === 0 || deliveryControlsOf(bench).some((c) => c.control_seq > after)) {
+  // A control to serve is above `after`, or the read does not wait: answer
+  // now. A superseded control is never served, so it does not end the wait.
+  if (wait === 0 || hasServableDeliveryControl(bench, after)) {
     res.json(readDeliveryControls(bench, after));
     return;
   }
