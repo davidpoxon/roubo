@@ -35,8 +35,9 @@
 // is held for the next read only, so a thread message the tooling never read
 // is lost, never replayed. The three kinds and the read response are defined
 // here. GET /api/hooks/delivery-controls answers the read response. POST
-// .../delivery/decisions/:decisionId/accept issues a `review_accept` (see
-// server/routes/delivery.ts); the routes that issue the other two are not
+// .../delivery/decisions/:decisionId/accept issues a `review_accept`, and POST
+// .../delivery/decisions/:decisionId/thread a `thread_message` (see
+// server/routes/delivery.ts); the route that issues a `mode_switch` is not
 // built yet.
 
 import { z } from "zod";
