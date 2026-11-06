@@ -54,8 +54,11 @@
 //            status, and the highest control_seq the bench has issued (0
 //            before any). A volatile control is served by one read only. A
 //            control stays `pending` until an event reads it back (see POST
-//            above). With no control above `after` and a `wait` above 0
-//            (absent: 0), the read is held until a control is issued, then
+//            above), but for a review action on an agent decision (a
+//            `review_accept`, or an `overturn` of an agent decision, which
+//            carries `reviewAction: true`): the read that serves it marks it
+//            `delivered`. A `superseded` control is never served. With no
+//            control above `after` and a `wait` above 0 (absent: 0), the read is held until a control is issued, then
 //            answers with it, or until the wait ends, then answers with an
 //            empty list (SB-FR-041). A server shutdown answers a held read
 //            with an empty list too
@@ -73,9 +76,11 @@
 //
 // An accepted event that reads a control back (one whose payload names the
 // control's control_seq, a decision.answered for the decision an answer
-// control targets, or a decision.overturned for the decision an overturn
-// control targets) marks that control `applied` in the outbox before the 202
-// (see services/delivery-control-outbox.ts).
+// control targets, a decision.overturned for the decision an overturn
+// control targets, or a review.outcome for the decision a review_accept
+// (`accepted`) or an overturn (`overturned`) targets) marks that control
+// `applied` in the outbox before the 202 (see
+// services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.

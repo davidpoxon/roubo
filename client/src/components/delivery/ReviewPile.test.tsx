@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -9,9 +9,21 @@ import {
 } from "@roubo/shared/delivery-control-contract";
 import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
-import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
+import type { DeliveryOutboxControl } from "@roubo/shared";
+import { fourUnitRecord, unitChanged, unitEvent } from "../../test/delivery-fixtures";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import ReviewPile from "./ReviewPile";
+
+vi.mock("../../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api")>();
+  return {
+    ...actual,
+    acceptDeliveryDecision: vi.fn(),
+    overturnDeliveryDecision: vi.fn(),
+    fetchDelivery: vi.fn(),
+  };
+});
+import * as api from "../../lib/api";
+import ReviewPile, { REVIEW_THREAD_UNAVAILABLE } from "./ReviewPile";
 
 const OPTIONS = ["one file per unit", "one file per stack"];
 
@@ -42,26 +54,60 @@ function other(seq: number, type: string, payload: Record<string, unknown>): Del
   return unitEvent(seq, "B", type, payload, "2026-10-16T10:31:00Z");
 }
 
-// An operator's accept of the decision in the outbox, as the snapshot carries
-// it; the pile only reads it.
-function acceptControl(decisionId: string, status = "pending"): DeliveryControl {
+// An operator's review action on the decision in the outbox, as the snapshot
+// carries it.
+function reviewControl(
+  decisionId: string,
+  status = "pending",
+  kind: "review_accept" | "overturn" = "review_accept",
+  option?: string,
+): DeliveryControl {
   return {
     $schema: DELIVERY_CONTROL_SCHEMA_ID,
     schemaVersion: DELIVERY_CONTROL_SCHEMA_VERSION,
     delivery_id: "demo-delivery-1",
     control_seq: 1,
-    kind: "review_accept",
+    kind,
     target_id: decisionId,
-    body: {},
+    body: option === undefined ? {} : { option },
     durability: "durable",
     issued_at: "2026-10-16T10:20:00Z",
     status,
   } as DeliveryControl;
 }
 
-function pileOf(events: DeliveryEvent[], controls: DeliveryControl[] = []) {
-  return <ReviewPile snapshot={foldDelivery({ record: autoRecord(), events, controls })} />;
+function acceptControl(decisionId: string, status = "pending"): DeliveryControl {
+  return reviewControl(decisionId, status);
 }
+
+function pileOf(events: DeliveryEvent[], controls: DeliveryControl[] = []) {
+  return (
+    <ReviewPile
+      projectId="demo"
+      benchId={1}
+      snapshot={foldDelivery({ record: autoRecord(), events, controls })}
+    />
+  );
+}
+
+beforeEach(() => {
+  vi.mocked(api.acceptDeliveryDecision).mockReset();
+  vi.mocked(api.overturnDeliveryDecision).mockReset();
+  vi.mocked(api.acceptDeliveryDecision).mockImplementation(
+    async (_p, _b, id) =>
+      ({
+        ...reviewControl(id),
+        author: { name: "Ada", email: "ada@example.test" },
+      }) as DeliveryOutboxControl,
+  );
+  vi.mocked(api.overturnDeliveryDecision).mockImplementation(
+    async (_p, _b, id, option) =>
+      ({
+        ...reviewControl(id, "pending", "overturn", option),
+        author: { name: "Ada", email: "ada@example.test" },
+      }) as DeliveryOutboxControl,
+  );
+});
 
 const card = (id: string) => screen.getByTestId(`review-card-${id}`);
 
@@ -99,9 +145,9 @@ describe("ReviewPile", () => {
     expect(card("D-2")).toHaveAttribute("data-position", "lower");
     expect(card("D-3")).toHaveAttribute("data-position", "lower");
 
-    // The card offers no Accept action in this slice: the session posts the
-    // outcome.
-    expect(within(card("D-1")).queryByRole("button", { name: "Accept" })).toBeNull();
+    // At an open review the card offers Accept, Overturn and its thread.
+    expect(within(card("D-1")).getByRole("button", { name: "Accept" })).toBeEnabled();
+    expect(within(card("D-1")).getByRole("button", { name: "Discuss" })).toBeEnabled();
 
     rerender(
       pileOf([...events, other(12, "review.outcome", { decision_id: "D-1", status: "accepted" })]),
@@ -178,8 +224,105 @@ describe("ReviewPile", () => {
     renderWithProviders(pileOf(events, [acceptControl("D-1")]));
     expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · queued");
     expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
-      "accept queued · next boundary",
+      "accept queued · next boundary: A finishes",
     );
+  });
+
+  it("SB-TC-085: the operator accepts and overturns cards at an open review", async () => {
+    const events = [
+      decided(8, "D-2", 2),
+      decided(9, "D-1", 1),
+      other(10, "review.opened", { trigger: "boundary", unreviewed: ["D-1", "D-2"] }),
+    ];
+    const { rerender } = renderWithProviders(pileOf(events));
+    const user = userEvent.setup();
+
+    // Step 1: Accept on D-1 sends the accept, then the card reads queued.
+    await user.click(within(card("D-1")).getByRole("button", { name: "Accept" }));
+    expect(api.acceptDeliveryDecision).toHaveBeenCalledWith("demo", 1, "D-1");
+    rerender(pileOf(events, [acceptControl("D-1")]));
+    expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · queued");
+    expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent("accept queued");
+    expect(within(card("D-1")).getByTestId("review-actions")).toHaveAttribute(
+      "data-dimmed",
+      "true",
+    );
+
+    // Step 2: the review.outcome removes D-1 from the pile.
+    const outcome = [
+      ...events,
+      other(11, "review.outcome", { decision_id: "D-1", status: "accepted" }),
+    ];
+    rerender(pileOf(outcome, [acceptControl("D-1", "applied")]));
+    expect(screen.queryByTestId("review-card-D-1")).not.toBeInTheDocument();
+    expect(card("D-2")).toHaveAttribute("data-position", "top");
+
+    // Step 3: Overturn on D-2 offers the other option and sends it.
+    await user.click(within(card("D-2")).getByRole("button", { name: "Overturn" }));
+    const choices = within(card("D-2")).getByRole("group", { name: "Overturn D-2 with" });
+    await user.click(within(choices).getByRole("button", { name: OPTIONS[0] }));
+    expect(api.overturnDeliveryDecision).toHaveBeenCalledWith("demo", 1, "D-2", OPTIONS[0]);
+  });
+
+  it("SB-TC-086: during a run the card reads decided, Accept and Overturn are enabled, and the thread says why it is unavailable", async () => {
+    const events = [
+      decided(8, "D-1", 1),
+      unitChanged(9, "A", "done"),
+      unitChanged(10, "D", "running"),
+    ];
+    const { rerender } = renderWithProviders(pileOf(events));
+    const top = card("D-1");
+
+    // Step 1: the top card during a run.
+    expect(within(top).getByTestId("review-badge")).toHaveTextContent("D-1 · decided");
+    expect(within(top).getByRole("button", { name: "Accept" })).toBeEnabled();
+    expect(within(top).getByRole("button", { name: "Overturn" })).toBeEnabled();
+    expect(within(top).getByRole("button", { name: "Discuss" })).toBeDisabled();
+    expect(within(top).getByTestId("review-thread-unavailable")).toHaveTextContent(
+      REVIEW_THREAD_UNAVAILABLE,
+    );
+
+    // Step 2: Accept queues the action until the next boundary, unit D.
+    const user = userEvent.setup();
+    await user.click(within(top).getByRole("button", { name: "Accept" }));
+    expect(api.acceptDeliveryDecision).toHaveBeenCalledWith("demo", 1, "D-1");
+    rerender(pileOf(events, [acceptControl("D-1")]));
+    expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
+      "accept queued · next boundary: D finishes",
+    );
+
+    // Step 3: the boundary, then the outcome.
+    rerender(
+      pileOf(
+        [
+          ...events,
+          unitChanged(11, "D", "done"),
+          other(12, "review.outcome", { decision_id: "D-1", status: "accepted" }),
+        ],
+        [acceptControl("D-1", "applied")],
+      ),
+    );
+    expect(screen.queryByTestId("review-card-D-1")).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-087: a queued action stays replaceable until the session reads it, then its actions are disabled", () => {
+    const events = [
+      decided(8, "D-1", 1),
+      other(9, "review.opened", { trigger: "boundary", unreviewed: ["D-1"] }),
+    ];
+    const { rerender } = renderWithProviders(pileOf(events, [acceptControl("D-1")]));
+    expect(within(card("D-1")).getByRole("button", { name: "Overturn" })).toBeEnabled();
+
+    rerender(pileOf(events, [acceptControl("D-1", "delivered")]));
+    expect(within(card("D-1")).getByRole("button", { name: "Accept" })).toBeDisabled();
+    expect(within(card("D-1")).getByRole("button", { name: "Overturn" })).toBeDisabled();
+    expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
+      "accept read by the session",
+    );
+
+    // A superseded action no longer queues the card.
+    rerender(pileOf(events, [acceptControl("D-1", "superseded")]));
+    expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · to review");
   });
 
   it("renders nothing when no agent decision waits or was reviewed", () => {
