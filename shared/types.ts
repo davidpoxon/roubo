@@ -1665,9 +1665,31 @@ export function isBenchVariant(value: unknown): value is BenchVariant {
 export const SPEC_BENCH_BIND_MODES = ["launch", "attach"] as const;
 export type SpecBenchBindMode = (typeof SPEC_BENCH_BIND_MODES)[number];
 
+/**
+ * Who decides in a Spec Bench's delivery (SB-FR-031): `attended`, the operator
+ * decides, or `auto`, the session's agent decides. The set-up dialog offers
+ * both, with `attended` as the default. The same values as the delivery
+ * record's `mode.value`.
+ */
+export const SPEC_BENCH_DECISION_MODES = ["attended", "auto"] as const;
+export type SpecBenchDecisionMode = (typeof SPEC_BENCH_DECISION_MODES)[number];
+export const DEFAULT_SPEC_BENCH_DECISION_MODE: SpecBenchDecisionMode = "attended";
+
+export function isSpecBenchDecisionMode(value: unknown): value is SpecBenchDecisionMode {
+  return (
+    typeof value === "string" && (SPEC_BENCH_DECISION_MODES as readonly string[]).includes(value)
+  );
+}
+
 /** The `delivery` body of a Spec Bench create request. */
 export interface SpecBenchDeliveryRequest {
   mode: SpecBenchBindMode;
+  /**
+   * Launch mode only: the decision mode the session starts in. Absent means
+   * `attended`; an unknown value is a 400 `INVALID_DECISION_MODE`. Ignored in
+   * attach mode, where the running delivery already has its mode.
+   */
+  decisionMode?: SpecBenchDecisionMode;
 }
 
 /**
@@ -1750,6 +1772,11 @@ export interface Bench {
   focusedSpecPath?: string;
   /** Spec Bench only: how the bench binds to its delivery. */
   deliveryBindMode?: SpecBenchBindMode;
+  /**
+   * Launch-mode Spec Bench only: the decision mode chosen at set-up, which the
+   * bench hands the session at launch. Absent on an attached bench.
+   */
+  deliveryDecisionMode?: SpecBenchDecisionMode;
   /** Spec Bench only: the pin worktree of the open gate sitting, if any. */
   gatePin?: BenchGatePin;
   /** Spec Bench only: hash of the token the delivery session presents. */
@@ -2095,6 +2122,8 @@ export interface PersistedBench {
   focusedSpecPath?: string;
   /** Persisted mirror of Bench.deliveryBindMode. Spec Bench only. */
   deliveryBindMode?: SpecBenchBindMode;
+  /** Persisted mirror of Bench.deliveryDecisionMode. Launch-mode Spec Bench only. */
+  deliveryDecisionMode?: SpecBenchDecisionMode;
   /** Persisted mirror of Bench.gatePin. Spec Bench only. */
   gatePin?: BenchGatePin;
   /** Persisted mirror of Bench.deliveryTokenHash. Spec Bench only. */

@@ -136,7 +136,7 @@ export default function BenchCard({
               )}
               <div className="flex items-center gap-2">
                 <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
-                <VariantBadge variant={bench.variant} />
+                <VariantBadge variant={bench.variant} decisionMode={bench.deliveryDecisionMode} />
                 <NotificationIndicator notifications={bench.notifications} />
                 <StatusIndicator
                   tone={statusTone}

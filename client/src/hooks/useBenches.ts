@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { SpecBenchBindMode } from "@roubo/shared";
+import type { SpecBenchBindMode, SpecBenchDecisionMode } from "@roubo/shared";
 import * as api from "../lib/api";
 
 function hasActiveOperation(benches: { status: string }[] | undefined): boolean {
@@ -46,6 +46,7 @@ export function useCreateBench() {
       variant,
       focusedSpecPath,
       deliveryMode,
+      decisionMode,
     }: {
       projectId: string;
       branch?: string;
@@ -54,6 +55,7 @@ export function useCreateBench() {
       variant?: "testbench" | "specbench";
       focusedSpecPath?: string;
       deliveryMode?: SpecBenchBindMode;
+      decisionMode?: SpecBenchDecisionMode;
     }) =>
       api.createBench(projectId, {
         branch,
@@ -62,6 +64,7 @@ export function useCreateBench() {
         variant,
         focusedSpecPath,
         deliveryMode,
+        decisionMode,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["benches"] });

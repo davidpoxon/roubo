@@ -21,13 +21,21 @@ import { ServiceError } from "../services/service-error.js";
 import { isAlertExternalId } from "../services/alert-external-id.js";
 import { assignedIssueFetchId } from "../services/issue-formatting.js";
 import { bindDeliveryOnCreate } from "../services/delivery-session-launcher.js";
-import { BENCH_VARIANTS, SPEC_BENCH_BIND_MODES, isBenchVariant } from "@roubo/shared";
+import {
+  BENCH_VARIANTS,
+  DEFAULT_SPEC_BENCH_DECISION_MODE,
+  SPEC_BENCH_BIND_MODES,
+  SPEC_BENCH_DECISION_MODES,
+  isBenchVariant,
+  isSpecBenchDecisionMode,
+} from "@roubo/shared";
 import type {
   CreateBenchRequest,
   AssignContainerRequest,
   ExecuteToolRequest,
   NormalizedIssue,
   SpecBenchBindMode,
+  SpecBenchDeliveryRequest,
 } from "@roubo/shared";
 
 const router = Router();
@@ -134,11 +142,29 @@ router.post("/:projectId/benches", async (req, res) => {
       });
       return;
     }
+    // The decision mode the session starts in (SB-FR-031): attended unless the
+    // request asks for auto. Only a launch hands it to a session, so attach
+    // ignores it; an unknown value is refused before any bench is claimed.
+    let deliveryRequest: SpecBenchDeliveryRequest = { mode: mode as SpecBenchBindMode };
+    if (mode === "launch") {
+      const decisionMode = (delivery as { decisionMode?: unknown }).decisionMode;
+      if (decisionMode !== undefined && !isSpecBenchDecisionMode(decisionMode)) {
+        res.status(400).json({
+          error: `Unknown decision mode '${String(decisionMode)}': delivery.decisionMode must be one of ${SPEC_BENCH_DECISION_MODES.join(", ")}`,
+          code: "INVALID_DECISION_MODE",
+        });
+        return;
+      }
+      deliveryRequest = {
+        mode: "launch",
+        decisionMode: decisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE,
+      };
+    }
     try {
       const bench = benchManager.createBench(req.params.projectId, undefined, {
         variant: "specbench",
         focusedSpecPath,
-        delivery: { mode: mode as SpecBenchBindMode },
+        delivery: deliveryRequest,
       });
       res.status(201).json(bench);
       // Once the workspace exists: launch mode starts the delivery session,

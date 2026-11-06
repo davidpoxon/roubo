@@ -13,6 +13,7 @@ import type {
   BranchConflictInfo,
   CreateBenchWithIssueResponse,
   SpecBenchBindMode,
+  SpecBenchDecisionMode,
 } from "@roubo/shared";
 import CreateBenchModal from "./CreateBenchModal";
 import { createEmptyFilters } from "../lib/cut-list-filters";
@@ -344,15 +345,20 @@ export default function BenchDashboard() {
     setShowSpecBenchSetup(true);
   }, []);
 
-  // Create a Spec Bench bound to the picked spec folder and delivery mode
-  // (SB-FR-001). The dialog closes on success and the Benches page shows the
-  // new bench's card while it prepares; the bench opens on its Delivery tab.
+  // Create a Spec Bench bound to the picked spec folder, delivery mode and
+  // decision mode (SB-FR-001, SB-FR-031). The dialog closes on success and the
+  // Benches page shows the new bench's card while it prepares; the bench opens
+  // on its Delivery tab.
   const handleSpecBenchConfirm = useCallback(
-    (focusedSpecPath: string, deliveryMode: SpecBenchBindMode) => {
+    (
+      focusedSpecPath: string,
+      deliveryMode: SpecBenchBindMode,
+      decisionMode: SpecBenchDecisionMode,
+    ) => {
       if (!projectId) return;
       setSpecBenchSetupError(null);
       createBench.mutate(
-        { projectId, variant: "specbench", focusedSpecPath, deliveryMode },
+        { projectId, variant: "specbench", focusedSpecPath, deliveryMode, decisionMode },
         {
           onSuccess: () => {
             setShowSpecBenchSetup(false);

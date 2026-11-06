@@ -1179,3 +1179,70 @@ describe("Event ingest", () => {
     expect(fs.existsSync(spillPath(bench))).toBe(false);
   });
 });
+
+describe("Decision mode at set-up", () => {
+  async function createWithDelivery(delivery: Record<string, unknown>) {
+    const res = await request(app).post("/demo/benches").send({
+      variant: "specbench",
+      focusedSpecPath: ".specifications/fixture-spec",
+      delivery,
+    });
+    if (res.status !== 201) return { res, bench: undefined };
+    await benchManager.whenWorkspaceProvisioned("demo", res.body.id);
+    await whenDeliveryBound("demo", res.body.id);
+    return { res, bench: benchManager.getBench("demo", res.body.id) };
+  }
+
+  it("SB-TC-079: a launch in auto mode carries the decision mode as data in the launch descriptor", async () => {
+    const { res, bench } = await createWithDelivery({ mode: "launch", decisionMode: "auto" });
+    expect(res.status).toBe(201);
+    expect(res.body.deliveryDecisionMode).toBe("auto");
+    expect(launches).toHaveLength(1);
+    const { descriptor } = launches[0];
+    expect(descriptor.decisionMode).toBe("auto");
+    expect(Object.keys(descriptor).sort()).toEqual(
+      ["controlsUrl", "decisionMode", "eventUrl", "token"].sort(),
+    );
+    expect(bench?.deliveryDecisionMode).toBe("auto");
+    expect(lastPersisted(res.body.id)?.deliveryDecisionMode).toBe("auto");
+  });
+
+  it("SB-TC-079: a launch with no decision mode starts in attended mode", async () => {
+    const { res } = await createWithDelivery({ mode: "launch" });
+    expect(res.status).toBe(201);
+    expect(res.body.deliveryDecisionMode).toBe("attended");
+    expect(launches).toHaveLength(1);
+    expect(launches[0].descriptor.decisionMode).toBe("attended");
+  });
+
+  it("SB-TC-079: a decision mode of other is answered 400 INVALID_DECISION_MODE and creates no bench", async () => {
+    const { res } = await createWithDelivery({ mode: "launch", decisionMode: "other" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_DECISION_MODE");
+    expect(res.body.error).toMatch(/delivery\.decisionMode/);
+    expect(benchManager.getBenches("demo")).toEqual([]);
+    expect(fs.readdirSync(hoisted.workspaces)).toEqual([]);
+    expect(launches).toHaveLength(0);
+  });
+
+  it("SB-TC-079: attach ignores the decision mode and keeps none", async () => {
+    const { res, bench } = await createWithDelivery({ mode: "attach", decisionMode: "other" });
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty("deliveryDecisionMode");
+    expect(bench).not.toHaveProperty("deliveryDecisionMode");
+    expect(launches).toHaveLength(0);
+  });
+
+  it("SB-TC-079: a resume passes no decision mode, because the record holds the mode", async () => {
+    const { bench } = await createWithDelivery({ mode: "launch", decisionMode: "auto" });
+    if (!bench) throw new Error("bench not created");
+    writeRecord(bench, fixtureRecord());
+    hoisted.liveSessions.delete("session-1");
+
+    const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
+    expect(resumed.status).toBe(202);
+    expect(launches).toHaveLength(2);
+    expect(launches[1].descriptor.resume).toBe("demo-delivery-1");
+    expect(launches[1].descriptor).not.toHaveProperty("decisionMode");
+  });
+});

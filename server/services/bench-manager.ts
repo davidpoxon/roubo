@@ -20,7 +20,14 @@ import type {
   BenchVariant,
   SpecBenchDeliveryRequest,
 } from "@roubo/shared";
-import { COMPONENT_STEP_PREFIX, FIRST_PARTY_SOURCE_ID, declaredCategories } from "@roubo/shared";
+import {
+  COMPONENT_STEP_PREFIX,
+  DEFAULT_SPEC_BENCH_DECISION_MODE,
+  FIRST_PARTY_SOURCE_ID,
+  SPEC_BENCH_DECISION_MODES,
+  declaredCategories,
+  isSpecBenchDecisionMode,
+} from "@roubo/shared";
 import type { PermissionCategory } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
@@ -286,6 +293,9 @@ export function initialize() {
       // bench of any other variant gains no delivery key (SB-TC-008). A pin path
       // is vetted by the safe-path allowlist wherever it is used, not here.
       ...(ps.deliveryBindMode !== undefined && { deliveryBindMode: ps.deliveryBindMode }),
+      ...(ps.deliveryDecisionMode !== undefined && {
+        deliveryDecisionMode: ps.deliveryDecisionMode,
+      }),
       ...(ps.gatePin !== undefined && { gatePin: ps.gatePin }),
       ...(ps.deliveryTokenHash !== undefined && { deliveryTokenHash: ps.deliveryTokenHash }),
       ...(ps.deliverySitting !== undefined && { deliverySitting: ps.deliverySitting }),
@@ -1169,6 +1179,16 @@ export function createBench(
         "INVALID_DELIVERY",
       );
     }
+    if (
+      options.delivery.mode === "launch" &&
+      options.delivery.decisionMode !== undefined &&
+      !isSpecBenchDecisionMode(options.delivery.decisionMode)
+    ) {
+      throw new BenchError(
+        `delivery.decisionMode must be one of ${SPEC_BENCH_DECISION_MODES.join(", ")}`,
+        "INVALID_DECISION_MODE",
+      );
+    }
     if (options.focusedSpecPath === undefined) {
       throw new BenchError("focusedSpecPath is required for a specbench variant", "INVALID_FOCUS");
     }
@@ -1242,6 +1262,12 @@ export function createBench(
     focusedSpecPath: resolvedFocusedSpecPath,
     ...(options.variant === "specbench" &&
       options.delivery && { deliveryBindMode: options.delivery.mode }),
+    // Only a launch-mode bench keeps a decision mode: it hands the mode to the
+    // session it launches (SB-FR-031). An attached delivery has its own.
+    ...(options.variant === "specbench" &&
+      options.delivery?.mode === "launch" && {
+        deliveryDecisionMode: options.delivery.decisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE,
+      }),
     // Seeded false even when the project defines no `benches.setup`, so that a
     // setup command added to roubo.yaml later still runs once on this bench
     // (#997). Recording `true` here would be indistinguishable from a genuine
