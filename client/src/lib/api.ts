@@ -682,6 +682,21 @@ export function acceptDeliveryDecision(
   );
 }
 
+// Send a message on an agent decision's thread (SB-FR-036): 202 with the
+// volatile thread_message control, held for the session's next read; 409
+// THREAD_UNAVAILABLE outside a review or with no live session.
+export function sendDeliveryThreadMessage(
+  projectId: string,
+  benchId: number,
+  decisionId: string,
+  text: string,
+): Promise<DeliveryOutboxControl> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/delivery/decisions/${encodeURIComponent(decisionId)}/thread`,
+    { method: "POST", body: JSON.stringify({ text }) },
+  );
+}
+
 // Approve the delivery (SB-FR-034): 202 with the approval control, or 409
 // REVIEW_OPEN while a review is open.
 export function approveDelivery(

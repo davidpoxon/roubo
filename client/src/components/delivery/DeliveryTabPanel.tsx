@@ -139,6 +139,7 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
   const resumeBlocked = useSessionStartBlocked(bench);
+  const sessionLive = useDeliverySessionLive(bench);
   // Approval waits while a review is open (SB-FR-034); the approve route reads
   // the same selector, so the control and the 409 agree.
   const approve = useApproveDelivery(bench.projectId, bench.id);
@@ -194,7 +195,12 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
 
         <DeliveryDriftLedger snapshot={snapshot} />
 
-        <DecisionPile projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+        <DecisionPile
+          projectId={bench.projectId}
+          benchId={bench.id}
+          snapshot={snapshot}
+          sessionLive={sessionLive}
+        />
 
         <p className="text-12 text-text-secondary">
           Sending steering notes and tier changes is not available on this bench yet.

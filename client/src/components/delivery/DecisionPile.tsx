@@ -274,10 +274,14 @@ export default function DecisionPile({
   projectId,
   benchId,
   snapshot,
+  sessionLive = false,
 }: {
   projectId: string;
   benchId: number;
   snapshot: DeliverySnapshot;
+  // Whether the bench's main session runs: a review card's thread takes a
+  // message only then.
+  sessionLive?: boolean;
 }) {
   const pile = selectDecisionPile(snapshot);
   const control = useDecisionControl(projectId, benchId);
@@ -385,7 +389,12 @@ export default function DecisionPile({
           })}
         </ul>
       )}
-      <ReviewPile projectId={projectId} benchId={benchId} snapshot={snapshot} />
+      <ReviewPile
+        projectId={projectId}
+        benchId={benchId}
+        snapshot={snapshot}
+        sessionLive={sessionLive}
+      />
     </section>
   );
 }
