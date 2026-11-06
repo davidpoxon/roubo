@@ -63,6 +63,10 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Delivery unit jammed",
     body: "A unit of a Spec Bench delivery is stuck and waits for you",
   },
+  "delivery-decision": {
+    title: "Delivery decision",
+    body: "The delivery session of a Spec Bench asks you to decide",
+  },
 };
 
 export function formatNotification(notification: BenchNotification): {
@@ -75,6 +79,14 @@ export function formatNotification(notification: BenchNotification): {
       title: notificationMessages["delivery-jam"].title,
       body: `Unit ${unitId} of the delivery is jammed and waits for you`,
     };
+  }
+  const question = notification.metadata?.question;
+  if (
+    notification.type === "delivery-decision" &&
+    typeof question === "string" &&
+    question.length > 0
+  ) {
+    return { title: notificationMessages["delivery-decision"].title, body: question };
   }
   return notificationMessages[notification.type] ?? { title: "Notification", body: "" };
 }

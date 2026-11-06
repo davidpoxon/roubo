@@ -97,6 +97,31 @@ export function useLaunchDelivery(projectId: string, benchId: number) {
   );
 }
 
+export type DecisionControlKind = "answer" | "overturn";
+
+export interface DecisionControlRequest {
+  kind: DecisionControlKind;
+  decisionId: string;
+  option: string;
+}
+
+/**
+ * Answers an open decision, or overturns a defaulted one, with an option
+ * (SB-FR-014, SB-FR-015). The control lands in the bench's outbox, so the
+ * snapshot, which lists the outbox, is read again once the request settles.
+ */
+export function useDecisionControl(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, decisionId, option }: DecisionControlRequest) =>
+      kind === "answer"
+        ? api.answerDeliveryDecision(projectId, benchId, decisionId, option)
+        : api.overturnDeliveryDecision(projectId, benchId, decisionId, option),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
 /**
  * Whether the main delivery session that the bench launched still runs. It
  * reads the bench's terminal sessions only when the bench has recorded one.
