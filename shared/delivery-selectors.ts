@@ -14,15 +14,16 @@
 // thread, a gate's provisional marks) are more functions over the same
 // snapshot, at the end of the module.
 
-import type {
-  DeliveryDecision,
-  DeliveryDrift,
-  DeliveryGate,
-  DeliveryMode,
-  DeliveryReview,
-  DeliverySteering,
-  DeliveryUnit,
-  ProvisionalCase,
+import {
+  AGENT_AUTHOR,
+  type DeliveryDecision,
+  type DeliveryDrift,
+  type DeliveryGate,
+  type DeliveryMode,
+  type DeliveryReview,
+  type DeliverySteering,
+  type DeliveryUnit,
+  type ProvisionalCase,
 } from "./delivery-observation-contract";
 import {
   DECISION_DEFAULTED_STATUS,
@@ -499,6 +500,39 @@ export function selectReviewStack(snapshot: DeliverySnapshot): ReviewCard[] {
   }
   // Array.prototype.sort is stable, so equal times keep insertion order.
   return cards.sort((a, b) => cardTime(a.at) - cardTime(b.at));
+}
+
+// The agent decisions the operator has reviewed (accepted or overturned),
+// oldest first by when they were decided. A reviewed card leaves the review
+// stack, and this list keeps its outcome and summary in view.
+export function selectReviewedAgentDecisions(snapshot: DeliverySnapshot): DeliveryDecision[] {
+  return Object.values(snapshot.decisionsById)
+    .filter(
+      (decision) =>
+        decision.author === AGENT_AUTHOR &&
+        decision.review !== undefined &&
+        decision.review.status !== "unreviewed",
+    )
+    .sort((a, b) => cardTime(decidedAt(a)) - cardTime(decidedAt(b)));
+}
+
+// Whether the operator can approve the delivery now (SB-FR-034). Approval is
+// refused while a review is open, and the reason names the open review with
+// the count of its cards. The approve route and the Approve control read the
+// same answer, so the two never disagree.
+export interface ApprovalAvailability {
+  available: boolean;
+  reason: string | null;
+}
+
+export function selectApprovalAvailability(snapshot: DeliverySnapshot): ApprovalAvailability {
+  if (snapshot.review.status !== "open") return { available: true, reason: null };
+  const count = selectReviewStack(snapshot).length;
+  const cards = count === 1 ? "1 card" : `${count} cards`;
+  return {
+    available: false,
+    reason: `A review is open with ${cards} to review: approve once the review is done`,
+  };
 }
 
 // A decision's thread in stream order; empty for a decision with no thread or
