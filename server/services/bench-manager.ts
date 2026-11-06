@@ -301,6 +301,9 @@ export function initialize() {
       ...(ps.deliveryControlQueue !== undefined && {
         deliveryControlQueue: ps.deliveryControlQueue,
       }),
+      ...(ps.deliveryControlSeq !== undefined && {
+        deliveryControlSeq: ps.deliveryControlSeq,
+      }),
       ...(ps.deliverySitting !== undefined && { deliverySitting: ps.deliverySitting }),
       ...(ps.deliveryLastViewedSeq !== undefined && {
         deliveryLastViewedSeq: ps.deliveryLastViewedSeq,

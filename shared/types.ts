@@ -1798,6 +1798,13 @@ export interface Bench {
    */
   deliveryControlQueue?: DeliveryOutboxControl[];
   /**
+   * Spec Bench only: the last `control_seq` the bench issued, durable or
+   * volatile (SB-FR-014). Written to state.json on every issue, so after a
+   * restart `control_seq` goes on from it even when the last control issued was
+   * volatile and is in no queue; goes with the bench.
+   */
+  deliveryControlSeq?: number;
+  /**
    * Spec Bench only: the terminal session of the main delivery session that
    * this bench last launched, at set-up, at a launch again or at resume.
    * Runtime only and never persisted: a terminal session comes back from a
@@ -2146,6 +2153,8 @@ export interface PersistedBench {
   deliveryTokenHash?: string;
   /** Persisted mirror of Bench.deliveryControlQueue. Spec Bench only. */
   deliveryControlQueue?: DeliveryOutboxControl[];
+  /** Persisted mirror of Bench.deliveryControlSeq. Spec Bench only. */
+  deliveryControlSeq?: number;
   /** Persisted mirror of Bench.deliverySitting. Spec Bench only. */
   deliverySitting?: BenchDeliverySitting;
   /** Persisted mirror of Bench.deliveryLastViewedSeq. Spec Bench only. */

@@ -418,6 +418,16 @@ describe("The controls endpoint", () => {
     const { bench, token } = await benchWithRecord();
     const first = await answer(bench, OPEN_DECISION);
     expect(first.status).toBe(202);
+    // A volatile control is the last one issued before the restart.
+    const message = issueDeliveryControl(bench, {
+      deliveryId: DELIVERY_ID,
+      kind: "thread_message",
+      targetId: OPEN_DECISION,
+      body: { text: "Why one file per unit?" },
+      author: { name: "Ada Operator", email: "ada@example.test" },
+    });
+    expect(message.ok && message.control.control_seq).toBe(2);
+    expect(lastPersisted(bench.id)?.deliveryControlSeq).toBe(2);
 
     // The restart: the bench comes back from its persisted record only.
     hoisted.persisted = [state.toPersistedBench(bench)];
@@ -430,7 +440,9 @@ describe("The controls endpoint", () => {
 
     const read = await readControls(restarted, token, "0");
     expect(read.status).toBe(200);
-    expect(read.body).toEqual({ controls: [first.body], latestSeq: 1 });
+    // The volatile control is not in the restored outbox, but its seq is not
+    // issued again.
+    expect(read.body).toEqual({ controls: [first.body], latestSeq: 2 });
     // The pending answer still holds the decision.
     expect((await answer(restarted, OPEN_DECISION)).body.code).toBe("DECISION_ANSWER_PENDING");
 
@@ -440,13 +452,14 @@ describe("The controls endpoint", () => {
       body: {},
       author: { name: "Ada Operator", email: "ada@example.test" },
     });
-    expect(pause.ok && pause.control.control_seq).toBe(2);
+    expect(pause.ok && pause.control.control_seq).toBe(3);
     expect((await readControls(restarted, token, "1")).body.controls).toMatchObject([
-      { control_seq: 2, kind: "pause", status: "pending" },
+      { control_seq: 3, kind: "pause", status: "pending" },
     ]);
     expect(lastPersisted(bench.id)?.deliveryControlQueue?.map((c) => c.control_seq)).toEqual([
-      1, 2,
+      1, 3,
     ]);
+    expect(lastPersisted(bench.id)?.deliveryControlSeq).toBe(3);
   });
 
   it("drops the outbox when the bench is cleared", async () => {
@@ -459,6 +472,8 @@ describe("The controls endpoint", () => {
 
     expect(bench.deliveryControlQueue).toBeUndefined();
     expect(lastPersisted(bench.id)).not.toHaveProperty("deliveryControlQueue");
+    expect(bench.deliveryControlSeq).toBeUndefined();
+    expect(lastPersisted(bench.id)).not.toHaveProperty("deliveryControlSeq");
   });
 });
 
@@ -483,7 +498,8 @@ describe("The control service", () => {
     expect(noDelivery.ok).toBe(false);
     expect(bench.deliveryControlQueue).toBeUndefined();
 
-    // A volatile control is held for one read and never written to state.json.
+    // A volatile control is held for one read and never written to state.json:
+    // only its seq is.
     const message = issueDeliveryControl(bench, {
       deliveryId: DELIVERY_ID,
       kind: "thread_message",
