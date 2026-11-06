@@ -282,6 +282,9 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ...(bench.deliveryControlQueue !== undefined && {
       deliveryControlQueue: bench.deliveryControlQueue,
     }),
+    ...(bench.deliveryControlSeq !== undefined && {
+      deliveryControlSeq: bench.deliveryControlSeq,
+    }),
     ...(bench.deliverySitting !== undefined && { deliverySitting: bench.deliverySitting }),
     ...(bench.deliveryLastViewedSeq !== undefined && {
       deliveryLastViewedSeq: bench.deliveryLastViewedSeq,

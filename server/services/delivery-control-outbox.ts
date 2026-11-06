@@ -13,6 +13,9 @@
 //             value. The queue goes with the bench.
 //   volatile  status `queued`, held in memory for the next read only, and
 //             dropped once a read has served it.
+// Either way the issue writes the bench's `deliveryControlSeq`, the last
+// control_seq issued, to state.json, so a restart after a volatile control
+// never issues its seq again.
 //
 // The delivery tooling reads the outbox with `readDeliveryControls` (GET
 // /api/hooks/delivery-controls), and the bench reads a control back from the
@@ -41,7 +44,7 @@ import * as stateService from "./state.js";
 // The volatile controls held for the next read, per bench.
 const volatileControls = new Map<string, DeliveryOutboxControl[]>();
 // The last control_seq issued per bench, volatile controls included. Seeded
-// from the persisted queue after a restart.
+// after a restart from the persisted `deliveryControlSeq` and the queue.
 const latestSeqs = new Map<string, number>();
 
 function benchKey(projectId: string, benchId: number): string {
@@ -66,7 +69,7 @@ export function deliveryControlLatestSeq(bench: Bench): number {
     (max, control) => Math.max(max, control.control_seq),
     0,
   );
-  const latest = Math.max(latestSeqs.get(key) ?? 0, queued);
+  const latest = Math.max(latestSeqs.get(key) ?? 0, bench.deliveryControlSeq ?? 0, queued);
   latestSeqs.set(key, latest);
   return latest;
 }
@@ -121,12 +124,13 @@ export function issueDeliveryControl(
 
   const key = benchKey(bench.projectId, bench.id);
   latestSeqs.set(key, controlSeq);
+  bench.deliveryControlSeq = controlSeq;
   if (durability === "durable") {
     bench.deliveryControlQueue = [...(bench.deliveryControlQueue ?? []), control];
-    persist(bench);
   } else {
     volatileControls.set(key, [...(volatileControls.get(key) ?? []), control]);
   }
+  persist(bench);
   return { ok: true, control };
 }
 
@@ -200,6 +204,7 @@ export function forgetDeliveryControls(bench: Bench): void {
   volatileControls.delete(key);
   latestSeqs.delete(key);
   bench.deliveryControlQueue = undefined;
+  bench.deliveryControlSeq = undefined;
 }
 
 /** Drops the in-memory part of every outbox, as a server restart does. */

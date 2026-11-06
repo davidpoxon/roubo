@@ -92,6 +92,7 @@ const DELIVERY_FIELDS = [
   "gatePin",
   "deliveryTokenHash",
   "deliveryControlQueue",
+  "deliveryControlSeq",
   "deliverySitting",
   "deliveryLastViewedSeq",
   "deliveryFirstSeenBlocking",
