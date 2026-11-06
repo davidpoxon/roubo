@@ -10,7 +10,7 @@
 // (schema/test-cases.schema.json, schema/test-results.schema.json) plus the
 // retained #431 spike artifact, and every contract added to `artifacts` since
 // (work units, gate overrides, spec lifecycle, delivery record and event,
-// delivery control and state recipe).
+// delivery control and its read response, and state recipe).
 // Retrofitting generation onto the roubo-config/roubo-plugin schemas is out of
 // scope.
 //
@@ -30,7 +30,10 @@ import {
   DeliveryEventSchema,
   DeliveryRecordSchema,
 } from "../shared/delivery-observation-contract.ts";
-import { DeliveryControlSchema } from "../shared/delivery-control-contract.ts";
+import {
+  DeliveryControlReadResponseSchema,
+  DeliveryControlSchema,
+} from "../shared/delivery-control-contract.ts";
 import { StateRecipeSchema } from "../shared/state-recipe-contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -74,6 +77,10 @@ export const artifacts = [
   {
     schema: DeliveryControlSchema,
     outPath: resolve(repoRoot, "schema", "delivery-control.schema.json"),
+  },
+  {
+    schema: DeliveryControlReadResponseSchema,
+    outPath: resolve(repoRoot, "schema", "delivery-control-read-response.schema.json"),
   },
   {
     schema: StateRecipeSchema,

@@ -39,12 +39,7 @@
 // (the truth table fixed in .specifications/verify-gate/verify-gate.md, the
 // "results-to-passed rule" section, and VG-FR-004 / VG-FR-005).
 
-import type {
-  BenchResults,
-  CaseResult,
-  CaseStatus,
-  TestCasesPlan,
-} from "./testbench-contracts";
+import type { BenchResults, CaseResult, CaseStatus, TestCasesPlan } from "./testbench-contracts";
 import type { Resolution } from "./lifecycle-resolver";
 import type { Unit } from "./work-units-contract";
 

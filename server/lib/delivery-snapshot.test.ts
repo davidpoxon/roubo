@@ -115,7 +115,7 @@ describe("summarizeDelivery", () => {
       jams: ["D"],
       gates: {
         "gate-after-b": { status: "provisional", evaluated: "stale" },
-        "gate-after-c": { status: "pending", evaluated: "stale" },
+        "gate-after-c": { status: "provisional", evaluated: "stale" },
       },
       openDecisions: 1,
       nextBoundary: { unitId: "B", kind: "finish" },
