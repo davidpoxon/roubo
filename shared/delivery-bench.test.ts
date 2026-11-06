@@ -46,6 +46,19 @@ describe("buildDeliveryLaunchDescriptor", () => {
     expect(descriptor.resume).toBe("demo-delivery-1");
   });
 
+  it("SB-TC-079: carries the decision mode as data only when one is given", () => {
+    const input = {
+      origin: "http://localhost:3335",
+      projectId: "demo",
+      benchId: 4,
+      token: "t0ken",
+    };
+    expect(buildDeliveryLaunchDescriptor({ ...input, decisionMode: "auto" }).decisionMode).toBe(
+      "auto",
+    );
+    expect(buildDeliveryLaunchDescriptor(input)).not.toHaveProperty("decisionMode");
+  });
+
   it("encodes the project id into the paths", () => {
     const paths = deliveryRoutePaths("a b&c", 1);
     expect(paths.base).toBe("/api/projects/a%20b%26c/benches/1/delivery");
