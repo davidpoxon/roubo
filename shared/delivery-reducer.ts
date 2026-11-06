@@ -68,6 +68,7 @@ import {
   type ProvisionalMark,
 } from "./delivery-observation-contract";
 import type { BenchResults, CaseResult, TestCasesPlan } from "./testbench-contracts";
+import type { DeliveryControl } from "./delivery-control-contract";
 import {
   evaluateGate,
   indexResolutions,
@@ -101,6 +102,9 @@ export interface DeliveryFoldInputs {
   // Epoch milliseconds the staleness age is computed against. Absent, the age
   // is null: the fold never reads a clock.
   now?: number;
+  // The bench's control outbox, each control with the status the bench keeps
+  // for it (SB-FR-014). Absent, the snapshot carries no control.
+  controls?: readonly DeliveryControl[];
 }
 
 // ── Snapshot ──
@@ -236,6 +240,10 @@ export interface DeliverySnapshot {
   seams: Record<string, DeliverySeam>;
   progress: DeliveryProgress;
   staleness: DeliveryStaleness;
+  // The bench's control outbox in control_seq order, each control with its
+  // status: pending until the tooling reads it back, then applied. The read
+  // reply of GET /api/hooks/delivery-controls lists the same controls.
+  controls: DeliveryControl[];
 }
 
 // ── Status readings ──
@@ -1378,6 +1386,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     seams: state.seams,
     progress: computeProgress(record, state, gatesById, plan, results, lifecycle),
     staleness: computeStaleness(record.updated_at, state.lastEventAt, now),
+    controls: [...(inputs.controls ?? [])].sort((a, b) => a.control_seq - b.control_seq),
   };
   if (state.gap !== undefined) {
     snapshot.gap = state.gap;

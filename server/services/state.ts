@@ -279,6 +279,12 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     }),
     ...(bench.gatePin !== undefined && { gatePin: bench.gatePin }),
     ...(bench.deliveryTokenHash !== undefined && { deliveryTokenHash: bench.deliveryTokenHash }),
+    ...(bench.deliveryControlQueue !== undefined && {
+      deliveryControlQueue: bench.deliveryControlQueue,
+    }),
+    ...(bench.deliveryControlSeq !== undefined && {
+      deliveryControlSeq: bench.deliveryControlSeq,
+    }),
     ...(bench.deliverySitting !== undefined && { deliverySitting: bench.deliverySitting }),
     ...(bench.deliveryLastViewedSeq !== undefined && {
       deliveryLastViewedSeq: bench.deliveryLastViewedSeq,

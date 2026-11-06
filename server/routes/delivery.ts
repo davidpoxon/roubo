@@ -87,6 +87,30 @@
 //                                                    restart; no transcript file
 //                                                    404 UNIT_NOT_FOUND, and 404 and 409 as
 //                                                        the snapshot read
+//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/answer
+//        body {option}                          -> 202 DeliveryOutboxControl: a
+//                                                    decision-answer control with the
+//                                                    next control_seq, status pending,
+//                                                    stamped with the operator's git
+//                                                    identity as `author`, written to
+//                                                    the bench's outbox (state.json)
+//                                                    before the answer; the session
+//                                                    reads it from GET
+//                                                    /api/hooks/delivery-controls. No
+//                                                    file in the spec folder changes
+//                                                    400 INVALID_BODY + field: `option`
+//                                                        is not a non-empty string, or
+//                                                        not one of the decision's options
+//                                                        (field `option`), or the control
+//                                                        fails the control contract
+//                                                    404 DECISION_NOT_FOUND: the folded
+//                                                        delivery has no such decision
+//                                                    409 DECISION_NOT_OPEN: the decision
+//                                                        is settled already
+//                                                    409 DECISION_ANSWER_PENDING: an
+//                                                        answer to the decision waits for
+//                                                        its read-back (`control_seq`)
+//                                                    404 and 409 as the snapshot read
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
 // delivery-hooks.ts), which checks the delivery token. Launch, resume and the
@@ -119,13 +143,25 @@ import type {
   DeliveryRecord,
   DeliveryUnit,
 } from "@roubo/shared/delivery-observation-contract";
-import { foldDelivery, ownValue, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import {
+  foldDelivery,
+  isDecisionOpen,
+  ownValue,
+  type DeliverySnapshot,
+} from "@roubo/shared/delivery-reducer";
 import {
   deliveryAcceptedSeq,
   deliveryEventsAfterRecord,
   deliveryUnitEventSpan,
 } from "../services/delivery-event-log.js";
 import { runCommand } from "../services/exec.js";
+import { resolveGitIdentity } from "../services/git-helpers.js";
+import {
+  deliveryControlsOf,
+  isControlOutstanding,
+  issueDeliveryControl,
+} from "../services/delivery-control-outbox.js";
+import { broadcastDeliveryFrame } from "../services/sse.js";
 import { getSessionScrollback } from "../services/terminal.js";
 import {
   DeliveryLaunchBlockedError,
@@ -207,7 +243,15 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
   // progress its cases met and requirements covered (SB-FR-011): a retired or
   // superseded case reads as the gates route reads it.
   const verify = loadBenchDeliveryVerifyInputs(bench);
-  res.json(foldDeliverySnapshot({ record: loaded.record, events, ...verify, now: Date.now() }));
+  res.json(
+    foldDeliverySnapshot({
+      record: loaded.record,
+      events,
+      ...verify,
+      controls: deliveryControlsOf(bench),
+      now: Date.now(),
+    }),
+  );
 });
 
 function sendInvalidQuery(res: Response, field: string, error: string): void {
@@ -444,6 +488,108 @@ router.get(
       lines,
     };
     res.json(body);
+  },
+);
+
+// ── Controls (SB-FR-014, SB-FR-021) ──
+
+// An operator answers decisions one after another, so the limit is wider than
+// a launch's.
+const deliveryControlRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+function sendInvalidBody(res: Response, field: string, error: string): void {
+  res.status(400).json({ error, code: "INVALID_BODY", field });
+}
+
+router.post(
+  "/:projectId/benches/:id/delivery/decisions/:decisionId/answer",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const option: unknown = (req.body as { option?: unknown } | undefined)?.option;
+    if (typeof option !== "string" || option.length === 0) {
+      sendInvalidBody(res, "option", "option must be a non-empty string");
+      return;
+    }
+    // The operator Roubo knows: the git identity of the bench workspace, in the
+    // results writer's Author shape. Resolved before the checks, so nothing
+    // awaits between the checks and the issue.
+    const identity = await resolveGitIdentity(bench.workspacePath);
+    const loaded = loadBenchDeliveryRecord(bench);
+    if (!loaded.ok) {
+      res.status(409).json(loaded.error);
+      return;
+    }
+    const events = deliveryEventsAfterRecord(
+      bench.projectId,
+      bench.id,
+      loaded.record,
+      benchDeliveryEventSpillPath(bench),
+    );
+    const snapshot = foldDelivery({ record: loaded.record, events });
+    const decisionId = String(req.params.decisionId);
+    const decision = ownValue(snapshot.decisionsById, decisionId);
+    if (decision === undefined) {
+      res
+        .status(404)
+        .json({ error: `The delivery has no decision ${decisionId}`, code: "DECISION_NOT_FOUND" });
+      return;
+    }
+    if (!isDecisionOpen(decision)) {
+      res.status(409).json({
+        error: `The decision ${decisionId} is ${decision.status} already`,
+        code: "DECISION_NOT_OPEN",
+        status: decision.status,
+      });
+      return;
+    }
+    if (decision.options.length > 0 && !decision.options.includes(option)) {
+      sendInvalidBody(res, "option", `option must be one of the options of ${decisionId}`);
+      return;
+    }
+    const waiting = deliveryControlsOf(bench).find(
+      (control) =>
+        control.kind === "decision-answer" &&
+        control.target_id === decisionId &&
+        isControlOutstanding(control),
+    );
+    if (waiting !== undefined) {
+      res.status(409).json({
+        error: `An answer to ${decisionId} waits for the session to read it back`,
+        code: "DECISION_ANSWER_PENDING",
+        control_seq: waiting.control_seq,
+      });
+      return;
+    }
+    const issued = issueDeliveryControl(bench, {
+      deliveryId: loaded.record.delivery_id,
+      kind: "decision-answer",
+      targetId: decisionId,
+      body: { option },
+      author:
+        identity.isSentinel === true
+          ? { name: identity.name, email: identity.email, isSentinel: true }
+          : { name: identity.name, email: identity.email },
+    });
+    if (!issued.ok) {
+      sendInvalidBody(
+        res,
+        issued.errors[0]?.split(":")[0] ?? "body",
+        `The control fails the control contract: ${issued.errors.join("; ")}`,
+      );
+      return;
+    }
+    // The answer adds no event, so the seq is unchanged: a `controls` frame is
+    // one the client never skips, so it reads the snapshot again and shows the
+    // answer pending.
+    broadcastDeliveryFrame(bench.projectId, bench.id, snapshot.seq, "controls");
+    res.status(202).json(issued.control);
   },
 );
 
