@@ -12,7 +12,12 @@
 //             survives a server restart and `control_seq` goes on from its last
 //             value. The queue goes with the bench.
 //   volatile  status `queued`, held in memory for the next read only, and
-//             dropped once a read has served it.
+//             dropped from the outbox once a read has served it. A served
+//             thread message stays in memory as `delivered` for the review
+//             card only (`deliveryCardControlsOf`), so the card keeps the
+//             question while the session answers; no read serves it again,
+//             nothing writes it to a file, and a `review.outcome` for its
+//             decision drops it (SB-FR-036).
 // Either way the issue writes the bench's `deliveryControlSeq`, the last
 // control_seq issued, to state.json, so a restart after a volatile control
 // never issues its seq again.
@@ -58,6 +63,9 @@ import * as stateService from "./state.js";
 
 // The volatile controls held for the next read, per bench.
 const volatileControls = new Map<string, DeliveryOutboxControl[]>();
+// The thread messages a read has served, per bench, kept for the review card
+// until their decision's review outcome. Memory only: a restart drops them.
+const servedThreadMessages = new Map<string, DeliveryOutboxControl[]>();
 // The last control_seq issued per bench, volatile controls included. Seeded
 // after a restart from the persisted `deliveryControlSeq` and the queue.
 const latestSeqs = new Map<string, number>();
@@ -108,6 +116,16 @@ export function deliveryControlsOf(bench: Bench): DeliveryOutboxControl[] {
   return [...(bench.deliveryControlQueue ?? []), ...volatile].sort(
     (a, b) => a.control_seq - b.control_seq,
   );
+}
+
+/**
+ * The controls a view of the bench shows: every control of the outbox, and the
+ * thread messages a read has served, as `delivered`, in control_seq order. No
+ * read of the tooling serves the served thread messages again.
+ */
+export function deliveryCardControlsOf(bench: Bench): DeliveryOutboxControl[] {
+  const served = servedThreadMessages.get(benchKey(bench.projectId, bench.id)) ?? [];
+  return [...deliveryControlsOf(bench), ...served].sort((a, b) => a.control_seq - b.control_seq);
 }
 
 export interface DeliveryControlRequest {
@@ -289,9 +307,16 @@ export function readDeliveryControls(bench: Bench, after: number): DeliveryContr
     controls.filter((c) => c.durability === "volatile").map((c) => c.control_seq),
   );
   if (served.size > 0) {
-    const left = (volatileControls.get(key) ?? []).filter((c) => !served.has(c.control_seq));
+    const held = volatileControls.get(key) ?? [];
+    const left = held.filter((c) => !served.has(c.control_seq));
     if (left.length > 0) volatileControls.set(key, left);
     else volatileControls.delete(key);
+    const threadMessages = held
+      .filter((c) => served.has(c.control_seq) && c.kind === "thread_message")
+      .map((c) => ({ ...c, status: "delivered" as const }));
+    if (threadMessages.length > 0) {
+      servedThreadMessages.set(key, [...(servedThreadMessages.get(key) ?? []), ...threadMessages]);
+    }
   }
   return { controls, latestSeq: deliveryControlLatestSeq(bench) };
 }
@@ -335,13 +360,15 @@ function settlesReview(event: DeliveryEvent, control: DeliveryOutboxControl): bo
  * events reads back, and persists the queue when one changed. A review action
  * whose decision a `review.outcome` settles with the other outcome (an accept
  * the session overturned, or an overturn it accepted) is marked `superseded`
- * instead, so no read serves it again. Returns the control_seqs it marked
- * `applied`.
+ * instead, so no read serves it again. A `review.outcome` also drops every
+ * thread message on its decision, served or not: after the outcome only the
+ * summary stays. Returns the control_seqs it marked `applied`.
  */
 export function applyDeliveryControlReadBacks(
   bench: Bench,
   events: readonly DeliveryEvent[],
 ): number[] {
+  dropReviewedThreadMessages(bench, events);
   const queue = bench.deliveryControlQueue;
   if (queue === undefined || queue.length === 0 || events.length === 0) return [];
   const applied: number[] = [];
@@ -366,6 +393,31 @@ export function applyDeliveryControlReadBacks(
   return applied;
 }
 
+// Drops the thread messages, held or served, of each decision that a
+// `review.outcome` among the events settles.
+function dropReviewedThreadMessages(bench: Bench, events: readonly DeliveryEvent[]): void {
+  const reviewed = new Set<string>();
+  for (const event of events) {
+    if (event.type !== "review.outcome") continue;
+    const payload = event.payload as Record<string, unknown>;
+    const decisionId = payloadString(payload, "decision_id") ?? payloadString(payload, "id");
+    if (decisionId !== undefined) reviewed.add(`${event.delivery_id}\u0000${decisionId}`);
+  }
+  if (reviewed.size === 0) return;
+  const key = benchKey(bench.projectId, bench.id);
+  const keeps = (control: DeliveryOutboxControl) =>
+    control.kind !== "thread_message" ||
+    control.target_id === undefined ||
+    !reviewed.has(`${control.delivery_id}\u0000${control.target_id}`);
+  for (const store of [volatileControls, servedThreadMessages]) {
+    const held = store.get(key);
+    if (held === undefined) continue;
+    const left = held.filter(keeps);
+    if (left.length > 0) store.set(key, left);
+    else store.delete(key);
+  }
+}
+
 /**
  * Drops the bench's outbox. The caller persists the bench: Clear bench writes
  * the record itself once the variant's teardown is done.
@@ -373,6 +425,7 @@ export function applyDeliveryControlReadBacks(
 export function forgetDeliveryControls(bench: Bench): void {
   const key = benchKey(bench.projectId, bench.id);
   volatileControls.delete(key);
+  servedThreadMessages.delete(key);
   latestSeqs.delete(key);
   bench.deliveryControlQueue = undefined;
   bench.deliveryControlSeq = undefined;
@@ -385,5 +438,6 @@ export function forgetDeliveryControls(bench: Bench): void {
 export function forgetDeliveryControlMemory(): void {
   releaseDeliveryControlWaiters();
   volatileControls.clear();
+  servedThreadMessages.clear();
   latestSeqs.clear();
 }

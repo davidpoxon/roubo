@@ -142,6 +142,30 @@ export function useReviewAction(projectId: string, benchId: number) {
   });
 }
 
+export interface ThreadMessageRequest {
+  decisionId: string;
+  text: string;
+}
+
+/**
+ * Sends a message on an agent decision's thread (SB-FR-036). The control is
+ * held for the session's next read, so the snapshot is read again once the
+ * request settles; so are the bench's terminal sessions, since a refusal for
+ * no live session means the card's view of the session is out of date.
+ */
+export function useThreadMessage(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ decisionId, text }: ThreadMessageRequest) =>
+      api.sendDeliveryThreadMessage(projectId, benchId, decisionId, text),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+        queryClient.invalidateQueries({ queryKey: ["terminals", projectId, benchId] }),
+      ]),
+  });
+}
+
 /**
  * Approves the delivery (SB-FR-034). The server refuses it with 409
  * REVIEW_OPEN while a review is open.
