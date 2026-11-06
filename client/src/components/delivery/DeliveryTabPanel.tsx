@@ -4,7 +4,9 @@ import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
+import { selectApprovalAvailability } from "@roubo/shared/delivery-selectors";
 import {
+  useApproveDelivery,
   useDelivery,
   useDeliverySessionLive,
   useLaunchDelivery,
@@ -25,7 +27,9 @@ import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 // requirements covered (SB-FR-011), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
-// default overturned in place (SB-FR-014, SB-FR-015) and the controls, when the
+// default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
+// to review on the same pile (SB-FR-033), and the controls, among them Approve,
+// which waits while a review is open (SB-FR-034), when the
 // record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
@@ -135,6 +139,10 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
   const resumeBlocked = useSessionStartBlocked(bench);
+  // Approval waits while a review is open (SB-FR-034); the approve route reads
+  // the same selector, so the control and the 409 agree.
+  const approve = useApproveDelivery(bench.projectId, bench.id);
+  const approval = selectApprovalAvailability(snapshot);
   const costHealthControls = useRef<HTMLElement>(null);
   // The view of cost, health and controls: the burn meter, the jam list, the
   // drift ledger and the delivery's controls, which the header's button opens.
@@ -218,10 +226,31 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
           </Button>
           <Button isDisabled>Pause</Button>
           <Button isDisabled>Wind down</Button>
+          <Button
+            onPress={() => approve.mutate()}
+            isDisabled={approve.isPending || !approval.available}
+            aria-describedby={approval.reason !== null ? "delivery-approve-reason" : undefined}
+          >
+            Approve
+          </Button>
         </section>
+        {approval.reason !== null && (
+          <p
+            id="delivery-approve-reason"
+            data-testid="delivery-approve-reason"
+            className="text-12 text-text-secondary"
+          >
+            {approval.reason}
+          </p>
+        )}
         {resume.isError && (
           <Callout role="alert" title="The delivery session did not start">
             {resume.error.message}
+          </Callout>
+        )}
+        {approve.isError && (
+          <Callout role="alert" title="The approval was not sent">
+            {approve.error.message}
           </Callout>
         )}
       </section>

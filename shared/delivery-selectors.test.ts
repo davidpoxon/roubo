@@ -10,6 +10,7 @@ import {
 import { foldDelivery } from "./delivery-reducer.js";
 import { resolvePlan } from "./lifecycle-resolver.js";
 import {
+  selectApprovalAvailability,
   selectDecisionPile,
   selectDecisionThread,
   selectDependencyEdges,
@@ -25,6 +26,7 @@ import {
   selectProvisionalMarks,
   selectReview,
   selectReviewStack,
+  selectReviewedAgentDecisions,
   selectStalenessAge,
   selectSteeringFor,
   selectUnitDependencies,
@@ -520,6 +522,113 @@ describe("delivery selectors: decision mode (SB-FR-040)", () => {
     });
     // Once confirmed the gate is no longer provisional, so it has no marks to review.
     expect(selectProvisionalMarks(confirmed, "gate-after-c")).toEqual([]);
+  });
+});
+
+describe("delivery selectors: agent decision review (SB-FR-033, SB-FR-034)", () => {
+  // The fixture record with no decision, no review and no provisional gate, in
+  // auto mode.
+  function autoRecord(): DeliveryRecord {
+    const record = fixtureRecord();
+    return {
+      ...record,
+      mode: { value: "auto", pending: null },
+      review: { status: "none", unreviewed: [] },
+      decisions: [],
+      stack: {
+        ...record.stack,
+        gates: record.stack.gates.map((gate) => ({
+          id: gate.id,
+          after: gate.after,
+          status: "pending",
+          cases: gate.cases,
+        })),
+      },
+    };
+  }
+
+  function decided(seq: number, id: string, minute: number): DeliveryEvent {
+    return event(
+      seq,
+      "decision.decided",
+      {
+        decision_id: id,
+        question: `Which layout for ${id}?`,
+        options: ["one file per unit", "one file per stack"],
+        default: "one file per unit",
+        chosen: "one file per stack",
+        rationale: `The rationale of ${id}.`,
+        affected_units: ["B", "C"],
+        decided_at: `2026-10-16T10:${String(minute).padStart(2, "0")}:00Z`,
+      },
+      "B",
+    );
+  }
+
+  it("SB-TC-081: a review call puts the oldest card on top, and after its outcome the next oldest rises", () => {
+    const events = [decided(8, "D-2", 2), decided(9, "D-1", 1), decided(10, "D-3", 3)];
+    const opened = event(11, "review.opened", {
+      trigger: "boundary",
+      unreviewed: ["D-1", "D-2", "D-3"],
+    });
+    const open = foldDelivery({ record: autoRecord(), events: [...events, opened] });
+    expect(selectReview(open)).toMatchObject({ status: "open", trigger: "boundary" });
+    expect(selectReviewStack(open).map((card) => card.id)).toEqual(["D-1", "D-2", "D-3"]);
+
+    const reviewed = foldDelivery({
+      record: autoRecord(),
+      events: [
+        ...events,
+        opened,
+        event(12, "review.outcome", { decision_id: "D-1", status: "accepted", summary: "Fine." }),
+      ],
+    });
+    expect(selectReviewStack(reviewed).map((card) => card.id)).toEqual(["D-2", "D-3"]);
+    expect(selectReviewedAgentDecisions(reviewed).map((d) => [d.id, d.review?.summary])).toEqual([
+      ["D-1", "Fine."],
+    ]);
+  });
+
+  it("SB-TC-097: approval is unavailable while a review is open and names it, and available once it is done", () => {
+    const events = [decided(8, "D-1", 1), decided(9, "D-2", 2)];
+    const running = foldDelivery({ record: autoRecord(), events });
+    expect(selectApprovalAvailability(running)).toEqual({ available: true, reason: null });
+
+    const opened = event(10, "review.opened", { trigger: "gate", unreviewed: ["D-1", "D-2"] });
+    const open = foldDelivery({ record: autoRecord(), events: [...events, opened] });
+    const refused = selectApprovalAvailability(open);
+    expect(refused.available).toBe(false);
+    expect(refused.reason).toMatch(/review is open with 2 cards to review/);
+
+    const done = foldDelivery({
+      record: autoRecord(),
+      events: [
+        ...events,
+        opened,
+        event(11, "review.outcome", { decision_id: "D-1", status: "accepted" }),
+        event(12, "review.outcome", { decision_id: "D-2", status: "accepted" }),
+      ],
+    });
+    expect(selectReview(done).status).toBe("none");
+    expect(selectApprovalAvailability(done)).toEqual({ available: true, reason: null });
+  });
+
+  it("SB-TC-103: 100 agent decisions stack oldest first and a review call lists all of them", () => {
+    const events = Array.from({ length: 100 }, (_, index) =>
+      decided(8 + index, `D-${index + 1}`, 0),
+    ).map((entry, index) => ({
+      ...entry,
+      payload: {
+        ...entry.payload,
+        decided_at: new Date(Date.UTC(2026, 9, 16, 10, 0, index)).toISOString(),
+      },
+    }));
+    const snapshot = foldDelivery({ record: autoRecord(), events });
+    const stack = selectReviewStack(snapshot);
+    expect(stack).toHaveLength(100);
+    expect(stack[0].id).toBe("D-1");
+    expect(stack[99].id).toBe("D-100");
+    expect(selectReview(snapshot).unreviewed).toHaveLength(100);
   });
 });
 

@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015).
+// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-034).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -135,6 +135,40 @@
 //                                                        overturn of the decision waits
 //                                                        for its read-back (`control_seq`)
 //                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/accept
+//        body {summary?}                        -> 202 DeliveryOutboxControl: a
+//                                                    review_accept control of an
+//                                                    agent decision (SB-FR-034), issued
+//                                                    as an answer is; the session reads
+//                                                    it back with a review.outcome for
+//                                                    the decision, or an event that
+//                                                    names its control_seq
+//                                                    400 INVALID_BODY + field: `summary`
+//                                                        is given and not a string, or
+//                                                        the control fails the control
+//                                                        contract
+//                                                    404 DECISION_NOT_FOUND: as the answer
+//                                                    409 DECISION_NOT_UNREVIEWED: the
+//                                                        decision is not an agent decision
+//                                                        that waits for review (`review`
+//                                                        names its review status)
+//                                                    409 REVIEW_ACCEPT_PENDING: an accept
+//                                                        of the decision waits for its
+//                                                        read-back (`control_seq`)
+//                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/approve
+//        body {reason?}                         -> 202 DeliveryOutboxControl: an
+//                                                    approval control of the delivery,
+//                                                    with no target, issued as an answer
+//                                                    is
+//                                                    400 INVALID_BODY + field: `reason`
+//                                                        is given and not a string
+//                                                    409 REVIEW_OPEN: the folded record's
+//                                                        review status is `open`
+//                                                        (`unreviewed` lists the decisions
+//                                                        it waits on); the Approve control
+//                                                        reads the same selector
+//                                                    404 and 409 as the snapshot read
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
 // delivery-hooks.ts), which checks the delivery token. Launch, resume and the
@@ -169,13 +203,16 @@ import type {
   DeliveryUnit,
 } from "@roubo/shared/delivery-observation-contract";
 import type { Author } from "@roubo/shared/testbench-contracts";
+import type { DeliveryControlKind } from "@roubo/shared/delivery-control-contract";
 import {
   foldDelivery,
   isDecisionDefaulted,
   isDecisionOpen,
+  isUnreviewedAgentDecision,
   ownValue,
   type DeliverySnapshot,
 } from "@roubo/shared/delivery-reducer";
+import { selectApprovalAvailability } from "@roubo/shared/delivery-selectors";
 import {
   deliveryAcceptedSeq,
   deliveryEventsAfterRecord,
@@ -533,30 +570,27 @@ function sendInvalidBody(res: Response, field: string, error: string): void {
   res.status(400).json({ error, code: "INVALID_BODY", field });
 }
 
-interface DecisionControlContext {
+// What every operator control needs: the Spec Bench, the operator's identity
+// and the folded delivery.
+interface ControlContext {
   bench: Bench;
   record: DeliveryRecord;
   snapshot: DeliverySnapshot;
-  decisionId: string;
-  decision: DeliveryDecision;
-  option: string;
   author: Author;
 }
 
-// What a decision control needs: the Spec Bench, a non-empty `option` in the
-// body, the operator's identity, the folded delivery and the decision the path
-// names; or the answer already sent when any of them is missing.
-async function decisionControlContext(
-  req: Request,
+interface DecisionControlContext extends ControlContext {
+  decisionId: string;
+  decision: DeliveryDecision;
+  option: string;
+}
+
+// The operator's identity and the folded delivery of the bench; or the answer
+// already sent when the record cannot be read.
+async function controlContext(
+  bench: Bench,
   res: Response,
-): Promise<DecisionControlContext | undefined> {
-  const bench = specBenchOf(req, res);
-  if (!bench) return undefined;
-  const option: unknown = (req.body as { option?: unknown } | undefined)?.option;
-  if (typeof option !== "string" || option.length === 0) {
-    sendInvalidBody(res, "option", "option must be a non-empty string");
-    return undefined;
-  }
+): Promise<ControlContext | undefined> {
   // The operator Roubo knows: the git identity of the bench workspace, in the
   // results writer's Author shape. Resolved before the checks, so nothing
   // awaits between the checks and the issue.
@@ -573,6 +607,23 @@ async function decisionControlContext(
     benchDeliveryEventSpillPath(bench),
   );
   const snapshot = foldDelivery({ record: loaded.record, events });
+  return {
+    bench,
+    record: loaded.record,
+    snapshot,
+    author:
+      identity.isSentinel === true
+        ? { name: identity.name, email: identity.email, isSentinel: true }
+        : { name: identity.name, email: identity.email },
+  };
+}
+
+// The decision the path names in the folded delivery; or the 404 already sent.
+function pathDecision(
+  req: Request,
+  res: Response,
+  snapshot: DeliverySnapshot,
+): { decisionId: string; decision: DeliveryDecision } | undefined {
   const decisionId = String(req.params.decisionId);
   const decision = ownValue(snapshot.decisionsById, decisionId);
   if (decision === undefined) {
@@ -581,33 +632,60 @@ async function decisionControlContext(
       .json({ error: `The delivery has no decision ${decisionId}`, code: "DECISION_NOT_FOUND" });
     return undefined;
   }
-  return {
-    bench,
-    record: loaded.record,
-    snapshot,
-    decisionId,
-    decision,
-    option,
-    author:
-      identity.isSentinel === true
-        ? { name: identity.name, email: identity.email, isSentinel: true }
-        : { name: identity.name, email: identity.email },
-  };
+  return { decisionId, decision };
 }
 
-// Issues a decision control and answers 202 with it, or 400 when it fails the
-// control contract.
-function issueDecisionControl(
+// What a decision control needs: the Spec Bench, a non-empty `option` in the
+// body, the operator's identity, the folded delivery and the decision the path
+// names; or the answer already sent when any of them is missing.
+async function decisionControlContext(
+  req: Request,
   res: Response,
-  context: DecisionControlContext,
-  kind: "decision-answer" | "overturn",
+): Promise<DecisionControlContext | undefined> {
+  const bench = specBenchOf(req, res);
+  if (!bench) return undefined;
+  const option: unknown = (req.body as { option?: unknown } | undefined)?.option;
+  if (typeof option !== "string" || option.length === 0) {
+    sendInvalidBody(res, "option", "option must be a non-empty string");
+    return undefined;
+  }
+  const context = await controlContext(bench, res);
+  if (!context) return undefined;
+  const target = pathDecision(req, res, context.snapshot);
+  if (!target) return undefined;
+  return { ...context, ...target, option };
+}
+
+// The optional text field `key` of the body; or the 400 already sent when it is
+// there and not a string.
+function optionalBodyText(
+  req: Request,
+  res: Response,
+  key: string,
+): { ok: true; value: string | undefined } | { ok: false } {
+  const value: unknown = (req.body as Record<string, unknown> | undefined)?.[key];
+  if (value !== undefined && typeof value !== "string") {
+    sendInvalidBody(res, key, `${key} must be a string when it is given`);
+    return { ok: false };
+  }
+  return { ok: true, value };
+}
+
+// Issues a control and answers 202 with it, or 400 when it fails the control
+// contract.
+function issueControl(
+  res: Response,
+  context: ControlContext,
+  kind: DeliveryControlKind,
+  targetId: string | undefined,
+  body: Record<string, unknown>,
 ): void {
-  const { bench, record, snapshot, decisionId, option, author } = context;
+  const { bench, record, snapshot, author } = context;
   const issued = issueDeliveryControl(bench, {
     deliveryId: record.delivery_id,
     kind,
-    targetId: decisionId,
-    body: { option },
+    ...(targetId !== undefined && { targetId }),
+    body,
     author,
   });
   if (!issued.ok) {
@@ -626,7 +704,7 @@ function issueDecisionControl(
 }
 
 // The outstanding control of one kind that targets the decision, if any.
-function waitingControl(bench: Bench, kind: "decision-answer" | "overturn", decisionId: string) {
+function waitingControl(bench: Bench, kind: DeliveryControlKind, decisionId: string) {
   return deliveryControlsOf(bench).find(
     (control) =>
       control.kind === kind && control.target_id === decisionId && isControlOutstanding(control),
@@ -661,7 +739,7 @@ router.post(
       });
       return;
     }
-    issueDecisionControl(res, context, "decision-answer");
+    issueControl(res, context, "decision-answer", decisionId, { option });
   },
 );
 
@@ -702,7 +780,78 @@ router.post(
       });
       return;
     }
-    issueDecisionControl(res, context, "overturn");
+    issueControl(res, context, "overturn", decisionId, { option });
+  },
+);
+
+router.post(
+  "/:projectId/benches/:id/delivery/decisions/:decisionId/accept",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const summary = optionalBodyText(req, res, "summary");
+    if (!summary.ok) return;
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    const target = pathDecision(req, res, context.snapshot);
+    if (!target) return;
+    const { decisionId, decision } = target;
+    if (!isUnreviewedAgentDecision(decision)) {
+      res.status(409).json({
+        error: `The decision ${decisionId} is not an agent decision that waits for review`,
+        code: "DECISION_NOT_UNREVIEWED",
+        ...(decision.review !== undefined && { review: decision.review.status }),
+      });
+      return;
+    }
+    const waiting = waitingControl(bench, "review_accept", decisionId);
+    if (waiting !== undefined) {
+      res.status(409).json({
+        error: `An accept of ${decisionId} waits for the session to read it back`,
+        code: "REVIEW_ACCEPT_PENDING",
+        control_seq: waiting.control_seq,
+      });
+      return;
+    }
+    issueControl(
+      res,
+      context,
+      "review_accept",
+      decisionId,
+      summary.value === undefined ? {} : { summary: summary.value },
+    );
+  },
+);
+
+router.post(
+  "/:projectId/benches/:id/delivery/approve",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const reason = optionalBodyText(req, res, "reason");
+    if (!reason.ok) return;
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    // The folded review decides, as the Approve control does: nothing is
+    // approved while a review is open (SB-FR-034).
+    const approval = selectApprovalAvailability(context.snapshot);
+    if (!approval.available) {
+      res.status(409).json({
+        error: approval.reason,
+        code: "REVIEW_OPEN",
+        unreviewed: context.snapshot.review.unreviewed,
+      });
+      return;
+    }
+    issueControl(
+      res,
+      context,
+      "approval",
+      undefined,
+      reason.value === undefined ? {} : { reason: reason.value },
+    );
   },
 );
 
