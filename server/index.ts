@@ -19,6 +19,7 @@ import { registerSpecbenchVariantHost } from "./lib/specbench-variant-host.js";
 import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
 import * as terminalService from "./services/terminal.js";
+import { releaseDeliveryControlWaiters } from "./services/delivery-control-outbox.js";
 import projectsRouter from "./routes/projects.js";
 import benchesRouter from "./routes/benches.js";
 import containersRouter from "./routes/containers.js";
@@ -348,6 +349,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     if (closed) return;
     closed = true;
     clearInterval(statusInterval);
+    // A held control read answers 200 with an empty list before its
+    // connection closes (SB-FR-041).
+    releaseDeliveryControlWaiters();
     jigManager.stopAllWatchers();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));

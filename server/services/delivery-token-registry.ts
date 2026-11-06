@@ -7,6 +7,7 @@
 // the token of an earlier session stops working, and Clear bench revokes it.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Bench } from "@roubo/shared";
+import { releaseDeliveryControlWaiter } from "./delivery-control-outbox.js";
 import * as stateService from "./state.js";
 
 const TOKEN_BYTES = 32;
@@ -27,6 +28,8 @@ export function mintDeliveryToken(bench: Bench): string {
   const token = randomBytes(TOKEN_BYTES).toString("base64url");
   bench.deliveryTokenHash = hashDeliveryToken(token);
   persist(bench);
+  // A control read held with the old token ends with it (SB-FR-041).
+  releaseDeliveryControlWaiter(bench, "revoked");
   return token;
 }
 
@@ -45,4 +48,6 @@ export function verifyDeliveryToken(bench: Bench, token: string | undefined): bo
  */
 export function revokeDeliveryToken(bench: Bench): void {
   bench.deliveryTokenHash = undefined;
+  // A held control read ends with 401 (SB-FR-041).
+  releaseDeliveryControlWaiter(bench, "revoked");
 }

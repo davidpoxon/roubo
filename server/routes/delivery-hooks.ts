@@ -36,17 +36,29 @@
 // DELIVERY_EVENT_LOG_MAX events is larger than 210 KB, so under the global
 // limit it would never reach the route.
 //
-//   GET /delivery-controls?projectId=<id>&benchId=<n>&after=<control_seq>
+//   GET /delivery-controls?projectId=<id>&benchId=<n>&after=<control_seq>&wait=<ms>
 //     -> 200 DeliveryControlReadReply {controls, latestSeq}: the controls of
 //            the bench's outbox above `after` (absent: 0), durable and
-//            volatile, in control_seq order, each with its status, and the
-//            highest control_seq the bench has issued (0 before any). A
-//            volatile control is served by one read only. A control stays
-//            `pending` until an event reads it back (see POST above)
-//        401 UNAUTHORIZED: as POST /delivery-event, checked before the query
+//            volatile, in control_seq order whatever their kind, each with its
+//            status, and the highest control_seq the bench has issued (0
+//            before any). A volatile control is served by one read only. A
+//            control stays `pending` until an event reads it back (see POST
+//            above). With no control above `after` and a `wait` above 0
+//            (absent: 0), the read is held until a control is issued, then
+//            answers with it, or until the wait ends, then answers with an
+//            empty list (SB-FR-041). A server shutdown answers a held read
+//            with an empty list too
+//        200 DeliveryControlReadSuperseded {controls: [], superseded: true}: a
+//            second held read for the same bench ended this one. A bench holds
+//            one read at a time; a reader that goes away drops its hold
+//        401 UNAUTHORIZED: as POST /delivery-event, checked before the query,
+//            and again when a held read ends: a revoked or replaced token
+//            ends it with 401
 //        400 INVALID_QUERY + field: `after` is not a non-negative integer
+//        400 INVALID_WAIT + field: `wait` is not an integer from 0 to
+//            DELIVERY_CONTROL_WAIT_MAX_MS (25,000)
 //     The query is open to more keys: a key this route does not know is
-//     ignored, so a later long-poll `wait` joins it without breaking a reader.
+//     ignored.
 //
 // An accepted event that reads a control back (one whose payload names the
 // control's control_seq, or a decision.answered for the decision an answer
@@ -58,7 +70,11 @@
 import express, { Router, type Request, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
-import { DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
+import {
+  DELIVERY_CONTROL_WAIT_MAX_MS,
+  DELIVERY_EVENT_LOG_MAX,
+} from "@roubo/shared/delivery-bench";
+import type { DeliveryControlReadSuperseded } from "@roubo/shared/delivery-control-contract";
 import {
   validateDeliveryEvent,
   type DeliveryEvent,
@@ -71,7 +87,10 @@ import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import {
   applyDeliveryControlReadBacks,
+  deliveryControlLatestSeq,
+  deliveryControlsOf,
   readDeliveryControls,
+  waitForDeliveryControl,
 } from "../services/delivery-control-outbox.js";
 import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
@@ -263,7 +282,47 @@ router.get("/delivery-controls", deliveryControlsRateLimiter, (req, res) => {
       return;
     }
   }
-  res.json(readDeliveryControls(bench, after));
+  const rawWait = req.query.wait;
+  let wait = 0;
+  if (rawWait !== undefined) {
+    wait = typeof rawWait === "string" && /^\d+$/.test(rawWait) ? Number(rawWait) : Number.NaN;
+    if (!Number.isSafeInteger(wait) || wait > DELIVERY_CONTROL_WAIT_MAX_MS) {
+      res.status(400).json({
+        error: `wait must be an integer from 0 to ${DELIVERY_CONTROL_WAIT_MAX_MS} ms`,
+        code: "INVALID_WAIT",
+        field: "wait",
+      });
+      return;
+    }
+  }
+
+  // A control above `after` is there, or the read does not wait: answer now.
+  if (wait === 0 || deliveryControlsOf(bench).some((c) => c.control_seq > after)) {
+    res.json(readDeliveryControls(bench, after));
+    return;
+  }
+
+  // Hold the read until a control is issued or the wait ends (SB-FR-041).
+  const held = waitForDeliveryControl(bench, wait);
+  res.on("close", () => {
+    if (!res.writableEnded) held.cancel();
+  });
+  void held.done.then((reason) => {
+    if (reason === "closed" || res.writableEnded) return;
+    if (reason === "revoked" || !verifyDeliveryToken(bench, bearerToken(req))) {
+      res.status(401).json({ error: "A valid delivery token is required", code: "UNAUTHORIZED" });
+      return;
+    }
+    if (reason === "superseded") {
+      res.json({ controls: [], superseded: true } satisfies DeliveryControlReadSuperseded);
+      return;
+    }
+    if (reason === "shutdown") {
+      res.json({ controls: [], latestSeq: deliveryControlLatestSeq(bench) });
+      return;
+    }
+    res.json(readDeliveryControls(bench, after));
+  });
 });
 
 export default router;
