@@ -119,7 +119,7 @@ describe("Spec Bench host: verifyVariantState", () => {
     expect(!result.ok && result.error).toMatch(/Gate pin worktree not found for gate G1/);
   });
 
-  it("SB-TC-009 reads the pin's commit without blocking: the check answers a promise", async () => {
+  it("SB-TC-009 reads the pin's commit without blocking: the event loop turns before the check settles", async () => {
     const workspace = path.join(tmp, "ws", "bench-1");
     fs.mkdirSync(workspace, { recursive: true });
     git(workspace, "init", "-q", "-b", "main");
@@ -129,7 +129,12 @@ describe("Spec Bench host: verifyVariantState", () => {
       gatePin: { gateId: "G1", workspacePath: workspace, commit, createdAt: "now" },
     });
     const pending = specbenchVariantHost.verifyVariantState(bench);
-    expect(pending).toBeInstanceOf(Promise);
+    // A check that read the commit synchronously would have settled before
+    // this line, so its continuation would win the race on a microtask. An
+    // awaited child process cannot finish before the next macrotask runs.
+    const tick = new Promise<"tick">((resolve) => setImmediate(() => resolve("tick")));
+    const first = await Promise.race([pending.then(() => "check" as const), tick]);
+    expect(first).toBe("tick");
     expect(await pending).toEqual({ ok: true });
   });
 

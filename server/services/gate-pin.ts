@@ -326,7 +326,8 @@ export interface OpenGatePinInput {
  * bench now has, once the pinned build passed its smoke check. Throws
  * GatePinError: 400 GATE_COMMIT_UNKNOWN when git does not know the commit
  * (nothing moved), 409 SITTING_BUSY while another open or close of the bench
- * runs, 409 GATE_PIN_PATH_TAKEN when a leftover directory holds the pin path,
+ * runs, 409 GATE_PIN_LEFTOVER when the bench holds a pin with no sitting
+ * (nothing moved; the close releases it), 409 GATE_PIN_PATH_TAKEN when a leftover directory holds the pin path,
  * 500 GATE_PIN_FAILED when git cannot add the worktree or the pin is not at the
  * commit, and 409 BUILD_NOT_SMOKE_CHECKED when the pin's setup, the restart of
  * its components or the smoke check fails. After each failure once the
@@ -334,6 +335,18 @@ export interface OpenGatePinInput {
  */
 export function openGatePin(bench: Bench, input: OpenGatePinInput): Promise<BenchDeliverySitting> {
   return exclusive(bench, async () => {
+    // A pin with no sitting is an open that a server stop cut short after the
+    // pin was recorded. Its components may run from it, and its setup flags
+    // are the pin's, so a new open would remove it under them and take the
+    // pin's flags for the workspace's. The close releases it in order.
+    if (bench.gatePin !== undefined) {
+      throw new GatePinError(
+        `The bench holds a gate pin of gate ${bench.gatePin.gateId} with no sitting: ` +
+          "close the sitting to release it, then open it again",
+        "GATE_PIN_LEFTOVER",
+        409,
+      );
+    }
     const workspacePath = assertSafeWorkspacePath(bench.workspacePath);
     let pinPath: string;
     try {

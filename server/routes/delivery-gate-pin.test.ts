@@ -694,6 +694,37 @@ describe("the gate pin of a sitting", () => {
     expect(setupAtStart.at(-1)).toEqual({ web: false });
   });
 
+  it("SB-TC-059 refuses an open with 409 GATE_PIN_LEFTOVER while a pin with no sitting holds the components, and the close releases it in order", async () => {
+    // The workspace never ran the component's setup; the pin's start ran it there.
+    bench.components.web.setupComplete = false;
+    expect((await openSitting()).status).toBe(201);
+    // A server stop cut the open short after the pin was recorded.
+    bench.deliverySitting = undefined;
+    expect(bench.components.web.setupComplete).toBe(true);
+    componentCalls = [];
+    vi.mocked(stateService.updateBench).mockClear();
+
+    const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("GATE_PIN_LEFTOVER");
+    expect(res.body.error).toContain("gate-after-b");
+    // Nothing moved: the components still run from the pin, which stays.
+    expect(componentCalls).toEqual([]);
+    expect(componentStatus()).toBe("running");
+    expect(worktrees().get(pin)).toEqual({ head: commits[1], detached: true });
+    expect(bench.gatePin).toMatchObject({ workspacePath: pin, workspaceSetupDone: [] });
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+
+    // The close stops the components before it removes the pin, and gives the
+    // workspace back its own setup flags, not the pin's.
+    const closed = await request(app).delete(`${base}/sittings/current`);
+    expect(closed.status).toBe(204);
+    expect(componentCalls).toEqual([`stop ${pin}`, `start ${workspace}`]);
+    expect(setupAtStart.at(-1)).toEqual({ web: false });
+    expect(fs.existsSync(pin)).toBe(false);
+    expect(bench.gatePin).toBeUndefined();
+  });
+
   it("SB-TC-060 a close that cannot remove the pin answers 500 GATE_PIN_FAILED and keeps the sitting", async () => {
     const opened = await openSitting();
     expect(opened.status).toBe(201);

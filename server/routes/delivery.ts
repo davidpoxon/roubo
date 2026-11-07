@@ -406,6 +406,12 @@
 //                                                    409 GATE_PIN_PATH_TAKEN: a
 //                                                        directory git cannot remove
 //                                                        holds the pin path
+//                                                    409 GATE_PIN_LEFTOVER: the bench
+//                                                        holds a gate pin with no
+//                                                        sitting (an open that a server
+//                                                        stop cut short); nothing moves,
+//                                                        and DELETE .../sittings/current
+//                                                        releases it
 //                                                    500 GATE_PIN_FAILED: git could not
 //                                                        add the worktree, or the pin is
 //                                                        not at the gate commit; the pin
