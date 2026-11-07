@@ -1710,7 +1710,6 @@ export interface BenchGatePin {
   createdAt: string;
 }
 
-/** The gate sitting a Spec Bench has open, and the session that runs it. */
 /**
  * What a Spec Bench's delivery cross-check keeps across a server restart: the
  * blocking classes its last refresh found, so a restart raises no notification
@@ -1724,6 +1723,7 @@ export interface DeliveryCrossCheckMemory {
   github: DeliveryCrossCheckDisagreement[];
 }
 
+/** The gate sitting a Spec Bench has open, and the session that runs it. */
 export interface BenchDeliverySitting {
   gateId: string;
   /** The terminal session of the sitting, stopped by Clear bench after the pin. */
