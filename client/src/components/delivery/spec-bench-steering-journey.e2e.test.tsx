@@ -248,21 +248,22 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is exactly this journey's blocked-by set, named by slice title, and
-// every step names at least one of them. A slice that a step also crosses but
-// that sits outside the blocked-by set is labelled apart.
+// OWNERS is exactly this journey's blocked-by set, named by its exact slice
+// title. The set holds one slice, and every step names it. A slice that a step
+// also crosses but that sits outside the blocked-by set is labelled apart,
+// under its exact title.
 const OWNERS = {
-  steering:
-    "'Steering composer, boundary panel and steering read-back' (SB-FR-016, SB-FR-017, SB-US-006)",
-  controls: "'Control service, outbox and the token-gated controls endpoint'",
+  steering: "'Steering composer, boundary panel and read-back' (SB-FR-016, SB-FR-017, SB-US-006)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
+  controls: "'Control service, outbox and the token-gated controls endpoint'",
   observationContract:
     "'Delivery observation contract in shared with generated schema and drift coverage'",
   reducer: "'Delivery reducer and selectors shared by server and client'",
-  launch: "delivery session launch, delivery token and event ingest (SB-FR-002, SB-FR-007)",
-  deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
+  launcher: "'Record loader, token registry and session launcher for launch and attach'",
+  ingest: "'Token-gated event ingest, sequence checks and the delivery stream frame'",
+  map: "'Delivery map with graph and list views'",
 } as const;
 
 type BlockedBySlice = keyof typeof OWNERS;
@@ -836,7 +837,7 @@ describe("Spec Bench steering journey", () => {
     const controlSeq = await step(
       "1. Type a steering note and send it",
       `the note "${NOTE}" shows queued under the next boundary, "${BOUNDARY_UNIT} finishes", and lands at that boundary`,
-      owners(["steering", "controls"], ["reducer", "deliveryTab"]),
+      owners(["steering"], ["controls", "reducer", "map"]),
       async () => {
         expect(within(boundaryPanel()).getByTestId("boundary-name")).toHaveTextContent(
           `${BOUNDARY_UNIT} finishes`,
@@ -888,7 +889,7 @@ describe("Spec Bench steering journey", () => {
     await step(
       "2. Post events that finish the current unit and reach the boundary with the read-back",
       `the tooling reads steering-note ${controlSeq} from the controls endpoint, and the event endpoint accepts ${BOUNDARY_UNIT} done, ${NEXT_BOUNDARY_UNIT} running and the steering.added that reads it back, with the token`,
-      owners(["controls", "steering"], ["observationContract", "launch"]),
+      owners(["steering"], ["controls", "observationContract", "launcher", "ingest"]),
       async () => {
         const controls = await tooling.readControls();
         const note = controls.find(
@@ -914,7 +915,7 @@ describe("Spec Bench steering journey", () => {
     await step(
       "3. Read the note",
       `the note shows applied with the read-back "${READ_BACK}", and the boundary panel has moved to "${NEXT_BOUNDARY_UNIT} finishes" with nothing queued`,
-      owners(["steering", "controls"], ["reducer", "deliveryTab"]),
+      owners(["steering"], ["controls", "reducer", "ingest", "map"]),
       async () => {
         await waitFor(
           () => {
