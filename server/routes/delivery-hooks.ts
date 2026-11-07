@@ -286,7 +286,9 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
   // A mode.changed moves the bench's mode in effect, which the bench card
-  // names (SB-FR-032).
+  // names (SB-FR-032). The record load above has already moved it to the mode
+  // of the folded record, so a mode.changed that the record carries, and that
+  // this batch therefore skips, has moved it too.
   const mode = applyDeliveryModeReadBack(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
   if (mode !== undefined) broadcastBenchDecisionMode(bench.projectId, bench.id, mode);

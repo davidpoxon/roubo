@@ -80,6 +80,7 @@ vi.mock("./notification.js", () => ({
 vi.mock("./sse.js", () => ({
   broadcast: vi.fn(),
   broadcastDeliveryFrame: vi.fn(),
+  broadcastBenchDecisionMode: vi.fn(),
   broadcastBenchStatus: vi.fn(),
   broadcastComponentStatusChange: vi.fn(),
   clearComponentStatusForBench: vi.fn(),

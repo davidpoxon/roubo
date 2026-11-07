@@ -303,6 +303,30 @@ async function requestAnswered(method: string, route: string, status: number): P
   );
 }
 
+// Waits until every stream the client opened is connected, so a broadcast
+// after this reaches it.
+async function streamsOpen(): Promise<void> {
+  await waitFor(
+    () => {
+      expect(streams.length).toBeGreaterThan(0);
+      expect(streams.every((stream) => stream.readyState === 1)).toBe(true);
+    },
+    { timeout: 3000 },
+  );
+}
+
+// Opens the notification stream as a bare reader, and returns the frames it
+// reads, in order, once it is connected.
+async function openStream(): Promise<Array<Record<string, unknown>>> {
+  const frames: Array<Record<string, unknown>> = [];
+  const stream = new StreamEventSource("/api/notifications/stream");
+  stream.onmessage = (message) => {
+    frames.push(JSON.parse(message.data) as Record<string, unknown>);
+  };
+  await streamsOpen();
+  return frames;
+}
+
 const modeControl = () => screen.getByTestId("delivery-mode-control");
 const segment = (name: "Attended" | "Auto") => within(modeControl()).getByRole("radio", { name });
 
@@ -429,6 +453,96 @@ describe("Mode switch over the live path", () => {
     expect(again.status).toBe(409);
     expect(await again.json()).toMatchObject({ code: "MODE_UNCHANGED", mode: "auto" });
     expect(bench.deliveryControlQueue ?? []).toHaveLength(1);
+  });
+
+  it("SB-TC-084 a record that already states auto, with its mode.changed at or below last_event_seq, moves the bench card and the persisted bench to auto", async () => {
+    renderTab();
+    await snapshotShown();
+    await streamsOpen();
+    expect(screen.getByTestId("bench-variant-badge")).toHaveTextContent(/^Spec Bench$/);
+
+    // The session writes the record in auto first, with a last_event_seq that
+    // covers its mode.changed, and only then posts that event with the next
+    // one: the bench skips the mode.changed and accepts only the next event.
+    const changed = event("mode.changed", { value: "auto" });
+    writeRecord(
+      modeRecord({ mode: { value: "auto", pending: null }, last_event_seq: changed.seq }),
+    );
+    await post([changed, event("lifecycle.changed", { state: "running" })]);
+
+    await waitFor(
+      () =>
+        expect(screen.getByTestId("bench-variant-badge")).toHaveTextContent("Spec Bench · auto"),
+      { timeout: 3000 },
+    );
+    await waitFor(
+      () => expect(screen.getByTestId("delivery-mode-label")).toHaveTextContent("auto mode"),
+      { timeout: 3000 },
+    );
+    expect(bench.deliveryDecisionMode).toBe("auto");
+    expect(stateService.updateBench).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deliveryDecisionMode: "auto" }),
+    );
+  });
+
+  it("SB-TC-084 a record that states auto with no event posted moves the persisted bench to auto on its next load", async () => {
+    writeRecord(modeRecord({ mode: { value: "auto", pending: null } }));
+    const frames = await openStream();
+
+    const res = await nodeFetch(
+      `${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`,
+    );
+    expect(res.status).toBe(200);
+    expect(bench.deliveryDecisionMode).toBe("auto");
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+    expect(stateService.updateBench).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deliveryDecisionMode: "auto" }),
+    );
+    await waitFor(
+      () =>
+        expect(frames).toContainEqual(
+          expect.objectContaining({
+            type: "bench-decision-mode",
+            projectId: PROJECT_ID,
+            benchId: BENCH_ID,
+            decisionMode: "auto",
+          }),
+        ),
+      { timeout: 3000 },
+    );
+
+    // A second load of the same record moves nothing.
+    await nodeFetch(`${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`);
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+  });
+
+  it("SB-TC-084 an attached bench takes the mode of its record on the first load", async () => {
+    bench = { ...bench, deliveryBindMode: "attach" };
+    delete bench.deliveryDecisionMode;
+    writeRecord(modeRecord({ mode: { value: "auto", pending: null } }));
+
+    const res = await nodeFetch(
+      `${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`,
+    );
+    expect(res.status).toBe(200);
+    expect(bench.deliveryDecisionMode).toBe("auto");
+    expect(stateService.updateBench).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deliveryDecisionMode: "auto" }),
+    );
+  });
+
+  it("SB-TC-084 a mode.changed to the mode already in effect saves nothing and broadcasts no bench-decision-mode", async () => {
+    const frames = await openStream();
+
+    await post([event("mode.changed", { value: "attended" })]);
+    // The batch's delivery frame arrives, so a mode frame would have too.
+    await waitFor(
+      () => expect(frames).toContainEqual(expect.objectContaining({ type: "delivery" })),
+      { timeout: 3000 },
+    );
+    expect(bench.deliveryDecisionMode).toBe("attended");
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+    expect(frames).not.toContainEqual(expect.objectContaining({ type: "bench-decision-mode" }));
   });
 });
 
