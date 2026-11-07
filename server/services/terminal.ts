@@ -153,6 +153,15 @@ interface InternalSession {
   // Spec Bench's drill-in cuts a unit's transcript out of the scrollback by
   // these times (SB-FR-013).
   bufferTimes: CircularBuffer<number>;
+  // Every chunk written into the PTY as input, in the order it was written:
+  // what a viewer typed through its socket and what core wrote with
+  // writeToSession. Output never lands here. A Spec Bench reads it to show that
+  // the operator's delivery controls reached the session through the controls
+  // endpoint and were never typed into its terminal (SB-FR-022). It is kept in
+  // memory only, because typed input can hold a secret that the terminal never
+  // echoed, so a session restored after a restart has null: its input is not
+  // known.
+  input: CircularBuffer<string> | null;
   exitCode: number | null;
   quiescenceTimer: ReturnType<typeof setTimeout> | null;
   // Timestamps used to gate quiescence-driven notifications: we only re-notify
@@ -266,6 +275,13 @@ function generateLabel(
     return `${displayName} ${index} - ${projectName} #${benchId}`;
   }
   return `Terminal ${index} - ${projectName} #${benchId}`;
+}
+
+/** Write one chunk of input into a live session's PTY, and keep it in its input. */
+function writeInput(internal: InternalSession, data: string): void {
+  if (!internal.pty) return;
+  internal.pty.write(data);
+  internal.input?.push(data);
 }
 
 /** Append one chunk to the scrollback with the time it was written. */
@@ -636,6 +652,7 @@ function registerSession(
     viewers: new Map(),
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
     bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
+    input: new CircularBuffer(MAX_BUFFER_CHUNKS),
     exitCode: null,
     quiescenceTimer: null,
     lastOutputAt: null,
@@ -1116,6 +1133,17 @@ export function getSessionScrollback(
   });
 }
 
+/**
+ * The input chunks written into a session's PTY, in the order they were
+ * written: what a viewer typed through its socket and what core wrote with
+ * writeToSession. Undefined when no such session exists, or when its input is
+ * not known because the session was restored after a restart: the input is
+ * kept in memory only.
+ */
+export function getSessionInput(sessionId: string): string[] | undefined {
+  return sessions.get(sessionId)?.input?.toArray();
+}
+
 export function getSessions(projectId: string, benchId: number): TerminalSession[] {
   const key = benchKey(projectId, benchId);
   return Array.from(sessions.values())
@@ -1276,6 +1304,8 @@ export function loadPersistedSessions(): void {
         viewers: new Map(),
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
         bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
+        // The input is never written to disk, so it is not known here.
+        input: null,
         exitCode: persisted.session.exitCode ?? null,
         quiescenceTimer: null,
         lastOutputAt: null,
@@ -1398,7 +1428,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     try {
       const msg = JSON.parse(rawData.toString());
       if (msg.type === "input" && typeof msg.data === "string") {
-        internal.pty?.write(msg.data);
+        writeInput(internal, msg.data);
         // Cancel the quiescence timer so active typing doesn't trigger a notification
         cancelQuiescenceCheck(internal);
         // User has engaged: reset the notify-gate so the next idle window can
@@ -1458,6 +1488,6 @@ export function hasSession(sessionId: string): boolean {
 export function writeToSession(sessionId: string, data: string): boolean {
   const internal = sessions.get(sessionId);
   if (!internal?.pty) return false;
-  internal.pty.write(data);
+  writeInput(internal, data);
   return true;
 }
