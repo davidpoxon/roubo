@@ -87,12 +87,12 @@ import type {
   CaseStatus,
 } from "@roubo/shared/testbench-contracts";
 import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
-import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import {
   isDeliveryReadError,
   type DeliveryCrossCheckResponse,
   type DeliveryEventsResponse,
   type DeliveryReadError,
+  type DeliverySnapshotResponse,
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
   type SpecBenchSpecSummary,
@@ -570,7 +570,10 @@ export function destroyTerminal(
 // Spec Bench delivery (SB-FR-009). The read answers the folded snapshot, or a
 // 409 whose body is a DeliveryReadError naming the section or field of a record
 // that does not conform; `request` puts that body on `ApiError.details`.
-export function fetchDelivery(projectId: string, benchId: number): Promise<DeliverySnapshot> {
+export function fetchDelivery(
+  projectId: string,
+  benchId: number,
+): Promise<DeliverySnapshotResponse> {
   return request(`/projects/${projectId}/benches/${benchId}/delivery`);
 }
 

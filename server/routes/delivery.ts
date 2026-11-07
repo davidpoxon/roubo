@@ -9,7 +9,11 @@
 //                                                    spill file) folded over it, with the
 //                                                    spec's plan, results and lifecycle in
 //                                                    the workspace for gate state and
-//                                                    progress
+//                                                    progress; with `sitting`
+//                                                    {gateId, state, commit?,
+//                                                    smokeCheck?} while the bench
+//                                                    prepares or has a gate sitting
+//                                                    (DeliverySnapshotResponse)
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
@@ -341,9 +345,26 @@
 //   POST /:projectId/benches/:id/delivery/sittings
 //        body {gateId}                        -> 201 BenchDeliverySitting {gateId,
 //                                                    openedAt, commit, state: "open",
-//                                                    resultsSpecPath}: the gate sitting
-//                                                    the bench now has open, kept on
-//                                                    the bench (deliverySitting). The
+//                                                    smokeCheck {passed, checkedAt,
+//                                                    detail?}, resultsSpecPath}: the
+//                                                    gate sitting the bench now has
+//                                                    open, kept on the bench
+//                                                    (deliverySitting).
+//                                                    When a gate.reached prepared the
+//                                                    gate's sitting (SB-FR-023, see
+//                                                    services/delivery-sitting.ts),
+//                                                    the pin is in place already: a
+//                                                    `ready` sitting, whose smoke
+//                                                    check passed, opens (also
+//                                                    preparedAt), and the gate's
+//                                                    delivery-sitting notification
+//                                                    goes; a `preparing` one, whose
+//                                                    smoke check has not passed, is
+//                                                    refused with 409
+//                                                    BUILD_NOT_SMOKE_CHECKED saying
+//                                                    the build is not smoke-checked,
+//                                                    and nothing moves.
+//                                                    With no prepared sitting, the
 //                                                    gate pin service (SB-FR-024, see
 //                                                    services/gate-pin.ts) stopped the
 //                                                    components, added a detached
@@ -391,8 +412,14 @@
 //                                                        over the gate's unconfirmed
 //                                                        provisional marks)
 //                                                    409 SITTING_OPEN + gateId: a sitting
-//                                                        of another gate is open
-//                                                 then, once no check refuses:
+//                                                        of another gate is open, ready
+//                                                        or being prepared
+//                                                    409 BUILD_NOT_SMOKE_CHECKED: the
+//                                                        gate's prepared sitting waits
+//                                                        for its build (as above), also
+//                                                        while its pin is being made
+//                                                 then, with no prepared sitting, once
+//                                                 no check refuses:
 //                                                    409 GATE_COMMIT_MISSING + gateId:
 //                                                        the record names no head for
 //                                                        the gate's top unit
@@ -428,17 +455,20 @@
 //                                                        ran restart from the workspace
 //                                                    404 and 409 as the snapshot read
 //   DELETE /:projectId/benches/:id/delivery/sittings/current
-//                                                 -> 204 the sitting closed: the gate pin
-//                                                    service stopped the components,
-//                                                    removed the pin worktree, cleared
-//                                                    gatePin and deliverySitting,
-//                                                    restored the workspace's setup
-//                                                    flags, and restarted the
-//                                                    components that ran, from the
-//                                                    workspace, after each launch
-//                                                    settled
-//                                                    404 SITTING_NOT_FOUND: no sitting is
-//                                                        open
+//                                                 -> 204 the sitting closed, in any state
+//                                                    (preparing, ready or open): the
+//                                                    gate pin service stopped the
+//                                                    components, removed the pin
+//                                                    worktree, cleared gatePin and
+//                                                    deliverySitting, restored the
+//                                                    workspace's setup flags,
+//                                                    dismissed the gate's
+//                                                    delivery-sitting notification,
+//                                                    and restarted the components
+//                                                    that ran, from the workspace,
+//                                                    after each launch settled
+//                                                    404 SITTING_NOT_FOUND: the bench
+//                                                        has no sitting and no pin
 //                                                    404 not a Spec Bench
 //                                                    409 SITTING_BUSY: as the open
 //                                                    500 GATE_PIN_FAILED: git could not
@@ -474,11 +504,18 @@ import {
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import { UnsafePathError } from "../lib/safe-path.js";
 import * as benchManager from "../services/bench-manager.js";
-import { closeGatePin, GatePinError, openGatePin } from "../services/gate-pin.js";
+import {
+  closeGatePin,
+  GatePinError,
+  openGatePin,
+  openPreparedSitting,
+} from "../services/gate-pin.js";
+import { gateCommitOf } from "../services/delivery-sitting.js";
 import {
   DELIVERY_DIFF_MAX_BYTES,
   type DeliveryCrossCheckResponse,
   type DeliveryEventsResponse,
+  type DeliverySnapshotResponse,
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
@@ -613,17 +650,31 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
   // progress its cases met and requirements covered (SB-FR-011): a retired or
   // superseded case reads as the gates route reads it.
   const verify = loadBenchDeliveryVerifyInputs(bench);
-  res.json(
-    foldDeliverySnapshot({
-      record: loaded.record,
-      events,
-      ...verify,
-      // The served thread messages too, so a review card keeps its question
-      // while the session answers.
-      controls: deliveryCardControlsOf(bench),
-      now: Date.now(),
-    }),
-  );
+  const snapshot = foldDeliverySnapshot({
+    record: loaded.record,
+    events,
+    ...verify,
+    // The served thread messages too, so a review card keeps its question
+    // while the session answers.
+    controls: deliveryCardControlsOf(bench),
+    now: Date.now(),
+  });
+  // The gate sitting the bench prepares or has open (SB-FR-023), so the gate
+  // reads waiting for build or ready to sit.
+  const sitting = bench.deliverySitting;
+  const body: DeliverySnapshotResponse =
+    sitting === undefined
+      ? snapshot
+      : {
+          ...snapshot,
+          sitting: {
+            gateId: sitting.gateId,
+            state: sitting.state ?? "open",
+            ...(sitting.commit !== undefined && { commit: sitting.commit }),
+            ...(sitting.smokeCheck !== undefined && { smokeCheck: sitting.smokeCheck }),
+          },
+        };
+  res.json(body);
 });
 
 function sendInvalidQuery(res: Response, field: string, error: string): void {
@@ -1364,24 +1415,11 @@ router.post(
 
 // ── Gate sittings (SB-FR-024, SB-FR-029) ──
 //
-// The route applies the lifecycle and cross-check refusals, then the gate pin
-// service pins a detached worktree at the gate commit and records the sitting
-// (see services/gate-pin.ts). Starting the sitting's session comes on top of
-// it.
-
-// The gate commit the record carries for a gate: the head of the top unit of
-// the stack the gate runs after (the unit of `after` on the highest layer, the
-// last of them on a tie), or undefined when that unit has no head yet.
-function gateCommitOf(snapshot: DeliverySnapshot, gateId: string): string | undefined {
-  const view = ownValue(snapshot.gatesById, gateId);
-  if (view === undefined) return undefined;
-  let top: DeliveryUnit | undefined;
-  for (const unitId of view.gate.after) {
-    const unit = ownValue(snapshot.unitsById, unitId);
-    if (unit !== undefined && (top === undefined || unit.layer >= top.layer)) top = unit;
-  }
-  return top?.head;
-}
+// The route applies the lifecycle and cross-check refusals, then opens the
+// sitting that a gate.reached prepared once its smoke check passed (SB-FR-023),
+// or, with none prepared, has the gate pin service pin a detached worktree at
+// the gate commit and record the sitting (see services/gate-pin.ts). Starting
+// the sitting's session comes on top of it.
 
 function sendGatePinError(res: Response, err: unknown): void {
   if (!(err instanceof GatePinError)) throw err;
@@ -1415,16 +1453,30 @@ router.post(
     }
     const open = bench.deliverySitting;
     if (open !== undefined) {
-      if (open.gateId === gateId) {
+      if (open.gateId !== gateId) {
+        res.status(409).json({
+          error:
+            (open.state ?? "open") === "open"
+              ? `A sitting of gate ${open.gateId} is open already`
+              : `A sitting of gate ${open.gateId} is being prepared`,
+          code: "SITTING_OPEN",
+          gateId: open.gateId,
+        });
+        return;
+      }
+      if ((open.state ?? "open") === "open") {
         // The same sitting again: it is open already.
         res.status(202).json(open);
         return;
       }
-      res.status(409).json({
-        error: `A sitting of gate ${open.gateId} is open already`,
-        code: "SITTING_OPEN",
-        gateId: open.gateId,
-      });
+      // The sitting gate.reached prepared: it opens once its smoke check passed
+      // (SB-FR-023), and is refused while the gate waits for its build.
+      try {
+        const sitting = await openPreparedSitting(bench, gateId);
+        res.status(201).json(sitting);
+      } catch (err) {
+        sendGatePinError(res, err);
+      }
       return;
     }
     const commit = gateCommitOf(context.snapshot, gateId);

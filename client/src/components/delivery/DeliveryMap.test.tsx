@@ -265,6 +265,35 @@ describe("Delivery map", () => {
     expect(screen.queryByTestId("delivery-drill-in")).not.toBeInTheDocument();
   });
 
+  it("SB-TC-058 names the gate's sitting in the gate's drill-in, and no sitting in another gate's", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue({
+      ...foldDelivery({ record: fourUnitRecord(), events: [] }),
+      sitting: {
+        gateId: "gate-after-b",
+        state: "preparing",
+        commit: "b".repeat(40),
+        smokeCheck: {
+          passed: false,
+          checkedAt: "2026-10-16T09:40:00Z",
+          detail: "no component of the bench runs, so no build is live",
+        },
+      },
+    });
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await userEvent.click(await screen.findByTestId("gate-marker-gate-after-b"));
+
+    const drillIn = screen.getByRole("region", { name: "Gate gate-after-b" });
+    expect(within(drillIn).getByText("Sitting")).toBeInTheDocument();
+    expect(within(drillIn).getByTestId("gate-detail-sitting")).toHaveTextContent(
+      "waiting for build",
+    );
+    await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
+
+    await userEvent.click(screen.getByTestId("gate-marker-gate-after-c"));
+    const other = screen.getByRole("region", { name: "Gate gate-after-c" });
+    expect(within(other).queryByTestId("gate-detail-sitting")).not.toBeInTheDocument();
+  });
+
   it("shows a gate's state and the count of the cases it gates under the pointer", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       foldDelivery({ record: fourUnitRecord(), events: [] }),
