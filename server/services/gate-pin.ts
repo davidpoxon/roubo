@@ -1,8 +1,23 @@
-// The gate pin service of a Spec Bench (SB-FR-024, SB-NFR-006): the sequence
-// that opens a gate sitting on a detached worktree at the gate commit, and the
-// one that closes it.
+// The gate pin service of a Spec Bench (SB-FR-023, SB-FR-024, SB-NFR-006): the
+// sequence that prepares a gate sitting on a detached worktree at the gate
+// commit, the one that opens it, and the one that closes it.
 //
-// Opening a sitting:
+// Preparing a sitting (prepareGateSitting) runs when the delivery session posts
+// `gate.reached` (see services/delivery-sitting.ts), out of band of the hook's
+// answer. It runs steps 1 to 6 below and records `deliverySitting` in state
+// `preparing`, with the smoke check's verdict in `smokeCheck`. The smoke check
+// of a prepared pin also fails while no component of the bench runs, since no
+// build is then live. While it fails, the pin stays and the check runs again
+// every SMOKE_RECHECK_MS, so a build that the operator brings up (a component
+// started or restarted, which runs from the pin) passes it. Once it passes, the
+// sitting is `ready` and the bench's `delivery-sitting` notification for the
+// gate calls the operator. Each change of the sitting goes out as a `controls`
+// delivery frame, so the Delivery tab reads it again.
+//
+// Opening a sitting on a `ready` pin (openPreparedSitting) moves it to `open`
+// and dismisses the notification. A `preparing` one is refused with 409
+// BUILD_NOT_SMOKE_CHECKED. With no prepared sitting, openGatePin runs the whole
+// sequence while the request waits:
 //   1. resolves the gate commit, before anything else moves, so a commit git
 //      does not know is refused with no worktree created and the components
 //      untouched (SB-TC-066). It is looked up in the bench workspace, and in a
@@ -23,14 +38,18 @@
 //   6. smoke-checks the pinned build: each restarted component runs, each one
 //      that reports an http(s) URL answers it with a status below 500, and the
 //      pin still checks out the gate commit;
-//   7. records `deliverySitting` and persists both, and only then answers.
+//   7. records `deliverySitting` in state `open`, with the smoke check's
+//      verdict, and persists both, and only then answers.
 // When a step from 4 on fails, the pin is undone: the components it started
 // stop, the pin worktree goes, the workspace's setup flags come back, and the
 // components that ran restart from the workspace before the refusal answers.
+// A preparation undoes the pin the same way when a step from 4 to 5 fails, but
+// not when the smoke check of step 6 fails: that is the build being down.
 //
-// Closing a sitting reverses it: stop the components, remove the worktree,
-// clear both records, restore the workspace's setup flags, persist, and restart
-// the components that ran, from the workspace, waiting until they settle.
+// Closing a sitting, in any state, reverses it: stop the components, remove
+// the worktree, clear both records, restore the workspace's setup flags,
+// persist, dismiss the gate's notification, and restart the components that
+// ran, from the workspace, waiting until they settle.
 //
 // The pin is a checkout of its own, so a stack head that moves on in the
 // workspace leaves it at its commit (SB-TC-061). Reconcile checks it through
@@ -46,6 +65,7 @@ import type {
   Bench,
   BenchDeliverySitting,
   BenchGatePin,
+  BenchSittingSmokeCheck,
   RegisteredProject,
   RouboConfig,
 } from "@roubo/shared";
@@ -53,7 +73,13 @@ import { assertSafeWorkspacePath, resolveWithin, UnsafePathError } from "../lib/
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
+import { deliveryAcceptedSeq } from "./delivery-event-log.js";
 import { runCommand } from "./exec.js";
+import { createNotification, dismissByKey } from "./notification.js";
+import { broadcastDeliveryFrame } from "./sse.js";
+
+/** The notification that calls the operator to a gate whose build is ready. */
+export const DELIVERY_SITTING_NOTIFICATION = "delivery-sitting";
 
 /** A refusal or a failure of the pin sequence, with the HTTP status the route answers. */
 export class GatePinError extends Error {
@@ -79,6 +105,10 @@ const GIT_TIMEOUT_MS = 60_000;
 const SMOKE_ATTEMPTS = 3;
 const SMOKE_RETRY_MS = 500;
 const SMOKE_TIMEOUT_MS = 10_000;
+
+// How long a prepared pin whose smoke check failed waits before it checks
+// again.
+export const SMOKE_RECHECK_MS = 5_000;
 
 // The benches whose pin sequence runs now, so a second open or close waits for
 // none and is refused instead.
@@ -321,194 +351,228 @@ export interface OpenGatePinInput {
   resultsSpecPath: string;
 }
 
+// A pin in place, its components restarted from it, before its smoke check.
+interface PinnedBuild {
+  /** The full gate commit. */
+  sha: string;
+  /** The checkout that holds the gate commit: the pin, or its submodule. */
+  checkout: string;
+  /** The components that ran before the pin, which restarted from it. */
+  running: string[];
+  /** When the pin was recorded. */
+  now: string;
+  /** Undoes the pin, and hands back the error to throw. */
+  abandon: (err: GatePinError) => Promise<GatePinError>;
+}
+
 /**
- * Opens a gate sitting on a pin at the gate commit, and returns the sitting the
- * bench now has, once the pinned build passed its smoke check. Throws
- * GatePinError: 400 GATE_COMMIT_UNKNOWN when git does not know the commit
- * (nothing moved), 409 SITTING_BUSY while another open or close of the bench
- * runs, 409 GATE_PIN_LEFTOVER when the bench holds a pin with no sitting
- * (nothing moved; the close releases it), 409 GATE_PIN_PATH_TAKEN when a leftover directory holds the pin path,
- * 500 GATE_PIN_FAILED when git cannot add the worktree or the pin is not at the
- * commit, and 409 BUILD_NOT_SMOKE_CHECKED when the pin's setup, the restart of
- * its components or the smoke check fails. After each failure once the
- * components stopped, they restart from the workspace before it throws.
+ * Steps 1 to 5 of the sequence: the pin at the gate commit, prepared, recorded
+ * in `gatePin`, with the components that ran restarted from it. Throws the
+ * GatePinErrors that openGatePin names, after it undid what it moved.
  */
-export function openGatePin(bench: Bench, input: OpenGatePinInput): Promise<BenchDeliverySitting> {
-  return exclusive(bench, async () => {
-    // A pin with no sitting is an open that a server stop cut short after the
-    // pin was recorded. Its components may run from it, and its setup flags
-    // are the pin's, so a new open would remove it under them and take the
-    // pin's flags for the workspace's. The close releases it in order.
-    if (bench.gatePin !== undefined) {
-      throw new GatePinError(
-        `The bench holds a gate pin of gate ${bench.gatePin.gateId} with no sitting: ` +
-          "close the sitting to release it, then open it again",
-        "GATE_PIN_LEFTOVER",
-        409,
-      );
+async function pinGateCommit(bench: Bench, input: OpenGatePinInput): Promise<PinnedBuild> {
+  // A pin with no sitting is an open that a server stop cut short after the
+  // pin was recorded. Its components may run from it, and its setup flags
+  // are the pin's, so a new open would remove it under them and take the
+  // pin's flags for the workspace's. The close releases it in order.
+  if (bench.gatePin !== undefined) {
+    throw new GatePinError(
+      `The bench holds a gate pin of gate ${bench.gatePin.gateId} with no sitting: ` +
+        "close the sitting to release it, then open it again",
+      "GATE_PIN_LEFTOVER",
+      409,
+    );
+  }
+  const workspacePath = assertSafeWorkspacePath(bench.workspacePath);
+  let pinPath: string;
+  try {
+    pinPath = gatePinPath(bench);
+  } catch (err) {
+    if (err instanceof UnsafePathError) {
+      throw new GatePinError(err.message, "GATE_PIN_FAILED", 500);
     }
-    const workspacePath = assertSafeWorkspacePath(bench.workspacePath);
-    let pinPath: string;
-    try {
-      pinPath = gatePinPath(bench);
-    } catch (err) {
-      if (err instanceof UnsafePathError) {
-        throw new GatePinError(err.message, "GATE_PIN_FAILED", 500);
-      }
-      throw err;
-    }
-    const project: RegisteredProject | undefined = projectRegistry.getProject(bench.projectId);
-    const config = project?.config;
+    throw err;
+  }
+  const project: RegisteredProject | undefined = projectRegistry.getProject(bench.projectId);
+  const config = project?.config;
 
-    // 1. The commit, before anything moves.
-    const target = await resolveGateCommit(workspacePath, config, input.commit);
-    if (target === undefined) {
-      throw new GatePinError(
-        `The gate commit ${input.commit} of gate ${input.gateId} is unknown to git`,
-        "GATE_COMMIT_UNKNOWN",
-        400,
-      );
-    }
-    // The commit the pin itself checks out: for a submodule's gate commit, the
-    // superproject commit the workspace has, whose submodule then moves.
-    const base =
-      target.submodulePath === undefined ? target.sha : await checkedOutCommit(workspacePath);
-    if (base === undefined) {
-      throw new GatePinError(
-        `Could not read the commit of the bench workspace ${workspacePath}`,
-        "GATE_PIN_FAILED",
-        500,
-      );
-    }
-    if (fs.existsSync(pinPath) && (await removeWorktree(workspacePath, pinPath)) !== undefined) {
-      throw new GatePinError(
-        `The pin path ${pinPath} is taken by a directory git cannot remove`,
-        "GATE_PIN_PATH_TAKEN",
-        409,
-      );
-    }
+  // 1. The commit, before anything moves.
+  const target = await resolveGateCommit(workspacePath, config, input.commit);
+  if (target === undefined) {
+    throw new GatePinError(
+      `The gate commit ${input.commit} of gate ${input.gateId} is unknown to git`,
+      "GATE_COMMIT_UNKNOWN",
+      400,
+    );
+  }
+  // The commit the pin itself checks out: for a submodule's gate commit, the
+  // superproject commit the workspace has, whose submodule then moves.
+  const base =
+    target.submodulePath === undefined ? target.sha : await checkedOutCommit(workspacePath);
+  if (base === undefined) {
+    throw new GatePinError(
+      `Could not read the commit of the bench workspace ${workspacePath}`,
+      "GATE_PIN_FAILED",
+      500,
+    );
+  }
+  if (fs.existsSync(pinPath) && (await removeWorktree(workspacePath, pinPath)) !== undefined) {
+    throw new GatePinError(
+      `The pin path ${pinPath} is taken by a directory git cannot remove`,
+      "GATE_PIN_PATH_TAKEN",
+      409,
+    );
+  }
 
-    // 2. The components.
-    const running = runningComponents(bench);
-    const setupBefore = setupFlags(bench);
+  // 2. The components.
+  const running = runningComponents(bench);
+  const setupBefore = setupFlags(bench);
+  await stopComponents(bench);
+
+  // 3. The detached worktree.
+  const added = await git(["worktree", "add", "--detach", pinPath, base], workspacePath);
+  if (added.code !== 0) {
+    await restartComponents(bench, running);
+    throw new GatePinError(
+      `Could not pin gate ${input.gateId} at ${target.sha}: ${added.stderr.trim() || `exit code ${added.code}`}`,
+      "GATE_PIN_FAILED",
+      500,
+    );
+  }
+
+  // Undoes the pin after a failed step, and hands back the error to throw.
+  const abandon = async (err: GatePinError): Promise<GatePinError> => {
     await stopComponents(bench);
+    bench.gatePin = undefined;
+    for (const [name, done] of setupBefore) {
+      const status = bench.components?.[name];
+      if (status !== undefined) status.setupComplete = done;
+    }
+    const leftover = await removeWorktree(workspacePath, pinPath);
+    if (leftover !== undefined) {
+      console.warn(`[gate-pin] Could not remove the gate pin ${pinPath}: ${leftover}`);
+    }
+    // A launch from the pin may have written the bench down with its pin.
+    persist(bench);
+    await restartComponents(bench, running);
+    return err;
+  };
 
-    // 3. The detached worktree.
-    const added = await git(["worktree", "add", "--detach", pinPath, base], workspacePath);
-    if (added.code !== 0) {
-      await restartComponents(bench, running);
-      throw new GatePinError(
-        `Could not pin gate ${input.gateId} at ${target.sha}: ${added.stderr.trim() || `exit code ${added.code}`}`,
-        "GATE_PIN_FAILED",
-        500,
+  // 4. The pin, prepared as a workspace is.
+  const submodules = mappedSubmodules(config);
+  if (project !== undefined && config !== undefined && submodules.length > 0) {
+    const sub = await benchManager.updateWorkspaceSubmodules(
+      project.repoPath,
+      pinPath,
+      submodules,
+      config.layout.submoduleInit,
+      { benchId: bench.id },
+    );
+    if (sub?.ok !== true) {
+      throw await abandon(
+        notSmokeChecked(
+          `the submodules of the pin could not be initialised: ${sub?.stderr.trim() || "stopped"}`,
+        ),
       );
     }
-
-    // Undoes the pin after a failed step, and hands back the error to throw.
-    const abandon = async (err: GatePinError): Promise<GatePinError> => {
-      await stopComponents(bench);
-      bench.gatePin = undefined;
-      for (const [name, done] of setupBefore) {
-        const status = bench.components?.[name];
-        if (status !== undefined) status.setupComplete = done;
-      }
-      const leftover = await removeWorktree(workspacePath, pinPath);
-      if (leftover !== undefined) {
-        console.warn(`[gate-pin] Could not remove the gate pin ${pinPath}: ${leftover}`);
-      }
-      // A launch from the pin may have written the bench down with its pin.
-      persist(bench);
-      await restartComponents(bench, running);
-      return err;
-    };
-
-    // 4. The pin, prepared as a workspace is.
-    const submodules = mappedSubmodules(config);
-    if (project !== undefined && config !== undefined && submodules.length > 0) {
-      const sub = await benchManager.updateWorkspaceSubmodules(
-        project.repoPath,
-        pinPath,
-        submodules,
-        config.layout.submoduleInit,
-        { benchId: bench.id },
-      );
-      if (sub?.ok !== true) {
-        throw await abandon(
-          notSmokeChecked(
-            `the submodules of the pin could not be initialised: ${sub?.stderr.trim() || "stopped"}`,
-          ),
-        );
-      }
-    }
-    let checkout = pinPath;
-    if (target.submodulePath !== undefined) {
-      const inPin = within(pinPath, target.submodulePath);
-      const inWorkspace = within(workspacePath, target.submodulePath);
-      const failed =
-        inPin === undefined || inWorkspace === undefined
-          ? `the submodule path ${target.submodulePath} leaves the checkout`
-          : await checkOutSubmoduleCommit(inPin, inWorkspace, target.sha);
-      if (failed !== undefined || inPin === undefined) {
-        throw await abandon(
-          new GatePinError(
-            `Could not pin gate ${input.gateId} at ${target.sha} in ${target.submodulePath}: ${failed}`,
-            "GATE_PIN_FAILED",
-            500,
-          ),
-        );
-      }
-      checkout = inPin;
-    }
-    const pinned = await checkedOutCommit(checkout);
-    if (pinned !== target.sha) {
+  }
+  let checkout = pinPath;
+  if (target.submodulePath !== undefined) {
+    const inPin = within(pinPath, target.submodulePath);
+    const inWorkspace = within(workspacePath, target.submodulePath);
+    const failed =
+      inPin === undefined || inWorkspace === undefined
+        ? `the submodule path ${target.submodulePath} leaves the checkout`
+        : await checkOutSubmoduleCommit(inPin, inWorkspace, target.sha);
+    if (failed !== undefined || inPin === undefined) {
       throw await abandon(
         new GatePinError(
-          `Could not pin gate ${input.gateId} at ${target.sha}: the pin is at ${pinned ?? "no commit"}`,
+          `Could not pin gate ${input.gateId} at ${target.sha} in ${target.submodulePath}: ${failed}`,
           "GATE_PIN_FAILED",
           500,
         ),
       );
     }
-    if (config?.benches.setup) {
-      const setup = await benchManager.runBenchSetupCommand(bench, config, pinPath);
-      if (setup.code !== 0) {
-        throw await abandon(
-          notSmokeChecked(
-            `benches.setup failed in the pin: ${setup.stderr.trim() || `exit code ${setup.code}`}`,
-          ),
-        );
-      }
-    }
-    const withSetup = [...setupBefore.keys()].filter((name) =>
-      benchManager.componentHasSetup(config?.components[name]),
+    checkout = inPin;
+  }
+  const pinned = await checkedOutCommit(checkout);
+  if (pinned !== target.sha) {
+    throw await abandon(
+      new GatePinError(
+        `Could not pin gate ${input.gateId} at ${target.sha}: the pin is at ${pinned ?? "no commit"}`,
+        "GATE_PIN_FAILED",
+        500,
+      ),
     );
-    const workspaceSetupDone = withSetup.filter((name) => setupBefore.get(name) === true);
-    applySetupFlags(bench, config, new Set());
+  }
+  if (config?.benches.setup) {
+    const setup = await benchManager.runBenchSetupCommand(bench, config, pinPath);
+    if (setup.code !== 0) {
+      throw await abandon(
+        notSmokeChecked(
+          `benches.setup failed in the pin: ${setup.stderr.trim() || `exit code ${setup.code}`}`,
+        ),
+      );
+    }
+  }
+  const withSetup = [...setupBefore.keys()].filter((name) =>
+    benchManager.componentHasSetup(config?.components[name]),
+  );
+  const workspaceSetupDone = withSetup.filter((name) => setupBefore.get(name) === true);
+  applySetupFlags(bench, config, new Set());
 
-    // 5. The pin record, then the components, from the pin on the bench's own
-    // ports.
-    const now = new Date().toISOString();
-    const pin: BenchGatePin = {
-      gateId: input.gateId,
-      workspacePath: pinPath,
-      commit: target.sha,
-      ...(target.submodulePath !== undefined && { submodulePath: target.submodulePath }),
-      ...(withSetup.length > 0 && { workspaceSetupDone }),
-      createdAt: now,
-    };
-    bench.gatePin = pin;
-    await restartComponents(bench, running);
+  // 5. The pin record, then the components, from the pin on the bench's own
+  // ports.
+  const now = new Date().toISOString();
+  const pin: BenchGatePin = {
+    gateId: input.gateId,
+    workspacePath: pinPath,
+    commit: target.sha,
+    ...(target.submodulePath !== undefined && { submodulePath: target.submodulePath }),
+    ...(withSetup.length > 0 && { workspaceSetupDone }),
+    createdAt: now,
+  };
+  bench.gatePin = pin;
+  await restartComponents(bench, running);
+  return { sha: target.sha, checkout, running, now, abandon };
+}
+
+function smokeVerdict(problem: string | undefined): BenchSittingSmokeCheck {
+  const checkedAt = new Date().toISOString();
+  return problem === undefined
+    ? { passed: true, checkedAt }
+    : { passed: false, checkedAt, detail: problem };
+}
+
+/**
+ * Opens a gate sitting on a pin at the gate commit, and returns the sitting the
+ * bench now has, once the pinned build passed its smoke check, which the
+ * sitting records in `smokeCheck`. Throws GatePinError: 400
+ * GATE_COMMIT_UNKNOWN when git does not know the commit (nothing moved), 409
+ * SITTING_BUSY while another open or close of the bench runs, 409
+ * GATE_PIN_LEFTOVER when the bench holds a pin with no sitting (nothing moved;
+ * the close releases it), 409 GATE_PIN_PATH_TAKEN when a leftover directory
+ * holds the pin path, 500 GATE_PIN_FAILED when git cannot add the worktree or
+ * the pin is not at the commit, and 409 BUILD_NOT_SMOKE_CHECKED when the pin's
+ * setup, the restart of its components or the smoke check fails. After each
+ * failure once the components stopped, they restart from the workspace before
+ * it throws.
+ */
+export function openGatePin(bench: Bench, input: OpenGatePinInput): Promise<BenchDeliverySitting> {
+  return exclusive(bench, async () => {
+    const pinned = await pinGateCommit(bench, input);
 
     // 6. The smoke check of the pinned build.
-    const problem = await smokeCheck(bench, running, checkout, target.sha);
-    if (problem !== undefined) throw await abandon(notSmokeChecked(problem));
+    const problem = await smokeCheck(bench, pinned.running, pinned.checkout, pinned.sha);
+    if (problem !== undefined) throw await pinned.abandon(notSmokeChecked(problem));
 
     // 7. The sitting.
     const sitting: BenchDeliverySitting = {
       gateId: input.gateId,
-      openedAt: now,
-      commit: target.sha,
+      openedAt: pinned.now,
+      commit: pinned.sha,
       state: "open",
+      smokeCheck: smokeVerdict(undefined),
       resultsSpecPath: input.resultsSpecPath,
     };
     bench.deliverySitting = sitting;
@@ -517,12 +581,270 @@ export function openGatePin(bench: Bench, input: OpenGatePinInput): Promise<Benc
   });
 }
 
+// ── Preparing a sitting on gate.reached (SB-FR-023) ──
+
+// The prepared pins whose smoke check failed and runs again: the gate, the
+// components that ran before the pin, and the timer of the next check.
+interface SittingWatch {
+  gateId: string;
+  expected: string[];
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+const watches = new Map<string, SittingWatch>();
+
+// The preparations that run now, so a caller can wait for one to settle.
+const preparations = new Map<string, Promise<BenchDeliverySitting | undefined>>();
+
+function stopWatch(bench: Bench): void {
+  const key = benchKey(bench);
+  const watch = watches.get(key);
+  if (watch?.timer !== undefined) clearTimeout(watch.timer);
+  watches.delete(key);
+}
+
+// The components whose build the smoke check of a prepared pin reads: those
+// that ran before the pin, and each that runs or starts now (one the operator
+// started runs from the pin).
+function liveBuildNames(bench: Bench, expected: readonly string[]): string[] {
+  const names = new Set(expected);
+  for (const name of runningComponents(bench)) names.add(name);
+  return [...names];
+}
+
+// The smoke check of a prepared pin: as the open's, and it also fails while no
+// component of a bench that has components runs, since no build is live then.
+async function preparedSmokeCheck(
+  bench: Bench,
+  expected: readonly string[],
+  checkout: string,
+  sha: string,
+): Promise<string | undefined> {
+  const names = liveBuildNames(bench, expected);
+  if (names.length === 0 && Object.keys(bench.components ?? {}).length > 0) {
+    return "no component of the bench runs, so no build is live";
+  }
+  return smokeCheck(bench, names, checkout, sha);
+}
+
+// Tells the Delivery tab that the sitting changed: a `controls` frame, which
+// the client never skips, so it reads the snapshot again.
+function announce(bench: Bench): void {
+  persist(bench);
+  broadcastDeliveryFrame(
+    bench.projectId,
+    bench.id,
+    deliveryAcceptedSeq(bench.projectId, bench.id) ?? 0,
+    "controls",
+  );
+}
+
+// Records the verdict of a prepared pin's smoke check: `ready` and the
+// operator called when it passed, else the failure and the next check.
+function recordPreparedCheck(
+  bench: Bench,
+  sitting: BenchDeliverySitting,
+  problem: string | undefined,
+): void {
+  const before = sitting.smokeCheck;
+  sitting.smokeCheck = smokeVerdict(problem);
+  if (problem === undefined) {
+    stopWatch(bench);
+    sitting.state = "ready";
+    announce(bench);
+    createNotification(
+      bench,
+      DELIVERY_SITTING_NOTIFICATION,
+      undefined,
+      { gateId: sitting.gateId, ...(sitting.commit !== undefined && { commit: sitting.commit }) },
+      undefined,
+      undefined,
+      sitting.gateId,
+    );
+    return;
+  }
+  if (before === undefined || before.passed || before.detail !== problem) {
+    announce(bench);
+  } else {
+    persist(bench);
+  }
+  scheduleRecheck(bench, sitting.gateId);
+}
+
+function scheduleRecheck(bench: Bench, gateId: string): void {
+  const watch = watches.get(benchKey(bench));
+  if (watch === undefined || watch.gateId !== gateId) return;
+  if (watch.timer !== undefined) clearTimeout(watch.timer);
+  watch.timer = setTimeout(() => {
+    watch.timer = undefined;
+    void recheckGateSitting(bench).catch((err: unknown) => {
+      console.warn(
+        `[gate-pin] The smoke check of gate ${gateId} on bench ${bench.id} failed to run: ${(err as Error).message}`,
+      );
+      scheduleRecheck(bench, gateId);
+    });
+  }, SMOKE_RECHECK_MS);
+  watch.timer.unref?.();
+}
+
 /**
- * Closes the bench's gate sitting: stops the components, removes the pin,
- * clears `gatePin` and `deliverySitting`, restores the workspace's setup flags,
- * persists, and restarts the components that ran, from the workspace, waiting
- * until each launch settles. Throws GatePinError: 404 SITTING_NOT_FOUND when no
- * sitting is open, 409 SITTING_BUSY as the open, and 500 GATE_PIN_FAILED when
+ * Prepares the sitting of a gate the delivery reached: pins the gate commit as
+ * openGatePin does (steps 1 to 5), records `deliverySitting` in state
+ * `preparing`, and smoke-checks the pinned build. When the check passes the
+ * sitting is `ready` and the `delivery-sitting` notification of the gate calls
+ * the operator; while it fails the pin stays and the check runs again every
+ * SMOKE_RECHECK_MS. Does nothing, and returns undefined, while the bench has a
+ * sitting or a pin already, or another open or close runs. A step that cannot
+ * pin the commit undoes what it moved and returns undefined, logged; the
+ * operator can still open the sitting, which then runs the whole sequence.
+ * Never throws.
+ */
+export function prepareGateSitting(
+  bench: Bench,
+  input: OpenGatePinInput,
+): Promise<BenchDeliverySitting | undefined> {
+  const key = benchKey(bench);
+  const run = (async (): Promise<BenchDeliverySitting | undefined> => {
+    if (bench.deliverySitting !== undefined || bench.gatePin !== undefined) return undefined;
+    try {
+      return await exclusive(bench, async () => {
+        if (bench.deliverySitting !== undefined || bench.gatePin !== undefined) return undefined;
+        const pinned = await pinGateCommit(bench, input);
+        const sitting: BenchDeliverySitting = {
+          gateId: input.gateId,
+          preparedAt: pinned.now,
+          commit: pinned.sha,
+          state: "preparing",
+          resultsSpecPath: input.resultsSpecPath,
+        };
+        bench.deliverySitting = sitting;
+        stopWatch(bench);
+        watches.set(key, { gateId: input.gateId, expected: pinned.running });
+        const problem = await preparedSmokeCheck(
+          bench,
+          pinned.running,
+          pinned.checkout,
+          pinned.sha,
+        );
+        recordPreparedCheck(bench, sitting, problem);
+        return sitting;
+      });
+    } catch (err) {
+      console.warn(
+        `[gate-pin] Could not prepare the sitting of gate ${input.gateId} on bench ${bench.id}: ${(err as Error).message}`,
+      );
+      return undefined;
+    }
+  })();
+  preparations.set(key, run);
+  void run.finally(() => {
+    if (preparations.get(key) === run) preparations.delete(key);
+  });
+  return run;
+}
+
+/** Resolves once the bench's preparation that runs now, if any, settled. */
+export async function whenGateSittingPrepared(bench: Bench): Promise<void> {
+  await preparations.get(benchKey(bench));
+}
+
+// The checkout of the bench's pin that holds the gate commit.
+function pinCheckout(pin: BenchGatePin): string | undefined {
+  if (pin.submodulePath === undefined) return pin.workspacePath;
+  return within(pin.workspacePath, pin.submodulePath);
+}
+
+/**
+ * Runs the smoke check of the bench's `preparing` sitting again, and records
+ * its verdict as the preparation does. Returns the sitting, or undefined when
+ * the bench has no `preparing` sitting with a pin. Skips the check, and returns
+ * the sitting, while another open or close of the bench runs.
+ */
+export async function recheckGateSitting(bench: Bench): Promise<BenchDeliverySitting | undefined> {
+  const stillPreparing = (): boolean =>
+    bench.deliverySitting?.state === "preparing" &&
+    bench.gatePin !== undefined &&
+    bench.gatePin.gateId === bench.deliverySitting.gateId;
+  if (!stillPreparing()) {
+    stopWatch(bench);
+    return undefined;
+  }
+  const key = benchKey(bench);
+  if (inFlight.has(key)) return bench.deliverySitting;
+  return exclusive(bench, async () => {
+    const sitting = bench.deliverySitting;
+    const pin = bench.gatePin;
+    if (!stillPreparing() || sitting === undefined || pin === undefined) {
+      stopWatch(bench);
+      return undefined;
+    }
+    let watch = watches.get(key);
+    if (watch === undefined || watch.gateId !== sitting.gateId) {
+      // A sitting prepared before a server restart: its components are those
+      // that run now.
+      stopWatch(bench);
+      watch = { gateId: sitting.gateId, expected: [] };
+      watches.set(key, watch);
+    }
+    const checkout = pinCheckout(pin);
+    const sha = pin.commit ?? sitting.commit;
+    const problem =
+      checkout === undefined || sha === undefined
+        ? "the pin names no checkout or commit to check"
+        : await preparedSmokeCheck(bench, watch.expected, checkout, sha);
+    recordPreparedCheck(bench, sitting, problem);
+    return sitting;
+  });
+}
+
+/**
+ * Opens the bench's prepared sitting of `gateId` once its smoke check passed:
+ * the sitting moves from `ready` to `open`, and the gate's notification goes.
+ * Throws GatePinError: 409 BUILD_NOT_SMOKE_CHECKED while the sitting is
+ * `preparing`, 409 SITTING_BUSY as the open, and 404 SITTING_NOT_FOUND when the
+ * bench has no prepared sitting of the gate.
+ */
+export function openPreparedSitting(bench: Bench, gateId: string): Promise<BenchDeliverySitting> {
+  return exclusive(bench, async () => {
+    const sitting = bench.deliverySitting;
+    if (sitting === undefined || sitting.gateId !== gateId) {
+      throw new GatePinError(
+        `The bench has no prepared sitting of gate ${gateId}`,
+        "SITTING_NOT_FOUND",
+        404,
+      );
+    }
+    if (sitting.state === "preparing") {
+      const why = sitting.smokeCheck?.detail ?? "the build of the gate is not live yet";
+      throw notSmokeChecked(`gate ${gateId} waits for its build: ${why}`);
+    }
+    if (sitting.state === "ready") {
+      stopWatch(bench);
+      sitting.state = "open";
+      sitting.openedAt = new Date().toISOString();
+      announce(bench);
+      dismissByKey(bench, DELIVERY_SITTING_NOTIFICATION, gateId);
+    }
+    return sitting;
+  });
+}
+
+/** Stops every recheck timer and forgets every preparation; for tests. */
+export function forgetGateSittingWatches(): void {
+  for (const watch of watches.values()) {
+    if (watch.timer !== undefined) clearTimeout(watch.timer);
+  }
+  watches.clear();
+  preparations.clear();
+}
+
+/**
+ * Closes the bench's gate sitting, in any state: stops the components, removes
+ * the pin, clears `gatePin` and `deliverySitting`, restores the workspace's
+ * setup flags, persists, dismisses the gate's `delivery-sitting` notification,
+ * and restarts the components that ran, from the workspace, waiting until each
+ * launch settles. Throws GatePinError: 404 SITTING_NOT_FOUND when the bench has
+ * no sitting and no pin, 409 SITTING_BUSY as the open, and 500 GATE_PIN_FAILED when
  * git cannot remove the pin (the sitting stays, and the components that ran
  * restart from the pin).
  */
@@ -560,9 +882,12 @@ export function closeGatePin(bench: Bench): Promise<void> {
     if (done !== undefined) {
       applySetupFlags(bench, projectRegistry.getProject(bench.projectId)?.config, new Set(done));
     }
+    const gateId = bench.deliverySitting?.gateId ?? bench.gatePin?.gateId;
+    stopWatch(bench);
     bench.gatePin = undefined;
     bench.deliverySitting = undefined;
-    persist(bench);
+    announce(bench);
+    if (gateId !== undefined) dismissByKey(bench, DELIVERY_SITTING_NOTIFICATION, gateId);
     await restartComponents(bench, running);
   });
 }

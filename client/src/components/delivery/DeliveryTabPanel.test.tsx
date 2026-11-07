@@ -580,3 +580,60 @@ describe("DeliveryTabPanel", () => {
     ).toBe(false);
   });
 });
+
+describe("DeliveryTabPanel gate sitting", () => {
+  it("SB-TC-058 shows the gate waiting for build while its smoke check has not passed, then ready to sit once it passed", async () => {
+    // Step 1: gate.reached with the build down.
+    vi.mocked(api.fetchDelivery).mockResolvedValue({
+      ...snapshot(),
+      sitting: {
+        gateId: "gate-after-b",
+        state: "preparing",
+        commit: "b".repeat(40),
+        smokeCheck: {
+          passed: false,
+          checkedAt: "2026-10-16T09:40:00Z",
+          detail: "component 'web' at http://127.0.0.1:5173/ answered 503",
+        },
+      },
+    });
+    const queryClient = makeQueryClient();
+    renderWithProviders(<DeliveryTabPanel bench={bench} />, { queryClient });
+
+    const sitting = await screen.findByTestId("delivery-gate-sitting");
+    expect(sitting).toHaveAttribute("data-state", "preparing");
+    expect(sitting).toHaveTextContent("gate-after-b");
+    expect(within(sitting).getByTestId("delivery-gate-sitting-state")).toHaveTextContent(
+      "waiting for build",
+    );
+    expect(sitting).not.toHaveTextContent("ready to sit");
+    expect(within(sitting).getByTestId("delivery-gate-sitting-smoke")).toHaveTextContent(
+      "answered 503",
+    );
+
+    // Step 2: the build is up and the smoke check passed.
+    vi.mocked(api.fetchDelivery).mockResolvedValue({
+      ...snapshot(),
+      sitting: {
+        gateId: "gate-after-b",
+        state: "ready",
+        commit: "b".repeat(40),
+        smokeCheck: { passed: true, checkedAt: "2026-10-16T09:41:00Z" },
+      },
+    });
+    await act(() => queryClient.invalidateQueries());
+    await waitFor(() =>
+      expect(screen.getByTestId("delivery-gate-sitting-state")).toHaveTextContent("ready to sit"),
+    );
+    expect(screen.getByTestId("delivery-gate-sitting")).toHaveAttribute("data-state", "ready");
+    expect(screen.getByTestId("delivery-gate-sitting")).not.toHaveTextContent("waiting for build");
+    expect(screen.queryByTestId("delivery-gate-sitting-smoke")).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-058 shows no gate sitting while the bench has none", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />, { queryClient: makeQueryClient() });
+    await screen.findByTestId("delivery-snapshot");
+    expect(screen.queryByTestId("delivery-gate-sitting")).not.toBeInTheDocument();
+  });
+});

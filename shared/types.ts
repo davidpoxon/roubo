@@ -1740,16 +1740,45 @@ export interface DeliveryCrossCheckMemory {
   github: DeliveryCrossCheckDisagreement[];
 }
 
-/** The gate sitting a Spec Bench has open, and the session that runs it. */
+/**
+ * The last smoke check of a gate's pinned build (SB-FR-023): whether it passed,
+ * when it ran, and why it failed when it did.
+ */
+export interface BenchSittingSmokeCheck {
+  passed: boolean;
+  checkedAt: string;
+  detail?: string;
+}
+
+/**
+ * Where a gate sitting stands (SB-FR-023): `preparing` while the pinned build
+ * comes up and its smoke check has not passed (the gate waits for its build),
+ * `ready` once the smoke check passed and the operator is called (the gate is
+ * ready to sit), and `open` once the operator opened the sitting.
+ */
+export type BenchDeliverySittingState = "preparing" | "ready" | "open";
+
+/**
+ * The gate sitting a Spec Bench prepares or has open, and the session that
+ * runs it.
+ */
 export interface BenchDeliverySitting {
   gateId: string;
   /** The terminal session of the sitting, stopped by Clear bench after the pin. */
   sessionId?: string;
-  openedAt: string;
+  /** When the sitting opened; absent while it is `preparing` or `ready`. */
+  openedAt?: string;
+  /** When the server started to prepare the gate's pin on `gate.reached`. */
+  preparedAt?: string;
   /** The full gate commit the sitting's pin checks out. */
   commit?: string;
-  /** Where the sitting stands: `open` from the moment its pin serves the build. */
-  state?: "open";
+  /**
+   * Where the sitting stands. Absent reads as `open`, as a sitting recorded
+   * before the pre-open phases existed.
+   */
+  state?: BenchDeliverySittingState;
+  /** The last smoke check of the pinned build. */
+  smokeCheck?: BenchSittingSmokeCheck;
   /**
    * The absolute path of the spec folder that holds test-results.json during
    * the sitting: the bench workspace's own `.specifications/<slug>/`, beside
@@ -1944,7 +1973,11 @@ export type NotificationType =
   // The cross-check of a Spec Bench's delivery found a blocking class that the
   // refresh before it did not (SB-FR-030). One per class: its dedupe key is the
   // class, and it goes when a refresh no longer finds the class.
-  | "delivery-crosscheck";
+  | "delivery-crosscheck"
+  // A gate of a Spec Bench's delivery is ready to sit (SB-FR-023): its pinned
+  // build is live at the stack head and passed its smoke check. One per gate:
+  // its dedupe key is the gate id, and it goes when the sitting opens or closes.
+  | "delivery-sitting";
 
 export type NotificationPriority = "info" | "action-needed";
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Bench } from "@roubo/shared";
-import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
-import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import type { DeliveryReadError, DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { classifyLifecycleState } from "@roubo/shared/delivery-selectors";
@@ -16,6 +15,7 @@ import DeliveryRail from "./DeliveryHealth";
 import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import DeliveryModeControl from "./DeliveryModeControl";
+import GateSitting from "./GateSitting";
 import type { MapFocusRequest } from "./delivery-map-model";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 import LifecycleControls from "./LifecycleControls";
@@ -27,7 +27,9 @@ import RoleMatrix from "./RoleMatrix";
 // source error on it (SB-FR-030), where Enter on an entry focuses its unit or
 // gate on the map (SB-FR-029), and the mode in effect named in a mono label
 // beside the health chip (SB-FR-032), its progress in cases met and
-// requirements covered (SB-FR-011), its map, and its view of cost, health and
+// requirements covered (SB-FR-011), the gate sitting the bench prepares or has
+// open, which reads waiting for build until the pinned build passed its smoke
+// check and ready to sit after (SB-FR-023), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
 // default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
@@ -171,7 +173,7 @@ function DeliverySnapshotView({
   onDecisionPileFocused,
 }: {
   bench: Bench;
-  snapshot: DeliverySnapshot;
+  snapshot: DeliverySnapshotResponse;
   decisionPileFocusKey: string | undefined;
   onDecisionPileFocused: ((key: string) => void) | undefined;
 }) {
@@ -237,6 +239,8 @@ function DeliverySnapshotView({
       <DeliveryProgressStats snapshot={snapshot} />
       <DeliveryMetCases snapshot={snapshot} />
 
+      <GateSitting sitting={snapshot.sitting} />
+
       <DeliveryMap
         projectId={bench.projectId}
         benchId={bench.id}
@@ -244,6 +248,7 @@ function DeliverySnapshotView({
         {...(bench.deliverySessionId !== undefined && {
           deliverySessionId: bench.deliverySessionId,
         })}
+        {...(snapshot.sitting !== undefined && { sitting: snapshot.sitting })}
         focusRequest={mapFocus}
       />
 
