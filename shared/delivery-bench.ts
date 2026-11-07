@@ -18,8 +18,8 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract";
-import { classifyUnitStatus } from "./delivery-reducer";
-import type { SpecBenchDecisionMode } from "./types";
+import { classifyUnitStatus, type DeliverySnapshot } from "./delivery-reducer";
+import type { BenchDeliverySitting, SpecBenchDecisionMode } from "./types";
 
 // ── Routes ──
 //
@@ -132,6 +132,18 @@ export interface SpecBenchSpecSummary {
   gates: number;
   delivery?: SpecBenchSpecDelivery;
 }
+
+// ── Snapshot read ──
+//
+// The body of GET <base>: the folded snapshot, with the bench's gate sitting
+// beside it while the bench prepares or has one (SB-FR-023). `sitting.state`
+// is `preparing` while the gate waits for its build, `ready` once the pinned
+// build passed its smoke check and the operator is called, and `open` once the
+// sitting opened; `sitting.smokeCheck` is the last check's verdict. The key is
+// absent while the bench has no sitting.
+export type DeliverySnapshotResponse = DeliverySnapshot & {
+  sitting?: Pick<BenchDeliverySitting, "gateId" | "state" | "commit" | "smokeCheck">;
+};
 
 // ── Events read ──
 //

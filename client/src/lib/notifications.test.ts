@@ -157,6 +157,22 @@ describe("formatNotification", () => {
     });
   });
 
+  it("SB-TC-058: a delivery-sitting notification calls the operator to its gate", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-sitting"),
+      dedupeKey: "gate-after-b",
+      metadata: { gateId: "gate-after-b", commit: "b".repeat(40) },
+    };
+    expect(formatNotification(n)).toEqual({
+      title: "Gate ready to sit",
+      body: "Gate gate-after-b is ready to sit: its build is live and smoke-checked",
+    });
+    expect(formatNotification(makeNotification("action-needed", "delivery-sitting"))).toEqual({
+      title: "Gate ready to sit",
+      body: "A gate of a Spec Bench delivery is ready to sit: its build is live and smoke-checked",
+    });
+  });
+
   it("a delivery-decision notification names its decision and links to the pile", () => {
     const n = {
       ...makeNotification("action-needed", "delivery-decision"),

@@ -71,6 +71,10 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Delivery cross-check",
     body: "The delivery record of a Spec Bench disagrees with what it delivers",
   },
+  "delivery-sitting": {
+    title: "Gate ready to sit",
+    body: "A gate of a Spec Bench delivery is ready to sit: its build is live and smoke-checked",
+  },
 };
 
 export function formatNotification(notification: BenchNotification): {
@@ -95,6 +99,14 @@ export function formatNotification(notification: BenchNotification): {
         units.length > 0
           ? `The delivery record disagrees with its source: ${crossCheckClass} for ${units.join(", ")}`
           : `The delivery record disagrees with its source: ${crossCheckClass}`,
+    };
+  }
+  // A gate's call to its sitting names the gate (SB-FR-023).
+  const gateId = notification.metadata?.gateId;
+  if (notification.type === "delivery-sitting" && typeof gateId === "string" && gateId.length > 0) {
+    return {
+      title: notificationMessages["delivery-sitting"].title,
+      body: `Gate ${gateId} is ready to sit: its build is live and smoke-checked`,
     };
   }
   const unitId = notification.metadata?.unitId;

@@ -16,6 +16,7 @@ import { useBenchViewState } from "../../hooks/useBenchViewState";
 import DeliveryGraph from "./DeliveryGraph";
 import DeliveryList from "./DeliveryList";
 import UnitDrillIn from "./UnitDrillIn";
+import { sittingLabel, type DeliverySittingView } from "./gate-sitting-model";
 import {
   DEFAULT_DELIVERY_MAP_VIEW,
   GATE_MARKERS,
@@ -47,6 +48,9 @@ export interface DeliveryMapProps {
   // the rail (SB-FR-029): the first key that the view in effect draws takes
   // the focus, which selects it.
   focusRequest?: MapFocusRequest | null;
+  // The gate sitting the bench prepares or has open (SB-FR-023), which the
+  // gate's drill-in names.
+  sitting?: DeliverySittingView;
 }
 
 // The drawn map item of the first key, in the map's own section.
@@ -70,6 +74,7 @@ export default function DeliveryMap({
   snapshot,
   deliverySessionId,
   focusRequest,
+  sitting,
 }: DeliveryMapProps) {
   const viewState = useBenchViewState(projectId, benchId);
   const view = viewState.deliveryMapView ?? DEFAULT_DELIVERY_MAP_VIEW;
@@ -175,6 +180,7 @@ export default function DeliveryMap({
           snapshot={snapshot}
           target={opened}
           deliverySessionId={deliverySessionId}
+          sitting={sitting}
           onClose={() => setOpened(null)}
         />
       )}
@@ -192,6 +198,7 @@ function DrillIn({
   snapshot,
   target,
   deliverySessionId,
+  sitting,
   onClose,
 }: {
   projectId: string;
@@ -199,6 +206,7 @@ function DrillIn({
   snapshot: DeliverySnapshot;
   target: MapTarget;
   deliverySessionId: string | undefined;
+  sitting: DeliverySittingView | undefined;
   onClose: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -236,7 +244,7 @@ function DrillIn({
           <UnitDetail snapshot={snapshot} unitId={target.id} />
         </>
       ) : (
-        <GateDetail snapshot={snapshot} gateId={target.id} />
+        <GateDetail snapshot={snapshot} gateId={target.id} sitting={sitting} />
       )}
     </section>
   );
@@ -277,7 +285,15 @@ function UnitDetail({ snapshot, unitId }: { snapshot: DeliverySnapshot; unitId: 
   );
 }
 
-function GateDetail({ snapshot, gateId }: { snapshot: DeliverySnapshot; gateId: string }) {
+function GateDetail({
+  snapshot,
+  gateId,
+  sitting,
+}: {
+  snapshot: DeliverySnapshot;
+  gateId: string;
+  sitting: DeliverySittingView | undefined;
+}) {
   const view = selectGateState(snapshot, gateId);
   if (view === null) {
     return <p className="text-13 text-text-secondary">The delivery no longer has this gate.</p>;
@@ -289,6 +305,14 @@ function GateDetail({ snapshot, gateId }: { snapshot: DeliverySnapshot; gateId: 
       <dd>
         <StatusIndicator tone={marker.tone} label={marker.label} />
       </dd>
+      {sitting !== undefined && sitting.gateId === gateId && (
+        <>
+          <dt className="text-text-secondary">Sitting</dt>
+          <dd data-testid="gate-detail-sitting" className="text-text-body">
+            {sittingLabel(sitting)}
+          </dd>
+        </>
+      )}
       <dt className="text-text-secondary">After</dt>
       <dd className="font-mono text-text-body">{view.gate.after.join(", ")}</dd>
       <dt className="text-text-secondary">Cases</dt>
