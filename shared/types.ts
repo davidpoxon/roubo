@@ -1710,6 +1710,20 @@ export interface BenchGatePin {
    * it; reconcile compares the pin's checked-out commit with it.
    */
   commit?: string;
+  /**
+   * In a meta-repo, the path relative to the pin of the submodule that checks
+   * out `commit`, when the gate commit is a commit of that submodule rather than
+   * of the superproject. The superproject is then at the commit the workspace
+   * had checked out when the pin opened. Absent when `commit` is the pin's own.
+   */
+  submodulePath?: string;
+  /**
+   * The components whose one-time setup had run in the bench workspace when
+   * the pin opened. The pin runs every component's setup again in its own
+   * checkout; closing the sitting restores the flags from this list, so the
+   * workspace does not run them again.
+   */
+  workspaceSetupDone?: string[];
   createdAt: string;
 }
 
