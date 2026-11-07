@@ -52,10 +52,22 @@ vi.mock("../services/sse.js", () => ({
 vi.mock("../services/git-helpers.js", () => ({
   resolveGitIdentity: vi.fn(),
 }));
+// The workspace here is no git checkout: the gate pin service records the
+// sitting alone, as it does once the pin is in place. Its git sequence runs
+// against a real repository in delivery-gate-pin.test.ts.
+vi.mock("../services/gate-pin.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/gate-pin.js")>()),
+  openGatePin: vi.fn(async (target: Bench, input: { gateId: string }) => {
+    const sitting = { gateId: input.gateId, openedAt: new Date().toISOString() };
+    target.deliverySitting = sitting;
+    return sitting;
+  }),
+}));
 
 import * as benchManager from "../services/bench-manager.js";
 import * as stateService from "../services/state.js";
 import { resolveGitIdentity } from "../services/git-helpers.js";
+import { openGatePin } from "../services/gate-pin.js";
 import {
   deliveryLaunchBlock,
   launchDeliverySession,
@@ -507,16 +519,18 @@ describe("the cross-check's blocking classes", () => {
 });
 
 describe("POST /:projectId/benches/:id/delivery/sittings", () => {
-  it("records the sitting on the bench, persists it and answers 201 with it", async () => {
+  it("pins the gate's top unit head through the gate pin service and answers 201 with the sitting", async () => {
     await inject(null);
     const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-c" });
     expect(res.status).toBe(201);
     expect(res.body.gateId).toBe("gate-after-c");
     expect(Number.isNaN(Date.parse(res.body.openedAt as string))).toBe(false);
     expect(bench.deliverySitting).toEqual(res.body);
-    expect(stateService.updateBench).toHaveBeenCalledWith(
-      expect.objectContaining({ deliverySitting: res.body }),
-    );
+    expect(openGatePin).toHaveBeenCalledWith(bench, {
+      gateId: "gate-after-c",
+      commit: HEAD.C,
+      resultsSpecPath: specFolder,
+    });
   });
 
   it("answers 202 with the open sitting for the same gate, and 409 SITTING_OPEN for another", async () => {
