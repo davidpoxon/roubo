@@ -1390,8 +1390,10 @@ export function createBench(
     focusedSpecPath: resolvedFocusedSpecPath,
     ...(options.variant === "specbench" &&
       options.delivery && { deliveryBindMode: options.delivery.mode }),
-    // Only a launch-mode bench keeps a decision mode: it hands the mode to the
-    // session it launches (SB-FR-031). An attached delivery has its own.
+    // Only a launch-mode bench starts with a decision mode: it hands the mode to
+    // the session it launches (SB-FR-031). An attached bench starts with none,
+    // and takes the mode of its delivery once its record or a mode.changed
+    // event states one (SB-FR-032).
     ...(options.variant === "specbench" &&
       options.delivery?.mode === "launch" && {
         deliveryDecisionMode: options.delivery.decisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE,

@@ -214,6 +214,8 @@ beforeEach(async () => {
     focusedSpecPath: "/repo/.specifications/fixture-spec",
     workspacePath: workspace,
     deliveryBindMode: "launch",
+    // The mode the fixture record states, so a load has no mode to move.
+    deliveryDecisionMode: "auto",
     deliveryTokenHash: hashDeliveryToken(TOKEN),
   } as Bench;
   vi.mocked(benchManager.getBench).mockImplementation((projectId, benchId) =>

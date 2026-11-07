@@ -114,6 +114,8 @@ beforeEach(() => {
     variant: "specbench",
     focusedSpecPath: "/repo/.specifications/fixture-spec",
     workspacePath: workspace,
+    // The mode the fixture record states, so a load has no mode to move.
+    deliveryDecisionMode: "auto",
   } as Bench;
   vi.mocked(benchManager.getBench).mockImplementation((projectId, benchId) =>
     projectId === bench.projectId && benchId === bench.id ? bench : undefined,

@@ -131,6 +131,8 @@ function specBench(): Bench {
     variant: "specbench",
     focusedSpecPath,
     workspacePath: workspace,
+    // The mode writeRecord states by default, so a load has no mode to move.
+    deliveryDecisionMode: "auto",
   });
 }
 
