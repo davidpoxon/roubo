@@ -11,7 +11,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bench } from "@roubo/shared";
-import { DELIVERY_EVENT_HOOK_PATH } from "@roubo/shared/delivery-bench";
+import { DELIVERY_EVENT_HOOK_PATH, DELIVERY_EVENT_SPILL_FILE } from "@roubo/shared/delivery-bench";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
@@ -186,6 +186,8 @@ function writeSpec(recordPlanHash: string, failed: string[]): void {
 // pull request targets main.
 let nine: boolean;
 let githubDown: boolean;
+// A delay of every GitHub answer, on the test's timers.
+let githubDelayMs: number;
 
 function git(): DeliveryGitObservation {
   const observation: Record<string, DeliveryGitObservation[string]> = {};
@@ -200,7 +202,27 @@ function git(): DeliveryGitObservation {
   return observation;
 }
 
+// Posts `count` events of a type the fold does not know (it skips them and
+// still accepts their seq), from `firstSeq` on, in one batch.
+async function postEvents(firstSeq: number, count: number): Promise<void> {
+  const events = Array.from({ length: count }, (_, index) => ({
+    $schema: DELIVERY_EVENT_SCHEMA_ID,
+    schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+    delivery_id: "fixture-delivery",
+    type: "fixture.noted",
+    seq: firstSeq + index,
+    ts: "2026-10-16T09:40:00Z",
+    payload: {},
+  }));
+  const res = await request(app)
+    .post(`${DELIVERY_EVENT_HOOK_PATH}?projectId=${bench.projectId}&benchId=${bench.id}`)
+    .set("Authorization", `Bearer ${TOKEN}`)
+    .send({ events });
+  expect(res.status).toBe(202);
+}
+
 async function fakeFetch(input: RequestInfo | URL): Promise<Response> {
+  if (githubDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, githubDelayMs));
   if (githubDown) throw new TypeError("fetch failed");
   const url = new URL(String(input));
   if (url.pathname.endsWith("/stacks")) {
@@ -255,6 +277,7 @@ beforeEach(() => {
   );
   nine = false;
   githubDown = false;
+  githubDelayMs = 0;
   setDeliveryCrossCheckDeps({
     readGit: async () => git(),
     resolveGitHubRepository: async () => ({ owner: "example", repo: "fixture" }),
@@ -297,30 +320,97 @@ describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
     expect(res.body.code).toBe("DELIVERY_RECORD_MISSING");
   });
 
-  it("SB-TC-074 lists all nine disagreements within 5 seconds of a restart, with the snapshot seq at the record's last_event_seq", async () => {
-    // Step 1: one disagreement of each class, then a restart: the loader and
-    // the event log forget the bench.
+  it("SB-TC-074 lists all nine disagreements on the first read after a restart, with the snapshot seq at the seq folded from what the restart kept", async () => {
+    // Step 1: one disagreement of each class. Events posted before the
+    // restart: a full in-memory log spills its oldest 500 to the spill file in
+    // the workspace, which the restart keeps.
     nine = true;
     writeSpec("plan-hash-of-another-plan", ["FX-TC-003"]);
+    await postEvents(8, 1_000);
+    await postEvents(1_008, 3);
+    const before = await request(app).get(base);
+    expect(before.body.seq).toBe(1_010);
+    const spill = path.join(specFolder, DELIVERY_EVENT_SPILL_FILE);
+    const spilledSeqs = fs
+      .readFileSync(spill, "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => (JSON.parse(line) as { seq: number }).seq);
+    expect(spilledSeqs).toHaveLength(500);
+
+    // The restart: the loader and the event log forget the bench.
     forgetDeliveryCrossCheck();
     forgetDeliveryEventLog();
 
     // Step 2: the first reads after the restart.
-    const started = Date.now();
     const [crossCheck, snapshot] = await Promise.all([
       request(app).get(`${base}/crosscheck`),
       request(app).get(base),
     ]);
-    const elapsed = Date.now() - started;
 
     expect(crossCheck.status).toBe(200);
-    expect(elapsed).toBeLessThan(5_000);
     const classes = (crossCheck.body.disagreements as { class: string }[]).map((d) => d.class);
     expect(classes).toEqual([...DELIVERY_CROSS_CHECK_CLASSES]);
     expect(crossCheck.body.sourceError).toBeNull();
 
+    // The fold of the record (last_event_seq 7) and the spilled events.
     expect(snapshot.status).toBe(200);
-    expect(snapshot.body.seq).toBe(7);
+    expect(snapshot.body.seq).toBe(Math.max(...spilledSeqs));
+    expect(snapshot.body.seq).toBe(507);
+  });
+
+  it("SB-TC-074 answers the first read after a restart within 5 seconds with the git and results classes while GitHub takes longer", async () => {
+    nine = true;
+    writeSpec("plan-hash-of-another-plan", ["FX-TC-003"]);
+    forgetDeliveryCrossCheck();
+    forgetDeliveryEventLog();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      // Each GitHub answer takes 6 seconds of the test's clock.
+      githubDelayMs = 6_000;
+      const started = Date.now();
+      let answeredAt: number | undefined;
+      const pending = request(app)
+        .get(`${base}/crosscheck`)
+        .then((res) => {
+          answeredAt = Date.now();
+          return res;
+        });
+      // Let the request reach the route and the load refresh start.
+      while (deliveryCrossCheckRunCount(bench.projectId, bench.id) === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      for (let step = 0; step < 100 && answeredAt === undefined; step += 1) {
+        await vi.advanceTimersByTimeAsync(100);
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      const crossCheck = await pending;
+
+      expect(crossCheck.status).toBe(200);
+      expect(answeredAt).toBeDefined();
+      expect((answeredAt ?? Number.POSITIVE_INFINITY) - started).toBeLessThan(5_000);
+      const classes = (crossCheck.body.disagreements as { class: string }[]).map((d) => d.class);
+      expect(classes).toEqual([
+        "branch-missing",
+        "head-commit-differs",
+        "gate-state-differs",
+        "case-status-differs",
+        "plan-hash-mismatch",
+        "record-stale",
+      ]);
+      expect(crossCheck.body.sourceError).toBeNull();
+
+      // GitHub answers later.
+      await vi.advanceTimersByTimeAsync(12_000);
+      await whenDeliveryCrossCheckIdle(bench.projectId, bench.id);
+    } finally {
+      vi.useRealTimers();
+    }
+    // Once GitHub answered, the next read lists all nine.
+    const later = await request(app).get(`${base}/crosscheck`);
+    const all = (later.body.disagreements as { class: string }[]).map((d) => d.class);
+    expect(all).toEqual([...DELIVERY_CROSS_CHECK_CLASSES]);
   });
 
   it("SB-TC-075 answers the previous list with a source error naming GitHub, which clears on the next refresh", async () => {

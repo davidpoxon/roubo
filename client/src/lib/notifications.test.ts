@@ -130,6 +130,23 @@ describe("formatNotification", () => {
     });
   });
 
+  it("SB-TC-072: a delivery-crosscheck notification names its class", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-crosscheck"),
+      dedupeKey: "pr-state-differs",
+      metadata: { class: "pr-state-differs", count: 1 },
+    };
+    expect(formatNotification(n)).toEqual({
+      title: "Delivery cross-check",
+      body: "The delivery record disagrees with its source: pr-state-differs",
+    });
+    // With no class, the type's own copy.
+    expect(formatNotification(makeNotification("action-needed", "delivery-crosscheck"))).toEqual({
+      title: "Delivery cross-check",
+      body: "The delivery record of a Spec Bench disagrees with what it delivers",
+    });
+  });
+
   it("a delivery-decision notification names its decision and links to the pile", () => {
     const n = {
       ...makeNotification("action-needed", "delivery-decision"),
