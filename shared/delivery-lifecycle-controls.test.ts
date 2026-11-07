@@ -18,9 +18,11 @@ import {
   classifyLifecycleState,
   selectApprovalAvailability,
   selectApprovalRefusal,
+  selectCrossCheckBlock,
   selectHealth,
   selectLifecycleAction,
   selectRoleMatrix,
+  selectSittingRefusal,
   selectUnmetGates,
 } from "./delivery-selectors.js";
 import type { CaseResult, TestCasesPlan } from "./testbench-contracts.js";
@@ -263,6 +265,48 @@ describe("approval refusal", () => {
       code: "REVIEW_OPEN",
       unreviewed: ["decision-2"],
     });
+  });
+});
+
+describe("the cross-check's blocking policy", () => {
+  const blocking = [
+    { class: "head-commit-differs", blocking: true },
+    { class: "record-stale", blocking: false },
+    { class: "head-commit-differs", blocking: true },
+    { class: "plan-hash-mismatch", blocking: true },
+  ];
+
+  it("names each blocking class present once, in list order, and nothing for display-only classes", () => {
+    expect(selectCrossCheckBlock(blocking, "approve")).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["head-commit-differs", "plan-hash-mismatch"],
+    });
+    expect(selectCrossCheckBlock(blocking, "sit")?.reason).toContain("a gate sitting");
+    expect(selectCrossCheckBlock([{ class: "record-stale", blocking: false }], "sit")).toBeNull();
+    expect(selectCrossCheckBlock(undefined, "approve")).toBeNull();
+  });
+
+  it("refuses the approval after the lifecycle state and before an open review or an unmet gate", () => {
+    const record = plainRecord();
+    const unmet = foldDelivery({ record, events: [] });
+    expect(selectApprovalRefusal(unmet, blocking)).toMatchObject({ code: "CROSSCHECK_BLOCKED" });
+    expect(selectApprovalRefusal(unmet, [])).toMatchObject({ code: "GATING_UNMET" });
+    const complete = foldDelivery({ record: plainRecord("complete"), events: [] });
+    expect(selectApprovalRefusal(complete, blocking)).toMatchObject({
+      code: "WRONG_LIFECYCLE_STATE",
+    });
+  });
+
+  it("refuses a sitting for the lifecycle state first, then a blocking class", () => {
+    expect(
+      selectSittingRefusal(foldDelivery({ record: plainRecord("complete"), events: [] }), blocking),
+    ).toMatchObject({ code: "WRONG_LIFECYCLE_STATE", state: "complete" });
+    const running = foldDelivery({ record: plainRecord(), events: [] });
+    expect(selectSittingRefusal(running, blocking)).toMatchObject({ code: "CROSSCHECK_BLOCKED" });
+    expect(selectSittingRefusal(running, [])).toBeNull();
+    expect(selectSittingRefusal(foldDelivery({ record: plainRecord("paused"), events: [] }))).toBe(
+      null,
+    );
   });
 });
 

@@ -1,5 +1,9 @@
 import type { DeliveryGate, DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
-import type { DeliveryGateView, DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import {
+  ownValue,
+  type DeliveryGateView,
+  type DeliverySnapshot,
+} from "@roubo/shared/delivery-reducer";
 import {
   classifyUnitStatus,
   selectDependencyEdges,
@@ -208,6 +212,38 @@ export function unitKey(id: string): string {
 
 export function gateKey(id: string): string {
   return targetKey({ kind: "gate", id });
+}
+
+// ── A cross-check disagreement on the map (SB-FR-029) ──
+
+// The map keys a cross-check disagreement points at, the one to focus first:
+// a gate (gate-state-differs and case-status-differs name it as `unitId`), then
+// the units it follows, for the list view, which has no gate row; a unit; or
+// the units of a stack, base first (layer-order-differs). Empty for one about
+// the whole delivery (plan-hash-mismatch) or about nothing the record holds.
+export function crossCheckMapKeys(
+  disagreement: { unitId?: string | undefined; stack?: string | undefined },
+  snapshot: DeliverySnapshot,
+): string[] {
+  const { unitId, stack } = disagreement;
+  if (unitId !== undefined) {
+    const gate = ownValue(snapshot.gatesById, unitId);
+    if (gate !== undefined) {
+      return [gateKey(unitId), ...gate.gate.after.map((id) => unitKey(id))];
+    }
+    if (ownValue(snapshot.unitsById, unitId) !== undefined) return [unitKey(unitId)];
+  }
+  if (stack !== undefined) {
+    return (ownValue(snapshot.stacks, stack) ?? []).map((id) => unitKey(id));
+  }
+  return [];
+}
+
+// A request to focus one map target: the keys to try in order, and a count
+// that makes each request new, so the same target can be asked for twice.
+export interface MapFocusRequest {
+  keys: string[];
+  nonce: number;
 }
 
 export function layoutDeliveryMap(

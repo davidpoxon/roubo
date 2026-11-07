@@ -26,6 +26,7 @@ import {
   targetKey,
   unitStatusTone,
   type DeliveryMapView,
+  type MapFocusRequest,
   type MapTarget,
 } from "./delivery-map-model";
 
@@ -42,6 +43,20 @@ export interface DeliveryMapProps {
   snapshot: DeliverySnapshot;
   // The bench's delivery session terminal, which a unit's drill-in shows live.
   deliverySessionId?: string;
+  // A request to focus a unit or gate, such as Enter on a cross-check entry of
+  // the rail (SB-FR-029): the first key that the view in effect draws takes
+  // the focus, which selects it.
+  focusRequest?: MapFocusRequest | null;
+}
+
+// The drawn map item of the first key, in the map's own section.
+function mapItemOf(root: HTMLElement, keys: readonly string[]): HTMLElement | null {
+  const items = [...root.querySelectorAll<HTMLElement>("[data-key]")];
+  for (const key of keys) {
+    const item = items.find((element) => element.dataset.key === key);
+    if (item !== undefined) return item;
+  }
+  return null;
 }
 
 const VIEWS: { id: DeliveryMapView; label: string }[] = [
@@ -54,11 +69,24 @@ export default function DeliveryMap({
   benchId,
   snapshot,
   deliverySessionId,
+  focusRequest,
 }: DeliveryMapProps) {
   const viewState = useBenchViewState(projectId, benchId);
   const view = viewState.deliveryMapView ?? DEFAULT_DELIVERY_MAP_VIEW;
   const [selected, setSelected] = useState<MapTarget | null>(null);
   const [opened, setOpened] = useState<MapTarget | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // Each new request moves the focus once; a later snapshot does not.
+  useEffect(() => {
+    if (focusRequest === undefined || focusRequest === null) return;
+    const root = sectionRef.current;
+    if (root === null) return;
+    const item = mapItemOf(root, focusRequest.keys);
+    if (item === null) return;
+    item.scrollIntoView?.({ block: "nearest" });
+    item.focus();
+  }, [focusRequest]);
 
   const order = useMemo(() => selectDependencyOrder(snapshot), [snapshot]);
   const layout = useMemo(
@@ -93,7 +121,12 @@ export default function DeliveryMap({
   const selectedKey = selected === null ? null : targetKey(selected);
 
   return (
-    <section aria-label="Delivery map" data-testid="delivery-map" className="space-y-3">
+    <section
+      ref={sectionRef}
+      aria-label="Delivery map"
+      data-testid="delivery-map"
+      className="space-y-3"
+    >
       <div
         role="group"
         aria-label="Map view"
