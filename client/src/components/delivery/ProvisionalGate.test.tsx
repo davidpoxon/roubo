@@ -257,14 +257,29 @@ describe("A provisional gate", () => {
         ]),
       ],
     });
-    renderWithProviders(
-      <ReviewPile
-        projectId="demo"
-        benchId={3}
-        snapshot={snapshot}
-        onSittingOpened={onSittingOpened}
-      />,
+    // The server opens the sitting, and the delivery it serves then carries it.
+    let sittingOpen = false;
+    vi.mocked(api.openDeliverySitting).mockImplementation(async () => {
+      sittingOpen = true;
+      return { gateId: GATE, state: "open" };
+    });
+    vi.mocked(api.fetchDelivery).mockImplementation(async () =>
+      sittingOpen ? { ...snapshot, sitting: { gateId: GATE, state: "open" } } : snapshot,
     );
+    renderWithProviders(
+      <>
+        <ReviewPile
+          projectId="demo"
+          benchId={3}
+          snapshot={snapshot}
+          onSittingOpened={onSittingOpened}
+        />
+        <SpecBenchTestBench bench={bench} />
+      </>,
+    );
+    expect(
+      await screen.findByText(/No gate sitting yet/, undefined, { timeout: 2000 }),
+    ).toBeInTheDocument();
 
     // Step 1: both marks with their evidence, neutral, with no Confirm control.
     const card = screen.getByTestId(`review-card-${GATE}`);
@@ -290,10 +305,112 @@ describe("A provisional gate", () => {
     expect(within(card).queryByTestId("review-rationale")).not.toBeInTheDocument();
 
     // Step 2: Open sitting opens the gate's sitting, which the server pins at
-    // the gate commit, and the bench is told so it shows the sitting.
+    // the gate commit: the delivery is read again, so the Test bench shows the
+    // sitting open with the gate's cases, the opening is announced, and the
+    // bench is told so it shows the sitting.
     await user.click(within(card).getByRole("button", { name: "Open sitting" }));
-    await waitFor(() => expect(api.openDeliverySitting).toHaveBeenCalledWith("demo", 3, GATE));
-    await waitFor(() => expect(onSittingOpened).toHaveBeenCalledWith(GATE));
+    expect(api.openDeliverySitting).toHaveBeenCalledWith("demo", 3, GATE);
+    const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
+    expect(
+      within(list)
+        .getAllByTestId("sitting-case")
+        .map((c) => c.dataset.caseId),
+    ).toEqual([X, Y]);
+    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Sitting open");
+    expect(screen.getByTestId("review-announcer")).toHaveTextContent(
+      `Opened the sitting of gate ${GATE}.`,
+    );
+    expect(onSittingOpened).toHaveBeenCalledWith(GATE);
+  });
+
+  it("SB-TC-094 Open sitting shows why the sitting could not open, and the bench is not told it opened", async () => {
+    const user = userEvent.setup();
+    const onSittingOpened = vi.fn();
+    vi.mocked(api.openDeliverySitting).mockRejectedValue(
+      new api.ApiError("A sitting is open already on gate gate-after-c", 409, "SITTING_OPEN"),
+    );
+    const snapshot = foldDelivery({
+      record: autoRecord([X, Y]),
+      events: [
+        provisional(8, [
+          [X, "met"],
+          [Y, "not_met"],
+        ]),
+      ],
+    });
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
+    renderWithProviders(
+      <ReviewPile
+        projectId="demo"
+        benchId={3}
+        snapshot={snapshot}
+        onSittingOpened={onSittingOpened}
+      />,
+    );
+    const card = screen.getByTestId(`review-card-${GATE}`);
+    await user.click(within(card).getByRole("button", { name: "Open sitting" }));
+    expect(await within(card).findByRole("alert")).toHaveTextContent(
+      "A sitting is open already on gate gate-after-c",
+    );
+    // The card stays, with Open sitting enabled to try again.
+    expect(within(card).getByRole("button", { name: "Open sitting" })).toBeEnabled();
+    expect(screen.getByTestId("review-announcer")).toHaveTextContent("");
+    expect(onSittingOpened).not.toHaveBeenCalled();
+  });
+
+  it("SB-TC-094 a gate card below a decision card shows the gate and the count to confirm, and raising it shows its marks and Open sitting", async () => {
+    const user = userEvent.setup();
+    // An agent decision made before the gate became provisional is on top.
+    const decision = unitEvent(
+      8,
+      "B",
+      "decision.decided",
+      {
+        decision_id: "decision-1",
+        question: "Which layout for the cache?",
+        options: ["one file per unit", "one file per stack"],
+        default: "one file per unit",
+        chosen: "one file per stack",
+        rationale: "Fewer files.",
+        affected_units: ["B", "C"],
+        decided_at: "2026-10-16T09:00:00Z",
+      },
+      "2026-10-16T09:00:00Z",
+    );
+    const snapshot = foldDelivery({
+      record: autoRecord([X, Y]),
+      events: [
+        decision,
+        provisional(9, [
+          [X, "met"],
+          [Y, "not_met"],
+        ]),
+      ],
+    });
+    renderWithProviders(<ReviewPile projectId="demo" benchId={3} snapshot={snapshot} />);
+
+    expect(screen.getByTestId("review-card-decision-1")).toHaveAttribute("data-position", "top");
+    const lower = screen.getByTestId(`review-card-${GATE}`);
+    expect(lower).toHaveAttribute("data-position", "lower");
+    expect(lower).toHaveAttribute("data-kind", "gate");
+    expect(within(lower).getByTestId("review-badge")).toHaveTextContent(`${GATE} · 2 to confirm`);
+    expect(lower).toHaveTextContent("agent marked gate after B · provisional");
+    // Below, the gate card shows no marks and no Open sitting.
+    expect(within(lower).queryByTestId(`provisional-mark-${X}`)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open sitting" })).not.toBeInTheDocument();
+
+    // Raising it puts the gate card on top with its marks and Open sitting.
+    await user.click(lower);
+    const top = screen.getByTestId(`review-card-${GATE}`);
+    expect(top).toHaveAttribute("data-position", "top");
+    expect(within(top).getByTestId(`provisional-mark-badge-${X}`)).toHaveTextContent(
+      "Met · provisional",
+    );
+    expect(within(top).getByTestId(`provisional-mark-badge-${Y}`)).toHaveTextContent(
+      "Not met · provisional",
+    );
+    expect(within(top).getByRole("button", { name: "Open sitting" })).toBeInTheDocument();
+    expect(screen.getByTestId("review-card-decision-1")).toHaveAttribute("data-position", "lower");
   });
 
   it("SB-TC-094 a provisional case in the sitting shows its neutral badge and evidence, Confirm writes the mark with the operator as author and reads confirmed, and the case's own mark controls change it and it reads changed", async () => {
@@ -349,7 +466,122 @@ describe("A provisional gate", () => {
     await waitFor(() => expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, Y, "passed"));
     await waitFor(() => expect(badgeY).toHaveTextContent("Met · changed"));
     expect(badgeY).toHaveClass("bg-success-surface", "text-success-text");
-    expect(results[Y].statusOverride?.author).toEqual(OPERATOR);
+    expect(within(caseY).getByTestId(`provisional-mark-author-${Y}`)).toHaveTextContent(
+      OPERATOR.name,
+    );
+  });
+
+  // A sitting on the gate after B, with the case results the results writer
+  // holds.
+  function renderSitting(snapshot: DeliverySnapshotResponse) {
+    vi.mocked(api.fetchDelivery).mockResolvedValue({
+      ...snapshot,
+      sitting: { gateId: GATE, state: "open" },
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+  }
+
+  function operatorResult(status: CaseStatus, timestamp: string): CaseResult {
+    return {
+      observationMarks: {},
+      derivedStatus: "not_started",
+      statusOverride: { status, author: OPERATOR, timestamp },
+      notes: [],
+    };
+  }
+
+  it("SB-TC-094 the operator's confirm and change still read confirmed and changed after a record rewrite re-dates the provisional gate", async () => {
+    // The record, rewritten at noon, carries the gate as provisional with the
+    // agent's marks, and the operator marked both cases at ten.
+    const record = autoRecord([X, Y]);
+    record.updated_at = "2026-10-16T12:00:00Z";
+    record.stack.gates[0] = {
+      ...record.stack.gates[0],
+      status: "provisional",
+      provisionalCases: [
+        { case: X, mark: "met", evidence: `Evidence of ${X}.`, confirmed: false },
+        { case: Y, mark: "not_met", evidence: `Evidence of ${Y}.`, confirmed: false },
+      ],
+    };
+    const snapshot = foldDelivery({ record, events: [] });
+    const provisionalAt = snapshot.gatesById[GATE].provisionalAt;
+    expect(provisionalAt).toBe("2026-10-16T12:00:00Z");
+    const markedAt = "2026-10-16T10:00:00Z";
+    expect(Date.parse(markedAt)).toBeLessThan(Date.parse(provisionalAt ?? ""));
+    results[X] = operatorResult("passed", markedAt);
+    results[Y] = operatorResult("passed", markedAt);
+    renderSitting(snapshot);
+    const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
+    const [caseX, caseY] = within(list).getAllByTestId("sitting-case");
+
+    const badgeX = within(caseX).getByTestId(`provisional-mark-badge-${X}`);
+    expect(badgeX).toHaveTextContent("Met · confirmed");
+    expect(badgeX).toHaveClass("bg-success-surface");
+    expect(within(caseX).getByTestId(`provisional-mark-author-${X}`)).toHaveTextContent(
+      OPERATOR.name,
+    );
+    // No Confirm comes back, so it cannot overwrite the operator's mark.
+    expect(within(caseX).queryByRole("button", { name: `Confirm ${X}` })).not.toBeInTheDocument();
+    const badgeY = within(caseY).getByTestId(`provisional-mark-badge-${Y}`);
+    expect(badgeY).toHaveTextContent("Met · changed");
+    expect(within(caseY).queryByRole("button", { name: `Confirm ${Y}` })).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-094 an operator status that is no mark reads changed with the status the case holds, on the neutral badge", async () => {
+    const snapshot = foldDelivery({
+      record: autoRecord([X, Y]),
+      events: [
+        provisional(8, [
+          [X, "met"],
+          [Y, "not_met"],
+        ]),
+      ],
+    });
+    results[X] = operatorResult("blocked", "2026-10-16T10:00:00Z");
+    results[Y] = operatorResult("in_progress", "2026-10-16T10:00:00Z");
+    renderSitting(snapshot);
+    const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
+    const [caseX, caseY] = within(list).getAllByTestId("sitting-case");
+
+    for (const [testCase, id, words] of [
+      [caseX, X, "Blocked · changed"],
+      [caseY, Y, "In progress · changed"],
+    ] as const) {
+      const badge = within(testCase).getByTestId(`provisional-mark-badge-${id}`);
+      expect(badge).toHaveTextContent(words);
+      expect(badge).not.toHaveTextContent(/Met/);
+      expect(badge).not.toHaveAttribute("data-mark");
+      expect(badge).toHaveClass("bg-bg-hover", "text-text-secondary");
+      expect(badge).not.toHaveClass("bg-success-surface");
+      expect(badge).not.toHaveClass("bg-danger-surface");
+      expect(within(testCase).getByTestId(`provisional-mark-author-${id}`)).toHaveTextContent(
+        OPERATOR.name,
+      );
+    }
+  });
+
+  it("SB-TC-094 Confirm on a not met mark reads confirmed in the danger set", async () => {
+    const user = userEvent.setup();
+    const snapshot = foldDelivery({
+      record: autoRecord([X, Y]),
+      events: [
+        provisional(8, [
+          [X, "met"],
+          [Y, "not_met"],
+        ]),
+      ],
+    });
+    renderSitting(snapshot);
+    const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
+    const caseY = within(list).getAllByTestId("sitting-case")[1];
+    const badgeY = within(caseY).getByTestId(`provisional-mark-badge-${Y}`);
+    expect(badgeY).toHaveClass("bg-bg-hover");
+
+    await user.click(within(caseY).getByRole("button", { name: `Confirm ${Y}` }));
+    await waitFor(() => expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, Y, "failed"));
+    await waitFor(() => expect(badgeY).toHaveTextContent("Not met · confirmed"));
+    expect(badgeY).toHaveClass("bg-danger-surface", "text-danger-text");
+    expect(badgeY).not.toHaveClass("bg-bg-hover");
   });
 
   it("SB-TC-094 gate.confirmed for both cases takes the gate out of the provisional state on the map and removes its card", async () => {

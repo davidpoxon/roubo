@@ -229,11 +229,9 @@ function SittingCases({
   }
   const gateView = ownValue(snapshot.gatesById, sitting.gateId);
   const gateCases = gateView?.gate.cases ?? [];
-  // The agent's provisional marks on the gate's cases (SB-FR-038), and when the
-  // gate became provisional: an operator's mark since then confirms or changes
-  // a provisional mark.
+  // The agent's provisional marks on the gate's cases (SB-FR-038): an
+  // operator's mark on such a case confirms or changes it.
   const provisionalCases = gateView?.gate.provisionalCases ?? [];
-  const provisionalSince = gateView?.provisionalAt ?? null;
   const cases = gateCases.flatMap((caseId) => {
     const found = plan.data.plan.cases.find((c) => c.id === caseId);
     return found === undefined ? [] : [found];
@@ -265,7 +263,6 @@ function SittingCases({
             fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
             fixUnitError={ownValue(fixUnitErrors, testCase.id)}
             provisional={provisionalCases.find((entry) => entry.case === testCase.id)}
-            provisionalSince={provisionalSince}
             onMarked={onMarked}
           />
         </li>
@@ -288,7 +285,6 @@ function SittingCase({
   fixRef,
   fixUnitError,
   provisional,
-  provisionalSince,
   onMarked,
 }: {
   projectId: string;
@@ -298,7 +294,6 @@ function SittingCase({
   fixRef: string | undefined;
   fixUnitError: string | undefined;
   provisional: ProvisionalCase | undefined;
-  provisionalSince: string | null;
   onMarked: () => void;
 }) {
   const evidencePanelId = useId();
@@ -313,7 +308,7 @@ function SittingCase({
       {provisional !== undefined && (
         <ProvisionalMarkCard
           entry={provisional}
-          reading={readProvisionalMark(provisional, result, provisionalSince)}
+          reading={readProvisionalMark(provisional, result)}
           isConfirming={setStatus.isPending}
           onConfirm={() =>
             setStatus.mutate({

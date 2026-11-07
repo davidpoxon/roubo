@@ -4,6 +4,7 @@ import {
   type ProvisionalMark,
 } from "@roubo/shared/delivery-observation-contract";
 import type { CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
+import { STATUS_LABEL } from "../testbench/statusLabels";
 
 // Where an agent's provisional mark on a gate case stands (SB-FR-038,
 // SB-US-014), read from the case's result: provisional until the operator acts,
@@ -21,23 +22,22 @@ export function provisionalMarkStatus(mark: ProvisionalMark): CaseStatus {
   return MARK_STATUSES[mark];
 }
 
-function markOfStatus(status: CaseStatus): ProvisionalMark | undefined {
+function markOfStatus(status: CaseStatus): ProvisionalMark | null {
   if (status === "passed") return "met";
   if (status === "failed") return "not_met";
-  return undefined;
-}
-
-function timeOf(ts: string): number | undefined {
-  const ms = Date.parse(ts);
-  return Number.isNaN(ms) ? undefined : ms;
+  return null;
 }
 
 export interface ProvisionalMarkReading {
   state: ProvisionalMarkState;
   // The mark the case holds now: the agent's while provisional, else the
-  // operator's.
-  mark: ProvisionalMark;
-  // Who made the mark the case holds now: `agent`, or the operator.
+  // operator's. Null when the operator set a status that is no mark (blocked,
+  // in progress or not started).
+  mark: ProvisionalMark | null;
+  // The words of what the case holds now: the mark's words, or the status's
+  // label when it holds no mark.
+  words: string;
+  // Who made what the case holds now: `agent`, or the operator.
   author: string;
 }
 
@@ -47,32 +47,30 @@ export function recordedProvisionalMark(entry: ProvisionalCase): ProvisionalMark
   return {
     state: entry.confirmed ? "confirmed" : "provisional",
     mark: entry.mark,
+    words: MARK_WORDS[entry.mark],
     author: AGENT_AUTHOR,
   };
 }
 
 // Where a provisional mark stands. The operator acted on it when the case
-// carries a status override written since the gate became provisional (`since`;
-// any override when it is null): an override of the same mark confirms it, any
-// other changes it. With no such override, a mark the record carries as
-// confirmed reads confirmed, and every other mark reads provisional.
+// carries a status override that the agent did not write: an override of the
+// same mark confirms it, any other status changes it. No time cutoff applies:
+// the gate's provisional time is re-dated on every record load, and a gate
+// judges no case the operator had already decided, so an operator override on
+// a provisional case is the operator's act on that mark. With no such override,
+// a mark the record carries as confirmed reads confirmed, and every other mark
+// reads provisional.
 export function readProvisionalMark(
   entry: ProvisionalCase,
   result: CaseResult | undefined,
-  since: string | null,
 ): ProvisionalMarkReading {
   const override = result?.statusOverride;
-  if (override !== undefined) {
-    const sinceMs = since === null ? undefined : timeOf(since);
-    const atMs = timeOf(override.timestamp);
-    const acted = sinceMs === undefined || atMs === undefined || atMs >= sinceMs;
-    if (acted) {
-      const held = markOfStatus(override.status);
-      // An optimistic write has no author yet: the server stamps the operator.
-      const author = override.author.name.length > 0 ? override.author.name : "you";
-      if (held === entry.mark) return { state: "confirmed", mark: held, author };
-      return { state: "changed", mark: held ?? entry.mark, author };
-    }
+  if (override === undefined || override.author.name === AGENT_AUTHOR) {
+    return recordedProvisionalMark(entry);
   }
-  return recordedProvisionalMark(entry);
+  const held = markOfStatus(override.status);
+  // An optimistic write has no author yet: the server stamps the operator.
+  const author = override.author.name.length > 0 ? override.author.name : "you";
+  const words = held === null ? STATUS_LABEL[override.status] : MARK_WORDS[held];
+  return { state: held === entry.mark ? "confirmed" : "changed", mark: held, words, author };
 }

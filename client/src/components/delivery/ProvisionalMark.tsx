@@ -1,6 +1,6 @@
 import type { ProvisionalCase } from "@roubo/shared/delivery-observation-contract";
 import Button from "../ui/Button";
-import { MARK_WORDS, type ProvisionalMarkReading } from "./provisional-mark-model";
+import type { ProvisionalMarkReading } from "./provisional-mark-model";
 
 // The Provisional mark of DESIGN.md (SB-FR-038, SB-US-014): the agent's
 // unconfirmed mark on one gate case, on the inset `bg-base` ground. Its head
@@ -8,15 +8,19 @@ import { MARK_WORDS, type ProvisionalMarkReading } from "./provisional-mark-mode
 // and the mono author; the evidence follows as plain text. The badge is neutral
 // on purpose: green and red belong to a mark the operator made. In a sitting it
 // carries one Confirm control, and the case's own mark controls change it. Once
-// the operator acted, the badge takes the set of the mark it now holds,
-// `success-*` for Met and `danger-*` for Not met, and reads confirmed or
-// changed. On a gate's review card the control is omitted.
+// the operator acted, the badge reads what the case now holds and confirmed or
+// changed, and takes the set of the mark it holds, `success-*` for Met and
+// `danger-*` for Not met; a status that is no mark (blocked, in progress, not
+// started) keeps it neutral. On a gate's review card the control is omitted.
 
 function badgeClass(reading: ProvisionalMarkReading): string {
-  if (reading.state === "provisional") return "bg-bg-hover text-text-secondary";
-  return reading.mark === "met"
-    ? "bg-success-surface text-success-text"
-    : "bg-danger-surface text-danger-text";
+  if (reading.state !== "provisional" && reading.mark === "met") {
+    return "bg-success-surface text-success-text";
+  }
+  if (reading.state !== "provisional" && reading.mark === "not_met") {
+    return "bg-danger-surface text-danger-text";
+  }
+  return "bg-bg-hover text-text-secondary";
 }
 
 export default function ProvisionalMarkCard({
@@ -41,10 +45,10 @@ export default function ProvisionalMarkCard({
         <span className="font-mono text-12 font-medium text-text-body">{entry.case}</span>
         <span
           data-testid={`provisional-mark-badge-${entry.case}`}
-          data-mark={reading.mark}
+          data-mark={reading.mark ?? undefined}
           className={`rounded-chip px-1.5 py-0.5 text-11 font-medium ${badgeClass(reading)}`}
         >
-          {MARK_WORDS[reading.mark]} · {reading.state}
+          {reading.words} · {reading.state}
         </span>
         <span
           data-testid={`provisional-mark-author-${entry.case}`}
