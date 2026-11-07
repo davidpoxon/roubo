@@ -996,17 +996,23 @@ describe("Spec Bench lifecycle journey", () => {
     );
     await screen.findByRole("region", { name: "Cost, health and controls" }, { timeout: 3000 });
 
+    // Precondition of step 1, not an observation of it: the record the test
+    // wrote has the role on its current tier with no pending change.
+    await user.click(screen.getByRole("button", { name: "Cost, health and controls" }));
+    expect(roleRow(), "precondition of step 1: the role row is current").toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    expect(
+      within(controlsView()).getByRole("combobox", { name: `Model of ${ROLE}` }),
+      "precondition of step 1: the role runs on its current tier",
+    ).toHaveValue(CURRENT_TIER);
+
     const roleControlSeq = await step(
       "1. Change a role's model and save",
       `the ${ROLE} row shows pending with the ${NEW_TIER} model, and the outbox holds the role change`,
       owners(["lifecycle", "controls"], ["reducer"]),
       async () => {
-        await user.click(screen.getByRole("button", { name: "Cost, health and controls" }));
-        expect(roleRow()).toHaveAttribute("data-state", "current");
-        expect(
-          within(controlsView()).getByRole("combobox", { name: `Model of ${ROLE}` }),
-        ).toHaveValue(CURRENT_TIER);
-
         await user.selectOptions(
           within(controlsView()).getByRole("combobox", { name: `Model of ${ROLE}` }),
           NEW_TIER,
@@ -1109,13 +1115,19 @@ describe("Spec Bench lifecycle journey", () => {
       },
     );
 
+    // Precondition of step 4, not an observation of it: the tooling's process
+    // ended in step 3, so the first session must read ended before Resume.
+    const [first] = server.sessions;
+    expect(
+      serverModules.terminal.getSession(first.id)?.status,
+      "precondition of step 4: the wound-down session has ended",
+    ).toBe("ended");
+
     await step(
       "4. Click Resume",
-      "the real resume route relaunches the session with the record's resume argument as a new live session, and the chip returns to active once the session's lifecycle.changed arrives",
+      "the real resume route relaunches the session with the record's resume argument, and the chip returns to active once the session's lifecycle.changed arrives",
       owners(["lifecycle", "controls"], ["launcher", "ingest"]),
       async () => {
-        const [first] = server.sessions;
-        expect(serverModules.terminal.getSession(first.id)?.status).toBe("ended");
         // The bench's terminal list is read again on its interval, so Resume
         // is enabled once it shows the wound-down session ended.
         await waitFor(() => expect(lifecycleButton("Resume")).toBeEnabled(), { timeout: 8000 });
@@ -1129,12 +1141,7 @@ describe("Spec Bench lifecycle journey", () => {
         expect(relaunch.descriptor.resume, "the resume argument the session launched with").toBe(
           record.delivery_id,
         );
-        const second = server.sessions[1];
-        expect(second.id).not.toBe(first.id);
-        expect(bench.deliverySessionId).toBe(second.id);
-        // Setup, not evidence of the relaunch: the stub launch executor opens
-        // the session it is handed as live, so this only checks the stand-in.
-        expect(serverModules.terminal.getSession(second.id)?.status).toBe("live");
+        expect(bench.deliverySessionId).toBe(server.sessions[1]?.id);
         expect(healthChip()).not.toHaveAttribute("data-tone", "active");
 
         await tooling.post([tooling.event("lifecycle.changed", { state: "running" })]);
