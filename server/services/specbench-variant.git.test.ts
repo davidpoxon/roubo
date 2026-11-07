@@ -96,6 +96,7 @@ const DELIVERY_FIELDS = [
   "deliverySitting",
   "deliveryLastViewedSeq",
   "deliveryFirstSeenBlocking",
+  "deliveryFirstSeenBlockingClass",
 ];
 
 function git(cwd: string, ...args: string[]): string {

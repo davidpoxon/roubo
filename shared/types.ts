@@ -1823,8 +1823,18 @@ export interface Bench {
   deliverySitting?: BenchDeliverySitting;
   /** Spec Bench only: the last delivery event `seq` the operator viewed. */
   deliveryLastViewedSeq?: number;
-  /** Spec Bench only: when the delivery was first seen blocking (ISO-8601). */
+  /**
+   * Spec Bench only: when the delivery was first seen blocking (ISO-8601): the
+   * time of the cross-check refresh that first found a blocking disagreement
+   * while none was there before (SB-FR-030). Cleared when a refresh finds no
+   * blocking disagreement left.
+   */
   deliveryFirstSeenBlocking?: string;
+  /**
+   * Spec Bench only: the blocking cross-check class that refresh found first,
+   * set and cleared with `deliveryFirstSeenBlocking`.
+   */
+  deliveryFirstSeenBlockingClass?: string;
   /**
    * Whether the bench-level setup command (`benches.setup`) has already run to
    * completion for this bench. `benches.setup` is documented as running once
@@ -1883,7 +1893,11 @@ export type NotificationType =
   // per decision: its dedupe key is the decision id. A review call
   // (`review.opened`, SB-FR-034) raises one too, keyed by the delivery, the
   // trigger and the oldest unreviewed decision, with only a count in metadata.
-  | "delivery-decision";
+  | "delivery-decision"
+  // The cross-check of a Spec Bench's delivery found a blocking class that the
+  // refresh before it did not (SB-FR-030). One per class: its dedupe key is the
+  // class, and it goes when a refresh no longer finds the class.
+  | "delivery-crosscheck";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -2174,6 +2188,8 @@ export interface PersistedBench {
   deliveryLastViewedSeq?: number;
   /** Persisted mirror of Bench.deliveryFirstSeenBlocking. Spec Bench only. */
   deliveryFirstSeenBlocking?: string;
+  /** Persisted mirror of Bench.deliveryFirstSeenBlockingClass. Spec Bench only. */
+  deliveryFirstSeenBlockingClass?: string;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag

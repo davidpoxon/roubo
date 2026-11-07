@@ -67,12 +67,28 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Delivery decision",
     body: "The delivery session of a Spec Bench asks you to decide",
   },
+  "delivery-crosscheck": {
+    title: "Delivery cross-check",
+    body: "The delivery record of a Spec Bench disagrees with what it delivers",
+  },
 };
 
 export function formatNotification(notification: BenchNotification): {
   title: string;
   body: string;
 } {
+  // A blocking cross-check class names the class (SB-FR-030).
+  const crossCheckClass = notification.metadata?.class;
+  if (
+    notification.type === "delivery-crosscheck" &&
+    typeof crossCheckClass === "string" &&
+    crossCheckClass.length > 0
+  ) {
+    return {
+      title: notificationMessages["delivery-crosscheck"].title,
+      body: `The delivery record disagrees with its source: ${crossCheckClass}`,
+    };
+  }
   const unitId = notification.metadata?.unitId;
   if (notification.type === "delivery-jam" && typeof unitId === "string" && unitId.length > 0) {
     return {

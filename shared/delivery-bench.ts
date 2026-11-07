@@ -188,6 +188,44 @@ export interface DeliveryUnitTranscriptResponse {
   lines: string[];
 }
 
+// ── The delivery cross-check (SB-FR-028, SB-FR-030) ──
+//
+// The body of GET <base>/crosscheck: the disagreements of the last refresh of
+// the bench's cross-check, when that refresh ran (`refreshedAt`, null before the
+// first), and the source that could not be read on it. A refresh that cannot
+// read GitHub keeps the disagreements that GitHub settles from the refresh
+// before it and names GitHub in `sourceError`; the next refresh that reads
+// GitHub clears it.
+
+// A claimed or observed value of a disagreement: a word, a list (a stack's
+// branch order), a small record (a head claimed on more than one side), or null.
+export type DeliveryCrossCheckValue =
+  string | null | readonly string[] | Readonly<Record<string, string | null>>;
+
+// One disagreement between the record and the source of truth of its class.
+export interface DeliveryCrossCheckDisagreement {
+  class: string;
+  blocking: boolean;
+  unitId?: string;
+  stack?: string;
+  caseId?: string;
+  blocksAbove?: string[];
+  claimed: DeliveryCrossCheckValue;
+  observed: DeliveryCrossCheckValue;
+  source: string;
+}
+
+export interface DeliveryCrossCheckSourceError {
+  source: "github";
+  message: string;
+}
+
+export interface DeliveryCrossCheckResponse {
+  disagreements: DeliveryCrossCheckDisagreement[];
+  refreshedAt: string | null;
+  sourceError: DeliveryCrossCheckSourceError | null;
+}
+
 // The most events a bench keeps in memory above its record's `last_event_seq`,
 // and so the most one batch may carry. The event route reads its body with a
 // parser of its own, whose limit is set so a full batch fits; the server's

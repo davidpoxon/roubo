@@ -90,6 +90,7 @@ import type { ReconcileClassification } from "@roubo/shared/testbench-domain";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import {
   isDeliveryReadError,
+  type DeliveryCrossCheckResponse,
   type DeliveryEventsResponse,
   type DeliveryReadError,
   type DeliveryUnitDiffResponse,
@@ -588,6 +589,16 @@ export function fetchDeliveryEvents(
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/events${search ? `?${search}` : ""}`,
   );
+}
+
+// The bench's last delivery cross-check (SB-FR-030): its disagreements, when it
+// ran, and the source it could not read. The same 409 DeliveryReadError as the
+// snapshot read.
+export function fetchDeliveryCrossCheck(
+  projectId: string,
+  benchId: number,
+): Promise<DeliveryCrossCheckResponse> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/crosscheck`);
 }
 
 // The pull-request diff of a unit's layer (SB-FR-013): `git diff` in the bench
