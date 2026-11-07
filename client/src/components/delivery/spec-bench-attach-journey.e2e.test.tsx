@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/// <reference types="node" />
 //
 // Integration-level E2E test for the journey "Operator attaches a Spec Bench to
 // a delivery started elsewhere" (SB-TC-007, SB-FR-003, SB-FR-022, SB-US-002).
@@ -9,21 +10,33 @@
 // real BenchCard and the real Set up Spec Bench dialog), the bench page
 // (BenchDetail with the real Delivery tab, its health rail, map and lifecycle
 // controls), the real React Query hooks, the real `lib/api` request layer and
-// the real notification stream hook. The one stand-in is the network: `fetch`
-// and `EventSource` reach an in-process Roubo server stand-in below, which
-// answers the routes the journey calls (server/routes/benches.ts,
+// the real notification stream hook. `fetch` and `EventSource` reach an
+// in-process Roubo server stand-in below.
+//
+// The resume of step 4 runs the real route: POST /delivery/resume goes through
+// server/routes/delivery.ts, mounted in-process on an express app as
+// server/index.ts mounts it and reached through supertest, as the route suites
+// do. Behind it run the real record loader, over the committed record that the
+// bench's workspace (a temporary folder) holds, the real event log and the real
+// lifecycle check. The bench manager is a stand-in that hands the route the
+// stand-in's benches, and the session launcher is a stand-in that keeps the
+// options the route passes it and hands the fake tooling a launch descriptor
+// built from them, so the resume argument the tooling holds is the one the real
+// route built.
+//
+// The other routes the journey calls (server/routes/benches.ts, the reads of
 // server/routes/delivery.ts, server/routes/delivery-hooks.ts,
-// server/routes/specbench-specs.ts) in the shape of their bodies and statuses,
-// folds the record and the accepted events through the shared delivery reducer
-// as GET /delivery does, summarizes a record with the shared summary helper as
-// the summary route does, and checks the delivery token on the event endpoint.
-// It models the checkout's git state in two slots, the working tree and the
-// commit a new bench's worktree starts from: the summary reads only the
-// committed record, and a created bench's workspace holds only what its
-// worktree checks out from that commit, never a working-tree copy. It does not
-// run git, resolve the project's worktree source settings or provision a
-// worktree; the route's own suite covers those. A request to any other route
-// answers 404 and is listed in the failure output.
+// server/routes/specbench-specs.ts) are answered by the stand-in in the shape
+// of their bodies and statuses: it folds the record and the accepted events
+// through the shared delivery reducer as GET /delivery does, summarizes a
+// record with the shared summary helper as the summary route does, and checks
+// the delivery token on the event endpoint. It models the checkout's git state
+// in two slots, the working tree and the commit a new bench's worktree starts
+// from: the summary reads only the committed record, and a created bench's
+// workspace holds only what its worktree checks out from that commit, never a
+// working-tree copy. It does not run git, resolve the project's worktree source
+// settings or provision a worktree; the route's own suite covers those. A
+// request to any other route answers 404 and is listed in the failure output.
 // The hooks and components that the journey does not cross (projects,
 // integration, settings, plugins, terminals, logs, issue controls) are stubbed
 // as in the page suites.
@@ -31,15 +44,20 @@
 // The delivery was started elsewhere: its record is copied into the spec folder
 // of the project checkout and committed there, two units in, and no session
 // runs it. An attached bench launches nothing; its worktree checks the
-// committed record out, so the bench reads it from its workspace. Resume launches the session
-// with the record's resume argument, and the fake delivery tooling, handed that
-// launch descriptor, posts its first event with the token.
+// committed record out, so the bench reads it from its workspace. Resume
+// launches the session with the record's resume argument, and the fake delivery
+// tooling, handed that launch descriptor, posts its first event with the token.
 //
 // Failure-output contract: each SB-TC-007 step runs inside step(), which on a
 // divergence reports the step that diverged, the expected versus the actual at
 // that step, and the owning slice(s) from this journey's blocked-by set.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import express from "express";
+import request from "supertest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -55,10 +73,10 @@ import {
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
-import { selectLifecycleAction } from "@roubo/shared/delivery-selectors";
 import {
   DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
+  DELIVERY_RECORD_FILE,
   summarizeSpecDelivery,
   type DeliveryEventsResponse,
   type DeliveryLaunchDescriptor,
@@ -67,6 +85,49 @@ import {
   type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
+
+// ── Server services behind the real resume route ──
+//
+// The bench manager hands the route the stand-in's benches, and the session
+// launcher hands the launch to the stand-in, with the options the route passed.
+// The terminal service and persisted state stay out of this file, as in the
+// route suites.
+
+interface LaunchOptions {
+  resume?: string;
+}
+
+const routeServices = vi.hoisted(() => ({
+  benches: [] as Bench[],
+  workspaceRoot: "",
+  launch: undefined as
+    ((bench: Bench, options?: LaunchOptions) => { sessionId?: string }) | undefined,
+}));
+
+vi.mock("../../../../server/services/bench-manager.js", () => ({
+  getBench: vi.fn((projectId: string, benchId: number) =>
+    routeServices.benches.find((bench) => bench.projectId === projectId && bench.id === benchId),
+  ),
+  whenWorkspaceProvisioned: vi.fn(async () => undefined),
+}));
+vi.mock("../../../../server/services/delivery-session-launcher.js", () => ({
+  DeliveryLaunchBlockedError: class extends Error {},
+  deliveryLaunchBlock: vi.fn(() => undefined),
+  handOutDeliveryToken: vi.fn(),
+  launchDeliverySession: vi.fn(async (bench: Bench, options?: LaunchOptions) => {
+    if (routeServices.launch === undefined) throw new Error("no launcher stand-in is set");
+    return routeServices.launch(bench, options);
+  }),
+  whenDeliveryBound: vi.fn(async () => undefined),
+}));
+vi.mock("../../../../server/services/terminal.js", () => ({
+  getSession: vi.fn(),
+  getSessionScrollback: vi.fn(),
+}));
+vi.mock("../../../../server/services/state.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, updateBench: vi.fn(), loadSettings: vi.fn(() => ({})) };
+});
 
 // ── Stubs for what the journey does not cross ──
 
@@ -264,11 +325,39 @@ interface FakeEventSource {
   close: () => void;
 }
 
+// The real delivery router and event log, loaded once the mocks above are in
+// place. The specifier is built at run time so that the client's type check,
+// whose root is client/src, does not take in the server's sources; the shape
+// the journey uses of each module is declared here.
+const SERVER_ROOT = "../../../../server";
+
+interface ServerModules {
+  delivery: { default: express.Router };
+  eventLog: { forgetDeliveryEventLog: () => void };
+}
+
+async function loadServerModule<T>(file: string): Promise<T> {
+  return (await import(/* @vite-ignore */ `${SERVER_ROOT}/${file}`)) as T;
+}
+
+async function loadServerModules(): Promise<ServerModules> {
+  return {
+    delivery: await loadServerModule<ServerModules["delivery"]>("routes/delivery.js"),
+    eventLog: await loadServerModule<ServerModules["eventLog"]>("services/delivery-event-log.js"),
+  };
+}
+
+type SupertestMethod = (url: string) => request.Test;
+
 class RouboServerStandIn {
   benches: Bench[] = [];
   createRequests: unknown[] = [];
   unrouted: string[] = [];
   launches: DeliveryLaunchDescriptor[] = [];
+  // The options the real resume route passed to the session launcher.
+  launcherOptions: (LaunchOptions | undefined)[] = [];
+  private readonly app = express();
+  private readonly workspaces: string;
   // The record in the spec folder of the checkout's working tree, and the
   // record committed at the commit a new bench's worktree starts from.
   private workingTreeRecord: DeliveryRecord | undefined;
@@ -278,6 +367,20 @@ class RouboServerStandIn {
   private tokens = new Map<number, string>();
   private streams: FakeEventSource[] = [];
   private onLaunch: ((descriptor: DeliveryLaunchDescriptor) => void) | undefined;
+
+  // The delivery router mounted as server/index.ts mounts it, behind the
+  // global JSON parser, with the stand-in's benches and launcher behind it.
+  constructor(modules: ServerModules) {
+    this.workspaces = mkdtempSync(join(routeServices.workspaceRoot, "server-"));
+    this.app.use(express.json({ limit: "210kb" }));
+    this.app.use("/api/projects", modules.delivery.default);
+    routeServices.benches = this.benches;
+    routeServices.launch = (bench, options) => {
+      this.launcherOptions.push(options);
+      this.launch(bench, options ?? {});
+      return { sessionId: bench.deliverySessionId };
+    };
+  }
 
   setLaunchExecutor(onLaunch: (descriptor: DeliveryLaunchDescriptor) => void): void {
     this.onLaunch = onLaunch;
@@ -358,17 +461,29 @@ class RouboServerStandIn {
     ) {
       return this.readEvents(Number(match[1]), url.searchParams);
     }
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/resume$`).exec(path)) &&
-      method === "POST"
-    ) {
-      return this.resume(Number(match[1]));
+    if (new RegExp(`^${base}/benches/\\d+/delivery/resume$`).test(path) && method === "POST") {
+      return this.routed(method, `${path}${url.search}`, init);
     }
     if (method === "POST" && path === DELIVERY_EVENT_HOOK_PATH) {
       return this.ingest(url.searchParams, headers.Authorization, body);
     }
     this.unrouted.push(`${method} ${path}${url.search}`);
     return respond(404, { error: `The stand-in serves no ${method} ${path}`, code: "NOT_FOUND" });
+  }
+
+  // A request that the real router answers, in-process, through supertest.
+  private async routed(
+    method: string,
+    target: string,
+    init: RequestInit | undefined,
+  ): Promise<StandInResponse> {
+    const agent = request(this.app) as unknown as Record<string, SupertestMethod>;
+    let pending = agent[method.toLowerCase()](target);
+    for (const [name, value] of Object.entries((init?.headers ?? {}) as Record<string, string>)) {
+      pending = pending.set(name, value);
+    }
+    const res = typeof init?.body === "string" ? await pending.send(init.body) : await pending;
+    return respond(res.status, res.body as unknown);
   }
 
   // GET /specbench/specs/fixture-spec/summary: the spec's unit and gate
@@ -388,8 +503,8 @@ class RouboServerStandIn {
 
   // POST /api/projects/:projectId/benches with variant specbench, as the real
   // route validates it. An attached bench launches nothing and mints nothing.
-  // Its workspace holds what its worktree checks out: the committed record,
-  // when there is one, and never the working tree's copy.
+  // Its workspace, a temporary folder, holds what its worktree checks out: the
+  // committed record, when there is one, and never the working tree's copy.
   private createBench(body: unknown): StandInResponse {
     this.createRequests.push(body);
     const request = (body ?? {}) as {
@@ -415,11 +530,13 @@ class RouboServerStandIn {
       });
     }
     const id = this.benches.length + 1;
+    const workspacePath = join(this.workspaces, `bench-${id}`);
+    mkdirSync(join(workspacePath, SPEC_FOLDER), { recursive: true });
     const bench: Bench = {
       id,
       projectId: PROJECT_ID,
       branch: `bench-${id}`,
-      workspacePath: `/workspaces/${PROJECT_ID}/bench-${id}`,
+      workspacePath,
       status: "preparing",
       ports: {},
       components: {},
@@ -432,13 +549,19 @@ class RouboServerStandIn {
       deliveryBindMode: mode as Bench["deliveryBindMode"],
     };
     this.benches.push(bench);
-    if (this.committedRecord !== undefined) this.records.set(id, copy(this.committedRecord));
+    if (this.committedRecord !== undefined) {
+      this.records.set(id, copy(this.committedRecord));
+      writeFileSync(
+        join(workspacePath, SPEC_FOLDER, DELIVERY_RECORD_FILE),
+        `${JSON.stringify(this.committedRecord, null, 2)}\n`,
+      );
+    }
     if (mode === "launch") this.launch(bench, {});
     return respond(201, copy(bench));
   }
 
-  // The launch executor's side: a fresh token, the descriptor, and the session
-  // recorded on the bench.
+  // The launch executor's side: a fresh token, the descriptor built from the
+  // options the launch was given, and the session recorded on the bench.
   private launch(bench: Bench, options: { resume?: string }): DeliveryLaunchDescriptor {
     const token = `token-${bench.id}-${Math.random().toString(36).slice(2)}`;
     this.tokens.set(bench.id, token);
@@ -453,32 +576,6 @@ class RouboServerStandIn {
     this.launches.push(descriptor);
     this.onLaunch?.(descriptor);
     return descriptor;
-  }
-
-  // POST /delivery/resume: the record's lifecycle state must take a resume,
-  // then the session launches with the record's resume argument.
-  private resume(benchId: number): StandInResponse {
-    const bench = this.benches.find((b) => b.id === benchId);
-    if (!bench) return respond(404, { error: "Bench not found", code: "NOT_FOUND" });
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    const snapshot = foldDelivery({
-      record: loaded.record,
-      events: this.events.get(benchId) ?? [],
-    });
-    const resumable = selectLifecycleAction(snapshot, "resume");
-    if (!resumable.available) {
-      return respond(409, {
-        error: resumable.reason,
-        code: "WRONG_LIFECYCLE_STATE",
-        state: resumable.state,
-      });
-    }
-    this.launch(bench, { resume: loaded.record.delivery_id });
-    return respond(202, {
-      resume: loaded.record.delivery_id,
-      sessionId: bench.deliverySessionId,
-    });
   }
 
   private loadRecord(
@@ -722,9 +819,21 @@ function healthChip(): HTMLElement {
   return within(rail).getByTestId("delivery-health-chip");
 }
 
+let serverModules: ServerModules;
+
+beforeAll(async () => {
+  routeServices.workspaceRoot = mkdtempSync(join(tmpdir(), "spec-bench-attach-journey-"));
+  serverModules = await loadServerModules();
+});
+
+afterAll(() => {
+  rmSync(routeServices.workspaceRoot, { recursive: true, force: true });
+});
+
 beforeEach(() => {
   localStorage.clear();
-  server = new RouboServerStandIn();
+  serverModules.eventLog.forgetDeliveryEventLog();
+  server = new RouboServerStandIn(serverModules);
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => server.fetch(input, init)),
@@ -744,6 +853,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  serverModules.eventLog.forgetDeliveryEventLog();
 });
 
 describe("Spec Bench attach journey", () => {
@@ -844,7 +954,7 @@ describe("Spec Bench attach journey", () => {
 
     await step(
       "4. Click Resume in the controls view",
-      "the session launches with the record's resume argument, and the health chip turns active once the first event arrives",
+      "the real resume route launches the session with the record's resume argument, and the health chip turns active once the first event arrives",
       owners(["lifecycle", "controls", "launcher"], ["health", "ingest"]),
       async () => {
         await user.click(screen.getByRole("button", { name: "Cost, health and controls" }));
@@ -855,6 +965,11 @@ describe("Spec Bench attach journey", () => {
         await user.click(resume);
         await waitFor(() => expect(server.launches).toHaveLength(1), { timeout: 3000 });
         const bench = server.benches.find((b) => b.id === benchId);
+        // The options are what the real resume route passed to the launcher,
+        // and the tooling's descriptor is built from them.
+        expect(server.launcherOptions, "the options the resume route launched with").toEqual([
+          { resume: record.delivery_id },
+        ]);
         expect(tooling.descriptor?.resume).toBe(record.delivery_id);
         expect(bench?.deliverySessionId).toBeDefined();
         // No event has arrived yet, so the chip is not active.
