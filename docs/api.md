@@ -515,6 +515,10 @@ Opens a Server-Sent Events stream. Each `data:` line is a JSON object with a `ty
 // type: "bench-status": emitted on every bench status transition
 { "type": "bench-status", "projectId": "my-app", "benchId": 1, "status": "active" }
 
+// type: "bench-decision-mode": emitted when a Spec Bench's delivery session
+// applies another decision mode (a mode.changed event)
+{ "type": "bench-decision-mode", "projectId": "my-app", "benchId": 1, "decisionMode": "auto" }
+
 // type: "notifications": emitted when a bench's notification list changes
 {
   "type": "notifications",

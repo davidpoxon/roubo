@@ -1,5 +1,11 @@
 import type { Response } from "express";
-import type { Bench, BenchNotification, BenchStatus, ComponentStatusValue } from "@roubo/shared";
+import type {
+  Bench,
+  BenchNotification,
+  BenchStatus,
+  ComponentStatusValue,
+  SpecBenchDecisionMode,
+} from "@roubo/shared";
 import type { DeliveryStreamChange, DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 
 export interface NotificationEvent {
@@ -14,6 +20,18 @@ export interface BenchStatusEvent {
   projectId: string;
   benchId: number;
   status: BenchStatus;
+}
+
+/**
+ * A Spec Bench's decision mode in effect changed (SB-FR-032): the session's
+ * `mode.changed` applied another mode. The client patches the bench in place,
+ * so the bench card's variant badge names the new mode.
+ */
+export interface BenchDecisionModeEvent {
+  type: "bench-decision-mode";
+  projectId: string;
+  benchId: number;
+  decisionMode: SpecBenchDecisionMode;
 }
 
 /**
@@ -34,7 +52,11 @@ export interface ComponentStatusChangeEvent {
 }
 
 export type SseEvent =
-  NotificationEvent | BenchStatusEvent | ComponentStatusChangeEvent | DeliveryStreamFrame;
+  | NotificationEvent
+  | BenchStatusEvent
+  | BenchDecisionModeEvent
+  | ComponentStatusChangeEvent
+  | DeliveryStreamFrame;
 
 // The reconnection delay a client's EventSource waits after the connection
 // drops, sent once when the client connects. It keeps the reconnect well inside
@@ -83,6 +105,14 @@ export function broadcastBenchStatus(bench: Bench): void {
     benchId: bench.id,
     status: bench.status,
   });
+}
+
+export function broadcastBenchDecisionMode(
+  projectId: string,
+  benchId: number,
+  decisionMode: SpecBenchDecisionMode,
+): void {
+  broadcast({ type: "bench-decision-mode", projectId, benchId, decisionMode });
 }
 
 /**
