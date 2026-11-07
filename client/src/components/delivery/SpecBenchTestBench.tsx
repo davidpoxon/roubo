@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
@@ -33,6 +33,10 @@ import { provisionalMarkStatus, readProvisionalMark } from "./provisional-mark-m
 // test-results.json. A Not met mark with evidence carries a note and a
 // screenshot, and the server files a fix unit below the gate that keeps it
 // blocked.
+//
+// Each case also has a Stage control (SB-FR-025): it replays the case's state
+// recipe in the pinned checkout through the stage route and shows the staged
+// state, or says that the case opened cold when it has no recipe.
 //
 // The cases enter with the `stagger.gate-cases` orchestration of DESIGN.md:
 // `rise-in`, 40ms apart in forward order. It moves no focus, and under reduced
@@ -299,6 +303,11 @@ function SittingCase({
   const evidencePanelId = useId();
   const setStatus = useSetStatusOverride();
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  // The case's Stage control (SB-FR-025): replays its state recipe in the
+  // pinned checkout through the stage route.
+  const stage = useMutation<api.StageCaseReport, Error>({
+    mutationFn: () => api.stageTestbenchCase(projectId, benchId, testCase.id),
+  });
   return (
     <div
       data-testid="testbench-case-surface"
@@ -327,7 +336,7 @@ function SittingCase({
         result={result}
         onMarked={onMarked}
       />
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button
           aria-expanded={evidenceOpen}
           aria-controls={evidencePanelId}
@@ -336,7 +345,11 @@ function SittingCase({
         >
           Mark {testCase.id} Not met with evidence
         </Button>
+        <Button onPress={() => stage.mutate()} isDisabled={stage.isPending}>
+          Stage {testCase.id}
+        </Button>
       </div>
+      <CaseStageOutcome caseId={testCase.id} stage={stage} />
       <div id={evidencePanelId} hidden={!evidenceOpen}>
         {evidenceOpen && (
           <NotMetEvidenceForm
@@ -369,6 +382,108 @@ function SittingCase({
       )}
     </div>
   );
+}
+
+const STEP_STATUS_LABEL: Record<api.StageStepReport["status"], string> = {
+  passed: "passed",
+  failed: "failed",
+  skipped: "skipped",
+};
+
+// The steps of a replay, each with its status, its detail, and the URL an
+// open-url step asks the operator to open.
+function StageSteps({ report }: { report: api.StageCaseReport }) {
+  if (report.steps.length === 0) return null;
+  return (
+    <ol aria-label={`Steps of the state recipe of ${report.caseId}`} className="space-y-1">
+      {report.steps.map((step) => (
+        <li key={step.index} data-step-status={step.status} className="text-12 text-text-body">
+          <span className="font-mono">{step.kind}</span> {STEP_STATUS_LABEL[step.status]}
+          {step.detail !== undefined && <>: {step.detail}</>}
+          {step.url !== undefined && (
+            <>
+              {" "}
+              <a
+                href={step.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-text underline"
+              >
+                {step.url}
+              </a>
+            </>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// What the case's Stage control answered: the staged state after 200, the
+// opened-cold notice after 404, and the server's message, with the step report
+// of a failed step, after any other refusal.
+function CaseStageOutcome({
+  caseId,
+  stage,
+}: {
+  caseId: string;
+  stage: UseMutationResult<api.StageCaseReport, Error, void>;
+}) {
+  if (stage.isPending) {
+    return (
+      <p role="status" className="text-12 text-text-secondary">
+        Staging {caseId}...
+      </p>
+    );
+  }
+  if (stage.isSuccess) {
+    const report = stage.data;
+    return (
+      <section
+        aria-label={`Staged state of ${caseId}`}
+        data-testid="case-staged-state"
+        className="space-y-1 rounded-control border border-border p-2"
+      >
+        <p role="status" className="text-12 text-text-body">
+          {caseId} is staged at commit <span className="font-mono">{report.commit}</span>. Look for:{" "}
+          {report.observation.description}
+          {report.observation.url !== undefined && (
+            <>
+              {" "}
+              <a
+                href={report.observation.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-text underline"
+              >
+                {report.observation.url}
+              </a>
+            </>
+          )}
+        </p>
+        <StageSteps report={report} />
+      </section>
+    );
+  }
+  if (stage.isError) {
+    if (api.isRecipeNotFound(stage.error)) {
+      return (
+        <p role="status" data-testid="case-opened-cold" className="text-12 text-text-secondary">
+          {caseId} opened cold: it has no state recipe.
+        </p>
+      );
+    }
+    const report = api.stageFailureReport(stage.error);
+    return (
+      <div className="space-y-1">
+        <p role="alert" className="text-12 text-danger-text">
+          {stage.error.message}
+        </p>
+        {report !== undefined && <StageSteps report={report} />}
+      </div>
+    );
+  }
+  return null;
 }
 
 function readDataUrl(file: File): Promise<string> {

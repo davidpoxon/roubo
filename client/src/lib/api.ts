@@ -2075,6 +2075,55 @@ export function appendNote(
   );
 }
 
+// One step of a state recipe replay, as the stage route reports it. An open-url
+// step carries the URL the client opens; the server opens no browser.
+export interface StageStepReport {
+  index: number;
+  kind: string;
+  status: "passed" | "failed" | "skipped";
+  detail?: string;
+  url?: string;
+}
+
+// The report of the stage route (SB-FR-025): the recipe it replayed, the
+// observation to make, and what became of each step.
+export interface StageCaseReport {
+  caseId: string;
+  unitId: string;
+  commit: string;
+  observation: { description: string; url?: string; path?: string; selector?: string };
+  steps: StageStepReport[];
+}
+
+// True when the stage route found no state recipe for the case, so it opened
+// cold (404 RECIPE_NOT_FOUND), as against a bench that does not exist.
+export function isRecipeNotFound(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 404 && err.code === "RECIPE_NOT_FOUND";
+}
+
+// The step report a 422 of the stage route carries, when a step failed.
+export function stageFailureReport(err: unknown): StageCaseReport | undefined {
+  if (!(err instanceof ApiError) || err.status !== 422) return undefined;
+  const details = err.details as Partial<StageCaseReport> | undefined;
+  return Array.isArray(details?.steps) ? (details as StageCaseReport) : undefined;
+}
+
+// POST /testbench/cases/:caseId/stage (SB-FR-025, SB-US-009): replays the
+// case's state recipe in the gate sitting's pinned checkout. 200 with the step
+// report; 404 RECIPE_NOT_FOUND when the case has no recipe (it opens cold); 409
+// when the recipe names another commit than the pin, naming the pin commit; 422
+// with the report when a step fails. Each refusal is an ApiError.
+export function stageTestbenchCase(
+  projectId: string,
+  benchId: number,
+  caseId: string,
+): Promise<StageCaseReport> {
+  return request(
+    `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(caseId)}/stage`,
+    { method: "POST" },
+  );
+}
+
 // TestBench observation mark (#471, FR-007/FR-008). PUT records a pass/fail mark
 // for one observation and returns the updated CaseResult: the server stamps the
 // author + timestamp and recomputes derivedStatus (server is source of truth).

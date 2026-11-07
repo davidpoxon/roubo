@@ -15,6 +15,7 @@
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/status
 //   PUT    /:projectId/benches/:id/testbench/cases/:caseId/lifecycle
 //   POST   /:projectId/benches/:id/testbench/cases/:caseId/notes
+//   POST   /:projectId/benches/:id/testbench/cases/:caseId/stage
 //   POST   /:projectId/benches/:id/testbench/reconcile
 //   PUT    /:projectId/benches/:id/testbench/focus
 //
@@ -72,6 +73,13 @@ import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as gateOverrideStore from "../services/gate-override-store.js";
 import { GateOverrideStoreError } from "../services/gate-override-store.js";
 import { applyGateOverrides } from "../lib/gate-overrides.js";
+import {
+  StateRecipeCommitMismatchError,
+  StateRecipeInvalidError,
+  StateRecipeNotFoundError,
+  UnknownStateRecipeStepError,
+  stageCaseFromRecipe,
+} from "../services/state-recipe-replay.js";
 
 const router = Router();
 
@@ -275,6 +283,31 @@ function handleError(res: import("express").Response, err: unknown): void {
   }
   if (err instanceof UnsafePathError) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+  // Staging a case from its state recipe (SB-FR-025): no recipe is a 404 the
+  // client reads as "the case opened cold", a recipe at another commit than the
+  // pin (or no pin at all) a 409 naming the pin commit, and a recipe that does
+  // not validate, or names a step kind the replayer does not run, a 400.
+  if (err instanceof StateRecipeNotFoundError) {
+    res.status(404).json({ error: err.message, code: err.code });
+    return;
+  }
+  if (err instanceof StateRecipeCommitMismatchError) {
+    res.status(409).json({
+      error: err.message,
+      code: err.code,
+      ...(err.pinCommit !== undefined && { pinCommit: err.pinCommit }),
+      ...(err.recipeCommit !== undefined && { recipeCommit: err.recipeCommit }),
+    });
+    return;
+  }
+  if (err instanceof StateRecipeInvalidError) {
+    res.status(400).json({ error: err.message, code: err.code, errors: err.errors });
+    return;
+  }
+  if (err instanceof UnknownStateRecipeStepError) {
+    res.status(400).json({ error: err.message, code: err.code });
     return;
   }
   // Lifecycle-write failures (#1166). A spec folder that is not there is a 404,
@@ -774,6 +807,39 @@ router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req,
       parsed.data.text,
     );
     res.status(201).json(note);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// 7b. Stage a case from its state recipe (POST) -> 200 with the step report
+// (SB-FR-025, SB-US-009). The recipe is
+// `<pin checkout>/.specifications/<slug>/state-recipes/<caseId>.json`, beside
+// the delivery record, in the gate pin of the bench's sitting. It is validated
+// against the state recipe contract, guarded against the pin commit, and
+// replayed there step by step. 404 RECIPE_NOT_FOUND when the case has none (it
+// opens cold), 409 RECIPE_COMMIT_MISMATCH naming the pin commit when the recipe
+// was recorded at another commit, 409 NO_GATE_PIN when the bench has no pin,
+// 400 RECIPE_INVALID when the recipe does not validate, and 422 with the same
+// report when a step fails. Staging is part of the sitting, so the bench
+// resolves as for a mark.
+router.post("/:projectId/benches/:id/testbench/cases/:caseId/stage", async (req, res) => {
+  try {
+    const benchId = parseIntParam(req.params.id, "bench id");
+    const { bench, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
+    const { ok, report } = await stageCaseFromRecipe(bench, slug, req.params.caseId);
+    if (ok) {
+      res.json(report);
+      return;
+    }
+    const failed = report.steps.find((step) => step.status === "failed");
+    res.status(422).json({
+      ...report,
+      error: `Step ${failed?.index ?? "?"} (${failed?.kind ?? "unknown"}) of the state recipe failed${
+        failed?.detail === undefined ? "" : `: ${failed.detail}`
+      }`,
+      code: "RECIPE_STEP_FAILED",
+    });
   } catch (err) {
     handleError(res, err);
   }

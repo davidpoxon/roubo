@@ -25,6 +25,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchDelivery: vi.fn(),
     fetchTestbenchPlan: vi.fn(),
     setStatusOverride: vi.fn(),
+    stageTestbenchCase: vi.fn(),
     openDeliverySitting: vi.fn(),
     closeDeliverySitting: vi.fn(),
   };
@@ -177,6 +178,119 @@ describe("Spec Bench test bench tab", () => {
     expect(within(items[0]).queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("SB-TC-062 the case surface shows the staged state after the stage route answers 200, and says the case opened cold after 404", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    vi.mocked(api.stageTestbenchCase).mockImplementation(async (_p, _b, caseId) => {
+      if (caseId === "FX-TC-002") {
+        throw new api.ApiError(
+          "Case FX-TC-002 has no state recipe, so it opens cold",
+          404,
+          "RECIPE_NOT_FOUND",
+        );
+      }
+      return {
+        caseId,
+        unitId: "FX-UNIT-B",
+        commit: "0123456789abcdef0123456789abcdef01234567",
+        observation: { description: "The banner reads staged" },
+        steps: [
+          { index: 0, kind: "command", status: "passed", detail: "exited 0" },
+          {
+            index: 1,
+            kind: "open-url",
+            status: "passed",
+            url: "http://localhost:5173/benches/3",
+          },
+        ],
+      };
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const items = within(list).getAllByTestId("sitting-case");
+
+    // Step 1: a case with a recipe is staged, and its surface shows the staged
+    // state: the commit, the observation to make and the step report.
+    await user.click(within(items[0]).getByRole("button", { name: "Stage FX-TC-001" }));
+    await waitFor(() =>
+      expect(api.stageTestbenchCase).toHaveBeenCalledWith("demo", 3, "FX-TC-001"),
+    );
+    const staged = await within(items[0]).findByRole("region", {
+      name: "Staged state of FX-TC-001",
+    });
+    expect(staged).toHaveTextContent("FX-TC-001 is staged at commit 0123456789abcdef");
+    expect(staged).toHaveTextContent("Look for: The banner reads staged");
+    const steps = within(staged).getByRole("list", {
+      name: "Steps of the state recipe of FX-TC-001",
+    });
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(2);
+    expect(
+      within(steps).getByRole("link", { name: "http://localhost:5173/benches/3" }),
+    ).toHaveAttribute("href", "http://localhost:5173/benches/3");
+
+    // Step 2: a case with no recipe opens cold, and its surface says so.
+    await user.click(within(items[1]).getByRole("button", { name: "Stage FX-TC-002" }));
+    expect(await within(items[1]).findByTestId("case-opened-cold")).toHaveTextContent(
+      "FX-TC-002 opened cold: it has no state recipe.",
+    );
+    expect(
+      within(items[1]).queryByRole("region", { name: /Staged state/ }),
+    ).not.toBeInTheDocument();
+    expect(within(items[1]).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-062 shows the server's message naming the pin commit after 409, and the step report after 422", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    vi.mocked(api.stageTestbenchCase).mockImplementation(async (_p, _b, caseId) => {
+      if (caseId === "FX-TC-001") {
+        throw new api.ApiError(
+          "The state recipe of case FX-TC-001 was recorded at commit fedcba9, not at the pin commit 0123456789",
+          409,
+          "RECIPE_COMMIT_MISMATCH",
+        );
+      }
+      throw new api.ApiError(
+        "Step 0 (command) of the state recipe failed: exited 3",
+        422,
+        "RECIPE_STEP_FAILED",
+        {
+          caseId,
+          unitId: "FX-UNIT-B",
+          commit: "0123456",
+          observation: { description: "The banner reads staged" },
+          steps: [
+            { index: 0, kind: "command", status: "failed", detail: "exited 3, expected 0" },
+            { index: 1, kind: "open-url", status: "skipped" },
+          ],
+        },
+      );
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const items = within(list).getAllByTestId("sitting-case");
+
+    await user.click(within(items[0]).getByRole("button", { name: "Stage FX-TC-001" }));
+    expect(await within(items[0]).findByRole("alert")).toHaveTextContent(
+      "not at the pin commit 0123456789",
+    );
+
+    await user.click(within(items[1]).getByRole("button", { name: "Stage FX-TC-002" }));
+    expect(await within(items[1]).findByRole("alert")).toHaveTextContent("exited 3");
+    const steps = within(items[1]).getByRole("list", {
+      name: "Steps of the state recipe of FX-TC-002",
+    });
+    expect(
+      within(steps)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-step-status")),
+    ).toEqual(["failed", "skipped"]);
+  });
+
   it("shows the gate blocked while a fix unit holds it, and the stage control opens a ready sitting", async () => {
     const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(
@@ -243,6 +357,7 @@ describe("Spec Bench test bench tab", () => {
         within(item).getByRole("button", { name: "Supersede" }),
         within(item).getByRole("button", { name: "Notes (0)" }),
         within(item).getByRole("button", { name: `Mark ${caseId} Not met with evidence` }),
+        within(item).getByRole("button", { name: `Stage ${caseId}` }),
       );
     });
     for (const element of expected) {
