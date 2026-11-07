@@ -5,6 +5,11 @@ import { useNavigate } from "react-router";
 // pile (SB-FR-014), as a delivery-decision notification's link asks.
 export const DECISION_PILE_HASH = "#decisions";
 
+// The fragment of a bench route that opens a Spec Bench on its Test bench tab,
+// where its gate sitting is, as a delivery-sitting notification's link asks
+// (SB-FR-023, SB-US-009).
+export const GATE_SITTING_HASH = "#sitting";
+
 export function useDeepLink(): void {
   const navigate = useNavigate();
   useEffect(() => {
@@ -28,6 +33,9 @@ export function useDeepLink(): void {
           } else if (parts.length === 4 && parts[3] === "decisions") {
             // A delivery-decision notification links to the decision pile.
             navigate(`${bench}${DECISION_PILE_HASH}`);
+          } else if (parts.length === 4 && parts[3] === "sitting") {
+            // A delivery-sitting notification links to the gate sitting.
+            navigate(`${bench}${GATE_SITTING_HASH}`);
           }
         }
       } catch {
