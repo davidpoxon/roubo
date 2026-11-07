@@ -898,10 +898,14 @@ export function selectUnmetGates(snapshot: DeliverySnapshot): string[] {
 // `blocking` from its one table, in which branch-missing, head-commit-differs,
 // pr-state-differs, gate-state-differs and plan-hash-mismatch block and
 // layer-order-differs, base-branch-differs, case-status-differs and
-// record-stale are shown only.
+// record-stale are shown only. An entry with `sittingExempt` (a gate that
+// claims a verdict over an unconfirmed provisional mark) does not block the
+// sitting of the gate it names, where those marks are confirmed; it blocks a
+// sitting of any other gate and the approval.
 export interface CrossCheckPolicyEntry {
   class: string;
   blocking: boolean;
+  sittingExempt?: string;
 }
 
 // The actions the cross-check blocks: a gate sitting and the approval. Pause,
@@ -922,14 +926,19 @@ export interface CrossCheckBlock {
 }
 
 // The refusal of an action the cross-check blocks, or null when no blocking
-// class is present. With no list (none read yet), nothing is blocked.
+// class is present. With no list (none read yet), nothing is blocked. For a
+// sitting, `gateId` names the gate it sits: an entry exempt for that gate is
+// passed over.
 export function selectCrossCheckBlock(
   disagreements: readonly CrossCheckPolicyEntry[] | undefined,
   action: CrossCheckBlockedAction,
+  gateId?: string,
 ): CrossCheckBlock | null {
   const classes: string[] = [];
   for (const entry of disagreements ?? []) {
-    if (entry.blocking && !classes.includes(entry.class)) classes.push(entry.class);
+    if (!entry.blocking || classes.includes(entry.class)) continue;
+    if (action === "sit" && gateId !== undefined && entry.sittingExempt === gateId) continue;
+    classes.push(entry.class);
   }
   if (classes.length === 0) return null;
   const found =
@@ -944,13 +953,17 @@ export function selectCrossCheckBlock(
 }
 
 // Why a gate sitting cannot open now, or null when it can: the lifecycle state
-// first, as the approval reads it, then a blocking class of the cross-check.
+// first, as the approval reads it, then a blocking class of the cross-check,
+// less an entry exempt for the gate the sitting is for (`gateId`). A
+// provisional gate's own state never refuses its sitting: the cross-check
+// gives a provisional gate no gate-state entry.
 export type SittingRefusal =
   { code: "WRONG_LIFECYCLE_STATE"; reason: string; state: string } | CrossCheckBlock;
 
 export function selectSittingRefusal(
   snapshot: DeliverySnapshot,
   disagreements?: readonly CrossCheckPolicyEntry[],
+  gateId?: string,
 ): SittingRefusal | null {
   const lifecycle = selectLifecycleAction(snapshot, "sit");
   if (!lifecycle.available) {
@@ -960,19 +973,29 @@ export function selectSittingRefusal(
       state: lifecycle.state,
     };
   }
-  return selectCrossCheckBlock(disagreements, "sit");
+  return selectCrossCheckBlock(disagreements, "sit", gateId);
+}
+
+// The gates the record states as `provisional`, in record order: the
+// session's verdict on them waits for the operator to confirm their marks.
+export function selectProvisionalGates(snapshot: DeliverySnapshot): string[] {
+  return Object.values(snapshot.gatesById)
+    .filter((view) => isProvisionalGate(view.gate))
+    .map((view) => view.gate.id);
 }
 
 // Why the delivery cannot be approved now (SB-FR-022, SB-FR-029, SB-FR-034), or
 // null when it can. The checks run in order and the first that refuses answers:
 // the lifecycle state, then a blocking class of the last cross-check (when the
-// caller passes its disagreements), then an open review, then an unmet gating
-// case. A later check (an unconfirmed provisional mark) slots in as one more
-// step. The approve route answers 409 with the refusal's `code`, and the
-// Approve button reads the same refusal.
+// caller passes its disagreements), then a gate the record states as
+// provisional (SB-FR-039), then an open review, then an unmet gating case. A
+// provisional gate also keeps the review waiting, so its check comes before
+// the review's. The approve route answers 409 with the refusal's `code`, and
+// the Approve button reads the same refusal.
 export type ApprovalRefusal =
   | { code: "WRONG_LIFECYCLE_STATE"; reason: string; state: string }
   | CrossCheckBlock
+  | { code: "PROVISIONAL_UNCONFIRMED"; reason: string; gates: string[] }
   | { code: "REVIEW_OPEN"; reason: string; unreviewed: string[] }
   | { code: "GATING_UNMET"; reason: string; gates: string[] };
 
@@ -990,6 +1013,14 @@ export function selectApprovalRefusal(
   }
   const blocked = selectCrossCheckBlock(disagreements, "approve");
   if (blocked !== null) return blocked;
+  const provisional = selectProvisionalGates(snapshot);
+  if (provisional.length > 0) {
+    return {
+      code: "PROVISIONAL_UNCONFIRMED",
+      reason: `A provisional gate waits for its marks to be confirmed at ${provisional.join(", ")}: approve once every provisional gate is confirmed`,
+      gates: provisional,
+    };
+  }
   const review = selectApprovalAvailability(snapshot);
   if (!review.available) {
     return {
