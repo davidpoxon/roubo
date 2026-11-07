@@ -2,8 +2,10 @@
 // `delivery-observation.json` in `.specifications/<slug>/` inside the bench
 // workspace, where the delivery session that the bench launches runs and writes
 // it. The slug is the one of the spec folder the bench focuses on in the project
-// checkout, but the record in that checkout folder is never read or written:
-// the record lives only in the workspace and goes with it when Clear bench or
+// checkout, but the bench never reads or writes the record in that checkout
+// folder (only the Set up Spec Bench dialog's summary reads it, for display,
+// before an attach): the bench's record lives only in the workspace and goes
+// with it when Clear bench or
 // Cleanup & Retry removes it. A record placed in the checkout reaches the bench
 // only as a committed file that the worktree checks out. The spill file of the
 // bench's event log sits beside the record and goes with the workspace too. The

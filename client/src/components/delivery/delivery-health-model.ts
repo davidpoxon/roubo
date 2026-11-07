@@ -11,7 +11,9 @@ export const DELIVERY_HEALTH_TICK_MS = 5_000;
 // DESIGN.md Health chip: stale takes `status-preparing`, disconnected and
 // blocked take `status-error`. The lifecycle words (SB-FR-022) take
 // `status-idle` while the delivery is paused or wound down, and
-// `status-active` once it is complete.
+// `status-active` once it is complete. An attached bench with no session yet
+// (SB-FR-003) takes `status-idle`, and turns `status-active` with the first
+// event, which makes it fresh.
 export const HEALTH_TONES: Record<DeliveryHealthWord, StatusTone> = {
   fresh: "active",
   stale: "preparing",
@@ -20,6 +22,7 @@ export const HEALTH_TONES: Record<DeliveryHealthWord, StatusTone> = {
   paused: "idle",
   "wound down": "idle",
   complete: "active",
+  attached: "idle",
 };
 
 // The chip's label always carries the word; a blocked delivery also names the

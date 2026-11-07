@@ -269,4 +269,17 @@ describe("staleness", () => {
     });
     expect(selectHealth(jammed, late).word).toBe("blocked");
   });
+
+  it("SB-TC-007: an attached bench with no session reads attached until the first event, which makes it fresh", () => {
+    const record = fixtureRecord();
+    const late = at(record.updated_at) + DELIVERY_STALE_AFTER_MS;
+    const quiet = foldDelivery({ record, events: [] });
+    expect(selectHealth(quiet, late, { attached: true })).toMatchObject({ word: "attached" });
+    // Without the attach, the same quiet delivery reads stale.
+    expect(selectHealth(quiet, late).word).toBe("stale");
+
+    const first = event(8, "unit.changed", { status: "running" }, "C", "2026-10-16T09:31:00Z");
+    const moving = foldDelivery({ record, events: [first] });
+    expect(selectHealth(moving, at(first.ts), { attached: true }).word).toBe("fresh");
+  });
 });

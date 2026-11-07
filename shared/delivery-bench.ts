@@ -98,10 +98,24 @@ export interface DeliveryStreamFrame {
 // `verify`), and `gates` counts its verify gates, both from the spec's
 // `work-units.json` in the project checkout. A spec with no `work-units.json`
 // answers 0 and 0.
+//
+// `delivery` is present only when the spec folder of the project checkout holds
+// a conformant delivery record: a delivery started elsewhere, which an attached
+// bench joins once its worktree checks the committed record out (SB-FR-003). It
+// names the record's progress (its units done, of all its units) and its
+// lifecycle state, read for the dialog only.
+export interface SpecBenchSpecDelivery {
+  deliveryId: string;
+  lifecycleState: string;
+  unitsDone: number;
+  units: number;
+}
+
 export interface SpecBenchSpecSummary {
   slug: string;
   units: number;
   gates: number;
+  delivery?: SpecBenchSpecDelivery;
 }
 
 // ── Events read ──
