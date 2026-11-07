@@ -38,15 +38,20 @@ import RoleMatrix from "./RoleMatrix";
 // session again, since no record means no session has run the delivery yet.
 //
 // `decisionPileFocusKey` is set when the bench was opened from a link to its
-// decision pile, such as a delivery-decision notification's (SB-FR-014): the
-// pile is scrolled into view and focused once the snapshot shows, once for each
-// key.
+// decision pile, such as a delivery-decision notification's (SB-FR-014), and
+// the pile has not yet taken focus for that link: the pile is scrolled into view
+// and focused once the snapshot shows, and `onDecisionPileFocused` reports the
+// key. This panel unmounts while another tab is selected, so the caller keeps
+// the reported key and stops passing it, and a return to the tab under the
+// same link leaves the focus where it is.
 export default function DeliveryTabPanel({
   bench,
   decisionPileFocusKey,
+  onDecisionPileFocused,
 }: {
   bench: Bench;
   decisionPileFocusKey?: string | undefined;
+  onDecisionPileFocused?: ((key: string) => void) | undefined;
 }) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
@@ -87,6 +92,7 @@ export default function DeliveryTabPanel({
           bench={bench}
           snapshot={delivery.data}
           decisionPileFocusKey={decisionPileFocusKey}
+          onDecisionPileFocused={onDecisionPileFocused}
         />
       )}
     </div>
@@ -157,17 +163,21 @@ function DeliverySnapshotView({
   bench,
   snapshot,
   decisionPileFocusKey,
+  onDecisionPileFocused,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshot;
   decisionPileFocusKey: string | undefined;
+  onDecisionPileFocused: ((key: string) => void) | undefined;
 }) {
   const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
   const focusedPileKey = useRef<string | undefined>(undefined);
-  // A link to the decision pile brings it into view and focus, once per link.
+  // A link to the decision pile brings it into view and focus, once per link:
+  // the ref guards this mount, and the caller, told through
+  // onDecisionPileFocused, guards a later mount of the panel.
   useEffect(() => {
     if (decisionPileFocusKey === undefined || focusedPileKey.current === decisionPileFocusKey) {
       return;
@@ -177,7 +187,8 @@ function DeliverySnapshotView({
     focusedPileKey.current = decisionPileFocusKey;
     pile.scrollIntoView?.({ block: "start" });
     pile.focus();
-  }, [decisionPileFocusKey]);
+    onDecisionPileFocused?.(decisionPileFocusKey);
+  }, [decisionPileFocusKey, onDecisionPileFocused]);
   // A complete delivery takes no role change and no mode switch.
   const ended = classifyLifecycleState(snapshot.lifecycle.state) === "complete";
   // The view of cost, health and controls: the burn meter, the jam list, the

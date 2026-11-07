@@ -264,19 +264,19 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is this journey's blocked-by set, named by slice title, and every step
-// names at least one of them. A slice that a step also crosses but that sits
-// outside the blocked-by set is labelled apart.
+// OWNERS is exactly this journey's blocked-by set, named by slice title, and
+// every step names at least one of them. A slice that a step also crosses but
+// that sits outside the blocked-by set is labelled apart.
 const OWNERS = {
-  contract:
-    "'Delivery observation contract in shared with generated schema and drift coverage' (SB-FR-005, SB-FR-006, SB-NFR-007)",
-  reducer: "reducer and selectors (SB-FR-008, SB-FR-010, SB-FR-011)",
-  controls: "control service, outbox and token-gated controls endpoint",
-  inbox:
-    "decision inbox with notifications, answer in place and overturn of a default (SB-FR-014, SB-FR-015)",
+  controlContracts: "'Delivery control and state recipe contracts'",
+  controls: "'Control service, outbox and the token-gated controls endpoint'",
+  inbox: "'Decision inbox: notifications, answer in place and overturn a default'",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
+  observationContract:
+    "'Delivery observation contract in shared with generated schema and drift coverage'",
+  reducer: "'Delivery reducer and selectors shared by server and client'",
   launch: "delivery session launch, delivery token and event ingest (SB-FR-002, SB-FR-007)",
   deliveryTab: "Delivery tab with its map and health rail (SB-FR-009)",
   map: "delivery map graph and list views (SB-FR-010)",
@@ -913,7 +913,7 @@ describe("Spec Bench decision journey", () => {
     await step(
       `1. Post decision.raised for ${DECISION_ID} while unit D is active`,
       `the event endpoint accepts the decision.raised of ${DECISION_ID} with the token while D is running`,
-      owners(["contract", "inbox"], ["launch"]),
+      owners(["inbox"], ["observationContract", "launch"]),
       async () => {
         const before = await readSnapshot(bench.id);
         expect(before.unitsById.D?.status, "unit D is not active").toBe("running");
@@ -956,16 +956,28 @@ describe("Spec Bench decision journey", () => {
 
     await step(
       "3. Open the pile",
-      `following the link opens the bench's Delivery tab on the decision pile, with ${DECISION_ID} on top and its default "${DEFAULT_OPTION}" marked, ${HELD_UNITS} held and ${CONTINUING_UNITS} continuing`,
-      owners(["inbox", "reducer"], ["deliveryTab"]),
+      `following the link from the bench's Terminal tab opens its Delivery tab on the decision pile, once, with ${DECISION_ID} on top and its default "${DEFAULT_OPTION}" marked, ${HELD_UNITS} held and ${CONTINUING_UNITS} continuing`,
+      owners(["inbox"], ["reducer", "deliveryTab"]),
       async () => {
+        // The operator is on the bench, on another tab than Delivery, which a
+        // Spec Bench opens on by default: so only the link can select Delivery.
+        await user.click(screen.getByRole("link", { name: new RegExp(`Bench ${bench.id}`) }));
+        await user.click(await screen.findByRole("tab", { name: /terminal/i }, { timeout: 3000 }));
+        expect(screen.getByRole("tab", { name: /terminal/i })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        );
+        expect(screen.queryByTestId("delivery-decision-pile-target")).toBeNull();
+
         bridge.followLink(link);
-        const deliveryTab = await screen.findByRole(
-          "tab",
-          { name: /delivery/i },
+        await waitFor(
+          () =>
+            expect(
+              screen.getByRole("tab", { name: /delivery/i }),
+              "the link did not select the Delivery tab",
+            ).toHaveAttribute("aria-selected", "true"),
           { timeout: 3000 },
         );
-        expect(deliveryTab).toHaveAttribute("aria-selected", "true");
         await waitFor(
           () => {
             const target = screen.getByTestId("delivery-decision-pile-target");
@@ -974,6 +986,21 @@ describe("Spec Bench decision journey", () => {
           },
           { timeout: 3000 },
         );
+
+        // The link takes focus once: a return to the Delivery tab under the
+        // same link, by keyboard, leaves the focus on the tab, not on the pile.
+        // The Home key moves the focus to the first tab, Delivery, and selects
+        // it, so the panel mounts after the tab has the focus.
+        await user.click(screen.getByRole("tab", { name: /terminal/i }));
+        expect(screen.queryByTestId("delivery-decision-pile-target")).toBeNull();
+        const deliveryTab = screen.getByRole("tab", { name: /delivery/i });
+        await user.keyboard("{Home}");
+        expect(deliveryTab).toHaveAttribute("aria-selected", "true");
+        expect(await screen.findByTestId("delivery-decision-pile-target")).toBeInTheDocument();
+        expect(
+          deliveryTab,
+          "a return to the Delivery tab moved the focus to the pile",
+        ).toHaveFocus();
         const card = topCard();
         const pile = within(decisionsRegion()).getByRole("list", { name: "Decision pile" });
         expect(within(pile).getAllByRole("listitem")[0]).toContainElement(card);
@@ -997,7 +1024,7 @@ describe("Spec Bench decision journey", () => {
     await step(
       "4. Post unit.done for D",
       `D turns done on the map while ${DECISION_ID} is still open`,
-      owners(["reducer", "inbox"], ["launch", "map"]),
+      owners(["inbox"], ["reducer", "launch", "map"]),
       async () => {
         expect(screen.getByTestId("unit-node-D")).toHaveAttribute("data-status", "running");
         const status = await tooling.post([
@@ -1017,7 +1044,7 @@ describe("Spec Bench decision journey", () => {
     await step(
       `5. Answer ${DECISION_ID} and post the decision.answered event`,
       `the answer waits in the outbox until the decision.answered reads it back, then ${DECISION_ID} is marked applied and the pile is empty`,
-      owners(["inbox", "controls", "contract"], ["launch"]),
+      owners(["inbox", "controls", "controlContracts"], ["observationContract", "launch"]),
       async () => {
         const options = within(topCard()).getByRole("group", {
           name: `Options of ${DECISION_ID}`,
