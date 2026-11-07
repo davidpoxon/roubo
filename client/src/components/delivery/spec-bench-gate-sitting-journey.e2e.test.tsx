@@ -40,7 +40,9 @@
 //     (server/lib/specbench-testbench-adapter.ts) and the real results writer,
 //     which stamps the operator's git identity as the author in the workspace's
 //     test-results.json; a Not met mark files a fix unit below the gate, read
-//     from the spec's work-units.json by the real work-unit loader.
+//     from the spec's work-units.json by the real work-unit loader, through
+//     the real fix-issue filer (server/services/fix-issue-filer.ts) and the
+//     real tracker-action gateway (server/services/tracker-action-gateway.ts).
 //
 // Git is real: the project checkout is a git repository with one branch per
 // unit, each with its own build.txt, and the bench workspace is a worktree of it
@@ -58,9 +60,12 @@
 // starts its one component, `web`, by pointing the build server at the
 // component root the real Spec Bench variant host names (the pin while one is
 // recorded, else the workspace); the launch executor records each launch and
-// hands the descriptor to the fake delivery tooling; the fix-issue filer, which
-// files the fix issue on the tracker, records the filing and answers with the
-// issue it minted; the notification stream's response is a fake that hands
+// hands the descriptor to the fake delivery tooling; the integration plugin,
+// which the real fix-issue filer reaches through the real tracker-action
+// gateway (its capability preflight, its consent and capability guards, the
+// create request and the block link all run), records each call and answers
+// createIssue with the issue it minted, with the plugin installed, consented
+// and active for the project; the notification stream's response is a fake that hands
 // each frame to the client's fake EventSource; the desktop bridge records each
 // notification it is asked to show and follows a clicked notification's link;
 // and the state file writes are stubbed. Two reads that no step asserts, the
@@ -140,12 +145,11 @@ interface CreateBenchOptions {
   delivery?: { mode: string; decisionMode?: string };
 }
 
-// What the fix-issue filer is asked to file, as the adapter hands it.
-interface FixIssueRequest {
-  repoFullName: string;
-  failedCaseId: string;
-  gateRef: string;
-  notes: string;
+// A call that the tracker-action gateway makes to the integration plugin.
+interface TrackerCall {
+  pluginId: string;
+  method: string;
+  params: unknown;
 }
 
 const routeServices = vi.hoisted(() => {
@@ -168,18 +172,11 @@ const routeServices = vi.hoisted(() => {
     stopComponents: undefined as ((projectId: string, benchId: number) => void) | undefined,
     startComponents: undefined as
       ((projectId: string, benchId: number, names: string[]) => Bench | undefined) | undefined,
-    fileFixIssue: undefined as
-      | ((
-          projectId: string,
-          params: FixIssueRequest,
-        ) => {
-          fixIssueRef: string;
-          gateRef: string;
-          failedCaseId: string;
-          linkStatus: string;
-          createdAt: string;
-        })
-      | undefined,
+    // The project's integration plugin, consented and installed with the two
+    // capabilities that filing a fix unit needs.
+    trackerPluginId: "github-com",
+    invokeTracker: undefined as
+      ((pluginId: string, method: string, params: unknown) => unknown) | undefined,
   };
 });
 
@@ -229,16 +226,14 @@ vi.mock("../../../../server/services/state.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, updateBench: vi.fn(), loadSettings: vi.fn(() => ({})) };
 });
-// The tracker: the filer files the fix issue on GitHub through the integration
-// plugin, which the journey does not reach.
-vi.mock("../../../../server/services/fix-issue-filer.js", async (importOriginal) => {
+// The tracker: the real fix-issue filer and the real tracker-action gateway run,
+// and only the integration plugin they reach is a stand-in. The project's
+// integration plugin is consented, so the gateway's consent guard passes.
+vi.mock("../../../../server/services/plugin-consent-state.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    fileFixIssueAndBlock: vi.fn((projectId: string, params: FixIssueRequest) => {
-      if (routeServices.fileFixIssue === undefined) throw new Error("no fix-issue filer stand-in");
-      return Promise.resolve(routeServices.fileFixIssue(projectId, params));
-    }),
+    hasConsent: vi.fn((pluginId: string) => pluginId === routeServices.trackerPluginId),
   };
 });
 // The services of the benches routes that the journey does not cross.
@@ -254,8 +249,19 @@ vi.mock("../../../../server/routes/plugin-route-helpers.js", () => ({
   fetchPluginComments: vi.fn(),
   resolveActivePluginQuiet: vi.fn(),
 }));
+// The plugin host: its one installed plugin is the project's integration
+// plugin, and a call to it reaches the stand-in tracker.
 vi.mock("../../../../server/services/plugin-manager.js", () => ({
-  invoke: vi.fn(),
+  invoke: vi.fn((pluginId: string, method: string, params: unknown) => {
+    if (routeServices.invokeTracker === undefined) return Promise.resolve(undefined);
+    return Promise.resolve(routeServices.invokeTracker(pluginId, method, params));
+  }),
+  listInstalled: vi.fn(() => [
+    {
+      id: routeServices.trackerPluginId,
+      manifest: { capabilities: { supportsCreateIssue: true, supportsBlockingLinks: true } },
+    },
+  ]),
   getAgentManifests: vi.fn(() => []),
   getRecord: vi.fn(),
   getConnection: vi.fn(),
@@ -265,8 +271,14 @@ vi.mock("../../../../server/services/start-gate.js", () => ({
   assertGateOpen: vi.fn(),
   fetchIssueForStart: vi.fn(),
 }));
+// The project's active integration plugin, which the filer and the gateway
+// resolve.
 vi.mock("../../../../server/services/active-plugin.js", () => ({
-  resolveActivePlugin: vi.fn(),
+  resolveActivePlugin: vi.fn(() => ({
+    pluginId: routeServices.trackerPluginId,
+    integrationId: routeServices.trackerPluginId,
+    pageSize: 50,
+  })),
 }));
 vi.mock("../../../../server/services/git-state.js", () => ({
   getDirtyState: vi.fn(),
@@ -347,18 +359,27 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// Each gate sitting slice of the blocked-by set is named by what it delivers
-// and its FR ids, and every step names at least one of them. A slice that a
-// step also crosses is labelled apart.
+// OWNERS holds exactly the six slices of this journey's blocked-by set, each
+// named by the exact title of its issue, and every step names the ones whose
+// code it crosses:
+//   - hostResolver owns each step that resolves the Spec Bench host: the steps
+//     that start or stop the components at the root the variant host's
+//     componentRoot names (1, 3 and 6) and the steps that reach the testbench
+//     routes through the TestbenchHostResolver (2 to 5);
+//   - contracts owns step 4, whose recipe is read against the state recipe
+//     contract.
+// ALSO_CROSSED names the slices a step also crosses that are not in the
+// blocked-by set; the failure output labels them apart.
 const OWNERS = {
-  call: "the call to a gate sitting once its pinned build is smoke-checked, with the gate waiting for its build (SB-FR-023)",
-  pin: "the gate pin of a sitting on a detached worktree at the gate commit, with the components restarted from it on the bench ports (SB-FR-024)",
-  stage: "staging a sitting case from its state recipe in the pinned checkout (SB-FR-025)",
-  marks: "marking a gate sitting's cases on the TestBench surfaces (SB-FR-026, SB-US-009)",
-  fixUnits:
-    "the Not met evidence of a sitting case and the fix unit that blocks the gate (SB-FR-027)",
+  contracts: "'Delivery control and state recipe contracts'",
+  hostResolver: "'TestbenchHostResolver replaces the four testbench variant guards'",
+  pin: "'Gate pin service: detached worktree at the gate commit on the bench ports'",
+  call: "'Call the operator to a gate only after the build is live and smoke-checked'",
+  adapter: "'Specbench testbench adapter: marks on TestBench surfaces, evidence and fix units'",
+  stage: "'State recipe replay through the stage route under the commit guard'",
 } as const;
 
+// Not from the blocked-by set: slices the journey also crosses.
 const ALSO_CROSSED = {
   contract: "delivery observation contract in shared with generated schema and drift coverage",
   reducer: "delivery reducer and selectors shared by server and client",
@@ -373,7 +394,7 @@ function owners(blockedBy: BlockedBySlice[], crossed: CrossedSlice[] = []): stri
   const named = blockedBy.map((key) => OWNERS[key]).join("; ");
   if (crossed.length === 0) return named;
   const also = crossed.map((key) => ALSO_CROSSED[key]).join("; ");
-  return `${named}\n  also crossed: ${also}`;
+  return `${named}\n  also crossed (not from the blocked-by set): ${also}`;
 }
 
 // ── Fixture project, repository, record and recipe (SB-TC-068 preconditions) ──
@@ -793,8 +814,8 @@ class RouboServerStandIn {
   // Each stop and start of the bench's components, with the component root it
   // ran at, in order.
   componentCalls: { action: "stop" | "start"; root: string; names: string[] }[] = [];
-  // Each fix issue the tracker was asked to file.
-  filed: FixIssueRequest[] = [];
+  // Each call the tracker-action gateway made to the integration plugin.
+  trackerCalls: TrackerCall[] = [];
   readonly build = new BuildServer();
   buildPort = 0;
   private readonly app = express();
@@ -820,15 +841,13 @@ class RouboServerStandIn {
     routeServices.stopComponents = (projectId, benchId) => this.stopComponents(projectId, benchId);
     routeServices.startComponents = (projectId, benchId, names) =>
       this.startComponents(projectId, benchId, names);
-    routeServices.fileFixIssue = (_projectId, params) => {
-      this.filed.push({ ...params });
-      return {
-        fixIssueRef: FIX_REF,
-        gateRef: params.gateRef,
-        failedCaseId: params.failedCaseId,
-        linkStatus: "complete",
-        createdAt: new Date().toISOString(),
-      };
+    // The tracker mints the fix issue on createIssue and takes the block link
+    // on addBlockedBy.
+    routeServices.invokeTracker = (pluginId, method, params) => {
+      if (method !== "createIssue" && method !== "addBlockedBy") return undefined;
+      this.trackerCalls.push({ pluginId, method, params });
+      if (method === "addBlockedBy") return undefined;
+      return { ref: FIX_REF, url: "https://github.com/example/fixture/issues/13" };
     };
     modules.launcher.setDeliveryLaunchExecutor({
       launch: async (launch) => {
@@ -894,7 +913,7 @@ class RouboServerStandIn {
     this.modules.launcher.resetDeliveryLaunchExecutor();
     routeServices.stopComponents = undefined;
     routeServices.startComponents = undefined;
-    routeServices.fileFixIssue = undefined;
+    routeServices.invokeTracker = undefined;
     await this.build.close();
   }
 
@@ -1385,7 +1404,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       `1. Post gate.reached for ${GATE} with two escalated cases and bring the build up`,
       `the event endpoint accepts the batch, and the preparation of the sitting of ${GATE} settles`,
-      owners(["call", "pin"], ["ingest", "reducer", "launcher"]),
+      owners(["call", "pin", "hostResolver"], ["ingest", "reducer", "launcher"]),
       async () => {
         await tooling.post([
           tooling.event("gate.changed", {
@@ -1405,7 +1424,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       "2. Click the sitting notification",
       `a "Gate ready to sit" notification names ${GATE}, and clicking it opens the Test bench tab on the sitting of ${GATE} in its Ready to sit phase`,
-      owners(["call", "marks"], ["reducer"]),
+      owners(["call", "adapter", "hostResolver"], ["reducer"]),
       async () => {
         await waitFor(
           () =>
@@ -1451,7 +1470,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       "3. Click Open sitting",
       `the pin is created at ${pinPath} on the gate commit ${heads.B}, the build restarts from it on the bench port ${String(server.buildPort)}, and the two cases ${FIRST_CASE} and ${SECOND_CASE} rise in one after the other`,
-      owners(["pin", "call", "marks"]),
+      owners(["pin", "call", "adapter", "hostResolver"]),
       async () => {
         await user.click(screen.getByRole("button", { name: "Open the sitting" }));
         await requestAnswered(bench.id, "POST", "delivery/sittings", 201);
@@ -1488,7 +1507,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       `4. Click Stage on the first case (${FIRST_CASE})`,
       `the recipe of ${FIRST_CASE} replays in the pin, step by step, and the staged state shows: staged at the gate commit ${heads.B}, look for "${OBSERVATION}"`,
-      owners(["stage", "pin"]),
+      owners(["stage", "pin", "contracts", "hostResolver"]),
       async () => {
         const item = sittingCase(FIRST_CASE);
         await user.click(within(item).getByRole("button", { name: `Stage ${FIRST_CASE}` }));
@@ -1519,7 +1538,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       `5. Mark the first case (${FIRST_CASE}) Met and the second (${SECOND_CASE}) Not met with a note`,
       `both marks land in test-results.json with the operator, ${OPERATOR.name}, as author, and a fix unit, ${FIX_REF}, is filed below ${GATE}, which shows blocked`,
-      owners(["marks", "fixUnits"]),
+      owners(["adapter", "hostResolver"]),
       async () => {
         await user.click(
           within(sittingCase(FIRST_CASE)).getByRole("button", { name: /Case status/ }),
@@ -1550,13 +1569,23 @@ describe("Spec Bench gate sitting journey", () => {
         });
         expect(results.caseResults[SECOND_CASE]?.notes?.map((note) => note.text)).toContain(NOTE);
 
-        // One fix unit is filed below the gate, for the second case only.
-        expect(server.filed).toEqual([
+        // One fix unit is filed below the gate, for the second case only: the
+        // tracker is asked to create the fix issue with the note, then to link
+        // it as a blocker of the gate's issue.
+        expect(server.trackerCalls).toEqual([
           {
-            repoFullName: "example/fixture",
-            failedCaseId: SECOND_CASE,
-            gateRef: GATE_REF,
-            notes: NOTE,
+            pluginId: routeServices.trackerPluginId,
+            method: "createIssue",
+            params: {
+              repoFullName: "example/fixture",
+              title: `Fix failed verify case ${SECOND_CASE} blocking gate ${GATE_REF}`,
+              body: NOTE,
+            },
+          },
+          {
+            pluginId: routeServices.trackerPluginId,
+            method: "addBlockedBy",
+            params: { blockedRef: GATE_REF, blockerRef: FIX_REF },
           },
         ]);
         const snapshot = await readSnapshot(bench.id);
@@ -1580,7 +1609,7 @@ describe("Spec Bench gate sitting journey", () => {
     await step(
       "6. Click Close sitting",
       `the pin at ${pinPath} is removed, and the live build returns from the workspace on the bench port ${String(server.buildPort)}`,
-      owners(["pin", "call"]),
+      owners(["pin", "call", "hostResolver"]),
       async () => {
         await user.click(screen.getByRole("button", { name: "Close the sitting" }));
         await requestAnswered(bench.id, "DELETE", "delivery/sittings/current", 204);
