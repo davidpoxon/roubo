@@ -51,8 +51,8 @@
 // those classes.
 //
 // Notification: a refresh that finds a blocking class the refresh before did
-// not find raises one `delivery-crosscheck` notification naming the class, keyed
-// by it, so a repeat raises none. A refresh that no longer finds the class
+// not find raises one `delivery-crosscheck` notification naming the class and
+// the units it is found on, keyed by the class, so a repeat raises none. A refresh that no longer finds the class
 // dismisses it, so a class cleared and found again raises a new one. While
 // GitHub cannot be read, every GitHub-settled class that the bench had found
 // stays found: it is neither dismissed nor taken as cleared. A full page keeps
@@ -604,12 +604,17 @@ function applyBlockingNotifications(
   }
   for (const cls of found) {
     if (seen.has(cls)) continue;
-    const count = disagreements.filter((entry) => entry.class === cls).length;
+    const ofClass = disagreements.filter((entry) => entry.class === cls);
+    // The units the class is found on, each once, so the notification names
+    // them beside the class.
+    const unitIds = [
+      ...new Set(ofClass.flatMap((entry) => (entry.unitId === undefined ? [] : [entry.unitId]))),
+    ];
     createNotification(
       bench,
       DELIVERY_CROSS_CHECK_NOTIFICATION,
       undefined,
-      { class: cls, count },
+      { class: cls, count: ofClass.length, ...(unitIds.length > 0 && { unitIds }) },
       undefined,
       undefined,
       cls,

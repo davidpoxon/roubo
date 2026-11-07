@@ -1,6 +1,7 @@
 import type {
   DeliveryCrossCheckDisagreement,
   DeliveryCrossCheckResponse,
+  DeliveryCrossCheckValue,
 } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { focusRing } from "../ui/focus-ring";
@@ -9,7 +10,9 @@ import { crossCheckMapKeys } from "./delivery-map-model";
 // The delivery cross-check on the Delivery tab's rail (SB-FR-029, SB-FR-030,
 // SB-US-010, SB-NFR-004): one entry per disagreement of the bench's last
 // cross-check, in the order the server lists them, each naming its class, what
-// it is about and whether it blocks; and, when the last refresh could not read
+// it is about, whether it blocks, and what the record claims beside what the
+// source of truth observes (both commits of a head-commit-differs); and, when
+// the last refresh could not read
 // GitHub, the source error. It shows nothing while the cross-check finds
 // nothing and reads every source.
 //
@@ -28,6 +31,27 @@ function subjectOf(disagreement: DeliveryCrossCheckDisagreement): string {
     return `${disagreement.unitId ?? ""} ${disagreement.caseId}`.trim();
   }
   return disagreement.unitId ?? disagreement.stack ?? "delivery";
+}
+
+// A full commit id reads as its first seven characters.
+function shortValue(value: string): string {
+  return /^[0-9a-f]{40}$/.test(value) ? value.slice(0, 7) : value;
+}
+
+function isValueList(value: DeliveryCrossCheckValue): value is readonly string[] {
+  return Array.isArray(value);
+}
+
+// A claimed or observed value as the rail shows it: a word, a list in order,
+// each side with its value (the local and remote heads of a branch), or
+// `none`.
+function formatValue(value: DeliveryCrossCheckValue): string {
+  if (value === null) return "none";
+  if (typeof value === "string") return shortValue(value);
+  if (isValueList(value)) return value.join(" > ");
+  return Object.entries(value)
+    .map(([side, sideValue]) => `${side} ${sideValue === null ? "none" : shortValue(sideValue)}`)
+    .join(", ");
 }
 
 function blockingWord(disagreement: DeliveryCrossCheckDisagreement): string {
@@ -101,6 +125,12 @@ export default function DeliveryCrossCheck({
                   </span>
                   <span data-col="blocking" className="font-mono text-11 text-text-secondary">
                     {blockingWord(disagreement)}
+                  </span>
+                  <span data-col="claimed" className="font-mono text-11 text-text-secondary">
+                    record {formatValue(disagreement.claimed)}
+                  </span>
+                  <span data-col="observed" className="font-mono text-11 text-text-secondary">
+                    {disagreement.source} {formatValue(disagreement.observed)}
                   </span>
                 </button>
               </li>
