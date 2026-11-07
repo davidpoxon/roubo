@@ -52,7 +52,7 @@ import {
   resolveServiceEnv,
   type ResolvedTemplateContext,
 } from "./config-parser.js";
-import { resolveSpawn, runCommand } from "./exec.js";
+import { resolveSpawn, runCommand, type RunCommandResult } from "./exec.js";
 import {
   canonicalPath,
   findAdminDir,
@@ -147,7 +147,7 @@ function readGlobalBenchCap(): number | null {
  * initial `setupComplete` flag; it is not a component-type literal or a
  * docker-field branch (#663, NFR-006). The engine owns actually running setup.
  */
-function componentHasSetup(componentConfig: ComponentConfig | undefined): boolean {
+export function componentHasSetup(componentConfig: ComponentConfig | undefined): boolean {
   // Prefer the opaque plugin config (the post-migration home of `setup`); fall
   // back to the legacy top-level field still present on pre-migration configs
   // (#652 transition shim, migrated by #664). Either being a non-empty string
@@ -352,7 +352,7 @@ export async function reconcile() {
     // The variant's own state (a Spec Bench's spec folder and gate pin) is its
     // domain's to judge, through the VariantHostRegistry. A bench with no
     // variant host is always sound here.
-    const variantState = variantHosts.verifyVariantState(bench);
+    const variantState = await variantHosts.verifyVariantState(bench);
     if (!variantState.ok) {
       bench.status = "error";
       bench.error = variantState.error;
@@ -1312,6 +1312,55 @@ function markBackgroundError(bench: Bench, err: Error): void {
   }
 }
 
+/**
+ * Runs the project's `benches.setup` command line with `cwd` as its working
+ * directory, and keeps its output as the bench's `bench-setup` command logs.
+ * Bench-level Start runs it in the bench workspace; a Spec Bench's gate pin runs
+ * it in the pin worktree, which is a checkout of its own with nothing installed.
+ * Resolves with exit code 0 when the project declares no setup command.
+ */
+export async function runBenchSetupCommand(
+  bench: Bench,
+  config: RouboConfig,
+  cwd: string,
+): Promise<RunCommandResult> {
+  const setup = config.benches.setup;
+  if (!setup) return { code: 0, stdout: "", stderr: "" };
+  // Run through the user's login shell instead of spawning parsed argv
+  // directly (#996). `benches.setup` is a shell command line, not a bare
+  // binary invocation: `&&` chaining, redirection, and shell functions such
+  // as `nvm` only work when a shell interprets the string. Splitting it into
+  // argv instead made a value like `cd roubo && nvm use && npm i` fail
+  // SILENTLY: it spawned /usr/bin/cd (macOS ships one, a POSIX shell script)
+  // with `&&`, `nvm`, and `npm` as literal arguments, which does nothing and
+  // exits 0, so the step was marked done and nothing was ever installed.
+  // loginShellScriptArgs picks the flags: see its doc comment for why zsh
+  // additionally needs `-i` before rc-defined tools like nvm resolve.
+  // getLoginShell() validates $SHELL down to an absolute path of safe
+  // characters, the sanitizer CodeQL's js/command-line-injection suite
+  // recognises (alert #106). Passing the setup string as the shell script
+  // does not widen the trust boundary: this field already spawned an
+  // arbitrary user-named binary with user-named arguments, and it comes
+  // from the project's own checked-in roubo.yaml.
+  //
+  // `benches.shell` overrides that default for a project the login shell does
+  // not suit (#1218), resolved through the same helper the component command
+  // lines use, which validates a string shell down to an absolute path or a
+  // bare command name of safe characters.
+  const setupShell = config.benches.shell;
+  const { file: setupFile, args: setupArgs } =
+    setupShell === undefined
+      ? { file: getLoginShell(), args: loginShellScriptArgs(setup) as string[] }
+      : resolveSpawn(setup, setupShell);
+  const result = await runCommand(setupFile, setupArgs, cwd, undefined, 600_000);
+  processManager.storeCommandLogs(
+    `${bench.projectId}:${bench.id}:bench-setup`,
+    result.stdout,
+    result.stderr,
+  );
+  return result;
+}
+
 async function runComponentsInOrder(
   bench: Bench,
   componentOrder: string[],
@@ -1332,38 +1381,7 @@ async function runComponentsInOrder(
   if (config?.benches.setup && hasStep(bench.provisioningSteps, "bench-setup")) {
     if (!isBenchLive(bench.projectId, bench.id)) return;
     updateStep(bench.provisioningSteps, "bench-setup", "running");
-    // Run through the user's login shell instead of spawning parsed argv
-    // directly (#996). `benches.setup` is a shell command line, not a bare
-    // binary invocation: `&&` chaining, redirection, and shell functions such
-    // as `nvm` only work when a shell interprets the string. Splitting it into
-    // argv instead made a value like `cd roubo && nvm use && npm i` fail
-    // SILENTLY: it spawned /usr/bin/cd (macOS ships one, a POSIX shell script)
-    // with `&&`, `nvm`, and `npm` as literal arguments, which does nothing and
-    // exits 0, so the step was marked done and nothing was ever installed.
-    // loginShellScriptArgs picks the flags: see its doc comment for why zsh
-    // additionally needs `-i` before rc-defined tools like nvm resolve.
-    // getLoginShell() validates $SHELL down to an absolute path of safe
-    // characters, the sanitizer CodeQL's js/command-line-injection suite
-    // recognises (alert #106). Passing the setup string as the shell script
-    // does not widen the trust boundary: this field already spawned an
-    // arbitrary user-named binary with user-named arguments, and it comes
-    // from the project's own checked-in roubo.yaml.
-    //
-    // `benches.shell` overrides that default for a project the login shell does
-    // not suit (#1218), resolved through the same helper the component command
-    // lines use, which validates a string shell down to an absolute path or a
-    // bare command name of safe characters.
-    const setupShell = config.benches.shell;
-    const { file: setupFile, args: setupArgs } =
-      setupShell === undefined
-        ? { file: getLoginShell(), args: loginShellScriptArgs(config.benches.setup) as string[] }
-        : resolveSpawn(config.benches.setup, setupShell);
-    const result = await runCommand(setupFile, setupArgs, bench.workspacePath, undefined, 600_000);
-    processManager.storeCommandLogs(
-      `${bench.projectId}:${bench.id}:bench-setup`,
-      result.stdout,
-      result.stderr,
-    );
+    const result = await runBenchSetupCommand(bench, config, bench.workspacePath);
     if (result.code !== 0) {
       const errorMsg = result.stderr || `Bench setup failed with exit code ${result.code}`;
       updateStep(bench.provisioningSteps, "bench-setup", "error", errorMsg);
@@ -3356,6 +3374,44 @@ export function startAllComponents(projectId: string, benchId: number): Bench {
 
   void runStartAllBackground(bench, ordered, project.config);
 
+  return bench;
+}
+
+/**
+ * Starts the named components of a bench in dependency order, from the bench's
+ * current component root, and resolves once each launch has settled, so the
+ * caller can then read whether each one runs. A name the project does not
+ * configure is skipped. `benches.setup` is not run: a caller that changes the
+ * component root runs it first (see runBenchSetupCommand). Resilient as
+ * bench-level Start is: a component whose plugin cannot be dispatched is
+ * recorded in error and the rest still launch. The gate pin of a Spec Bench
+ * uses it to restart the components that ran before it moved the root.
+ */
+export async function startComponentsAndWait(
+  projectId: string,
+  benchId: number,
+  names: string[],
+): Promise<Bench> {
+  const bench = getBench(projectId, benchId);
+  if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
+
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
+
+  assertStartableWorkspace(bench);
+
+  const wanted = new Set(names);
+  const ordered = getComponentOrder(project.config.components).filter((name) => wanted.has(name));
+  if (ordered.length === 0) return bench;
+
+  bench.provisioningSteps = makeComponentOnlyProvisioningSteps(ordered);
+  bench.status = "preparing";
+  bench.error = undefined;
+  try {
+    await runComponentsInOrder(bench, ordered, project.config, true);
+  } catch (err) {
+    markBackgroundError(bench, err as Error);
+  }
   return bench;
 }
 

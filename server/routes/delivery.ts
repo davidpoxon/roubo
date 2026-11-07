@@ -347,14 +347,29 @@
 //                                                    gate pin service (SB-FR-024, see
 //                                                    services/gate-pin.ts) stopped the
 //                                                    components, added a detached
-//                                                    worktree at the gate commit at
-//                                                    `<workspacePath>-pin`, recorded
+//                                                    worktree at `<workspacePath>-pin`
+//                                                    at the gate commit (for a commit
+//                                                    of a mapped submodule of a
+//                                                    meta-repo: at the workspace's
+//                                                    commit, with that submodule at
+//                                                    the gate commit), initialised its
+//                                                    submodules, ran benches.setup and
+//                                                    marked the components' one-time
+//                                                    setup to run in it, recorded
 //                                                    gatePin {gateId, workspacePath,
-//                                                    commit, createdAt}, and restarted
-//                                                    the components that ran, from the
-//                                                    pin on the bench's ports. The gate
-//                                                    commit is the head of the top unit
-//                                                    the gate runs after.
+//                                                    commit, submodulePath?,
+//                                                    workspaceSetupDone?, createdAt},
+//                                                    restarted the components that
+//                                                    ran, from the pin on the bench's
+//                                                    ports, waited for each launch to
+//                                                    settle, and smoke-checked them:
+//                                                    each runs, each http(s) URL it
+//                                                    reports answers below 500, and
+//                                                    the pin is at the gate commit.
+//                                                    The answer comes only after that
+//                                                    check passed. The gate commit is
+//                                                    the head of the top unit the gate
+//                                                    runs after.
 //                                                    resultsSpecPath is the workspace's
 //                                                    spec folder, which holds
 //                                                    test-results.json during the
@@ -393,17 +408,29 @@
 //                                                        holds the pin path
 //                                                    500 GATE_PIN_FAILED: git could not
 //                                                        add the worktree, or the pin is
-//                                                        not at the gate commit; the
-//                                                        components are restarted from
-//                                                        the workspace
+//                                                        not at the gate commit; the pin
+//                                                        is removed and the components
+//                                                        that ran restart from the
+//                                                        workspace
+//                                                    409 BUILD_NOT_SMOKE_CHECKED: the
+//                                                        pin's submodules or setup
+//                                                        failed, or the smoke check of
+//                                                        its restarted components did;
+//                                                        the pin is removed, the
+//                                                        workspace's setup flags come
+//                                                        back, and the components that
+//                                                        ran restart from the workspace
 //                                                    404 and 409 as the snapshot read
 //   DELETE /:projectId/benches/:id/delivery/sittings/current
 //                                                 -> 204 the sitting closed: the gate pin
 //                                                    service stopped the components,
 //                                                    removed the pin worktree, cleared
-//                                                    gatePin and deliverySitting, and
-//                                                    restarted the components that ran,
-//                                                    from the workspace
+//                                                    gatePin and deliverySitting,
+//                                                    restored the workspace's setup
+//                                                    flags, and restarted the
+//                                                    components that ran, from the
+//                                                    workspace, after each launch
+//                                                    settled
 //                                                    404 SITTING_NOT_FOUND: no sitting is
 //                                                        open
 //                                                    404 not a Spec Bench

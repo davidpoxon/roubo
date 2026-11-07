@@ -5,9 +5,11 @@
 //     operator runs the components against the code under review, else the
 //     bench workspace.
 //   - verifyVariantState: the focused spec folder, and the pin when one is
-//     recorded, must still be on disk, and the pin must still check out the
-//     commit the bench recorded for it; else the error names the expected and
-//     the found commits (SB-TC-009).
+//     recorded, must still be on disk, and the pin (or, for a submodule's gate
+//     commit, that submodule of the pin) must still check out the commit the
+//     bench recorded for it; else the error names the expected and the found
+//     commits (SB-TC-009). git runs as a child process that reconcile awaits,
+//     so the check never blocks the event loop.
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
 //     session, then revokes the delivery token and drops the events and the
 //     control outbox held for the bench, and stops its cross-check's watch and
@@ -20,10 +22,11 @@
 // confirmation first. Nothing here ever reads, writes or removes the focused
 // spec folder in the project checkout for the record: test-results.json in it
 // belongs to the checkout and outlives the bench.
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
+import { promisify } from "node:util";
 import type { Bench } from "@roubo/shared";
-import { assertSafeWorkspacePath, UnsafePathError } from "./safe-path.js";
+import { assertSafeWorkspacePath, resolveWithin, UnsafePathError } from "./safe-path.js";
 import {
   registerVariantHost,
   type VariantHost,
@@ -47,19 +50,33 @@ function safePinPath(bench: Bench): string | undefined {
   }
 }
 
+const execFileAsync = promisify(execFile);
+
 /**
- * The full commit a checkout has checked out, or undefined when git cannot
- * read one. Synchronous, as reconcile calls the host's check synchronously.
+ * The checkout of the pin that holds the recorded commit: the pin itself, or
+ * the submodule of it the record names, kept inside the pin. Undefined when
+ * the recorded submodule path leaves the pin.
  */
-function checkedOutCommit(checkout: string): string | undefined {
+function pinCheckout(pinPath: string, submodulePath: string | undefined): string | undefined {
+  if (submodulePath === undefined) return pinPath;
   try {
-    const sha = execFileSync("git", ["rev-parse", "--verify", "HEAD"], {
+    return resolveWithin(pinPath, submodulePath);
+  } catch (err) {
+    if (err instanceof UnsafePathError) return undefined;
+    throw err;
+  }
+}
+
+/** The full commit a checkout has checked out, or undefined when git cannot read one. */
+async function checkedOutCommit(checkout: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
       cwd: checkout,
       encoding: "utf8",
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-      stdio: ["ignore", "pipe", "ignore"],
       timeout: 5000,
-    }).trim();
+    });
+    const sha = stdout.trim();
     return sha.length > 0 ? sha : undefined;
   } catch {
     return undefined;
@@ -73,7 +90,7 @@ export const specbenchVariantHost: VariantHost = {
     return safePinPath(bench) ?? bench.workspacePath;
   },
 
-  verifyVariantState(bench: Bench): VariantStateResult {
+  async verifyVariantState(bench: Bench): Promise<VariantStateResult> {
     if (!bench.focusedSpecPath || !fs.existsSync(bench.focusedSpecPath)) {
       return {
         ok: false,
@@ -92,7 +109,8 @@ export const specbenchVariantHost: VariantHost = {
         };
       }
       if (pin.commit !== undefined) {
-        const found = checkedOutCommit(pinPath);
+        const checkout = pinCheckout(pinPath, pin.submodulePath);
+        const found = checkout === undefined ? undefined : await checkedOutCommit(checkout);
         if (found !== pin.commit) {
           return {
             ok: false,
