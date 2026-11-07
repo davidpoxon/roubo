@@ -18,6 +18,10 @@ vi.mock("../services/project-registry.js", () => ({
 }));
 
 import * as projectRegistry from "../services/project-registry.js";
+import {
+  DELIVERY_RECORD_MAX_BYTES,
+  loadCommittedDeliveryRecord,
+} from "../lib/delivery-record-loader.js";
 import router from "./specbench-specs.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -229,6 +233,53 @@ describe("GET /:projectId/specbench/specs/:slug/summary", () => {
     commitRecord("fixture-spec", twoUnitsIn());
     const res = await request(app).get(SUMMARY);
     expect(res.body.delivery).toEqual(deliveryOf(twoUnitsIn(), 2));
+  });
+
+  it("SB-TC-007: with Pull latest, names no delivery when the local branch and origin's have diverged", async () => {
+    const other = withOrigin();
+    useWorktreeSource(true, true);
+    // Each side commits a conformant record of its own, so either start would
+    // name a delivery. The records differ, so the two commits do too.
+    const record = twoUnitsIn();
+    commitRecord(
+      "fixture-spec",
+      { ...record, units: record.units.map((item) => ({ ...item, status: "done" })) },
+      other,
+    );
+    git(other, "push", "-q", "origin", "main");
+    commitRecord("fixture-spec", record);
+    git(repo, "fetch", "-q", "origin");
+    const local = git(repo, "rev-parse", "main").trim();
+    const remote = git(repo, "rev-parse", "origin/main").trim();
+    expect(local).not.toBe(remote);
+    expect(git(repo, "merge-base", local, remote).trim()).not.toMatch(
+      new RegExp(`^(${local}|${remote})$`),
+    );
+    const res = await request(app).get(SUMMARY);
+    expect(res.status).toBe(200);
+    expect(res.body.delivery).toBeUndefined();
+  });
+
+  it("SB-TC-007: names no delivery for a committed record over the size limit", async () => {
+    // Valid JSON once parsed, so only the size check leaves the delivery out.
+    const folder = path.join(repo, ".specifications", "fixture-spec");
+    fs.mkdirSync(folder, { recursive: true });
+    const file = path.join(folder, DELIVERY_RECORD_FILE);
+    fs.writeFileSync(
+      file,
+      `${JSON.stringify(twoUnitsIn())}${" ".repeat(DELIVERY_RECORD_MAX_BYTES)}`,
+    );
+    expect(fs.statSync(file).size).toBeGreaterThan(DELIVERY_RECORD_MAX_BYTES);
+    git(repo, "add", "--", path.join(".specifications", "fixture-spec", DELIVERY_RECORD_FILE));
+    git(repo, "commit", "-q", "-m", "record");
+    const res = await request(app).get(SUMMARY);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ slug: "fixture-spec", units: 0, gates: 0 });
+    const loaded = await loadCommittedDeliveryRecord(repo, "HEAD", "fixture-spec");
+    expect(loaded.ok ? undefined : loaded.error).toMatchObject({
+      code: "DELIVERY_INVALID",
+      errors: ["the record is too large"],
+    });
   });
 
   it("answers 0 units and 0 gates for a spec with no work-units.json", async () => {
