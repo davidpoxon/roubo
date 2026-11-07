@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
+import type { ProvisionalCase } from "@roubo/shared/delivery-observation-contract";
 import { ownValue } from "@roubo/shared/delivery-reducer";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import * as api from "../../lib/api";
@@ -20,6 +21,8 @@ import {
   type DeliverySittingPhase,
   type DeliverySittingView,
 } from "./gate-sitting-model";
+import ProvisionalMarkCard from "./ProvisionalMark";
+import { provisionalMarkStatus, readProvisionalMark } from "./provisional-mark-model";
 
 // The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027, SB-US-009): the
 // gate sitting's three phases, its stage control, and, once the sitting is
@@ -224,7 +227,13 @@ function SittingCases({
       </Callout>
     );
   }
-  const gateCases = ownValue(snapshot.gatesById, sitting.gateId)?.gate.cases ?? [];
+  const gateView = ownValue(snapshot.gatesById, sitting.gateId);
+  const gateCases = gateView?.gate.cases ?? [];
+  // The agent's provisional marks on the gate's cases (SB-FR-038), and when the
+  // gate became provisional: an operator's mark since then confirms or changes
+  // a provisional mark.
+  const provisionalCases = gateView?.gate.provisionalCases ?? [];
+  const provisionalSince = gateView?.provisionalAt ?? null;
   const cases = gateCases.flatMap((caseId) => {
     const found = plan.data.plan.cases.find((c) => c.id === caseId);
     return found === undefined ? [] : [found];
@@ -255,6 +264,8 @@ function SittingCases({
             result={ownValue(caseResults, testCase.id)}
             fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
             fixUnitError={ownValue(fixUnitErrors, testCase.id)}
+            provisional={provisionalCases.find((entry) => entry.case === testCase.id)}
+            provisionalSince={provisionalSince}
             onMarked={onMarked}
           />
         </li>
@@ -265,7 +276,10 @@ function SittingCases({
 
 // One escalated case: the TestBench case surface (CaseDetail), whose status
 // control marks it Met or Not met, and beside it the evidence of a Not met mark,
-// a note and a screenshot, that the same case status route takes.
+// a note and a screenshot, that the same case status route takes. A case the
+// agent marked provisionally shows that mark above the surface, with its
+// evidence and a Confirm control that writes the same mark through the same
+// route, with the operator as author.
 function SittingCase({
   projectId,
   benchId,
@@ -273,6 +287,8 @@ function SittingCase({
   result,
   fixRef,
   fixUnitError,
+  provisional,
+  provisionalSince,
   onMarked,
 }: {
   projectId: string;
@@ -281,6 +297,8 @@ function SittingCase({
   result: CaseResult | undefined;
   fixRef: string | undefined;
   fixUnitError: string | undefined;
+  provisional: ProvisionalCase | undefined;
+  provisionalSince: string | null;
   onMarked: () => void;
 }) {
   const evidencePanelId = useId();
@@ -292,6 +310,21 @@ function SittingCase({
       data-case-id={testCase.id}
       className="space-y-3 rounded-control border border-border bg-bg-surface p-3"
     >
+      {provisional !== undefined && (
+        <ProvisionalMarkCard
+          entry={provisional}
+          reading={readProvisionalMark(provisional, result, provisionalSince)}
+          isConfirming={setStatus.isPending}
+          onConfirm={() =>
+            setStatus.mutate({
+              projectId,
+              benchId,
+              caseId: testCase.id,
+              override: provisionalMarkStatus(provisional.mark),
+            })
+          }
+        />
+      )}
       <CaseDetail
         projectId={projectId}
         benchId={benchId}

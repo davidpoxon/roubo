@@ -1,5 +1,7 @@
 import type { DeliveryGate, DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
 import {
+  gateProvisional,
+  isProvisionalGate,
   ownValue,
   type DeliveryGateView,
   type DeliverySnapshot,
@@ -56,11 +58,8 @@ export const JAM_MARK_LABEL = "jammed";
 //
 // A gate's marker reads its record status word as one of these kinds. Each kind
 // has one entry in GATE_MARKERS, which holds everything the marker draws for it:
-// the label, the status dot's tone, and the marker's ground and border. A further
-// state (the provisional gate of SB-FR-038, which DESIGN.md draws on the base
-// ground with the default border) is one more member, one more entry and the
-// words that map to it, with no change to the graph or the list.
-export type GateMarkerKind = "pending" | "passed" | "failed";
+// the label, the status dot's tone, and the marker's ground and border.
+export type GateMarkerKind = "pending" | "passed" | "failed" | "provisional";
 
 export interface GateMarkerStyle {
   label: string;
@@ -74,10 +73,15 @@ export interface GateMarkerStyle {
 // border to `status-error`.
 const GATE_NODE = { ground: "bg-danger-surface", border: "border-status-error" };
 
+// DESIGN.md Unit node: a provisional gate (SB-FR-038) keeps the base ground and
+// the default border, and takes the `status-preparing` dot.
+const PROVISIONAL_GATE_NODE = { ground: "bg-bg-base", border: "border-border-strong" };
+
 export const GATE_MARKERS: Record<GateMarkerKind, GateMarkerStyle> = {
   pending: { label: "pending", tone: "idle", ...GATE_NODE },
   passed: { label: "passed", tone: "active", ...GATE_NODE },
   failed: { label: "failed", tone: "error", ...GATE_NODE },
+  provisional: { label: "provisional", tone: "preparing", ...PROVISIONAL_GATE_NODE },
 };
 
 const GATE_STATUS_KINDS: ReadonlyMap<string, GateMarkerKind> = new Map([
@@ -93,32 +97,88 @@ const GATE_STATUS_KINDS: ReadonlyMap<string, GateMarkerKind> = new Map([
 ]);
 
 // A status word the map does not know reads as pending: the gate has not passed.
+// A gate whose status word is `provisional` reads as provisional, the one key of
+// that state the contract defines.
 export function classifyGateMarker(gate: DeliveryGate): GateMarkerKind {
+  if (isProvisionalGate(gate)) return "provisional";
   return GATE_STATUS_KINDS.get(gate.status.toLowerCase()) ?? "pending";
+}
+
+// The count of a gate's provisional marks the operator has not confirmed yet.
+export function gateUnconfirmedCount(gate: DeliveryGate): number {
+  return gateProvisional(gate).unconfirmed.length;
+}
+
+// The count still to confirm, as the provisional gate's badge reads it.
+export function toConfirmText(count: number): string {
+  return `${count} to confirm`;
+}
+
+// The words a gate's marker reads as: its state's label, and for a provisional
+// gate the count still to confirm beside it (DESIGN.md Unit node).
+export function gateMarkerLabel(gate: DeliveryGate): string {
+  const kind = classifyGateMarker(gate);
+  const label = GATE_MARKERS[kind].label;
+  return kind === "provisional" ? `${label} · ${toConfirmText(gateUnconfirmedCount(gate))}` : label;
+}
+
+// What a list row's gate badge reads after the gate id: the count still to
+// confirm for a provisional gate (DESIGN.md Unit row), else the state's label.
+export function gateBadgeText(gate: DeliveryGate): string {
+  return classifyGateMarker(gate) === "provisional"
+    ? toConfirmText(gateUnconfirmedCount(gate))
+    : GATE_MARKERS[classifyGateMarker(gate)].label;
+}
+
+// ── Held pull requests ──
+//
+// A provisional gate holds the pull requests of the units above it as drafts
+// (SB-FR-038): each unit after the gate's `after` units on their stack reads
+// `draft · held` on its pull request until the gate leaves the provisional
+// state.
+export const HELD_DRAFT_LABEL = "draft · held";
+
+export function selectHeldUnitIds(snapshot: DeliverySnapshot): Set<string> {
+  const held = new Set<string>();
+  for (const view of Object.values(snapshot.gatesById)) {
+    if (!isProvisionalGate(view.gate)) continue;
+    for (const id of view.gate.after) {
+      const unit = ownValue(snapshot.unitsById, id);
+      if (unit === undefined) continue;
+      const stack = ownValue(snapshot.stacks, unit.stack) ?? [];
+      const index = stack.indexOf(id);
+      if (index < 0) continue;
+      for (const above of stack.slice(index + 1)) held.add(above);
+    }
+  }
+  return held;
 }
 
 // ── Accessible names ──
 
 // A jammed unit whose status word is not `jammed` itself (`blocked`, `stuck`,
 // ...) also names the jam, so the mark reaches the screen reader.
-export function unitAccessibleName(unit: DeliveryUnit): string {
+export function unitAccessibleName(unit: DeliveryUnit, held = false): string {
   const jam =
     isJammedMapUnit(unit) && unit.status.toLowerCase() !== JAM_MARK_LABEL
       ? `, ${JAM_MARK_LABEL}`
       : "";
-  return `${unit.id} ${unit.title}, ${unit.status}${jam}, stack ${unit.stack}, layer ${unit.layer}`;
+  const pr = held ? `, pull request ${HELD_DRAFT_LABEL}` : "";
+  return `${unit.id} ${unit.title}, ${unit.status}${jam}${pr}, stack ${unit.stack}, layer ${unit.layer}`;
 }
 
 // A list row has no gate marker of its own, so its name also names its gates.
-export function rowAccessibleName(unit: DeliveryUnit, gates: readonly DeliveryGateView[]): string {
-  const named = gates.map(
-    (view) => `gate ${view.gate.id} ${GATE_MARKERS[classifyGateMarker(view.gate)].label}`,
-  );
-  return [unitAccessibleName(unit), ...named].join(", ");
+export function rowAccessibleName(
+  unit: DeliveryUnit,
+  gates: readonly DeliveryGateView[],
+  held = false,
+): string {
+  const named = gates.map((view) => `gate ${view.gate.id} ${gateMarkerLabel(view.gate)}`);
+  return [unitAccessibleName(unit, held), ...named].join(", ");
 }
 
 export function gateAccessibleName(gate: DeliveryGate): string {
-  return `Gate ${gate.id}, ${GATE_MARKERS[classifyGateMarker(gate)].label}, after ${gate.after.join(", ")}`;
+  return `Gate ${gate.id}, ${gateMarkerLabel(gate)}, after ${gate.after.join(", ")}`;
 }
 
 // What a gate marker shows under the pointer or keyboard focus (SB-FR-010,
@@ -126,7 +186,7 @@ export function gateAccessibleName(gate: DeliveryGate): string {
 // gate's narrowed gating set, the same set the progress counts.
 export function gateHoverLine(view: DeliveryGateView): string {
   const count = view.state.gatingCaseIds.length;
-  const label = GATE_MARKERS[classifyGateMarker(view.gate)].label;
+  const label = gateMarkerLabel(view.gate);
   return `${label} · ${count} ${count === 1 ? "case" : "cases"} gated`;
 }
 
@@ -169,6 +229,8 @@ export interface PlacedUnit {
   key: string;
   unit: DeliveryUnit;
   dependencies: string[];
+  // True while a provisional gate below the unit holds its pull request.
+  held: boolean;
   x: number;
   y: number;
 }
@@ -263,6 +325,7 @@ export function layoutDeliveryMap(
     dependenciesOf.set(edge.to, list);
   }
 
+  const held = selectHeldUnitIds(snapshot);
   const anchors = selectGateAnchors(
     snapshot,
     ordered.map((unit) => unit.id),
@@ -281,6 +344,7 @@ export function layoutDeliveryMap(
       key: unitKey(unit.id),
       unit,
       dependencies: dependenciesOf.get(unit.id) ?? [],
+      held: held.has(unit.id),
       x,
       y,
     };

@@ -11,6 +11,8 @@ import {
   dependencyLine,
   gateAccessibleName,
   gateHoverLine,
+  gateMarkerLabel,
+  HELD_DRAFT_LABEL,
   isJammedMapUnit,
   isLiveUnit,
   JAM_MARK_LABEL,
@@ -138,7 +140,8 @@ function UnitNode({
         data-key={item.key}
         data-status={unit.status}
         data-jammed={jammed ? "true" : undefined}
-        aria-label={unitAccessibleName(unit)}
+        aria-label={unitAccessibleName(unit, item.held)}
+        data-held={item.held ? "true" : undefined}
         aria-describedby={detailId}
         aria-current={selected ? "true" : undefined}
         onClick={() => {
@@ -159,6 +162,14 @@ function UnitNode({
       >
         <span className="flex items-center gap-2 font-mono text-11 font-medium text-text-body">
           {unit.id}
+          {item.held && (
+            <span
+              data-testid={`unit-pr-${unit.id}`}
+              className="truncate font-normal text-text-secondary"
+            >
+              {HELD_DRAFT_LABEL}
+            </span>
+          )}
           {jammed && (
             <span
               data-testid={`unit-jam-mark-${unit.id}`}
@@ -241,7 +252,7 @@ function GateMarker({
         }`}
       >
         <span className="font-mono text-11 text-text-body truncate w-full">gate {gate.id}</span>
-        <StatusIndicator tone={marker.tone} label={marker.label} />
+        <StatusIndicator tone={marker.tone} label={gateMarkerLabel(gate)} />
       </button>
     </li>
   );

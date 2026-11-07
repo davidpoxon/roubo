@@ -966,6 +966,9 @@ export default function BenchDetail() {
                 bench={bench}
                 decisionPileFocusKey={pendingDecisionPileKey}
                 onDecisionPileFocused={setFocusedDecisionPileKey}
+                // A provisional gate's Open sitting shows the sitting's cases
+                // on the Test bench tab (SB-FR-038).
+                onSittingOpened={() => setActiveTab("testbench")}
               />
             </TabPanel>
           )}

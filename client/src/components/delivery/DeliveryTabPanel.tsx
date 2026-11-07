@@ -51,14 +51,19 @@ import RoleMatrix from "./RoleMatrix";
 // key. This panel unmounts while another tab is selected, so the caller keeps
 // the reported key and stops passing it, and a return to the tab under the
 // same link leaves the focus where it is.
+//
+// `onSittingOpened` is called once a provisional gate's review card opened the
+// gate's sitting (SB-FR-038), so the bench can show the sitting's cases.
 export default function DeliveryTabPanel({
   bench,
   decisionPileFocusKey,
   onDecisionPileFocused,
+  onSittingOpened,
 }: {
   bench: Bench;
   decisionPileFocusKey?: string | undefined;
   onDecisionPileFocused?: ((key: string) => void) | undefined;
+  onSittingOpened?: ((gateId: string) => void) | undefined;
 }) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
@@ -100,6 +105,7 @@ export default function DeliveryTabPanel({
           snapshot={delivery.data}
           decisionPileFocusKey={decisionPileFocusKey}
           onDecisionPileFocused={onDecisionPileFocused}
+          onSittingOpened={onSittingOpened}
         />
       )}
     </div>
@@ -171,11 +177,13 @@ function DeliverySnapshotView({
   snapshot,
   decisionPileFocusKey,
   onDecisionPileFocused,
+  onSittingOpened,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshotResponse;
   decisionPileFocusKey: string | undefined;
   onDecisionPileFocused: ((key: string) => void) | undefined;
+  onSittingOpened: ((gateId: string) => void) | undefined;
 }) {
   const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
@@ -286,6 +294,7 @@ function DeliverySnapshotView({
             benchId={bench.id}
             snapshot={snapshot}
             sessionLive={sessionLive}
+            onSittingOpened={onSittingOpened}
           />
         </div>
 

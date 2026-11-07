@@ -305,6 +305,7 @@ export default function DecisionPile({
   benchId,
   snapshot,
   sessionLive = false,
+  onSittingOpened,
 }: {
   projectId: string;
   benchId: number;
@@ -312,6 +313,8 @@ export default function DecisionPile({
   // Whether the bench's main session runs: a review card's thread takes a
   // message only then.
   sessionLive?: boolean;
+  // Called once a provisional gate's review card opened the gate's sitting.
+  onSittingOpened?: ((gateId: string) => void) | undefined;
 }) {
   const pile = selectDecisionPile(snapshot);
   const control = useDecisionControl(projectId, benchId);
@@ -425,6 +428,7 @@ export default function DecisionPile({
         benchId={benchId}
         snapshot={snapshot}
         sessionLive={sessionLive}
+        onSittingOpened={onSittingOpened}
       />
     </section>
   );

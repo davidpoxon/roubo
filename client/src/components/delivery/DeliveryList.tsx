@@ -3,8 +3,9 @@ import type { DeliveryGateView } from "@roubo/shared/delivery-reducer";
 import StatusIndicator from "../ui/StatusIndicator";
 import { focusRing } from "../ui/focus-ring";
 import {
-  GATE_MARKERS,
   classifyGateMarker,
+  gateBadgeText,
+  HELD_DRAFT_LABEL,
   isJammedMapUnit,
   isLiveUnit,
   JAM_MARK_LABEL,
@@ -15,12 +16,15 @@ import {
 } from "./delivery-map-model";
 
 // The delivery map's list view (DESIGN.md Unit row): one dense hairline row per
-// unit in dependency order, with its stack, layer, id, title, status, gate and
+// unit in dependency order, with its stack, layer, id, title, status, pull
+// request (`draft · held` while a provisional gate below it holds it), gate and
 // cost. Enter on a row opens the unit drill-in.
 
 export interface DeliveryListRow {
   unit: DeliveryUnit;
   gates: DeliveryGateView[];
+  // True while a provisional gate below the unit holds its pull request.
+  held?: boolean;
 }
 
 export interface DeliveryListProps {
@@ -62,6 +66,7 @@ function UnitRow({
   onOpen: (target: MapTarget) => void;
 }) {
   const { unit, gates } = row;
+  const held = row.held === true;
   const target: MapTarget = { kind: "unit", id: unit.id };
   return (
     <li>
@@ -71,7 +76,8 @@ function UnitRow({
         data-key={unitKey(unit.id)}
         data-status={unit.status}
         data-jammed={isJammedMapUnit(unit) ? "true" : undefined}
-        aria-label={rowAccessibleName(unit, gates)}
+        aria-label={rowAccessibleName(unit, gates, held)}
+        data-held={held ? "true" : undefined}
         aria-current={selected ? "true" : undefined}
         onClick={() => {
           onSelect(target);
@@ -114,18 +120,36 @@ function UnitRow({
             </span>
           )}
         </span>
+        <span
+          data-col="pr"
+          data-testid={held ? `unit-pr-${unit.id}` : undefined}
+          className="w-20 shrink-0 truncate font-mono text-11 text-text-secondary"
+        >
+          {held ? HELD_DRAFT_LABEL : ""}
+        </span>
         <span data-col="gate" className="w-40 shrink-0 truncate">
           {gates.length === 0 ? (
             <span className="text-11 text-text-secondary">no gate</span>
           ) : (
-            gates.map((view) => (
-              <span
-                key={view.gate.id}
-                className="mr-1 inline-flex rounded-chip bg-bg-hover px-1.5 py-0.5 text-11 text-text-secondary"
-              >
-                {view.gate.id} · {GATE_MARKERS[classifyGateMarker(view.gate)].label}
-              </span>
-            ))
+            gates.map((view) => {
+              // DESIGN.md Unit row: a provisional gate's badge reads the count
+              // still to confirm, in `accent-text` on `accent-muted`.
+              const provisional = classifyGateMarker(view.gate) === "provisional";
+              return (
+                <span
+                  key={view.gate.id}
+                  data-testid={`gate-badge-${view.gate.id}`}
+                  data-gate-kind={classifyGateMarker(view.gate)}
+                  className={`mr-1 inline-flex rounded-chip px-1.5 py-0.5 text-11 ${
+                    provisional
+                      ? "bg-accent-muted font-medium text-accent-text"
+                      : "bg-bg-hover text-text-secondary"
+                  }`}
+                >
+                  {view.gate.id} · {gateBadgeText(view.gate)}
+                </span>
+              );
+            })
           )}
         </span>
         <span data-col="cost" className="w-12 shrink-0 text-right font-mono text-12 tabular-nums">
