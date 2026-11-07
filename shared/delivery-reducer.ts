@@ -364,7 +364,7 @@ const MODE_VALUES: ReadonlySet<string> = new Set(DELIVERY_MODES);
 const PROVISIONAL_MARK_VALUES: ReadonlySet<string> = new Set(PROVISIONAL_MARKS);
 const DECISION_REVIEW_STATUS_VALUES: ReadonlySet<string> = new Set(DECISION_REVIEW_STATUSES);
 
-function isModeValue(value: unknown): value is DeliveryModeValue {
+export function isModeValue(value: unknown): value is DeliveryModeValue {
   return typeof value === "string" && MODE_VALUES.has(value);
 }
 

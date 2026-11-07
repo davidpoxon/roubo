@@ -25,6 +25,7 @@ import {
   selectGateState,
   selectMetCases,
   selectMode,
+  selectModeSwitch,
   selectNextBoundary,
   selectOpenDecisions,
   selectProgress,
@@ -529,6 +530,72 @@ describe("delivery selectors: decision mode (SB-FR-040)", () => {
     });
     expect(selectMode(snapshot)).toEqual({ value: "auto", pending: "attended" });
     expect(selectReview(snapshot)).toEqual({ status: "pending", unreviewed: ["decision-2"] });
+  });
+
+  it("SB-TC-084 selectModeSwitch shows a switch pending until its mode.changed read-back", () => {
+    const modeSwitch = (
+      seq: number,
+      mode: string,
+      status: DeliveryControl["status"],
+    ): DeliveryControl =>
+      ({
+        $schema: DELIVERY_CONTROL_SCHEMA_ID,
+        schemaVersion: DELIVERY_CONTROL_SCHEMA_VERSION,
+        delivery_id: "demo-delivery-1",
+        control_seq: seq,
+        kind: "mode_switch",
+        body: { mode },
+        durability: "durable",
+        issued_at: "2026-10-16T10:00:00Z",
+        status,
+      }) as DeliveryControl;
+    const record: DeliveryRecord = {
+      ...fixtureRecord(),
+      mode: { value: "attended", pending: null },
+    };
+
+    expect(selectModeSwitch(foldDelivery({ record, events: [] }))).toEqual({
+      value: "attended",
+      pending: null,
+      pendingControlSeq: null,
+    });
+    // Pending or delivered, the switch waits; the mode in effect stays.
+    for (const status of ["pending", "delivered"] as const) {
+      expect(
+        selectModeSwitch(
+          foldDelivery({ record, events: [], controls: [modeSwitch(3, "auto", status)] }),
+        ),
+      ).toEqual({ value: "attended", pending: "auto", pendingControlSeq: 3 });
+    }
+    // The last outstanding switch is the one that waits.
+    expect(
+      selectModeSwitch(
+        foldDelivery({
+          record,
+          events: [],
+          controls: [modeSwitch(3, "auto", "delivered"), modeSwitch(4, "attended", "pending")],
+        }),
+      ),
+    ).toEqual({ value: "attended", pending: "attended", pendingControlSeq: 4 });
+    // The read-back applies it: the mode changes and nothing waits.
+    expect(
+      selectModeSwitch(
+        foldDelivery({
+          record,
+          events: [event(8, "mode.changed", { value: "auto", control_seq: 3 })],
+          controls: [modeSwitch(3, "auto", "applied")],
+        }),
+      ),
+    ).toEqual({ value: "auto", pending: null, pendingControlSeq: null });
+    // With no switch in the outbox, the record's own pending mode stands.
+    expect(
+      selectModeSwitch(
+        foldDelivery({
+          record: { ...record, mode: { value: "attended", pending: "auto" } },
+          events: [],
+        }),
+      ),
+    ).toEqual({ value: "attended", pending: "auto", pendingControlSeq: null });
   });
 
   it("selectReviewStack lists unreviewed agent cards and provisional gate cards, oldest first", () => {

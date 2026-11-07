@@ -14,23 +14,25 @@ import DeliveryDriftLedger from "./DeliveryDriftLedger";
 import DeliveryRail from "./DeliveryHealth";
 import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
+import DeliveryModeControl from "./DeliveryModeControl";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 import LifecycleControls from "./LifecycleControls";
 import RoleMatrix from "./RoleMatrix";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
-// health rail (SB-FR-019, SB-NFR-006), its progress in cases met and
+// health rail (SB-FR-019, SB-NFR-006) with the mode in effect named in a mono
+// label beside the health chip (SB-FR-032), its progress in cases met and
 // requirements covered (SB-FR-011), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
 // default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
 // to review on the same pile (SB-FR-033), the boundary panel with the steering
-// composer (SB-FR-016, SB-FR-017), the role matrix (SB-FR-021), and the
-// lifecycle controls (SB-FR-022), among them Approve, which waits while a
-// review is open (SB-FR-034) or a gating case is unmet, when the
-// record conforms, or the named error when it does not. No
-// decision, steering, role or lifecycle control renders until the record
+// composer (SB-FR-016, SB-FR-017), the role matrix (SB-FR-021) with the Mode
+// switch beside it (SB-FR-032), and the lifecycle controls (SB-FR-022), among
+// them Approve, which waits while a review is open (SB-FR-034) or a gating case
+// is unmet, when the record conforms, or the named error when it does not. No
+// decision, steering, role, mode or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
 // session again, since no record means no session has run the delivery yet.
@@ -138,6 +140,8 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
   const costHealthControls = useRef<HTMLElement>(null);
+  // A complete delivery takes no role change and no mode switch.
+  const ended = classifyLifecycleState(snapshot.lifecycle.state) === "complete";
   // The view of cost, health and controls: the burn meter, the jam list, the
   // drift ledger and the delivery's controls, which the header's button opens.
   const openCostHealthControls = () => {
@@ -150,7 +154,16 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <DeliveryRail snapshot={snapshot} />
+        <div className="flex flex-wrap items-start gap-3">
+          <DeliveryRail snapshot={snapshot} />
+          <span
+            data-testid="delivery-mode-label"
+            data-mode={snapshot.mode.value}
+            className="py-0.5 font-mono text-11 font-medium text-text-secondary"
+          >
+            {snapshot.mode.value} mode
+          </span>
+        </div>
         <Button onPress={openCostHealthControls}>Cost, health and controls</Button>
       </div>
       <DeliveryProgressStats snapshot={snapshot} />
@@ -199,12 +212,24 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
           <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
         </section>
 
-        <section data-testid="delivery-role-controls" aria-label="Roles">
-          <RoleMatrix
+        <section
+          data-testid="delivery-role-controls"
+          aria-label="Roles and mode"
+          className="flex flex-wrap items-start gap-6"
+        >
+          <div className="min-w-0 flex-1">
+            <RoleMatrix
+              projectId={bench.projectId}
+              benchId={bench.id}
+              snapshot={snapshot}
+              disabled={ended}
+            />
+          </div>
+          <DeliveryModeControl
             projectId={bench.projectId}
             benchId={bench.id}
             snapshot={snapshot}
-            disabled={classifyLifecycleState(snapshot.lifecycle.state) === "complete"}
+            disabled={ended}
           />
         </section>
 

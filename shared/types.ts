@@ -1786,8 +1786,11 @@ export interface Bench {
   /** Spec Bench only: how the bench binds to its delivery. */
   deliveryBindMode?: SpecBenchBindMode;
   /**
-   * Launch-mode Spec Bench only: the decision mode chosen at set-up, which the
-   * bench hands the session at launch. Absent on an attached bench.
+   * Spec Bench only: the decision mode in effect. A launch-mode bench starts at
+   * the mode chosen at set-up, which it hands the session at launch; an
+   * attached bench has none until the session reports one. Each `mode.changed`
+   * the session posts sets it to the mode it applied (SB-FR-032), so the bench
+   * card names the current mode.
    */
   deliveryDecisionMode?: SpecBenchDecisionMode;
   /** Spec Bench only: the pin worktree of the open gate sitting, if any. */
@@ -2155,7 +2158,7 @@ export interface PersistedBench {
   focusedSpecPath?: string;
   /** Persisted mirror of Bench.deliveryBindMode. Spec Bench only. */
   deliveryBindMode?: SpecBenchBindMode;
-  /** Persisted mirror of Bench.deliveryDecisionMode. Launch-mode Spec Bench only. */
+  /** Persisted mirror of Bench.deliveryDecisionMode. Spec Bench only. */
   deliveryDecisionMode?: SpecBenchDecisionMode;
   /** Persisted mirror of Bench.gatePin. Spec Bench only. */
   gatePin?: BenchGatePin;

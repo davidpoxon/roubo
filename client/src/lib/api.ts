@@ -725,6 +725,20 @@ export function changeDeliveryRole(
   });
 }
 
+// Switch the delivery's decision mode (SB-FR-032): 202 with the mode_switch
+// control, pending until the session reads it back with a mode.changed, or 409
+// MODE_UNCHANGED when the mode is in effect already with none pending.
+export function switchDeliveryMode(
+  projectId: string,
+  benchId: number,
+  mode: SpecBenchDecisionMode,
+): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/mode`, {
+    method: "PUT",
+    body: JSON.stringify({ mode }),
+  });
+}
+
 // Pause the delivery, or wind it down (SB-FR-022): 202 with the pause or
 // wind-down control, or 409 WRONG_LIFECYCLE_STATE naming the state.
 export function pauseDelivery(projectId: string, benchId: number): Promise<DeliveryOutboxControl> {
