@@ -339,6 +339,69 @@ describe("output buffer", () => {
   });
 });
 
+describe("session input", () => {
+  it("counts socket input and writeToSession input, and no output", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket, writeToSession, getSessionInputCount } =
+      await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    expect(getSessionInputCount(session.id)).toBe(0);
+
+    pty._emit("data", "prompt$ ");
+    const ws = createMockWs();
+    handleWebSocket(session.id, ws);
+    ws._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "ls\n" })));
+    ws._trigger("message", Buffer.from(JSON.stringify({ type: "resize", cols: 100, rows: 30 })));
+    expect(writeToSession(session.id, "/jig\n")).toBe(true);
+
+    expect(getSessionInputCount(session.id)).toBe(2);
+    expect(pty.write.mock.calls).toEqual([["ls\n"], ["/jig\n"]]);
+    expect(getSessionInputCount("no-such-session")).toBeUndefined();
+  });
+
+  it("never writes the input to disk", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, writeToSession } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    writeToSession(session.id, "a-secret\n");
+    pty._emit("data", "out\r\n");
+    vi.advanceTimersByTime(1_000);
+
+    expect(mockAtomicWrite).toHaveBeenCalled();
+    for (const [, content] of mockAtomicWrite.mock.calls) {
+      expect(String(content)).not.toContain("a-secret");
+    }
+  });
+
+  it("knows no input count of a session restored after a restart", async () => {
+    const id = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+    mockReaddirSync.mockReturnValue([`${id}.json`]);
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        session: {
+          id,
+          benchKey: "project1:1",
+          label: "Terminal 1",
+          createdAt: "2026-01-01",
+          status: "live",
+        },
+        buffer: ["old"],
+        persistedAt: "2026-01-01",
+      }),
+    );
+
+    const { loadPersistedSessions, getSessionInputCount, writeToSession } = await loadModule();
+    loadPersistedSessions();
+
+    expect(getSessionInputCount(id)).toBeUndefined();
+    expect(writeToSession(id, "ls\n")).toBe(false);
+  });
+});
+
 describe("getSessions", () => {
   it("returns sessions for a specific bench", async () => {
     const pty = createMockPty();
