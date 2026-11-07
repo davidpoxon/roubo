@@ -318,6 +318,17 @@ describe("Spec Bench host: beforeTeardown", () => {
     }
   });
 
+  it("SB-TC-023 forgets the operator's last view of the delivery, whose record goes with the workspace", async () => {
+    const bench = specBench({
+      deliveryLastViewedSeq: 120,
+      deliveryLastViewedDeliveryId: "demo-delivery-1",
+    });
+    const ctx = { project: undefined, removeWorktree: vi.fn(), stopSession: vi.fn() };
+    await specbenchVariantHost.beforeTeardown(bench, ctx);
+    expect(bench.deliveryLastViewedSeq).toBeUndefined();
+    expect(bench.deliveryLastViewedDeliveryId).toBeUndefined();
+  });
+
   it("does nothing beyond clearing the fields when no sitting is open", async () => {
     const bench = specBench();
     const ctx = { project: undefined, removeWorktree: vi.fn(), stopSession: vi.fn() };

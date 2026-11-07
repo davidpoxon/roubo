@@ -308,6 +308,9 @@ export function initialize() {
       ...(ps.deliveryLastViewedSeq !== undefined && {
         deliveryLastViewedSeq: ps.deliveryLastViewedSeq,
       }),
+      ...(ps.deliveryLastViewedDeliveryId !== undefined && {
+        deliveryLastViewedDeliveryId: ps.deliveryLastViewedDeliveryId,
+      }),
       ...(ps.deliveryFirstSeenBlocking !== undefined && {
         deliveryFirstSeenBlocking: ps.deliveryFirstSeenBlocking,
       }),

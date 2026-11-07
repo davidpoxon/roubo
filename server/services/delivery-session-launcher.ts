@@ -265,6 +265,26 @@ export function handOutDeliveryToken(bench: Bench): DeliveryLaunchDescriptor {
 
 const bindings = new Map<string, Promise<void>>();
 
+// Clears the seq the operator last viewed, and the delivery it was of, and
+// saves the bench when it held one.
+function forgetDeliveryLastView(bench: Bench): void {
+  const live = benchManager.getBench(bench.projectId, bench.id) ?? bench;
+  const targets = live === bench ? [bench] : [live, bench];
+  let held = false;
+  for (const target of targets) {
+    if (
+      target.deliveryLastViewedSeq !== undefined ||
+      target.deliveryLastViewedDeliveryId !== undefined
+    ) {
+      held = true;
+      target.deliveryLastViewedSeq = undefined;
+      target.deliveryLastViewedDeliveryId = undefined;
+    }
+  }
+  // updateBench replaces an existing record only.
+  if (held) stateService.updateBench(stateService.toPersistedBench(live));
+}
+
 function notifyLaunchFailed(bench: Bench, reason: string): void {
   createNotification(bench, "agent-launch-failed", undefined, {
     message: `The delivery session did not start: ${reason}`,
@@ -284,8 +304,10 @@ function notifyLaunchFailed(bench: Bench, reason: string): void {
 export function bindDeliveryOnCreate(bench: Bench): Promise<void> {
   const k = bindingKey(bench.projectId, bench.id);
   // A new workspace holds no record yet, so nothing the bench accepted before
-  // carries over: its delivery starts its sequence again.
+  // carries over: its delivery starts its sequence again, and the operator's
+  // last view of the old delivery (SB-FR-012) is no view of the new one.
   forgetDeliveryEventLog(bench.projectId, bench.id);
+  forgetDeliveryLastView(bench);
   const binding = (async () => {
     await benchManager.whenWorkspaceProvisioned(bench.projectId, bench.id);
     const live = benchManager.getBench(bench.projectId, bench.id);

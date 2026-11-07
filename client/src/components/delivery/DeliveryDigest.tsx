@@ -11,8 +11,10 @@ import { focusRing } from "../ui/focus-ring";
 // tab, what changed in the delivery since the operator last viewed it, grouped
 // by unit, decision, gate and drift. Each entry links to its target: a unit or
 // a gate opens its drill-in on the map, a decision raises its card on the
-// decision pile, and a drift entry brings the drift ledger into view. Dismiss
-// marks the delivery seen, and the digest stays away until new events arrive.
+// decision pile or the review pile while it is on one, else opens the drill-in
+// of the unit it is about, and a drift entry brings the drift ledger into view.
+// Dismiss marks the delivery seen, and the digest stays away until new events
+// arrive.
 
 const GROUP_LABELS: Record<DeliveryDigestKind, string> = {
   unit: "Units",

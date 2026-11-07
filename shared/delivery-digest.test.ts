@@ -102,17 +102,82 @@ describe("deriveDeliveryDigest", () => {
     const events = [event(base + 1, "unit.changed", { status: "running" }, "D")];
     const digest = deriveDeliveryDigest({ record: record(), events, lastViewedSeq: base - 3 });
     expect(digest.source).toBe("record");
-    // The record's units past pending, its open decision and its unreviewed
-    // agent decision, its gate past pending and its drift, with D from the log.
+    // D from the log, and of the record only what awaits the operator: its
+    // open decision, its unreviewed agent decision and its unconfirmed
+    // provisional gate. A done or running unit and the drift the record holds
+    // are not listed.
     expect(keys(digest.entries)).toEqual([
-      "unit:A",
-      "unit:B",
       "unit:D",
       "decision:decision-1",
       "decision:decision-2",
       "gate:gate-after-c",
-      "drift:drift-0",
     ]);
     expect(digest.entries.every((entry) => entry.previousStatus === null)).toBe(true);
+  });
+
+  it("SB-TC-023 on the record path lists a jammed unit of the record", () => {
+    const jammed = record();
+    jammed.units = jammed.units.map((unit) =>
+      unit.id === "B" ? { ...unit, status: "held" } : unit,
+    );
+    const digest = deriveDeliveryDigest({ record: jammed, events: [], lastViewedSeq: base - 3 });
+    expect(keys(digest.entries)).toContain("unit:B");
+    expect(keys(digest.entries)).not.toContain("unit:A");
+  });
+
+  it("SB-TC-023 reads the rolled events the spill file holds, and lists only what they name when they cover the gap", () => {
+    const rolledEvents = [
+      event(base - 2, "unit.changed", { status: "done" }, "A"),
+      event(base - 1, "seam.ran", { seam: "plan", status: "ok" }),
+      event(base, "gate.changed", { gate_id: "gate-after-b", status: "pending" }),
+    ];
+    const digest = deriveDeliveryDigest({
+      record: record(),
+      events: [],
+      lastViewedSeq: base - 3,
+      rolledEvents,
+    });
+    expect(digest.source).toBe("record");
+    expect(keys(digest.entries)).toEqual(["unit:A", "gate:gate-after-b"]);
+    expect(digest.entries[0]).toMatchObject({ events: ["unit.changed"], previousStatus: null });
+
+    // With a seq of the gap missing, what awaits the operator is listed too.
+    const partial = deriveDeliveryDigest({
+      record: record(),
+      events: [],
+      lastViewedSeq: base - 3,
+      rolledEvents: rolledEvents.filter((rolled) => rolled.seq !== base - 1),
+    });
+    expect(keys(partial.entries)).toEqual([
+      "unit:A",
+      "decision:decision-1",
+      "decision:decision-2",
+      "gate:gate-after-b",
+      "gate:gate-after-c",
+    ]);
+  });
+
+  it("SB-TC-023 a last view of another delivery, or above the current seq, is no prior view", () => {
+    const events = [event(base + 1, "unit.changed", { status: "done" }, "B")];
+    const other = deriveDeliveryDigest({
+      record: record(),
+      events,
+      lastViewedSeq: base,
+      lastViewedDeliveryId: "another-delivery",
+    });
+    expect(other).toMatchObject({ lastViewedSeq: null, seq: base + 1, entries: [] });
+
+    const same = deriveDeliveryDigest({
+      record: record(),
+      events,
+      lastViewedSeq: base,
+      lastViewedDeliveryId: record().delivery_id,
+    });
+    expect(same.lastViewedSeq).toBe(base);
+    expect(keys(same.entries)).toEqual(["unit:B"]);
+
+    // The delivery started its seq again: a view at 120 is not of this one.
+    const above = deriveDeliveryDigest({ record: record(), events, lastViewedSeq: 120 });
+    expect(above).toMatchObject({ lastViewedSeq: null, seq: base + 1, entries: [] });
   });
 });

@@ -52,14 +52,18 @@
 //                                                    with the record standing in once the
 //                                                    log has rolled past it
 //                                                    (`source: "record"`); no entry
-//                                                    before the first view (see
+//                                                    before the first view, nor for
+//                                                    a last view of another delivery
+//                                                    or above the current seq (see
 //                                                    shared/delivery-digest.ts)
 //                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/digest/seen
 //        body {seq?}                          -> 204 the bench's deliveryLastViewedSeq
 //                                                    set to the delivery's current seq, or
 //                                                    to `seq` when it is given and not
-//                                                    above it, and saved; the next digest
+//                                                    above it, with the delivery's id in
+//                                                    deliveryLastViewedDeliveryId, and
+//                                                    saved; the next digest
 //                                                    lists only what comes after it
 //                                                    400 INVALID_BODY + field `seq`: given
 //                                                        and not a non-negative integer
@@ -572,6 +576,7 @@ import {
 import {
   deliveryAcceptedSeq,
   deliveryEventsAfterRecord,
+  deliverySpilledEventsBetween,
   deliveryUnitEventSpan,
 } from "../services/delivery-event-log.js";
 import { readDeliveryCrossCheck } from "../services/delivery-cross-check-loader.js";
@@ -1706,9 +1711,23 @@ router.get("/:projectId/benches/:id/delivery/digest", deliveryReadRateLimiter, (
   if (!bench) return;
   const inputs = digestInputs(bench, res);
   if (!inputs) return;
+  const lastViewedSeq = bench.deliveryLastViewedSeq ?? null;
+  // Once the record has moved past the last view, the spilled events between
+  // the two that the spill file still holds name what changed in that span.
+  const rolledEvents =
+    lastViewedSeq !== null && lastViewedSeq < inputs.record.last_event_seq
+      ? deliverySpilledEventsBetween(
+          benchDeliveryEventSpillPath(bench),
+          inputs.record.delivery_id,
+          lastViewedSeq,
+          inputs.record.last_event_seq,
+        )
+      : [];
   const body: DeliveryDigest = deriveDeliveryDigest({
     ...inputs,
-    lastViewedSeq: bench.deliveryLastViewedSeq ?? null,
+    lastViewedSeq,
+    lastViewedDeliveryId: bench.deliveryLastViewedDeliveryId ?? null,
+    rolledEvents,
   });
   res.json(body);
 });
@@ -1732,8 +1751,11 @@ router.post(
     // The seq the folded delivery stands at, as the snapshot read reports it.
     const current = foldDelivery(inputs).seq;
     // A view of an older seq stores that seq, so the events that came after
-    // it stay in the next digest; never one above the current seq.
+    // it stay in the next digest; never one above the current seq. The
+    // delivery's id goes with it, so a view of this delivery never counts for
+    // another one that replaces it.
     bench.deliveryLastViewedSeq = seen === undefined ? current : Math.min(seen, current);
+    bench.deliveryLastViewedDeliveryId = inputs.record.delivery_id;
     if (benchManager.isBenchLive(bench.projectId, bench.id)) {
       stateService.updateBench(stateService.toPersistedBench(bench));
     }

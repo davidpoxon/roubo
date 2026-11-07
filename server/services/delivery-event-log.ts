@@ -441,6 +441,25 @@ export function deliveryEventsAfterRecord(
 }
 
 /**
+ * The events of the delivery that the bench's spill file still holds above
+ * `afterSeq` and at or below `upToSeq`, in seq order, one per seq. The spill
+ * file is append-only, so it keeps the spilled events that the record has
+ * since folded in: the since-you-left digest reads them once the record has
+ * moved past the operator's last view.
+ */
+export function deliverySpilledEventsBetween(
+  spillPath: string,
+  deliveryId: string,
+  afterSeq: number,
+  upToSeq: number,
+): DeliveryEvent[] {
+  if (upToSeq <= afterSeq) return [];
+  return [...readSpill(spillPath, deliveryId, afterSeq).values()]
+    .filter((event) => event.seq <= upToSeq)
+    .sort((a, b) => a.seq - b.seq);
+}
+
+/**
  * The span of a unit's accepted events, read after the record so the log is
  * in line with it (see deliveryEventsAfterRecord), or undefined when no
  * accepted event the log knows names the unit. `spillPath` is the bench's

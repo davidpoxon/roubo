@@ -95,6 +95,7 @@ const DELIVERY_FIELDS = [
   "deliveryControlSeq",
   "deliverySitting",
   "deliveryLastViewedSeq",
+  "deliveryLastViewedDeliveryId",
   "deliveryFirstSeenBlocking",
   "deliveryFirstSeenBlockingClass",
   "deliveryCrossCheckMemory",

@@ -1916,6 +1916,12 @@ export interface Bench {
   /** Spec Bench only: the last delivery event `seq` the operator viewed. */
   deliveryLastViewedSeq?: number;
   /**
+   * Spec Bench only: the `delivery_id` of the delivery that
+   * deliveryLastViewedSeq is a seq of. A last view of another delivery is no
+   * prior view of this one.
+   */
+  deliveryLastViewedDeliveryId?: string;
+  /**
    * Spec Bench only: when the delivery was first seen blocking (ISO-8601): the
    * time of the cross-check refresh that first found a blocking disagreement
    * while none was there before (SB-FR-030). Cleared when a refresh finds no
@@ -2287,6 +2293,8 @@ export interface PersistedBench {
   deliverySitting?: BenchDeliverySitting;
   /** Persisted mirror of Bench.deliveryLastViewedSeq. Spec Bench only. */
   deliveryLastViewedSeq?: number;
+  /** Persisted mirror of Bench.deliveryLastViewedDeliveryId. Spec Bench only. */
+  deliveryLastViewedDeliveryId?: string;
   /** Persisted mirror of Bench.deliveryFirstSeenBlocking. Spec Bench only. */
   deliveryFirstSeenBlocking?: string;
   /** Persisted mirror of Bench.deliveryFirstSeenBlockingClass. Spec Bench only. */

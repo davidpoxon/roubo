@@ -13,14 +13,25 @@
 // named by a `unit.*` event's unit_id, a gate by a payload `gate_id`, and a
 // decision by a payload `decision_id` (or `id` on a `decision.*` event).
 //
-// The server keeps only the events above the record's `last_event_seq` (in
-// memory and in the spill file). Once the record has moved past the last
-// viewed seq, the events between the two have rolled out of the log, and no
-// `before` snapshot can be rebuilt. The digest then falls back to the record:
-// the events still in the log are compared with the record as above, and the
-// record adds each entity that waits on the operator or has moved on from its
-// first state (a unit or a gate past `pending`, an open, defaulted or
-// unreviewed decision, every drift entry). `source` says which reading it is.
+// The bench keeps the delivery's id with that seq. A last view of another
+// delivery (the bench's workspace was provisioned again, or the record was
+// replaced by one of another delivery), or of a seq above the delivery's
+// current one (the record was rewritten and its seq went back), is no prior
+// view: the digest lists nothing and reports `lastViewedSeq: null`, so the
+// view marks the delivery seen from its current seq.
+//
+// The server reads the events above the record's `last_event_seq` (in memory
+// and in the spill file). Once the record has moved past the last viewed seq,
+// the events between the two are folded into the record, and no `before`
+// snapshot can be rebuilt. The digest then falls back to the record: the
+// events above the record are compared with it as above, each entity that a
+// rolled event the spill file still holds names (`rolledEvents`) is listed,
+// and, unless those rolled events cover every seq between the last view and
+// the record, each entity that awaits the operator is listed too: an open,
+// defaulted or unreviewed agent decision, a jammed unit and an unconfirmed
+// provisional gate. An entity that moved on without awaiting the operator, and
+// a drift entry the record already holds, cannot be told apart from what the
+// operator saw, so they are not listed. `source` says which reading it is.
 //
 // Pure: no I/O and no clock, as the reducer.
 
@@ -33,11 +44,11 @@ import type {
   DeliveryUnit,
 } from "./delivery-observation-contract";
 import {
-  classifyUnitStatus,
   deepEqual,
   foldDelivery,
   isDecisionDefaulted,
   isDecisionOpen,
+  isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
   ownValue,
   type DeliverySnapshot,
@@ -76,7 +87,8 @@ export interface DeliveryDigestEntry {
 
 // The body of GET <base>/digest.
 export interface DeliveryDigest {
-  // The seq the operator last viewed, or null before the first view.
+  // The seq the operator last viewed, or null before the first view and for a
+  // last view of another delivery or of a seq above the current one.
   lastViewedSeq: number | null;
   // The delivery's current seq: the seq a POST <base>/digest/seen stores.
   seq: number;
@@ -92,6 +104,11 @@ export interface DeliveryDigestInputs {
   // The accepted events above the record's `last_event_seq`, in seq order.
   events: readonly DeliveryEvent[];
   lastViewedSeq: number | null;
+  // The delivery the last view was of, when the bench stored it.
+  lastViewedDeliveryId?: string | null | undefined;
+  // The events at or below the record's `last_event_seq` that the spill file
+  // still holds, in seq order; the digest reads those above the last view.
+  rolledEvents?: readonly DeliveryEvent[] | undefined;
 }
 
 function isString(value: unknown): value is string {
@@ -178,36 +195,39 @@ function driftEntry(entry: DeliveryDrift, index: number): DeliveryDigestEntry {
   };
 }
 
-// Whether a status word still reads as its first state.
-function isAtRest(status: string): boolean {
-  return classifyUnitStatus(status) === "pending";
+// The keys (`<kind>:<id>`) of the entities of `snapshot` that await the
+// operator: an open, defaulted or unreviewed agent decision, a jammed unit and
+// an unconfirmed provisional gate.
+function awaitingKeys(snapshot: DeliverySnapshot): Set<string> {
+  const keys = new Set<string>();
+  for (const unitId of snapshot.jams) keys.add(`unit:${unitId}`);
+  for (const decision of Object.values(snapshot.decisionsById)) {
+    if (
+      isDecisionOpen(decision) ||
+      isDecisionDefaulted(decision) ||
+      isUnreviewedAgentDecision(decision)
+    ) {
+      keys.add(`decision:${decision.id}`);
+    }
+  }
+  for (const view of Object.values(snapshot.gatesById)) {
+    if (isUnconfirmedProvisionalGate(view.gate)) keys.add(`gate:${view.gate.id}`);
+  }
+  return keys;
 }
 
-// The entries of `after` that differ from `before`, or that an event above
-// `afterSeq` names; with `fromRecord`, also each entity of the record that
-// waits on the operator or has moved on from its first state.
+// The entries of `after` that differ from `before`, or whose key is in
+// `listed` (an event above the last view names it, or it awaits the operator
+// on the record path). `knowsBefore` is false on the record path, where
+// `before` is the record and not the delivery at the last view, so no entry
+// has a previous status.
 function diffEntries(
   before: DeliverySnapshot,
   after: DeliverySnapshot,
   addressed: Map<string, string[]>,
-  fromRecord: DeliveryRecord | undefined,
+  listed: ReadonlySet<string>,
+  knowsBefore: boolean,
 ): DeliveryDigestEntry[] {
-  const recordUnits = new Set(
-    (fromRecord?.units ?? []).filter((unit) => !isAtRest(unit.status)).map((unit) => unit.id),
-  );
-  const recordDecisions = new Set(
-    (fromRecord?.decisions ?? [])
-      .filter(
-        (decision) =>
-          isDecisionOpen(decision) ||
-          isDecisionDefaulted(decision) ||
-          isUnreviewedAgentDecision(decision),
-      )
-      .map((decision) => decision.id),
-  );
-  const recordGates = new Set(
-    (fromRecord?.stack.gates ?? []).filter((gate) => !isAtRest(gate.status)).map((gate) => gate.id),
-  );
   const entries: DeliveryDigestEntry[] = [];
   const withEvents = (entry: DeliveryDigestEntry): DeliveryDigestEntry => ({
     ...entry,
@@ -216,63 +236,96 @@ function diffEntries(
 
   for (const unit of Object.values(after.unitsById)) {
     const was = ownValue(before.unitsById, unit.id);
-    if (!deepEqual(was, unit) || addressed.has(`unit:${unit.id}`) || recordUnits.has(unit.id)) {
-      entries.push(withEvents(unitEntry(unit, fromRecord === undefined ? was : undefined)));
+    if (!deepEqual(was, unit) || listed.has(`unit:${unit.id}`)) {
+      entries.push(withEvents(unitEntry(unit, knowsBefore ? was : undefined)));
     }
   }
   for (const decision of Object.values(after.decisionsById)) {
     const was = ownValue(before.decisionsById, decision.id);
-    if (
-      !deepEqual(was, decision) ||
-      addressed.has(`decision:${decision.id}`) ||
-      recordDecisions.has(decision.id)
-    ) {
-      entries.push(withEvents(decisionEntry(decision, fromRecord === undefined ? was : undefined)));
+    if (!deepEqual(was, decision) || listed.has(`decision:${decision.id}`)) {
+      entries.push(withEvents(decisionEntry(decision, knowsBefore ? was : undefined)));
     }
   }
   for (const view of Object.values(after.gatesById)) {
     const gate = view.gate;
     const was = ownValue(before.gatesById, gate.id)?.gate;
-    if (!deepEqual(was, gate) || addressed.has(`gate:${gate.id}`) || recordGates.has(gate.id)) {
-      entries.push(withEvents(gateEntry(gate, fromRecord === undefined ? was : undefined)));
+    if (!deepEqual(was, gate) || listed.has(`gate:${gate.id}`)) {
+      entries.push(withEvents(gateEntry(gate, knowsBefore ? was : undefined)));
     }
   }
   after.drift.forEach((entry, index) => {
     const known = before.drift.some((seen) => deepEqual(seen, entry));
-    if (!known || fromRecord !== undefined) entries.push(driftEntry(entry, index));
+    if (!known) entries.push(driftEntry(entry, index));
   });
   return entries;
 }
 
+// Whether `events` hold every seq above `afterSeq` up to `upToSeq`.
+function coversSeqs(events: readonly DeliveryEvent[], afterSeq: number, upToSeq: number): boolean {
+  const seqs = new Set(events.map((event) => event.seq));
+  for (let seq = afterSeq + 1; seq <= upToSeq; seq += 1) {
+    if (!seqs.has(seq)) return false;
+  }
+  return true;
+}
+
+// The last viewed seq that counts: none before the first view, for a view of
+// another delivery, or for a seq above the delivery's current one.
+function priorView(inputs: DeliveryDigestInputs, currentSeq: number): number | null {
+  const { record, lastViewedSeq, lastViewedDeliveryId } = inputs;
+  if (lastViewedSeq === null || lastViewedSeq > currentSeq) return null;
+  if (
+    lastViewedDeliveryId !== undefined &&
+    lastViewedDeliveryId !== null &&
+    lastViewedDeliveryId !== record.delivery_id
+  ) {
+    return null;
+  }
+  return lastViewedSeq;
+}
+
 /**
  * The digest of the changes above `lastViewedSeq`. Before the first view
- * (`null`), and once the operator has viewed the current seq or beyond it,
- * it lists nothing.
+ * (`null`), for a last view that does not count (see `priorView`), and once
+ * the operator has viewed the current seq, it lists nothing.
  */
 export function deriveDeliveryDigest(inputs: DeliveryDigestInputs): DeliveryDigest {
-  const { record, events, lastViewedSeq } = inputs;
+  const { record, events } = inputs;
   const after = foldDelivery({ record, events });
-  const base = { lastViewedSeq, seq: after.seq };
-  if (lastViewedSeq === null || lastViewedSeq >= after.seq) {
+  const viewed = priorView(inputs, after.seq);
+  const base = { lastViewedSeq: viewed, seq: after.seq };
+  if (viewed === null || viewed >= after.seq) {
     return { ...base, source: "events", entries: [] };
   }
-  if (lastViewedSeq >= record.last_event_seq) {
+  if (viewed >= record.last_event_seq) {
     const before = foldDelivery({
       record,
-      events: events.filter((event) => event.seq <= lastViewedSeq),
+      events: events.filter((event) => event.seq <= viewed),
     });
+    const addressed = addressedTypes(events, viewed);
     return {
       ...base,
       source: "events",
-      entries: diffEntries(before, after, addressedTypes(events, lastViewedSeq), undefined),
+      entries: diffEntries(before, after, addressed, new Set(addressed.keys()), true),
     };
   }
-  // The log has rolled past the last view: the record stands in for the
-  // events it already carries.
+  // The record has moved past the last view: it stands in for the events it
+  // already carries, with the rolled events the spill file still holds.
+  const rolled = (inputs.rolledEvents ?? []).filter(
+    (event) =>
+      event.delivery_id === record.delivery_id &&
+      event.seq > viewed &&
+      event.seq <= record.last_event_seq,
+  );
+  const addressed = addressedTypes([...rolled, ...events], viewed);
+  const listed = new Set(addressed.keys());
+  if (!coversSeqs(rolled, viewed, record.last_event_seq)) {
+    for (const key of awaitingKeys(after)) listed.add(key);
+  }
   const before = foldDelivery({ record, events: [] });
   return {
     ...base,
     source: "record",
-    entries: diffEntries(before, after, addressedTypes(events, lastViewedSeq), record),
+    entries: diffEntries(before, after, addressed, listed, false),
   };
 }

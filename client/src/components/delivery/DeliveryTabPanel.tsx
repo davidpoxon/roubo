@@ -3,7 +3,8 @@ import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError, DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { classifyLifecycleState } from "@roubo/shared/delivery-selectors";
+import { classifyLifecycleState, selectDecisionPile } from "@roubo/shared/delivery-selectors";
+import { isUnreviewedAgentDecision, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { useDelivery, useDeliverySessionLive, useLaunchDelivery } from "../../hooks/useDelivery";
 import { useDeliveryCrossCheck } from "../../hooks/useDeliveryCrossCheck";
 import { deliveryReadErrorOf } from "../../lib/api";
@@ -177,6 +178,29 @@ function LaunchDeliveryControl({ bench }: { bench: Bench }) {
   );
 }
 
+// Where a digest link shows a decision, from the decision as it is now: its
+// card on the decision pile while it is open, defaulted or overturned, its
+// review card while it is an unreviewed agent decision, else (it was answered
+// or reviewed since) the drill-in of the unit it is about, and with no such
+// unit the decision pile's place, raising no card.
+type DecisionLinkTarget = { kind: "card" } | { kind: "unit"; unitId: string } | { kind: "pile" };
+
+function decisionLinkTarget(snapshot: DeliverySnapshot, decisionId: string): DecisionLinkTarget {
+  if (selectDecisionPile(snapshot).some((decision) => decision.id === decisionId)) {
+    return { kind: "card" };
+  }
+  const decision = Object.hasOwn(snapshot.decisionsById, decisionId)
+    ? snapshot.decisionsById[decisionId]
+    : undefined;
+  if (decision === undefined) return { kind: "pile" };
+  if (isUnreviewedAgentDecision(decision)) return { kind: "card" };
+  const unitId = decision.unit_id;
+  if (unitId !== undefined && Object.hasOwn(snapshot.unitsById, unitId)) {
+    return { kind: "unit", unitId };
+  }
+  return { kind: "pile" };
+}
+
 function DeliverySnapshotView({
   bench,
   snapshot,
@@ -202,9 +226,13 @@ function DeliverySnapshotView({
     setMapFocus((last) => ({ keys, nonce: (last?.nonce ?? 0) + 1 }));
   }, []);
   // The since-you-left digest (SB-FR-012), read once as the tab opens. Its
-  // links open a unit's or a gate's drill-in, raise a decision's card on the
-  // pile, or bring the drift ledger into view.
-  const { digest, dismiss } = useDeliveryDigest(bench.projectId, bench.id);
+  // links open a unit's or a gate's drill-in, show a decision where it is now
+  // (see decisionLinkTarget), or bring the drift ledger into view.
+  const { digest, dismiss, dismissDigest } = useDeliveryDigest(
+    bench.projectId,
+    bench.id,
+    snapshot.seq,
+  );
   const [raiseDecision, setRaiseDecision] = useState<{
     decisionId: string;
     nonce: number;
@@ -212,18 +240,27 @@ function DeliverySnapshotView({
   const driftLedger = useRef<HTMLDivElement>(null);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
+  const openMapTarget = (kind: "unit" | "gate", id: string) => {
+    setMapFocus((last) => ({
+      keys: [kind === "unit" ? unitKey(id) : gateKey(id)],
+      nonce: (last?.nonce ?? 0) + 1,
+      open: { kind, id },
+    }));
+  };
   const openDigestEntry = (entry: DeliveryDigestEntry) => {
     if (entry.kind === "unit" || entry.kind === "gate") {
-      const target = { kind: entry.kind, id: entry.id };
-      setMapFocus((last) => ({
-        keys: [entry.kind === "unit" ? unitKey(entry.id) : gateKey(entry.id)],
-        nonce: (last?.nonce ?? 0) + 1,
-        open: target,
-      }));
+      openMapTarget(entry.kind, entry.id);
       return;
     }
     if (entry.kind === "decision") {
-      setRaiseDecision((last) => ({ decisionId: entry.id, nonce: (last?.nonce ?? 0) + 1 }));
+      const target = decisionLinkTarget(snapshot, entry.id);
+      if (target.kind === "unit") {
+        openMapTarget("unit", target.unitId);
+        return;
+      }
+      if (target.kind === "card") {
+        setRaiseDecision((last) => ({ decisionId: entry.id, nonce: (last?.nonce ?? 0) + 1 }));
+      }
     }
     const view = entry.kind === "decision" ? decisionPile.current : driftLedger.current;
     if (view === null) return;
@@ -280,7 +317,7 @@ function DeliverySnapshotView({
         <DeliveryDigest
           digest={digest.data}
           isDismissing={dismiss.isPending}
-          onDismiss={() => dismiss.mutate(digest.data.seq)}
+          onDismiss={dismissDigest}
           onOpen={openDigestEntry}
         />
       )}

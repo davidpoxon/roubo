@@ -63,6 +63,7 @@ vi.mock("../services/terminal.js", () => ({
 import * as benchManager from "../services/bench-manager.js";
 import * as stateService from "../services/state.js";
 import { forgetDeliveryEventLog } from "../services/delivery-event-log.js";
+import { benchDeliveryEventSpillPath } from "../lib/delivery-record-loader.js";
 import { hashDeliveryToken } from "../services/delivery-token-registry.js";
 import { _resetClientsForTest } from "../services/sse.js";
 import { makeBench } from "../test/fixtures.js";
@@ -273,10 +274,94 @@ describe("Since-you-left digest over the live event path", () => {
     const digest = await readDigest();
     expect(digest.source).toBe("record");
     const keys = digest.entries.map((entry) => `${entry.kind}:${entry.id}`);
-    // The record's B moved on, and the gate the log still holds an event for.
-    expect(keys).toContain("unit:B");
-    expect(keys).toContain("gate:gate-after-b");
-    expect(keys).toContain("decision:decision-1");
+    // The gate the log still holds an event for, and what awaits the
+    // operator; the two rolled events are in no spill file, so the record's B,
+    // which moved on without awaiting the operator, is not told apart.
+    expect(keys).toEqual([
+      "decision:decision-1",
+      "decision:decision-2",
+      "gate:gate-after-b",
+      "gate:gate-after-c",
+    ]);
+  });
+
+  it("SB-TC-023 reads the rolled events of the spill file once the record has moved past the last view", async () => {
+    await readSnapshot();
+    expect((await markSeen()).status).toBe(204);
+    const viewedSeq = bench.deliveryLastViewedSeq ?? 0;
+
+    // The two events between the last view and the record were spilled
+    // before the record folded them in.
+    const spillPath = benchDeliveryEventSpillPath(bench);
+    const record = fixtureRecord();
+    const units = record.units.map((unit) =>
+      unit.id === "B" ? { ...unit, status: "done" } : unit,
+    );
+    writeRecord({ ...record, units, last_event_seq: viewedSeq + 2 });
+    fs.writeFileSync(
+      spillPath,
+      [
+        event(viewedSeq + 1, "unit.changed", { status: "done" }, "B"),
+        event(viewedSeq + 2, "seam.ran", { seam: "plan", status: "ok" }),
+      ]
+        .map((spilled) => `${JSON.stringify(spilled)}\n`)
+        .join(""),
+    );
+
+    const digest = await readDigest();
+    expect(digest.source).toBe("record");
+    expect(digest.entries.map((entry) => `${entry.kind}:${entry.id}`)).toEqual(["unit:B"]);
+  });
+
+  it("SB-TC-023 a last view of an earlier delivery of the bench is no prior view of a new one", async () => {
+    bench.deliveryLastViewedSeq = 120;
+    bench.deliveryLastViewedDeliveryId = fixtureRecord().delivery_id;
+    // The bench's delivery started its seq again, and reached seq 9.
+    expect(
+      (
+        await post([
+          event(8, "unit.changed", { status: "done" }, "B"),
+          event(9, "seam.ran", { seam: "plan", status: "ok" }),
+        ])
+      ).status,
+    ).toBe(202);
+    const restarted = await readDigest();
+    expect(restarted).toMatchObject({ lastViewedSeq: null, seq: 9, entries: [] });
+
+    // A record of another delivery replaces the old one, with a seq above the
+    // stored view: that view is of the old delivery.
+    forgetDeliveryEventLog();
+    bench.deliveryLastViewedSeq = 3;
+    writeRecord({ ...fixtureRecord(), delivery_id: "demo-delivery-2", last_event_seq: 40 });
+    const replaced = await readDigest();
+    expect(replaced).toMatchObject({ lastViewedSeq: null, seq: 40, entries: [] });
+
+    // Marking it seen stores the new delivery's id with its seq.
+    expect((await markSeen()).status).toBe(204);
+    expect(bench.deliveryLastViewedSeq).toBe(40);
+    expect(bench.deliveryLastViewedDeliveryId).toBe("demo-delivery-2");
+    expect(vi.mocked(stateService.updateBench)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        deliveryLastViewedSeq: 40,
+        deliveryLastViewedDeliveryId: "demo-delivery-2",
+      }),
+    );
+  });
+
+  it("SB-TC-023 the digest read and the seen mark answer 409 on a record the bench cannot read", async () => {
+    const specFolder = path.join(tmp, "workspace", ".specifications", "fixture-spec");
+    fs.rmSync(path.join(specFolder, "delivery-observation.json"));
+    const missing = await fetch(`${BASE()}/digest`);
+    expect(missing.status).toBe(409);
+    expect(await missing.json()).toMatchObject({ code: "DELIVERY_RECORD_MISSING" });
+
+    fs.writeFileSync(path.join(specFolder, "delivery-observation.json"), "{ not json");
+    const unreadable = await fetch(`${BASE()}/digest`);
+    expect(unreadable.status).toBe(409);
+    const seen = await markSeen();
+    expect(seen.status).toBe(409);
+    expect(bench.deliveryLastViewedSeq).toBeUndefined();
+    expect(vi.mocked(stateService.updateBench)).not.toHaveBeenCalled();
   });
 
   it("SB-TC-023 refuses a seen seq that is not a non-negative integer, and stores no seq above the current one", async () => {
