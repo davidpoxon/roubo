@@ -34,6 +34,7 @@ import { forgetDeliveryEventLog } from "./delivery-event-log.js";
 import {
   DELIVERY_CROSS_CHECK_BACKSTOP_MS,
   DELIVERY_CROSS_CHECK_DEBOUNCE_MS,
+  DELIVERY_CROSS_CHECK_EVENT_TYPES,
   DELIVERY_CROSS_CHECK_THROTTLE_MS,
   deliveryCrossCheckRunCount,
   forgetDeliveryCrossCheck,
@@ -256,39 +257,58 @@ describe("SB-TC-071: when the cross-check refreshes", () => {
     await readDeliveryCrossCheck(bench);
     expect(runs()).toBe(1);
 
-    // Step 2: one run per unit.boundary, pr.submitted and gate.reached event.
+    // Step 2: one run per unit.boundary, pr.submitted and gate.reached event,
+    // and per unit.changed and gate.changed of the observation contract.
     await refreshOnEvent(8, "unit.boundary");
     expect(runs()).toBe(2);
     await refreshOnEvent(9, "pr.submitted");
     expect(runs()).toBe(3);
     await refreshOnEvent(10, "gate.reached");
     expect(runs()).toBe(4);
-    // Another event type runs none.
     await refreshOnEvent(11, "unit.changed");
-    expect(runs()).toBe(4);
+    expect(runs()).toBe(5);
+    await refreshOnEvent(12, "gate.changed");
+    expect(runs()).toBe(6);
+    // Another event type runs none.
+    await refreshOnEvent(13, "decision.raised");
+    await refreshOnEvent(14, "budget.changed");
+    expect(runs()).toBe(6);
 
     // Step 3: the record, then the results file, each one run after the
     // debounce. A file of another name runs none.
     fileChange?.("delivery-observation.json");
     await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_DEBOUNCE_MS - 1);
-    expect(runs()).toBe(4);
+    expect(runs()).toBe(6);
     await vi.advanceTimersByTimeAsync(1);
     await idle();
-    expect(runs()).toBe(5);
+    expect(runs()).toBe(7);
 
     await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_THROTTLE_MS);
     fileChange?.("test-results.json");
     fileChange?.("notes.txt");
     await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_DEBOUNCE_MS);
     await idle();
-    expect(runs()).toBe(6);
+    expect(runs()).toBe(8);
 
     // Step 4: 60 quiet seconds give one backstop run.
     await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_BACKSTOP_MS - 1);
-    expect(runs()).toBe(6);
+    expect(runs()).toBe(8);
     await vi.advanceTimersByTimeAsync(1);
     await idle();
-    expect(runs()).toBe(7);
+    expect(runs()).toBe(9);
+  });
+
+  it("SB-TC-071 runs one refresh for each refreshing event type, the contract's unit.changed and gate.changed included", async () => {
+    await readDeliveryCrossCheck(bench);
+    expect(runs()).toBe(1);
+    const types = ["unit.boundary", "pr.submitted", "gate.reached", "unit.changed", "gate.changed"];
+    expect([...DELIVERY_CROSS_CHECK_EVENT_TYPES].sort()).toEqual([...types].sort());
+    let seq = 8;
+    for (const type of types) {
+      const before = runs();
+      await refreshOnEvent(seq++, type);
+      expect(runs(), type).toBe(before + 1);
+    }
   });
 
   it("SB-TC-071 runs nothing on an event before a read arms the bench", async () => {
