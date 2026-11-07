@@ -141,6 +141,26 @@ export interface DeliveryGateView {
   // provisional. Null for a gate that is not provisional. The review stack
   // orders its cards by it.
   provisionalAt: string | null;
+  // The gate's provisional marks as the record carries them, whatever its
+  // status word: `cases` names each marked case in record order, and
+  // `unconfirmed` the marked cases the operator has not confirmed. Both are
+  // empty for a gate with no marks. The cross-check reads them, so a gate that
+  // claims `passed` or `failed` over an unconfirmed mark is caught.
+  provisional: DeliveryGateProvisional;
+}
+
+export interface DeliveryGateProvisional {
+  cases: string[];
+  unconfirmed: string[];
+}
+
+// The provisional marks of a gate, read from its `provisionalCases`.
+export function gateProvisional(gate: DeliveryGate): DeliveryGateProvisional {
+  const marks = gate.provisionalCases ?? [];
+  return {
+    cases: marks.map((entry) => entry.case),
+    unconfirmed: marks.filter((entry) => !entry.confirmed).map((entry) => entry.case),
+  };
 }
 
 // One message of a decision's thread, from a `review.reply` event: the
@@ -1481,6 +1501,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
       provisionalAt: isProvisionalGate(gate)
         ? (ownValue(state.provisionalAt, gate.id) ?? null)
         : null,
+      provisional: gateProvisional(gate),
     });
   }
   const jams = Object.values(state.unitsById)

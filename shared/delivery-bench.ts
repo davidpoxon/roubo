@@ -210,6 +210,10 @@ export interface DeliveryCrossCheckDisagreement {
   stack?: string;
   caseId?: string;
   blocksAbove?: string[];
+  // The gate whose own sitting the entry does not block: set on a
+  // gate-state-differs entry for a gate that claims a verdict over an
+  // unconfirmed provisional mark.
+  sittingExempt?: string;
   claimed: DeliveryCrossCheckValue;
   observed: DeliveryCrossCheckValue;
   source: string;

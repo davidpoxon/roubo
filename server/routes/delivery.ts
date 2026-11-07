@@ -324,6 +324,10 @@
 //                                                        gate-state-differs or
 //                                                        plan-hash-mismatch); `classes`
 //                                                        names each one present
+//                                                    409 PROVISIONAL_UNCONFIRMED + gates:
+//                                                        the folded record states a gate
+//                                                        as `provisional` (`gates` lists
+//                                                        them)
 //                                                    409 REVIEW_OPEN: the folded record's
 //                                                        review status is `open`
 //                                                        (`unreviewed` lists the decisions
@@ -335,7 +339,7 @@
 //                                                        reads them (`gates` lists them)
 //                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/sittings
-//        body {gateId}                        -> 202 BenchDeliverySitting {gateId,
+//        body {gateId}                        -> 201 BenchDeliverySitting {gateId,
 //                                                    openedAt}: the gate sitting the
 //                                                    bench now has open, kept on the
 //                                                    bench (deliverySitting); the same
@@ -350,7 +354,11 @@
 //                                                    409 WRONG_LIFECYCLE_STATE + state:
 //                                                        as the approve
 //                                                    409 CROSSCHECK_BLOCKED + classes:
-//                                                        as the approve
+//                                                        as the approve, less an entry
+//                                                        whose `sittingExempt` names
+//                                                        this gate (it claims a verdict
+//                                                        over the gate's unconfirmed
+//                                                        provisional marks)
 //                                                    409 SITTING_OPEN + gateId: a sitting
 //                                                        of another gate is open
 //                                                    404 and 409 as the snapshot read
@@ -1258,7 +1266,8 @@ router.post(
     // The folded record and the last cross-check decide, as the Approve
     // control does: nothing is approved in a state an approval is not open in,
     // while a blocking class of the cross-check is present (SB-FR-029), while a
-    // review is open (SB-FR-034), or while a gating case is unmet (SB-FR-022).
+    // gate is provisional (SB-FR-039), while a review is open (SB-FR-034), or
+    // while a gating case is unmet (SB-FR-022).
     const refusal = selectApprovalRefusal(context.snapshot, context.disagreements);
     if (refusal !== null) {
       const { reason: error, ...rest } = refusal;
@@ -1297,7 +1306,9 @@ router.post(
       res.status(404).json({ error: `The delivery has no gate ${gateId}`, code: "GATE_NOT_FOUND" });
       return;
     }
-    const refusal = selectSittingRefusal(context.snapshot, context.disagreements);
+    // An entry exempt for this gate (a verdict claimed over its unconfirmed
+    // provisional marks) does not refuse the sitting that confirms them.
+    const refusal = selectSittingRefusal(context.snapshot, context.disagreements, gateId);
     if (refusal !== null) {
       const { reason: error, ...rest } = refusal;
       res.status(409).json({ error, ...rest });
@@ -1320,7 +1331,7 @@ router.post(
     const sitting: BenchDeliverySitting = { gateId, openedAt: new Date().toISOString() };
     bench.deliverySitting = sitting;
     persistBench(bench);
-    res.status(202).json(sitting);
+    res.status(201).json(sitting);
   },
 );
 
