@@ -197,6 +197,26 @@ describe("POST /:projectId/benches/:id/testbench/cases/:caseId/stage", () => {
     expect(res.body.errors.join("\n")).toContain("steps.0.kind");
   });
 
+  it("answers 400 RECIPE_INVALID for a recipe file that is not valid JSON, and runs nothing", async () => {
+    const dir = path.join(pin, ".specifications", SLUG, "state-recipes");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${CASE_ID}.json`), '{"caseId": "FX-TC-001", ');
+    const res = await request(app).post(STAGE);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("RECIPE_INVALID");
+    expect(res.body.errors.join("\n")).toContain("not valid JSON");
+    expect(fs.existsSync(path.join(pin, "state.txt"))).toBe(false);
+  });
+
+  it("answers 400 RECIPE_INVALID for a recipe whose caseId names another case, and runs nothing", async () => {
+    writeRecipe(recipe({ caseId: "FX-TC-002" }));
+    const res = await request(app).post(STAGE);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("RECIPE_INVALID");
+    expect(res.body.errors.join("\n")).toContain("the recipe is for case FX-TC-002");
+    expect(fs.existsSync(path.join(pin, "state.txt"))).toBe(false);
+  });
+
   it("answers 400 for a case id that would leave the recipe folder", async () => {
     const res = await request(app).post("/demo/benches/1/testbench/cases/..%2F..%2Fx/stage");
     expect(res.status).toBe(400);

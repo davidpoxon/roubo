@@ -146,7 +146,8 @@ export type StateRecipeObservation = z.infer<typeof StateRecipeObservationSchema
 // matching literal, as every published contract in shared/ does. `caseId` and
 // `unitId` are camelCase as the test-cases contract spells its ids. `requires`
 // names what the host needs before replay (a runtime, a service, a tool), as
-// open words the replayer checks; empty means nothing beyond the checkout.
+// open words; empty means nothing beyond the checkout. The replayer does not
+// check them yet: it replays the steps whatever they name.
 export const StateRecipeSchema = z
   .object({
     $schema: z.literal(STATE_RECIPE_SCHEMA_ID),

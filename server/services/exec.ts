@@ -136,6 +136,8 @@ export interface RunCommandResult {
   aborted?: boolean;
   /** Present and `true` only when the command was stopped by `idleTimeoutMs`. */
   idleTimedOut?: boolean;
+  /** Present and `true` only when the command was stopped by `timeoutMs`. */
+  timedOut?: boolean;
 }
 
 export function runCommand(
@@ -257,7 +259,12 @@ export function runCommand(
       }
       // A shell that ignores SIGTERM can outlive the kill of its current child
       // and exit 0, so a timed-out command never reports success (#1488).
-      settle({ code: timedOut && !code ? 1 : (code ?? 1), stdout, stderr });
+      settle({
+        code: timedOut && !code ? 1 : (code ?? 1),
+        stdout,
+        stderr,
+        ...(timedOut ? { timedOut: true } : {}),
+      });
     });
   });
 }

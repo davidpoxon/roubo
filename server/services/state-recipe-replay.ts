@@ -203,13 +203,17 @@ async function runCommandStep(
 ): Promise<Omit<StateRecipeStepReport, "index" | "kind">> {
   const cwd = resolveWithin(checkout, step.cwd ?? ".");
   const expected = step.expectedExitCode ?? 0;
-  const result = await deps.runCommand(
-    "/bin/sh",
-    ["-c", step.command],
-    cwd,
-    step.env,
-    step.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
-  );
+  const timeoutMs = step.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  const result = await deps.runCommand("/bin/sh", ["-c", step.command], cwd, step.env, timeoutMs);
+  // A command stopped at its time budget reports exit 1, so it fails before the
+  // exit-code comparison: a step that expects 1 must not pass on a timeout.
+  if (result.timedOut === true) {
+    const output = tail(result.stderr) || tail(result.stdout);
+    return {
+      status: "failed",
+      detail: `ran past its time budget of ${timeoutMs}ms${output ? `: ${output}` : ""}`,
+    };
+  }
   if (result.code === expected) {
     return { status: "passed", detail: `exited ${result.code}` };
   }
