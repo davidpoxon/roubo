@@ -16,7 +16,10 @@ import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import DeliveryModeControl from "./DeliveryModeControl";
 import GateSitting from "./GateSitting";
-import type { MapFocusRequest } from "./delivery-map-model";
+import { gateKey, unitKey, type MapFocusRequest } from "./delivery-map-model";
+import DeliveryDigest from "./DeliveryDigest";
+import { useDeliveryDigest } from "../../hooks/useDeliveryDigest";
+import type { DeliveryDigestEntry } from "@roubo/shared/delivery-digest";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 import LifecycleControls from "./LifecycleControls";
 import RoleMatrix from "./RoleMatrix";
@@ -38,7 +41,9 @@ import RoleMatrix from "./RoleMatrix";
 // switch beside it (SB-FR-032), and the lifecycle controls (SB-FR-022), among
 // them Approve, which waits while a review is open (SB-FR-034), a gating case
 // is unmet or the cross-check holds a blocking class (SB-FR-029), when the
-// record conforms, or the named error when it does not. No
+// record conforms, or the named error when it does not. Above the progress, the
+// since-you-left digest lists what changed since the operator's last view
+// (SB-FR-012), until the operator dismisses it. No
 // decision, steering, role, mode or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -196,8 +201,35 @@ function DeliverySnapshotView({
   const focusMapTarget = useCallback((keys: string[]) => {
     setMapFocus((last) => ({ keys, nonce: (last?.nonce ?? 0) + 1 }));
   }, []);
+  // The since-you-left digest (SB-FR-012), read once as the tab opens. Its
+  // links open a unit's or a gate's drill-in, raise a decision's card on the
+  // pile, or bring the drift ledger into view.
+  const { digest, dismiss } = useDeliveryDigest(bench.projectId, bench.id);
+  const [raiseDecision, setRaiseDecision] = useState<{
+    decisionId: string;
+    nonce: number;
+  } | null>(null);
+  const driftLedger = useRef<HTMLDivElement>(null);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
+  const openDigestEntry = (entry: DeliveryDigestEntry) => {
+    if (entry.kind === "unit" || entry.kind === "gate") {
+      const target = { kind: entry.kind, id: entry.id };
+      setMapFocus((last) => ({
+        keys: [entry.kind === "unit" ? unitKey(entry.id) : gateKey(entry.id)],
+        nonce: (last?.nonce ?? 0) + 1,
+        open: target,
+      }));
+      return;
+    }
+    if (entry.kind === "decision") {
+      setRaiseDecision((last) => ({ decisionId: entry.id, nonce: (last?.nonce ?? 0) + 1 }));
+    }
+    const view = entry.kind === "decision" ? decisionPile.current : driftLedger.current;
+    if (view === null) return;
+    view.scrollIntoView?.({ block: "start" });
+    view.focus();
+  };
   const focusedPileKey = useRef<string | undefined>(undefined);
   // A link to the decision pile brings it into view and focus, once per link:
   // the ref guards this mount, and the caller, told through
@@ -244,6 +276,14 @@ function DeliverySnapshotView({
         </div>
         <Button onPress={openCostHealthControls}>Cost, health and controls</Button>
       </div>
+      {digest.isSuccess && digest.data.entries.length > 0 && (
+        <DeliveryDigest
+          digest={digest.data}
+          isDismissing={dismiss.isPending}
+          onDismiss={() => dismiss.mutate(digest.data.seq)}
+          onOpen={openDigestEntry}
+        />
+      )}
       <DeliveryProgressStats snapshot={snapshot} />
       <DeliveryMetCases snapshot={snapshot} />
 
@@ -281,7 +321,14 @@ function DeliverySnapshotView({
           </dd>
         </dl>
 
-        <DeliveryDriftLedger snapshot={snapshot} />
+        <div
+          ref={driftLedger}
+          tabIndex={-1}
+          data-testid="delivery-drift-ledger-target"
+          className="focus:outline-none"
+        >
+          <DeliveryDriftLedger snapshot={snapshot} />
+        </div>
 
         <div
           ref={decisionPile}
@@ -295,6 +342,7 @@ function DeliverySnapshotView({
             snapshot={snapshot}
             sessionLive={sessionLive}
             onSittingOpened={onSittingOpened}
+            raiseRequest={raiseDecision}
           />
         </div>
 

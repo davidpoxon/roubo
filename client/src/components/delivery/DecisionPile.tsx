@@ -306,6 +306,7 @@ export default function DecisionPile({
   snapshot,
   sessionLive = false,
   onSittingOpened,
+  raiseRequest,
 }: {
   projectId: string;
   benchId: number;
@@ -315,10 +316,18 @@ export default function DecisionPile({
   sessionLive?: boolean;
   // Called once a provisional gate's review card opened the gate's sitting.
   onSittingOpened?: ((gateId: string) => void) | undefined;
+  // A request to raise a decision's card to the top of the pile, such as a
+  // link of the since-you-left digest (SB-FR-012); each new request raises once.
+  raiseRequest?: { decisionId: string; nonce: number } | null;
 }) {
   const pile = selectDecisionPile(snapshot);
   const control = useDecisionControl(projectId, benchId);
   const [raisedId, setRaisedId] = useState<string | undefined>(undefined);
+  const [raisedFor, setRaisedFor] = useState<typeof raiseRequest>(null);
+  if (raiseRequest !== undefined && raiseRequest !== null && raiseRequest !== raisedFor) {
+    setRaisedFor(raiseRequest);
+    setRaisedId(raiseRequest.decisionId);
+  }
   const [announcement, setAnnouncement] = useState("");
   const [leaving, setLeaving] = useState<DeliveryDecision[]>([]);
   const [seen, setSeen] = useState({ pile, byId: snapshot.decisionsById });

@@ -99,6 +99,7 @@ import {
   type DeliveryUnitTranscriptResponse,
   type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
+import type { DeliveryDigest } from "@roubo/shared/delivery-digest";
 import { resolvedTheme } from "./theme";
 
 const BASE = "/api";
@@ -594,6 +595,26 @@ export function fetchDeliveryEvents(
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/events${search ? `?${search}` : ""}`,
   );
+}
+
+// The since-you-left digest (SB-FR-012): the units, decisions, gates and drift
+// entries that changed above the bench's last viewed seq. The same 409
+// DeliveryReadError as the snapshot read.
+export function fetchDeliveryDigest(projectId: string, benchId: number): Promise<DeliveryDigest> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/digest`);
+}
+
+// Marks the delivery viewed up to `seq` (absent: the current seq), so the next
+// digest lists only what comes after it: 204.
+export function markDeliveryDigestSeen(
+  projectId: string,
+  benchId: number,
+  seq?: number,
+): Promise<void> {
+  return requestVoid(`/projects/${projectId}/benches/${benchId}/delivery/digest/seen`, {
+    method: "POST",
+    body: JSON.stringify(seq === undefined ? {} : { seq }),
+  });
 }
 
 // The bench's last delivery cross-check (SB-FR-030): its disagreements, when it
