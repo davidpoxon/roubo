@@ -30,8 +30,9 @@
 //     arms it and runs one refresh, which the read waits for, at most 4 seconds:
 //     it then answers what that refresh has read so far;
 //   - events: one refresh per accepted `unit.boundary`, `pr.submitted`,
-//     `gate.reached`, `unit.changed` or `gate.changed` event of an armed bench,
-//     the events of one batch included;
+//     `gate.reached`, `unit.changed`, `gate.changed`, `gate.provisional` or
+//     `gate.confirmed` event of an armed bench, the events of one batch
+//     included;
 //   - file changes: a change of the record or of test-results.json in the spec
 //     folder of the workspace runs one refresh after a 500 ms debounce;
 //   - backstop: 60 seconds after the last refresh of any kind, one refresh.
@@ -107,13 +108,17 @@ export const DELIVERY_CROSS_CHECK_NOTIFICATION = "delivery-crosscheck";
 
 // The event types that run a refresh of an armed bench: the unit-boundary,
 // submit and gate names of SB-FR-030, and the delivery observation contract's
-// unit.changed and gate.changed, which a real session posts at those moments.
+// unit.changed and gate.changed, which a real session posts at those moments,
+// and gate.provisional and gate.confirmed, which move a gate's provisional
+// marks and so its gate-state reading (SB-FR-039).
 export const DELIVERY_CROSS_CHECK_EVENT_TYPES: ReadonlySet<string> = new Set([
   "unit.boundary",
   "pr.submitted",
   "gate.reached",
   "unit.changed",
   "gate.changed",
+  "gate.provisional",
+  "gate.confirmed",
 ]);
 
 // The results file of the spec folder, beside the record.

@@ -256,8 +256,13 @@ describe("approval refusal", () => {
       selectApprovalRefusal(foldDelivery({ record, events: [], plan: PLAN, results: all })),
     ).toMatchObject({ code: "WRONG_LIFECYCLE_STATE", state: "complete" });
 
+    // The fixture's decisions, with no provisional gate to refuse first.
     const reviewing = foldDelivery({
-      record: { ...fixtureRecord(), lifecycle: { ...record.lifecycle, state: "running" } },
+      record: {
+        ...fixtureRecord(),
+        stack: plainRecord().stack,
+        lifecycle: { ...record.lifecycle, state: "running" },
+      },
       events: [event(8, "review.opened", { trigger: "gate", unreviewed: ["decision-2"] })],
     });
     expect(selectApprovalAvailability(reviewing).available).toBe(false);
@@ -265,6 +270,40 @@ describe("approval refusal", () => {
       code: "REVIEW_OPEN",
       unreviewed: ["decision-2"],
     });
+  });
+
+  it("SB-TC-082 refuses with PROVISIONAL_UNCONFIRMED naming each provisional gate, after the lifecycle state and the cross-check and before an open review", () => {
+    // The fixture states the gate after C as provisional, with a review open.
+    const record = { ...fixtureRecord(), lifecycle: { ...plainRecord().lifecycle } };
+    const all = results(record, ["DEMO-TC-001", "DEMO-TC-002", "DEMO-TC-003"]);
+    const provisional = foldDelivery({
+      record,
+      events: [event(8, "review.opened", { trigger: "gate", unreviewed: ["decision-2"] })],
+      plan: PLAN,
+      results: all,
+    });
+    expect(selectApprovalRefusal(provisional, [])).toEqual({
+      code: "PROVISIONAL_UNCONFIRMED",
+      reason: expect.stringContaining("gate-after-c") as unknown as string,
+      gates: ["gate-after-c"],
+    });
+    expect(
+      selectApprovalRefusal(provisional, [{ class: "head-commit-differs", blocking: true }]),
+    ).toMatchObject({ code: "CROSSCHECK_BLOCKED" });
+    const complete = foldDelivery({
+      record: { ...record, lifecycle: { ...record.lifecycle, state: "complete" } },
+      events: [],
+    });
+    expect(selectApprovalRefusal(complete)).toMatchObject({ code: "WRONG_LIFECYCLE_STATE" });
+
+    // Once the gate is confirmed, the approval passes the check.
+    const confirmed = foldDelivery({
+      record: { ...record, review: { status: "none", unreviewed: [] }, decisions: [] },
+      events: [event(8, "gate.confirmed", { gate_id: "gate-after-c", status: "passed" })],
+      plan: PLAN,
+      results: all,
+    });
+    expect(selectApprovalRefusal(confirmed, [])).toBeNull();
   });
 });
 
@@ -307,6 +346,42 @@ describe("the cross-check's blocking policy", () => {
     expect(selectSittingRefusal(foldDelivery({ record: plainRecord("paused"), events: [] }))).toBe(
       null,
     );
+  });
+
+  it("SB-TC-095 passes over an entry exempt for the sitting's own gate, and blocks a sitting of another gate and the approval with it", () => {
+    const overClaimed = [
+      {
+        class: "gate-state-differs",
+        blocking: true,
+        sittingExempt: "gate-after-b",
+      },
+    ];
+    const running = foldDelivery({ record: plainRecord(), events: [] });
+    expect(selectSittingRefusal(running, overClaimed, "gate-after-b")).toBeNull();
+    expect(selectSittingRefusal(running, overClaimed, "gate-after-c")).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
+    // A sitting that names no gate takes no exemption.
+    expect(selectSittingRefusal(running, overClaimed)).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+    });
+    expect(selectCrossCheckBlock(overClaimed, "approve", "gate-after-b")).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
+    expect(selectApprovalRefusal(running, overClaimed)).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
+
+    // An exempt entry beside another blocking entry of the same class still
+    // blocks the gate's own sitting through the other one.
+    const both = [...overClaimed, { class: "gate-state-differs", blocking: true }];
+    expect(selectSittingRefusal(running, both, "gate-after-b")).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
   });
 });
 

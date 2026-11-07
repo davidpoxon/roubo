@@ -31,7 +31,11 @@ import {
   type DeliverySnapshot,
   type DeliveryResults,
 } from "@roubo/shared/delivery-reducer";
-import type { DeliveryGate, DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
+import {
+  GATE_PROVISIONAL_STATUS,
+  type DeliveryGate,
+  type DeliveryUnit,
+} from "@roubo/shared/delivery-observation-contract";
 import type { TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import {
   evaluateGate,
@@ -154,6 +158,11 @@ export interface DeliveryCrossCheckEntry {
   // mid-stack blocks them, since GitHub does not retarget the pull requests
   // above it.
   blocksAbove?: string[];
+  // On gate-state-differs for a gate that claims `passed` or `failed` while one
+  // of its provisional marks is unconfirmed: the gate's id. The sitting of that
+  // gate, which confirms the marks, is not blocked by the entry; a sitting of
+  // another gate and the approval are.
+  sittingExempt?: string;
   claimed: DeliveryCrossCheckValue;
   observed: DeliveryCrossCheckValue;
   source: DeliveryCrossCheckSource;
@@ -373,10 +382,27 @@ export function crossCheckDelivery(
   // the results and the record's plan hash. The record's word is open: only a
   // claim that is one of the evaluator's own words is compared, so a word such as
   // `provisional` (the session's judgement awaiting the operator, whose marks
-  // case-status-differs checks) is never a disagreement.
+  // case-status-differs checks) is never a disagreement, whatever the results
+  // read. A stale results file under a provisional gate is plan-hash-mismatch's.
+  //
+  // A gate that claims `passed` or `failed` while one of its provisional marks is
+  // unconfirmed claims a verdict the operator has not given: that is one entry,
+  // observed `provisional`, which exempts the gate's own sitting (where the
+  // marks are confirmed) and is not compared with the evaluator.
   for (const view of gates) {
     const claimed = view.gate.status;
     if (!EVALUATOR_STATUSES.has(claimed)) continue;
+    if ((claimed === "passed" || claimed === "failed") && view.provisional.unconfirmed.length > 0) {
+      out.push(
+        entry("gate-state-differs", {
+          unitId: view.gate.id,
+          sittingExempt: view.gate.id,
+          claimed,
+          observed: GATE_PROVISIONAL_STATUS,
+        }),
+      );
+      continue;
+    }
     const evaluated =
       context.plan !== undefined
         ? evaluateGate(

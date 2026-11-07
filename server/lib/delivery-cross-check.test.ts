@@ -495,6 +495,105 @@ describe("crossCheckDelivery", () => {
     ]);
   });
 
+  // The gate after B as the record states it, with one provisional mark on
+  // FX-TC-001.
+  function withGateAfterB(status: string, confirmed: boolean): ReturnType<typeof agreeing> {
+    const record = buildRecord();
+    record.stack.gates[0] = {
+      ...record.stack.gates[0],
+      status,
+      provisionalCases: [
+        { case: "FX-TC-001", mark: "met", evidence: "The suite row passed.", confirmed },
+      ],
+    };
+    return { ...agreeing(), snapshot: foldDelivery({ record, events: [] }) };
+  }
+
+  it.each([
+    ["pending", undefined],
+    ["passed", "passed"],
+    ["failed", "failed"],
+  ] as const)(
+    "SB-TC-082 gives a provisional gate no gate-state entry when its results read %s",
+    (_verdict, status) => {
+      const inputs = withGateAfterB("provisional", false);
+      const statuses: Record<string, CaseStatus> = {};
+      if (status !== undefined) statuses["FX-TC-001"] = status;
+      const results = buildResults(PLAN_HASH, statuses);
+      // No result for the case reads pending.
+      if (status === undefined) delete results.caseResults["FX-TC-001"];
+      inputs.results = results;
+
+      const entries = run(inputs);
+
+      expect(entries.filter((e) => e.class === "gate-state-differs")).toEqual([]);
+      expect(entries.some((e) => e.blocking)).toBe(false);
+    },
+  );
+
+  it("SB-TC-082 exposes a gate's provisional cases and the unconfirmed ones on the snapshot", () => {
+    const inputs = withGateAfterB("provisional", false);
+    expect(inputs.snapshot.gatesById["gate-after-b"].provisional).toEqual({
+      cases: ["FX-TC-001"],
+      unconfirmed: ["FX-TC-001"],
+    });
+    expect(agreeing().snapshot.gatesById["gate-after-b"].provisional).toEqual({
+      cases: [],
+      unconfirmed: [],
+    });
+  });
+
+  it("SB-TC-096 leaves a stale results verdict on a provisional gate to the blocking plan-hash class", () => {
+    const inputs = withGateAfterB("provisional", false);
+    inputs.results = buildResults("plan-hash-2");
+
+    expect(run(inputs)).toEqual([
+      {
+        class: "plan-hash-mismatch",
+        blocking: true,
+        claimed: PLAN_HASH,
+        observed: "plan-hash-2",
+        source: "test-results.json",
+      },
+    ]);
+  });
+
+  it.each(["passed", "failed"])(
+    "SB-TC-095 gives a gate the record states as %s over an unconfirmed provisional mark one blocking entry exempt for its own sitting",
+    (status) => {
+      const inputs = withGateAfterB(status, false);
+
+      expect(run(inputs)).toEqual([
+        {
+          class: "gate-state-differs",
+          blocking: true,
+          unitId: "gate-after-b",
+          sittingExempt: "gate-after-b",
+          claimed: status,
+          observed: "provisional",
+          source: "test-results.json",
+        },
+      ]);
+    },
+  );
+
+  it("SB-TC-095 compares a gate whose provisional marks are all confirmed with the evaluator, with no exemption", () => {
+    const confirmed = withGateAfterB("passed", true);
+    expect(run(confirmed)).toEqual([]);
+
+    const overturned = withGateAfterB("failed", true);
+    expect(run(overturned)).toEqual([
+      {
+        class: "gate-state-differs",
+        blocking: true,
+        unitId: "gate-after-b",
+        claimed: "failed",
+        observed: "passed",
+        source: "test-results.json",
+      },
+    ]);
+  });
+
   it("SB-TC-069 is pure: the same inputs give a deep-equal list and are left unchanged", () => {
     const inputs = agreeing();
     inputs.git = buildGit(["D"]);

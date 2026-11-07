@@ -112,6 +112,53 @@ const PLAN_HASH = computePlanHash(plan);
 let injected: DeliveryCrossCheckClass | null;
 let lifecycleState: string;
 
+// How the record states the gate after B for the provisional cases, or null for
+// the class fixture above: `provisional` with FX-TC-001 unconfirmed and no
+// result for it; `provisional-stale`, provisional under results of another
+// plan; `over-claimed`, passed while FX-TC-001 is unconfirmed. Under each, the
+// gate after C claims a word the evaluator never answers, so it adds nothing.
+type GateAfterB = "provisional" | "provisional-stale" | "over-claimed";
+let gateAfterB: GateAfterB | null;
+
+const UNCONFIRMED_MARK = {
+  case: "FX-TC-001",
+  mark: "met",
+  evidence: "The suite row passed.",
+  confirmed: false,
+} as const;
+
+function gates(): unknown[] {
+  if (gateAfterB !== null) {
+    return [
+      {
+        id: "gate-after-b",
+        after: ["B"],
+        status: gateAfterB === "over-claimed" ? "passed" : "provisional",
+        cases: ["FX-TC-001", "FX-TC-002"],
+        provisionalCases: [UNCONFIRMED_MARK],
+      },
+      { id: "gate-after-c", after: ["C"], status: "verifying", cases: ["FX-TC-003"] },
+    ];
+  }
+  return [
+    {
+      id: "gate-after-b",
+      after: ["B"],
+      status: is("plan-hash-mismatch") ? "verifying" : "passed",
+      cases: ["FX-TC-001", "FX-TC-002"],
+    },
+    {
+      id: "gate-after-c",
+      after: ["C"],
+      status: "provisional",
+      cases: ["FX-TC-003"],
+      provisionalCases: [
+        { case: "FX-TC-003", mark: "met", evidence: "The suite row passed.", confirmed: false },
+      ],
+    },
+  ];
+}
+
 function is(cls: DeliveryCrossCheckClass): boolean {
   return injected === cls;
 }
@@ -133,23 +180,7 @@ function record(): unknown {
     review: { status: "none", unreviewed: [] },
     stack: {
       stacks: { A: ["A", "B", "C"], D: ["D"] },
-      gates: [
-        {
-          id: "gate-after-b",
-          after: ["B"],
-          status: is("plan-hash-mismatch") ? "verifying" : "passed",
-          cases: ["FX-TC-001", "FX-TC-002"],
-        },
-        {
-          id: "gate-after-c",
-          after: ["C"],
-          status: "provisional",
-          cases: ["FX-TC-003"],
-          provisionalCases: [
-            { case: "FX-TC-003", mark: "met", evidence: "The suite row passed.", confirmed: false },
-          ],
-        },
-      ],
+      gates: gates(),
     },
     units: UNITS.map((id) => ({
       id,
@@ -197,15 +228,17 @@ function writeSpec(): void {
   const failed = new Set<string>();
   if (is("gate-state-differs")) failed.add("FX-TC-001");
   if (is("case-status-differs")) failed.add("FX-TC-003");
+  // Under `provisional`, the results hold no result for the unconfirmed case.
+  const recorded = gateAfterB === "provisional" ? CASES.filter((id) => id !== "FX-TC-001") : CASES;
   fs.writeFileSync(path.join(specFolder, "test-cases.json"), JSON.stringify(plan));
   fs.writeFileSync(
     path.join(specFolder, "test-results.json"),
     JSON.stringify({
       $schema: TEST_RESULTS_SCHEMA_ID,
       schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
-      planHash: PLAN_HASH,
+      planHash: gateAfterB === "provisional-stale" ? "plan-hash-of-another-plan" : PLAN_HASH,
       caseResults: Object.fromEntries(
-        CASES.map((id) => [
+        recorded.map((id) => [
           id,
           { observationMarks: {}, derivedStatus: failed.has(id) ? "failed" : "passed", notes: [] },
         ]),
@@ -292,6 +325,7 @@ function freshBench(): void {
     notifications: [],
   } as unknown as Bench;
   injected = null;
+  gateAfterB = null;
   lifecycleState = "running";
   forgetDeliveryCrossCheck();
   forgetDeliveryControlMemory();
@@ -393,7 +427,7 @@ describe("the cross-check's blocking classes", () => {
       await inject(cls);
 
       const sitting = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
-      expect(sitting.status, cls).toBe(202);
+      expect(sitting.status, cls).toBe(201);
       expect(sitting.body, cls).toEqual({
         gateId: "gate-after-b",
         openedAt: expect.any(String) as unknown as string,
@@ -473,10 +507,10 @@ describe("the cross-check's blocking classes", () => {
 });
 
 describe("POST /:projectId/benches/:id/delivery/sittings", () => {
-  it("records the sitting on the bench, persists it and answers 202 with it", async () => {
+  it("records the sitting on the bench, persists it and answers 201 with it", async () => {
     await inject(null);
     const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-c" });
-    expect(res.status).toBe(202);
+    expect(res.status).toBe(201);
     expect(res.body.gateId).toBe("gate-after-c");
     expect(Number.isNaN(Date.parse(res.body.openedAt as string))).toBe(false);
     expect(bench.deliverySitting).toEqual(res.body);
@@ -488,7 +522,7 @@ describe("POST /:projectId/benches/:id/delivery/sittings", () => {
   it("answers 202 with the open sitting for the same gate, and 409 SITTING_OPEN for another", async () => {
     await inject(null);
     const first = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
-    expect(first.status).toBe(202);
+    expect(first.status).toBe(201);
     const again = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
     expect(again.status).toBe(202);
     expect(again.body).toEqual(first.body);
@@ -513,5 +547,113 @@ describe("POST /:projectId/benches/:id/delivery/sittings", () => {
     const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("DELIVERY_RECORD_MISSING");
+  });
+});
+
+// The provisional gate rules (SB-FR-039): the cross-check reads a gate's
+// provisional state from the record and never blocks the sitting that confirms
+// its marks, and the approval waits for every provisional gate.
+describe("a provisional gate in the cross-check, the sitting and the approval", () => {
+  async function crossCheckOf(variant: GateAfterB): Promise<Record<string, unknown>[]> {
+    gateAfterB = variant;
+    writeSpec();
+    const res = await request(app).get(`${base}/crosscheck`);
+    expect(res.status).toBe(200);
+    return res.body.disagreements as Record<string, unknown>[];
+  }
+
+  function gateStateEntries(list: Record<string, unknown>[]): Record<string, unknown>[] {
+    return list.filter((entry) => entry.class === "gate-state-differs");
+  }
+
+  it("SB-TC-082 a provisional gate never blocks the sitting that confirms its marks, and the approval answers PROVISIONAL_UNCONFIRMED", async () => {
+    // Step 1: no gate-state entry for the provisional gate.
+    const list = await crossCheckOf("provisional");
+    expect(gateStateEntries(list)).toEqual([]);
+    expect(list).toEqual([]);
+
+    // Step 2: the sitting opens, and its provisional case is open to a mark.
+    const sitting = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(sitting.status).toBe(201);
+    expect(sitting.body.gateId).toBe("gate-after-b");
+    expect(bench.deliverySitting).toEqual(sitting.body);
+    const snapshot = await request(app).get(base);
+    expect(snapshot.status).toBe(200);
+    expect(snapshot.body.gatesById["gate-after-b"].provisional).toEqual({
+      cases: ["FX-TC-001"],
+      unconfirmed: ["FX-TC-001"],
+    });
+
+    // Step 3: the approval waits for the provisional gate.
+    const approval = await request(app).post(`${base}/approve`).send({});
+    expect(approval.status).toBe(409);
+    expect(approval.body).toMatchObject({
+      code: "PROVISIONAL_UNCONFIRMED",
+      gates: ["gate-after-b"],
+    });
+    expect(approval.body.error).toContain("gate-after-b");
+  });
+
+  it("SB-TC-095 a gate that claims a verdict over unconfirmed marks is a blocking entry that exempts its own sitting", async () => {
+    // Step 1: one blocking gate-state entry, exempt for the gate's sitting.
+    const list = await crossCheckOf("over-claimed");
+    expect(gateStateEntries(list)).toEqual([
+      {
+        class: "gate-state-differs",
+        blocking: true,
+        unitId: "gate-after-b",
+        sittingExempt: "gate-after-b",
+        claimed: "passed",
+        observed: "provisional",
+        source: "test-results.json",
+      },
+    ]);
+    expect(list).toHaveLength(1);
+
+    // Step 3 before step 2, so no open sitting answers SITTING_OPEN: a sitting
+    // of the gate after C is blocked.
+    const other = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-c" });
+    expect(other.status).toBe(409);
+    expect(other.body).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
+    expect(bench.deliverySitting).toBeUndefined();
+
+    // Step 2: the sitting of the gate after B opens.
+    const sitting = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(sitting.status).toBe(201);
+    expect(sitting.body.gateId).toBe("gate-after-b");
+
+    // Step 4: the approval is blocked.
+    const approval = await request(app).post(`${base}/approve`).send({});
+    expect(approval.status).toBe(409);
+    expect(approval.body).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["gate-state-differs"],
+    });
+  });
+
+  it("SB-TC-096 a stale results verdict on a provisional gate stays with the plan-hash class", async () => {
+    const list = await crossCheckOf("provisional-stale");
+    // The loader reads the results' own hash as another plan's; the observed
+    // word is the loader's reading of it, never the record's hash.
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      class: "plan-hash-mismatch",
+      blocking: true,
+      claimed: PLAN_HASH,
+      source: "test-results.json",
+    });
+    expect(list[0].observed).not.toBe(PLAN_HASH);
+    expect(gateStateEntries(list)).toEqual([]);
+
+    // The plan-hash class blocks the sitting of the provisional gate too.
+    const sitting = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(sitting.status).toBe(409);
+    expect(sitting.body).toMatchObject({
+      code: "CROSSCHECK_BLOCKED",
+      classes: ["plan-hash-mismatch"],
+    });
   });
 });
