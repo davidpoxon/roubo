@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button as AriaButton, Label, TextArea, TextField } from "react-aria-components";
 import type { DeliveryControl } from "@roubo/shared/delivery-control-contract";
 import type { DeliveryDecision, DeliveryGate } from "@roubo/shared/delivery-observation-contract";
@@ -38,7 +38,8 @@ import { recordedProvisionalMark } from "./provisional-mark-model";
 // a run the thread is unavailable and the card says why. After the outcome
 // the card leaves the pile, and only its summary stays. A lower card shows
 // only its title bar,
-// and raises on click or Enter, so a pile of a hundred cards renders one body.
+// and raises on click or Enter, so a pile of a hundred cards renders one body;
+// the raised card takes focus.
 // A reviewed card leaves with `drop-away` and the next oldest rises.
 //
 // The badge reads `to review` while a review is open, `decided` during a run,
@@ -106,6 +107,16 @@ function originText(decision: DeliveryDecision): string {
   const where = decision.unit_id === undefined ? "the delivery" : decision.unit_id;
   const affected = decision.affected_units ?? [];
   return `agent decided at ${where} · affects ${affected.length > 0 ? affected.join(", ") : "no unit"}`;
+}
+
+// A ref that moves focus to its element once `take` holds: a raised card takes
+// focus as it rises, so the keyboard stays with the card the operator chose.
+function useFocusWhen<T extends HTMLElement>(take: boolean) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (take) ref.current?.focus();
+  }, [take]);
+  return ref;
 }
 
 function Badge({ decision, word }: { decision: DeliveryDecision; word: ReviewWord }) {
@@ -291,6 +302,7 @@ function TopCard({
   sessionLive,
   isSendingMessage,
   onSendMessage,
+  takeFocus,
 }: {
   decision: DeliveryDecision;
   word: ReviewWord;
@@ -304,7 +316,10 @@ function TopCard({
   sessionLive: boolean;
   isSendingMessage: boolean;
   onSendMessage: (text: string, sent: () => void) => void;
+  // The operator raised this card from below: it takes focus as it rises.
+  takeFocus: boolean;
 }) {
+  const cardRef = useFocusWhen<HTMLElement>(takeFocus);
   const [discussingAtReview, setDiscussing] = useState(false);
   const [overturning, setOverturning] = useState(false);
   const discussing = reviewOpen && discussingAtReview;
@@ -313,10 +328,12 @@ function TopCard({
   const others = decision.options.filter((option) => option !== decision.chosen);
   return (
     <article
+      ref={cardRef}
+      tabIndex={-1}
       data-testid={`review-card-${decision.id}`}
       data-position="top"
       aria-label={`Agent decision ${decision.id}`}
-      className="animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
+      className={`animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3 ${focusRing}`}
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge decision={decision} word={word} />
@@ -358,6 +375,27 @@ function TopCard({
         >
           Overturn
         </Button>
+        {/* The options sit between Overturn and Discuss, so Tab reaches Accept,
+            each Overturn action and Discuss in that order (SB-NFR-004). */}
+        {overturning && !actionsDisabled && (
+          <div
+            role="group"
+            aria-label={`Overturn ${decision.id} with`}
+            className="flex flex-wrap gap-2"
+          >
+            {others.map((option) => (
+              <Button
+                key={option}
+                onPress={() => {
+                  setOverturning(false);
+                  onAction({ kind: "overturn", decisionId: decision.id, option });
+                }}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+        )}
         <Button
           aria-expanded={discussing}
           aria-controls={discussing ? threadId : undefined}
@@ -368,25 +406,6 @@ function TopCard({
           Discuss
         </Button>
       </div>
-      {overturning && !actionsDisabled && (
-        <div
-          role="group"
-          aria-label={`Overturn ${decision.id} with`}
-          className="flex flex-wrap gap-2"
-        >
-          {others.map((option) => (
-            <Button
-              key={option}
-              onPress={() => {
-                setOverturning(false);
-                onAction({ kind: "overturn", decisionId: decision.id, option });
-              }}
-            >
-              {option}
-            </Button>
-          ))}
-        </div>
-      )}
       {!reviewOpen && (
         <p
           id={`${threadId}-unavailable`}
@@ -410,15 +429,24 @@ function TopCard({
       )}
       {discussing && (
         <div id={threadId} data-testid={threadId} className="space-y-2 border-t border-border pt-2">
-          {thread.length === 0 ? (
-            <p className="text-12 text-text-secondary">No messages on this decision yet</p>
-          ) : (
-            <ol aria-label={`Thread of ${decision.id}`} className="space-y-2">
-              {thread.map((entry) => (
-                <ThreadMessage key={entry.testId} entry={entry} />
-              ))}
-            </ol>
-          )}
+          {/* A polite log: a reply that arrives is read out while focus stays
+              where the operator left it (SB-NFR-004). */}
+          <div
+            role="log"
+            aria-live="polite"
+            aria-label={`Messages on ${decision.id}`}
+            data-testid="review-thread-log"
+          >
+            {thread.length === 0 ? (
+              <p className="text-12 text-text-secondary">No messages on this decision yet</p>
+            ) : (
+              <ol aria-label={`Thread of ${decision.id}`} className="space-y-2">
+                {thread.map((entry) => (
+                  <ThreadMessage key={entry.testId} entry={entry} />
+                ))}
+              </ol>
+            )}
+          </div>
           {waiting && (
             <p
               data-testid="review-thread-waiting"
@@ -467,20 +495,25 @@ function GateTopCard({
   isOpening,
   openError,
   onOpenSitting,
+  takeFocus,
 }: {
   gate: DeliveryGate;
   isOpening: boolean;
   openError: string | undefined;
   onOpenSitting: () => void;
+  takeFocus: boolean;
 }) {
+  const cardRef = useFocusWhen<HTMLElement>(takeFocus);
   const marks = gate.provisionalCases ?? [];
   return (
     <article
+      ref={cardRef}
+      tabIndex={-1}
       data-testid={`review-card-${gate.id}`}
       data-position="top"
       data-kind="gate"
       aria-label={`Provisional gate ${gate.id}`}
-      className="animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
+      className={`animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3 ${focusRing}`}
     >
       <div className="flex flex-wrap items-center gap-2">
         <GateBadge gate={gate} />
@@ -658,6 +691,7 @@ export default function ReviewPile({
                 sessionLive={sessionLive}
                 isSendingMessage={threadMessage.isPending}
                 onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
+                takeFocus={raisedId === cardKey(topCard)}
               />
             )}
             {topGate !== undefined && (
@@ -667,6 +701,7 @@ export default function ReviewPile({
                 isOpening={sittingStage.isPending}
                 openError={sittingStage.isError ? sittingStage.error.message : undefined}
                 onOpenSitting={() => openSitting(topGate.id)}
+                takeFocus={raisedId === cardKey(topCard)}
               />
             )}
           </li>
