@@ -155,7 +155,10 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
     <div data-testid="delivery-snapshot" className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-start gap-3">
-          <DeliveryRail snapshot={snapshot} />
+          <DeliveryRail
+            snapshot={snapshot}
+            attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
+          />
           <span
             data-testid="delivery-mode-label"
             data-mode={snapshot.mode.value}

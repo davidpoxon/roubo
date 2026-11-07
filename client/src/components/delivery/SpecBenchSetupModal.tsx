@@ -45,7 +45,8 @@ const ROW_CLASS = (selected: boolean) =>
 // The Set up Spec Bench dialog (SB-FR-001, SB-US-001): pick a spec of the
 // project, choose how the bench binds to its delivery and, for a launch, who
 // decides in it (SB-FR-031: attended by default), read the spec, the mode and a
-// summary of the spec's units and gates, then confirm. Confirm calls onConfirm
+// summary of the spec's units and gates (for an attach, also the progress and
+// lifecycle state of the delivery record the spec holds), then confirm. Confirm calls onConfirm
 // with the spec folder, the mode and the decision mode, and the host owns the
 // create call. Dismissal never calls onConfirm.
 export default function SpecBenchSetupModal({
@@ -194,8 +195,15 @@ export default function SpecBenchSetupModal({
             </div>
 
             {/* An attached delivery already runs in its own decision mode, so
-                only a launch offers the choice. */}
+                only a launch offers the choice. An attach launches nothing,
+                and the dialog says so (SB-FR-003). */}
             {mode !== "attach" && <ModeSwitch value={decisionMode} onChange={setDecisionMode} />}
+            {mode === "attach" && (
+              <p data-testid="specbench-setup-attach-note" className="text-12 text-text-secondary">
+                No session will be launched. The bench reads the delivery from its record, and
+                Resume launches a session when you want one.
+              </p>
+            )}
 
             {selected && (
               <section
@@ -240,6 +248,25 @@ export default function SpecBenchSetupModal({
                     </span>
                   )}
                 </p>
+                {mode === "attach" && summary.data && (
+                  <p data-testid="specbench-setup-summary-delivery">
+                    <span className="text-text-secondary">Delivery </span>
+                    {summary.data.delivery ? (
+                      <span className="text-text-primary">
+                        <span data-testid="specbench-setup-summary-progress">
+                          {summary.data.delivery.unitsDone} of{" "}
+                          {plural(summary.data.delivery.units, "unit")} done
+                        </span>
+                        {" · "}
+                        <span data-testid="specbench-setup-summary-lifecycle">
+                          {summary.data.delivery.lifecycleState}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-text-secondary">no delivery record in this spec</span>
+                    )}
+                  </p>
+                )}
               </section>
             )}
 

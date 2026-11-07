@@ -3,9 +3,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DELIVERY_RECORD_FILE } from "@roubo/shared/delivery-bench";
+import type { DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 
 vi.mock("../services/project-registry.js", () => ({
   getProject: vi.fn(),
@@ -13,6 +16,16 @@ vi.mock("../services/project-registry.js", () => ({
 
 import * as projectRegistry from "../services/project-registry.js";
 import router from "./specbench-specs.js";
+
+const FIXTURE_RECORD = fileURLToPath(
+  new URL("../../shared/__fixtures__/delivery-record.json", import.meta.url),
+);
+
+function writeRecord(slug: string, body: unknown): void {
+  const folder = path.join(repo, ".specifications", slug);
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, DELIVERY_RECORD_FILE), JSON.stringify(body));
+}
 
 let repo: string;
 let app: express.Express;
@@ -72,6 +85,35 @@ describe("GET /:projectId/specbench/specs/:slug/summary", () => {
     const res = await request(app).get("/api/projects/demo/specbench/specs/fixture-spec/summary");
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ slug: "fixture-spec", units: 4, gates: 2 });
+  });
+
+  it("SB-TC-007: names the progress and lifecycle state of a delivery record in the checkout", async () => {
+    const record = JSON.parse(fs.readFileSync(FIXTURE_RECORD, "utf8")) as DeliveryRecord;
+    record.units = record.units.map((item) => ({
+      ...item,
+      status: item.id === "A" || item.id === "B" ? "done" : "pending",
+    }));
+    writeRecord("fixture-spec", record);
+    const res = await request(app).get("/api/projects/demo/specbench/specs/fixture-spec/summary");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      slug: "fixture-spec",
+      units: 0,
+      gates: 0,
+      delivery: {
+        deliveryId: record.delivery_id,
+        lifecycleState: record.lifecycle.state,
+        unitsDone: 2,
+        units: record.units.length,
+      },
+    });
+  });
+
+  it("SB-TC-007: names no delivery for a record in the checkout that does not conform", async () => {
+    writeRecord("fixture-spec", { units: [] });
+    const res = await request(app).get("/api/projects/demo/specbench/specs/fixture-spec/summary");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ slug: "fixture-spec", units: 0, gates: 0 });
   });
 
   it("answers 0 units and 0 gates for a spec with no work-units.json", async () => {
