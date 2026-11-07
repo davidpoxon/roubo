@@ -576,13 +576,15 @@ const LIFECYCLE_HEALTH: Partial<
 };
 
 // An operator action on the delivery's lifecycle, as its route names it.
-export type DeliveryLifecycleAction = "pause" | "wind-down" | "resume" | "approve";
+// `sit` opens a gate sitting (POST .../delivery/sittings).
+export type DeliveryLifecycleAction = "pause" | "wind-down" | "resume" | "approve" | "sit";
 
 // The lifecycle states each action is open in. A resume is open while the
 // delivery reads `running` too: a session that ended without a pause leaves the
 // record running, and the resume launches it again (the bench's own live
-// session is refused apart, by the resume route). Nothing acts on a complete
-// delivery, nor on a state the bench does not know.
+// session is refused apart, by the resume route). A gate sitting is open in the
+// states an approval is. Nothing acts on a complete delivery, nor on a state
+// the bench does not know.
 const LIFECYCLE_ACTION_STATES: Readonly<
   Record<DeliveryLifecycleAction, ReadonlySet<DeliveryLifecycleState>>
 > = {
@@ -590,6 +592,7 @@ const LIFECYCLE_ACTION_STATES: Readonly<
   "wind-down": new Set(["running", "paused"]),
   resume: new Set(["running", "paused", "wound_down"]),
   approve: new Set(["running", "paused", "wound_down"]),
+  sit: new Set(["running", "paused", "wound_down"]),
 };
 
 const LIFECYCLE_ACTION_WORDS: Readonly<Record<DeliveryLifecycleAction, string>> = {
@@ -597,6 +600,7 @@ const LIFECYCLE_ACTION_WORDS: Readonly<Record<DeliveryLifecycleAction, string>> 
   "wind-down": "wound down",
   resume: "resumed",
   approve: "approved",
+  sit: "given a gate sitting",
 };
 
 export interface LifecycleActionAvailability {
@@ -887,18 +891,95 @@ export function selectUnmetGates(snapshot: DeliverySnapshot): string[] {
     .map((view) => view.gate.id);
 }
 
-// Why the delivery cannot be approved now (SB-FR-022, SB-FR-034), or null when
-// it can. The checks run in order and the first that refuses answers: the
-// lifecycle state, then an open review, then an unmet gating case. A later
-// check (an unconfirmed provisional mark) slots in as one more step. The
-// approve route answers 409 with the refusal's `code`, and the Approve button
-// reads the same refusal.
+// ── The cross-check's blocking policy (SB-FR-029) ──
+//
+// A disagreement of the last cross-check, as far as the policy reads it: its
+// class and whether that class blocks. The server's cross-check sets
+// `blocking` from its one table, in which branch-missing, head-commit-differs,
+// pr-state-differs, gate-state-differs and plan-hash-mismatch block and
+// layer-order-differs, base-branch-differs, case-status-differs and
+// record-stale are shown only.
+export interface CrossCheckPolicyEntry {
+  class: string;
+  blocking: boolean;
+}
+
+// The actions the cross-check blocks: a gate sitting and the approval. Pause,
+// wind-down, resume, steering notes and decision answers are never blocked by
+// it, so none of them is here.
+export type CrossCheckBlockedAction = "sit" | "approve";
+
+const CROSS_CHECK_BLOCKED_WORDS: Readonly<Record<CrossCheckBlockedAction, string>> = {
+  sit: "a gate sitting",
+  approve: "the approval",
+};
+
+export interface CrossCheckBlock {
+  code: "CROSSCHECK_BLOCKED";
+  reason: string;
+  // The blocking classes present, each once, in the order the list gives them.
+  classes: string[];
+}
+
+// The refusal of an action the cross-check blocks, or null when no blocking
+// class is present. With no list (none read yet), nothing is blocked.
+export function selectCrossCheckBlock(
+  disagreements: readonly CrossCheckPolicyEntry[] | undefined,
+  action: CrossCheckBlockedAction,
+): CrossCheckBlock | null {
+  const classes: string[] = [];
+  for (const entry of disagreements ?? []) {
+    if (entry.blocking && !classes.includes(entry.class)) classes.push(entry.class);
+  }
+  if (classes.length === 0) return null;
+  const found =
+    classes.length === 1
+      ? `${classes[0]}, a blocking disagreement`
+      : `${classes.join(", ")}, blocking disagreements`;
+  return {
+    code: "CROSSCHECK_BLOCKED",
+    reason: `The cross-check finds ${found}, which blocks ${CROSS_CHECK_BLOCKED_WORDS[action]}: reconcile the delivery record with its source of truth first`,
+    classes,
+  };
+}
+
+// Why a gate sitting cannot open now, or null when it can: the lifecycle state
+// first, as the approval reads it, then a blocking class of the cross-check.
+export type SittingRefusal =
+  { code: "WRONG_LIFECYCLE_STATE"; reason: string; state: string } | CrossCheckBlock;
+
+export function selectSittingRefusal(
+  snapshot: DeliverySnapshot,
+  disagreements?: readonly CrossCheckPolicyEntry[],
+): SittingRefusal | null {
+  const lifecycle = selectLifecycleAction(snapshot, "sit");
+  if (!lifecycle.available) {
+    return {
+      code: "WRONG_LIFECYCLE_STATE",
+      reason: lifecycle.reason ?? "",
+      state: lifecycle.state,
+    };
+  }
+  return selectCrossCheckBlock(disagreements, "sit");
+}
+
+// Why the delivery cannot be approved now (SB-FR-022, SB-FR-029, SB-FR-034), or
+// null when it can. The checks run in order and the first that refuses answers:
+// the lifecycle state, then a blocking class of the last cross-check (when the
+// caller passes its disagreements), then an open review, then an unmet gating
+// case. A later check (an unconfirmed provisional mark) slots in as one more
+// step. The approve route answers 409 with the refusal's `code`, and the
+// Approve button reads the same refusal.
 export type ApprovalRefusal =
   | { code: "WRONG_LIFECYCLE_STATE"; reason: string; state: string }
+  | CrossCheckBlock
   | { code: "REVIEW_OPEN"; reason: string; unreviewed: string[] }
   | { code: "GATING_UNMET"; reason: string; gates: string[] };
 
-export function selectApprovalRefusal(snapshot: DeliverySnapshot): ApprovalRefusal | null {
+export function selectApprovalRefusal(
+  snapshot: DeliverySnapshot,
+  disagreements?: readonly CrossCheckPolicyEntry[],
+): ApprovalRefusal | null {
   const lifecycle = selectLifecycleAction(snapshot, "approve");
   if (!lifecycle.available) {
     return {
@@ -907,6 +988,8 @@ export function selectApprovalRefusal(snapshot: DeliverySnapshot): ApprovalRefus
       state: lifecycle.state,
     };
   }
+  const blocked = selectCrossCheckBlock(disagreements, "approve");
+  if (blocked !== null) return blocked;
   const review = selectApprovalAvailability(snapshot);
   if (!review.available) {
     return {

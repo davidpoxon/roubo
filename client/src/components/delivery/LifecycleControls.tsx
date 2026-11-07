@@ -1,7 +1,9 @@
 import { DialogTrigger } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
+import type { DeliveryCrossCheckResponse } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectApprovalRefusal, selectLifecycleAction } from "@roubo/shared/delivery-selectors";
+import { crossCheckBlockedClassesOf } from "../../lib/api";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import Dialog, { DIALOG_ACTIONS_CLASS } from "../ui/Dialog";
@@ -18,18 +20,24 @@ import {
 // the consequential action last); React Aria traps the focus in it and returns
 // it to Wind down on close. Resume launches the session again with the
 // record's resume argument; the others write a control to the outbox, and the
-// health chip follows the session's `lifecycle.changed`.
+// health chip follows the session's `lifecycle.changed`. A blocking class of
+// the bench's last cross-check holds Approve back (SB-FR-029), and the reason
+// beneath it names the class; so does a 409 CROSSCHECK_BLOCKED that the route
+// answers for a class the view had not read yet, in the same place.
 
 export default function LifecycleControls({
   bench,
   snapshot,
   sessionStartBlocked,
+  crossCheck,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshot;
   // True while the server would refuse a new session: the bench's own session
   // runs, or the bench is clearing or in error.
   sessionStartBlocked: boolean;
+  // The bench's last cross-check, when the view has read it.
+  crossCheck?: DeliveryCrossCheckResponse | undefined;
 }) {
   const control = useLifecycleControl(bench.projectId, bench.id);
   const resume = useResumeDelivery(bench.projectId, bench.id);
@@ -37,7 +45,15 @@ export default function LifecycleControls({
   const pause = selectLifecycleAction(snapshot, "pause");
   const windDown = selectLifecycleAction(snapshot, "wind-down");
   const resumable = selectLifecycleAction(snapshot, "resume");
-  const refusal = selectApprovalRefusal(snapshot);
+  const refusal = selectApprovalRefusal(snapshot, crossCheck?.disagreements);
+  // The route's own CROSSCHECK_BLOCKED, shown in place of the generic error.
+  const blockedClasses = approve.isError ? crossCheckBlockedClassesOf(approve.error) : undefined;
+  const reason =
+    refusal !== null
+      ? { code: refusal.code, text: refusal.reason }
+      : blockedClasses !== undefined
+        ? { code: "CROSSCHECK_BLOCKED", text: approve.error?.message ?? "" }
+        : null;
 
   return (
     <>
@@ -86,18 +102,19 @@ export default function LifecycleControls({
         <Button
           onPress={() => approve.mutate()}
           isDisabled={approve.isPending || refusal !== null}
-          aria-describedby={refusal !== null ? "delivery-approve-reason" : undefined}
+          aria-describedby={reason !== null ? "delivery-approve-reason" : undefined}
         >
           Approve
         </Button>
       </section>
-      {refusal !== null && (
+      {reason !== null && (
         <p
           id="delivery-approve-reason"
           data-testid="delivery-approve-reason"
+          data-code={reason.code}
           className="text-12 text-text-secondary"
         >
-          {refusal.reason}
+          {reason.text}
         </p>
       )}
       {control.isError && (
@@ -110,7 +127,7 @@ export default function LifecycleControls({
           {resume.error.message}
         </Callout>
       )}
-      {approve.isError && (
+      {approve.isError && blockedClasses === undefined && (
         <Callout role="alert" title="The approval was not sent">
           {approve.error.message}
         </Callout>
