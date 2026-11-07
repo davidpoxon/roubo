@@ -5,7 +5,9 @@
 //     operator runs the components against the code under review, else the
 //     bench workspace.
 //   - verifyVariantState: the focused spec folder, and the pin when one is
-//     recorded, must still be on disk.
+//     recorded, must still be on disk, and the pin must still check out the
+//     commit the bench recorded for it; else the error names the expected and
+//     the found commits (SB-TC-009).
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
 //     session, then revokes the delivery token and drops the events and the
 //     control outbox held for the bench, and stops its cross-check's watch and
@@ -18,6 +20,7 @@
 // confirmation first. Nothing here ever reads, writes or removes the focused
 // spec folder in the project checkout for the record: test-results.json in it
 // belongs to the checkout and outlives the bench.
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { Bench } from "@roubo/shared";
 import { assertSafeWorkspacePath, UnsafePathError } from "./safe-path.js";
@@ -44,6 +47,25 @@ function safePinPath(bench: Bench): string | undefined {
   }
 }
 
+/**
+ * The full commit a checkout has checked out, or undefined when git cannot
+ * read one. Synchronous, as reconcile calls the host's check synchronously.
+ */
+function checkedOutCommit(checkout: string): string | undefined {
+  try {
+    const sha = execFileSync("git", ["rev-parse", "--verify", "HEAD"], {
+      cwd: checkout,
+      encoding: "utf8",
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+    }).trim();
+    return sha.length > 0 ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const specbenchVariantHost: VariantHost = {
   teardownLabel: "Releasing gate pin and session",
 
@@ -58,13 +80,27 @@ export const specbenchVariantHost: VariantHost = {
         error: `Spec folder not found: ${bench.focusedSpecPath ?? "(none)"}`,
       };
     }
-    if (bench.gatePin) {
+    const pin = bench.gatePin;
+    if (pin) {
       const pinPath = safePinPath(bench);
+      const expected =
+        pin.commit === undefined ? "" : ` (expected commit ${pin.commit}, found none)`;
       if (pinPath === undefined || !fs.existsSync(pinPath)) {
         return {
           ok: false,
-          error: `Gate pin worktree not found for gate ${bench.gatePin.gateId}: clear this bench to remove it`,
+          error: `Gate pin worktree not found for gate ${pin.gateId}${expected}: clear this bench to remove it`,
         };
+      }
+      if (pin.commit !== undefined) {
+        const found = checkedOutCommit(pinPath);
+        if (found !== pin.commit) {
+          return {
+            ok: false,
+            error:
+              `Gate pin for gate ${pin.gateId} moved: expected commit ${pin.commit}, ` +
+              `found ${found ?? "none"}: clear this bench to remove it`,
+          };
+        }
       }
     }
     return { ok: true };

@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-029, SB-FR-030, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
+// SB-FR-009, SB-FR-013, SB-FR-024, SB-FR-029, SB-FR-030, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
 // SB-FR-032, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
@@ -340,11 +340,27 @@
 //                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/sittings
 //        body {gateId}                        -> 201 BenchDeliverySitting {gateId,
-//                                                    openedAt}: the gate sitting the
-//                                                    bench now has open, kept on the
-//                                                    bench (deliverySitting); the same
-//                                                    gate again answers 202 with the
-//                                                    sitting already open
+//                                                    openedAt, commit, state: "open",
+//                                                    resultsSpecPath}: the gate sitting
+//                                                    the bench now has open, kept on
+//                                                    the bench (deliverySitting). The
+//                                                    gate pin service (SB-FR-024, see
+//                                                    services/gate-pin.ts) stopped the
+//                                                    components, added a detached
+//                                                    worktree at the gate commit at
+//                                                    `<workspacePath>-pin`, recorded
+//                                                    gatePin {gateId, workspacePath,
+//                                                    commit, createdAt}, and restarted
+//                                                    the components that ran, from the
+//                                                    pin on the bench's ports. The gate
+//                                                    commit is the head of the top unit
+//                                                    the gate runs after.
+//                                                    resultsSpecPath is the workspace's
+//                                                    spec folder, which holds
+//                                                    test-results.json during the
+//                                                    sitting. The same gate again
+//                                                    answers 202 with the sitting
+//                                                    already open
 //                                                    400 INVALID_BODY + field `gateId`:
 //                                                        not a non-empty string
 //                                                    404 GATE_NOT_FOUND: the folded
@@ -361,7 +377,40 @@
 //                                                        provisional marks)
 //                                                    409 SITTING_OPEN + gateId: a sitting
 //                                                        of another gate is open
+//                                                 then, once no check refuses:
+//                                                    409 GATE_COMMIT_MISSING + gateId:
+//                                                        the record names no head for
+//                                                        the gate's top unit
+//                                                    400 GATE_COMMIT_UNKNOWN: git does
+//                                                        not know the gate commit; no
+//                                                        worktree is created and the
+//                                                        components are untouched
+//                                                    409 SITTING_BUSY: another open or
+//                                                        close of the bench's sitting
+//                                                        runs
+//                                                    409 GATE_PIN_PATH_TAKEN: a
+//                                                        directory git cannot remove
+//                                                        holds the pin path
+//                                                    500 GATE_PIN_FAILED: git could not
+//                                                        add the worktree, or the pin is
+//                                                        not at the gate commit; the
+//                                                        components are restarted from
+//                                                        the workspace
 //                                                    404 and 409 as the snapshot read
+//   DELETE /:projectId/benches/:id/delivery/sittings/current
+//                                                 -> 204 the sitting closed: the gate pin
+//                                                    service stopped the components,
+//                                                    removed the pin worktree, cleared
+//                                                    gatePin and deliverySitting, and
+//                                                    restarted the components that ran,
+//                                                    from the workspace
+//                                                    404 SITTING_NOT_FOUND: no sitting is
+//                                                        open
+//                                                    404 not a Spec Bench
+//                                                    409 SITTING_BUSY: as the open
+//                                                    500 GATE_PIN_FAILED: git could not
+//                                                        remove the pin; the sitting
+//                                                        stays open
 //
 // The cross-check's blocking classes (SB-FR-029) refuse a gate sitting and the
 // approval only. The four other classes (layer-order-differs,
@@ -382,15 +431,17 @@
 // longer conforms.
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
-import type { Bench, BenchDeliverySitting } from "@roubo/shared";
+import type { Bench } from "@roubo/shared";
 import {
   benchDeliveryEventSpillPath,
+  deliverySpecFolder,
   loadBenchDeliveryRecord,
   loadBenchDeliveryVerifyInputs,
 } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
+import { UnsafePathError } from "../lib/safe-path.js";
 import * as benchManager from "../services/bench-manager.js";
-import * as stateService from "../services/state.js";
+import { closeGatePin, GatePinError, openGatePin } from "../services/gate-pin.js";
 import {
   DELIVERY_DIFF_MAX_BYTES,
   type DeliveryCrossCheckResponse,
@@ -1278,15 +1329,30 @@ router.post(
   },
 );
 
-// ── Gate sittings (SB-FR-029) ──
+// ── Gate sittings (SB-FR-024, SB-FR-029) ──
 //
-// A minimal sitting: the route applies the lifecycle and cross-check refusals
-// and records which gate the bench sits. Pinning a worktree and starting the
-// sitting's session come on top of it.
+// The route applies the lifecycle and cross-check refusals, then the gate pin
+// service pins a detached worktree at the gate commit and records the sitting
+// (see services/gate-pin.ts). Starting the sitting's session comes on top of
+// it.
 
-function persistBench(bench: Bench): void {
-  if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
-  stateService.updateBench(stateService.toPersistedBench(bench));
+// The gate commit the record carries for a gate: the head of the top unit of
+// the stack the gate runs after (the unit of `after` on the highest layer, the
+// last of them on a tie), or undefined when that unit has no head yet.
+function gateCommitOf(snapshot: DeliverySnapshot, gateId: string): string | undefined {
+  const view = ownValue(snapshot.gatesById, gateId);
+  if (view === undefined) return undefined;
+  let top: DeliveryUnit | undefined;
+  for (const unitId of view.gate.after) {
+    const unit = ownValue(snapshot.unitsById, unitId);
+    if (unit !== undefined && (top === undefined || unit.layer >= top.layer)) top = unit;
+  }
+  return top?.head;
+}
+
+function sendGatePinError(res: Response, err: unknown): void {
+  if (!(err instanceof GatePinError)) throw err;
+  res.status(err.status).json({ error: err.message, code: err.code });
 }
 
 router.post(
@@ -1328,10 +1394,44 @@ router.post(
       });
       return;
     }
-    const sitting: BenchDeliverySitting = { gateId, openedAt: new Date().toISOString() };
-    bench.deliverySitting = sitting;
-    persistBench(bench);
-    res.status(201).json(sitting);
+    const commit = gateCommitOf(context.snapshot, gateId);
+    if (commit === undefined) {
+      res.status(409).json({
+        error: `The delivery record names no commit for gate ${gateId}`,
+        code: "GATE_COMMIT_MISSING",
+        gateId,
+      });
+      return;
+    }
+    let resultsSpecPath: string;
+    try {
+      resultsSpecPath = deliverySpecFolder(bench);
+    } catch (err) {
+      if (!(err instanceof UnsafePathError)) throw err;
+      res.status(409).json({ error: err.message, code: "DELIVERY_INVALID" });
+      return;
+    }
+    try {
+      const sitting = await openGatePin(bench, { gateId, commit, resultsSpecPath });
+      res.status(201).json(sitting);
+    } catch (err) {
+      sendGatePinError(res, err);
+    }
+  },
+);
+
+router.delete(
+  "/:projectId/benches/:id/delivery/sittings/current",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    try {
+      await closeGatePin(bench);
+      res.status(204).end();
+    } catch (err) {
+      sendGatePinError(res, err);
+    }
   },
 );
 

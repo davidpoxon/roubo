@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -109,6 +110,48 @@ describe("Spec Bench host: verifyVariantState", () => {
     const result = specbenchVariantHost.verifyVariantState(bench);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatch(/Gate pin worktree not found for gate G1/);
+  });
+
+  it("SB-TC-009 a server restart with a pinned bench verifies the pin path and commit against the bench record", () => {
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        "git",
+        ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", ...args],
+        { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      ).trim();
+    const workspace = path.join(tmp, "ws", "bench-1");
+    fs.mkdirSync(workspace, { recursive: true });
+    git(workspace, "init", "-q", "-b", "main");
+    const commits = ["one", "two"].map((content) => {
+      fs.writeFileSync(path.join(workspace, "build.txt"), `${content}\n`);
+      git(workspace, "add", "build.txt");
+      git(workspace, "commit", "-q", "-m", content);
+      return git(workspace, "rev-parse", "HEAD");
+    });
+    const pin = `${workspace}-pin`;
+    git(workspace, "worktree", "add", "--detach", pin, commits[0]);
+    const bench = specBench({
+      gatePin: { gateId: "G1", workspacePath: pin, commit: commits[0], createdAt: "now" },
+      deliverySitting: { gateId: "G1", openedAt: "now", commit: commits[0], state: "open" },
+    });
+
+    // Step 1: the pin is at the recorded commit, so the bench is sound and
+    // reconcile returns it to its previous status.
+    expect(specbenchVariantHost.verifyVariantState(bench)).toEqual({ ok: true });
+
+    // Step 2: the pin moved to another commit by hand.
+    git(pin, "checkout", "-q", "--detach", commits[1]);
+    const moved = specbenchVariantHost.verifyVariantState(bench);
+    expect(moved.ok).toBe(false);
+    expect(!moved.ok && moved.error).toContain(`expected commit ${commits[0]}`);
+    expect(!moved.ok && moved.error).toContain(`found ${commits[1]}`);
+
+    // And the pin gone: the error names the expected commit and finds none.
+    git(workspace, "worktree", "remove", "--force", pin);
+    const missing = specbenchVariantHost.verifyVariantState(bench);
+    expect(missing.ok).toBe(false);
+    expect(!missing.ok && missing.error).toMatch(/Gate pin worktree not found for gate G1/);
+    expect(!missing.ok && missing.error).toContain(`expected commit ${commits[0]}, found none`);
   });
 });
 
