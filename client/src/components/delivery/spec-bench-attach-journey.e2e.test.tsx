@@ -6,40 +6,44 @@
 // It asserts the authoritative e2e_flow case SB-TC-007 step for step, so a
 // divergence is integration drift and not a re-specification.
 //
-// What runs for real: the Benches page (BenchDashboard and BenchesTab with the
-// real BenchCard and the real Set up Spec Bench dialog), the bench page
-// (BenchDetail with the real Delivery tab, its health rail, map and lifecycle
-// controls), the real React Query hooks, the real `lib/api` request layer and
-// the real notification stream hook. `fetch` and `EventSource` reach an
-// in-process Roubo server stand-in below.
+// What runs for real on the client: the Benches page (BenchDashboard and
+// BenchesTab with the real BenchCard and the real Set up Spec Bench dialog),
+// the bench page (BenchDetail with the real Delivery tab, its health rail, map
+// and lifecycle controls), the real React Query hooks, the real `lib/api`
+// request layer and the real notification stream hook.
 //
-// The resume of step 4 runs the real route: POST /delivery/resume goes through
-// server/routes/delivery.ts, mounted in-process on an express app as
-// server/index.ts mounts it and reached through supertest, as the route suites
-// do. Behind it run the real record loader, over the committed record that the
-// bench's workspace (a temporary folder) holds, the real event log and the real
-// lifecycle check. The bench manager is a stand-in that hands the route the
-// stand-in's benches, and the session launcher is a stand-in that keeps the
-// options the route passes it and hands the fake tooling a launch descriptor
-// built from them, so the resume argument the tooling holds is the one the real
-// route built.
+// What runs for real on the server: every route whose answer a step asserts,
+// mounted in-process on an express app as server/index.ts mounts it and reached
+// through supertest, as the route suites do:
+//   - server/routes/specbench-specs.ts answers the dialog's summary, from the
+//     record committed in a real git checkout at the commit that the real
+//     resolveWorktreeStartCommit names for the project's worktree source
+//     settings;
+//   - server/routes/benches.ts creates the bench and hands it to the real
+//     session launcher (server/services/delivery-session-launcher.ts), whose
+//     create-time binding decides whether the bench launches anything;
+//   - server/routes/delivery.ts answers the snapshot, the event reads and the
+//     resume, through the real record loader over the bench's workspace, the
+//     real event log and the real lifecycle check, and the resume launches
+//     through the real launcher, which mints the token in the real registry and
+//     builds the launch descriptor;
+//   - server/routes/delivery-hooks.ts takes the fake tooling's events, checks
+//     the token, appends them to the event log, and broadcasts a delivery frame
+//     through the real server/services/sse.ts.
 //
-// The other routes the journey calls (server/routes/benches.ts, the reads of
-// server/routes/delivery.ts, server/routes/delivery-hooks.ts,
-// server/routes/specbench-specs.ts) are answered by the stand-in in the shape
-// of their bodies and statuses: it folds the record and the accepted events
-// through the shared delivery reducer as GET /delivery does, summarizes a
-// record with the shared summary helper as the summary route does, and checks
-// the delivery token on the event endpoint. It models the checkout's git state
-// in two slots, the working tree and the commit a new bench's worktree starts
-// from: the summary reads only the committed record, and a created bench's
-// workspace holds only what its worktree checks out from that commit, never a
-// working-tree copy. It does not run git, resolve the project's worktree source
-// settings or provision a worktree; the route's own suite covers those. A
-// request to any other route answers 404 and is listed in the failure output.
-// The hooks and components that the journey does not cross (projects,
-// integration, settings, plugins, terminals, logs, issue controls) are stubbed
-// as in the page suites.
+// The stand-ins sit below those routes: the bench manager claims the bench and
+// provisions its workspace as a real git worktree of the checkout at the start
+// commit (so the workspace holds what git checks out, never a working-tree
+// copy), the launch executor (the port the launcher hands the descriptor to)
+// records each launch and hands the descriptor to the fake delivery tooling,
+// the notification stream's response is a fake that hands each frame to the
+// client's fake EventSource, and the state file writes are stubbed. Three
+// reads that no step asserts, the spec list, the bench's terminals and the
+// list of every project's benches, are answered by the stand-in in the shape
+// of their bodies. A request to any other route
+// answers 404 and is listed in the failure output. The hooks and components
+// that the journey does not cross (projects, integration, settings, plugins,
+// terminals, logs, issue controls) are stubbed as in the page suites.
 //
 // The delivery was started elsewhere: its record is copied into the spec folder
 // of the project checkout and committed there, two units in, and no session
@@ -52,74 +56,93 @@
 // divergence reports the step that diverged, the expected versus the actual at
 // that step, and the owning slice(s) from this journey's blocked-by set.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { promisify } from "node:util";
 import express from "express";
 import request from "supertest";
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Bench, RegisteredProject } from "@roubo/shared";
-import { SPEC_BENCH_BIND_MODES } from "@roubo/shared";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
-  validateDeliveryEvent,
   validateDeliveryRecord,
   type DeliveryEvent,
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
-import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import {
   DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
   DELIVERY_RECORD_FILE,
-  summarizeSpecDelivery,
-  type DeliveryEventsResponse,
   type DeliveryLaunchDescriptor,
-  type DeliveryReadError,
-  type DeliveryStreamFrame,
-  type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
 
-// ── Server services behind the real resume route ──
+// ── Stand-ins below the real routes ──
 //
-// The bench manager hands the route the stand-in's benches, and the session
-// launcher hands the launch to the stand-in, with the options the route passed.
-// The terminal service and persisted state stay out of this file, as in the
-// route suites.
+// The bench manager keeps the stand-in's benches and delegates the create and
+// the workspace provisioning to it. The project registry names the fixture
+// project. The terminal service has no live session, and the state file writes
+// are stubbed, as in the route suites.
 
-interface LaunchOptions {
-  resume?: string;
+interface CreateBenchOptions {
+  variant?: string;
+  focusedSpecPath?: string;
+  delivery?: { mode: string; decisionMode?: string };
 }
 
-const routeServices = vi.hoisted(() => ({
-  benches: [] as Bench[],
-  workspaceRoot: "",
-  launch: undefined as
-    ((bench: Bench, options?: LaunchOptions) => { sessionId?: string }) | undefined,
-}));
+const routeServices = vi.hoisted(() => {
+  class BenchError extends Error {
+    constructor(
+      message: string,
+      readonly code: string,
+    ) {
+      super(message);
+      this.name = "BenchError";
+    }
+  }
+  return {
+    BenchError,
+    benches: [] as Bench[],
+    project: undefined as unknown,
+    createBench: undefined as
+      ((projectId: string, branch?: string, options?: CreateBenchOptions) => Bench) | undefined,
+    provisioned: new Map<number, Promise<void>>(),
+  };
+});
 
 vi.mock("../../../../server/services/bench-manager.js", () => ({
+  BenchError: routeServices.BenchError,
   getBench: vi.fn((projectId: string, benchId: number) =>
     routeServices.benches.find((bench) => bench.projectId === projectId && bench.id === benchId),
   ),
-  whenWorkspaceProvisioned: vi.fn(async () => undefined),
-}));
-vi.mock("../../../../server/services/delivery-session-launcher.js", () => ({
-  DeliveryLaunchBlockedError: class extends Error {},
-  deliveryLaunchBlock: vi.fn(() => undefined),
-  handOutDeliveryToken: vi.fn(),
-  launchDeliverySession: vi.fn(async (bench: Bench, options?: LaunchOptions) => {
-    if (routeServices.launch === undefined) throw new Error("no launcher stand-in is set");
-    return routeServices.launch(bench, options);
+  getBenches: vi.fn((projectId: string) =>
+    routeServices.benches.filter((bench) => bench.projectId === projectId),
+  ),
+  createBench: vi.fn((projectId: string, branch?: string, options?: CreateBenchOptions) => {
+    if (routeServices.createBench === undefined) throw new Error("no bench manager stand-in");
+    return routeServices.createBench(projectId, branch, options);
   }),
-  whenDeliveryBound: vi.fn(async () => undefined),
+  whenWorkspaceProvisioned: vi.fn(
+    (_projectId: string, benchId: number) =>
+      routeServices.provisioned.get(benchId) ?? Promise.resolve(),
+  ),
+  isBenchLive: vi.fn(() => true),
 }));
+vi.mock("../../../../server/services/project-registry.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    getProject: vi.fn(() => routeServices.project),
+    resolveEnforceIssueDependencies: vi.fn(() => false),
+  };
+});
 vi.mock("../../../../server/services/terminal.js", () => ({
   getSession: vi.fn(),
   getSessionScrollback: vi.fn(),
@@ -128,6 +151,36 @@ vi.mock("../../../../server/services/state.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, updateBench: vi.fn(), loadSettings: vi.fn(() => ({})) };
 });
+// The services of the benches routes that the journey does not cross.
+vi.mock("../../../../server/services/tool-launcher.js", () => ({
+  getResolvedTools: vi.fn(),
+  executeTool: vi.fn(),
+}));
+vi.mock("../../../../server/services/issue-assignment.js", () => ({
+  createBenchAndAssignFromIssue: vi.fn(),
+}));
+vi.mock("../../../../server/routes/plugin-route-helpers.js", () => ({
+  getActivePluginOrRespond: vi.fn(),
+  fetchPluginComments: vi.fn(),
+  resolveActivePluginQuiet: vi.fn(),
+}));
+vi.mock("../../../../server/services/plugin-manager.js", () => ({
+  invoke: vi.fn(),
+  getAgentManifests: vi.fn(() => []),
+  getRecord: vi.fn(),
+  getConnection: vi.fn(),
+  HOST_API_VERSION: "1.4.0",
+}));
+vi.mock("../../../../server/services/start-gate.js", () => ({
+  assertGateOpen: vi.fn(),
+  fetchIssueForStart: vi.fn(),
+}));
+vi.mock("../../../../server/services/active-plugin.js", () => ({
+  resolveActivePlugin: vi.fn(),
+}));
+vi.mock("../../../../server/services/git-state.js", () => ({
+  getDirtyState: vi.fn(),
+}));
 
 // ── Stubs for what the journey does not cross ──
 
@@ -242,14 +295,18 @@ function owners(blockedBy: BlockedBySlice[], outside: OutsideSlice[] = []): stri
 // ── Fixture project and record (SB-TC-007 preconditions) ──
 
 const PROJECT_ID = "demo";
-const REPO_PATH = "/repos/demo";
 const SPEC_SLUG = "fixture-spec";
 const SPEC_FOLDER = `.specifications/${SPEC_SLUG}`;
+
+// The scratch folder of a test, the project checkout (a git repository) in it,
+// and the folder the benches' workspaces go in.
+let scratch: string;
+let checkout: string;
 
 function fixtureProject(): RegisteredProject {
   return {
     id: PROJECT_ID,
-    repoPath: REPO_PATH,
+    repoPath: checkout,
     configValid: true,
     config: {
       project: { displayName: "Demo", name: "demo", repo: "" },
@@ -295,6 +352,57 @@ function event(seq: number, type: string, payload: Record<string, unknown>, unit
   return envelope;
 }
 
+// ── The project checkout ──
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "core.hooksPath=/dev/null",
+      ...args,
+    ],
+    { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+}
+
+const gitAsync = promisify(execFile);
+
+// A checkout on `main` whose spec folder is committed, with `main` as origin's
+// default branch as last fetched. Nothing is fetched or pushed: the record a
+// test commits is a local commit that origin does not have yet.
+function createCheckout(): void {
+  scratch = realpathSync(mkdtempSync(join(tmpdir(), "spec-bench-attach-journey-")));
+  checkout = join(scratch, "checkout");
+  mkdirSync(join(checkout, SPEC_FOLDER), { recursive: true });
+  git(checkout, "init", "-q", "-b", "main");
+  writeFileSync(join(checkout, SPEC_FOLDER, "prd.md"), `# ${SPEC_SLUG}\n`);
+  git(checkout, "add", "--", SPEC_FOLDER);
+  git(checkout, "commit", "-q", "-m", "spec");
+  git(checkout, "update-ref", "refs/remotes/origin/main", "HEAD");
+  git(checkout, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  mkdirSync(join(scratch, "workspaces"));
+}
+
+const CHECKOUT_RECORD = join(SPEC_FOLDER, DELIVERY_RECORD_FILE);
+
+// A copy of the record into the spec folder of the checkout's working tree.
+function copyIntoCheckout(record: DeliveryRecord): void {
+  writeFileSync(join(checkout, CHECKOUT_RECORD), `${JSON.stringify(record, null, 2)}\n`);
+}
+
+// A commit of the working tree's record on the checked-out branch.
+function commitCheckoutRecord(): void {
+  git(checkout, "add", "--", CHECKOUT_RECORD);
+  git(checkout, "commit", "-q", "-m", "delivery record");
+}
+
 // ── The network stand-in ──
 
 interface StandInResponse {
@@ -325,15 +433,57 @@ interface FakeEventSource {
   close: () => void;
 }
 
-// The real delivery router and event log, loaded once the mocks above are in
-// place. The specifier is built at run time so that the client's type check,
-// whose root is client/src, does not take in the server's sources; the shape
-// the journey uses of each module is declared here.
+// What the launcher hands its executor, as the journey reads it.
+interface LaunchRequest {
+  projectId: string;
+  benchId: number;
+  workspacePath: string;
+  specSlug: string;
+  descriptor: DeliveryLaunchDescriptor;
+}
+
+interface LaunchExecutor {
+  launch(request: LaunchRequest): Promise<{ sessionId?: string }>;
+}
+
+// The fake response the notification stream writes to: the part of an
+// express Response that server/services/sse.ts uses.
+interface StreamResponse {
+  setHeader(name: string, value: string): void;
+  flushHeaders(): void;
+  write(chunk: string): boolean;
+  on(event: string, listener: () => void): void;
+}
+
+// The real routers and services, loaded once the mocks above are in place. The
+// specifier is built at run time so that the client's type check, whose root is
+// client/src, does not take in the server's sources; the shape the journey
+// uses of each module is declared here.
 const SERVER_ROOT = "../../../../server";
 
 interface ServerModules {
+  benches: { default: express.Router };
   delivery: { default: express.Router };
+  deliveryHooks: { default: express.Router; deliveryEventBodyParser: express.RequestHandler };
+  specbenchSpecs: { default: express.Router };
   eventLog: { forgetDeliveryEventLog: () => void };
+  controlOutbox: { forgetDeliveryControlMemory: () => void };
+  launcher: {
+    setDeliveryLaunchExecutor: (executor: LaunchExecutor) => void;
+    resetDeliveryLaunchExecutor: () => void;
+    whenDeliveryBound: (projectId: string, benchId: number) => Promise<void>;
+  };
+  gitHelpers: {
+    resolveWorktreeStartCommit: (
+      repoPath: string,
+      source: { branchFromDefault: boolean; pullLatest: boolean },
+    ) => Promise<string | null>;
+  };
+  sse: {
+    addClient: (res: StreamResponse) => void;
+    broadcastBenchStatus: (bench: Bench) => void;
+    _resetClientsForTest: () => void;
+  };
 }
 
 async function loadServerModule<T>(file: string): Promise<T> {
@@ -342,51 +492,87 @@ async function loadServerModule<T>(file: string): Promise<T> {
 
 async function loadServerModules(): Promise<ServerModules> {
   return {
+    benches: await loadServerModule<ServerModules["benches"]>("routes/benches.js"),
     delivery: await loadServerModule<ServerModules["delivery"]>("routes/delivery.js"),
+    deliveryHooks: await loadServerModule<ServerModules["deliveryHooks"]>(
+      "routes/delivery-hooks.js",
+    ),
+    specbenchSpecs: await loadServerModule<ServerModules["specbenchSpecs"]>(
+      "routes/specbench-specs.js",
+    ),
     eventLog: await loadServerModule<ServerModules["eventLog"]>("services/delivery-event-log.js"),
+    controlOutbox: await loadServerModule<ServerModules["controlOutbox"]>(
+      "services/delivery-control-outbox.js",
+    ),
+    launcher: await loadServerModule<ServerModules["launcher"]>(
+      "services/delivery-session-launcher.js",
+    ),
+    gitHelpers: await loadServerModule<ServerModules["gitHelpers"]>("services/git-helpers.js"),
+    sse: await loadServerModule<ServerModules["sse"]>("services/sse.js"),
   };
 }
 
 type SupertestMethod = (url: string) => request.Test;
 
+const BASE = `/api/projects/${PROJECT_ID}`;
+
+// The requests that the real routers answer.
+const REAL_ROUTES: { methods: string[]; path: RegExp }[] = [
+  { methods: ["GET", "POST"], path: new RegExp(`^${BASE}/benches$`) },
+  { methods: ["GET"], path: new RegExp(`^${BASE}/benches/\\d+$`) },
+  { methods: ["DELETE"], path: new RegExp(`^${BASE}/benches/\\d+/notifications$`) },
+  { methods: ["GET", "POST", "PUT"], path: new RegExp(`^${BASE}/benches/\\d+/delivery(/.*)?$`) },
+  { methods: ["GET"], path: new RegExp(`^${BASE}/specbench/specs/[^/]+/summary$`) },
+  { methods: ["POST"], path: new RegExp(`^${DELIVERY_EVENT_HOOK_PATH}$`) },
+  { methods: ["GET"], path: new RegExp(`^${DELIVERY_CONTROLS_HOOK_PATH}$`) },
+];
+
 class RouboServerStandIn {
-  benches: Bench[] = [];
   createRequests: unknown[] = [];
   unrouted: string[] = [];
-  launches: DeliveryLaunchDescriptor[] = [];
-  // The options the real resume route passed to the session launcher.
-  launcherOptions: (LaunchOptions | undefined)[] = [];
+  // Each launch the real launcher handed its executor.
+  launches: LaunchRequest[] = [];
   private readonly app = express();
-  private readonly workspaces: string;
-  // The record in the spec folder of the checkout's working tree, and the
-  // record committed at the commit a new bench's worktree starts from.
-  private workingTreeRecord: DeliveryRecord | undefined;
-  private committedRecord: DeliveryRecord | undefined;
-  private records = new Map<number, DeliveryRecord>();
-  private events = new Map<number, DeliveryEvent[]>();
-  private tokens = new Map<number, string>();
+  private readonly modules: ServerModules;
   private streams: FakeEventSource[] = [];
   private onLaunch: ((descriptor: DeliveryLaunchDescriptor) => void) | undefined;
 
-  // The delivery router mounted as server/index.ts mounts it, behind the
-  // global JSON parser, with the stand-in's benches and launcher behind it.
+  // The routers mounted as server/index.ts mounts them, behind the delivery
+  // event parser and the global JSON parser.
   constructor(modules: ServerModules) {
-    this.workspaces = mkdtempSync(join(routeServices.workspaceRoot, "server-"));
+    this.modules = modules;
+    this.app.use(DELIVERY_EVENT_HOOK_PATH, modules.deliveryHooks.deliveryEventBodyParser);
     this.app.use(express.json({ limit: "210kb" }));
+    this.app.use("/api/projects", modules.benches.default);
     this.app.use("/api/projects", modules.delivery.default);
-    routeServices.benches = this.benches;
-    routeServices.launch = (bench, options) => {
-      this.launcherOptions.push(options);
-      this.launch(bench, options ?? {});
-      return { sessionId: bench.deliverySessionId };
-    };
+    this.app.use("/api/projects", modules.specbenchSpecs.default);
+    this.app.use("/api/hooks", modules.deliveryHooks.default);
+    routeServices.benches = [];
+    routeServices.provisioned = new Map();
+    routeServices.project = fixtureProject();
+    routeServices.createBench = (projectId, _branch, options) =>
+      this.createBench(projectId, options ?? {});
+    modules.launcher.setDeliveryLaunchExecutor({
+      launch: async (launch) => {
+        this.launches.push(launch);
+        this.onLaunch?.(launch.descriptor);
+        return { sessionId: `delivery-session-${launch.benchId}-${this.launches.length}` };
+      },
+    });
+  }
+
+  get benches(): Bench[] {
+    return routeServices.benches;
   }
 
   setLaunchExecutor(onLaunch: (descriptor: DeliveryLaunchDescriptor) => void): void {
     this.onLaunch = onLaunch;
   }
 
+  // A client EventSource: the real notification stream service holds a fake
+  // response for it, which hands each `data:` frame to the source.
   openStream(): FakeEventSource {
+    const closed: (() => void)[] = [];
     const source: FakeEventSource = {
       onmessage: null,
       onerror: null,
@@ -394,84 +580,59 @@ class RouboServerStandIn {
       readyState: 1,
       close: () => {
         source.readyState = 2;
+        for (const listener of closed) listener();
       },
     };
+    const response: StreamResponse = {
+      setHeader: () => undefined,
+      flushHeaders: () => undefined,
+      write: (chunk) => {
+        for (const line of chunk.split("\n")) {
+          if (line.startsWith("data: ") && source.readyState === 1) {
+            source.onmessage?.({ data: line.slice("data: ".length) } as MessageEvent);
+          }
+        }
+        return true;
+      },
+      on: (name, listener) => {
+        if (name === "close") closed.push(listener);
+      },
+    };
+    this.modules.sse.addClient(response);
     this.streams.push(source);
     return source;
   }
 
-  // A copy of the record into the spec folder of the checkout: the working
-  // tree only.
-  copyIntoCheckout(record: DeliveryRecord): void {
-    this.workingTreeRecord = copy(record);
-  }
-
-  // A commit of the working tree's record on the branch a new bench's worktree
-  // starts from.
-  commitCheckoutRecord(): void {
-    this.committedRecord = this.workingTreeRecord && copy(this.workingTreeRecord);
-  }
-
-  workspaceReady(benchId: number): void {
-    const bench = this.benches.find((b) => b.id === benchId);
-    if (bench) bench.status = "active";
+  close(): void {
+    for (const stream of this.streams) stream.close();
+    this.modules.launcher.resetDeliveryLaunchExecutor();
   }
 
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<StandInResponse> {
     const url = new URL(String(input), "http://localhost");
     const method = (init?.method ?? "GET").toUpperCase();
-    const headers = (init?.headers ?? {}) as Record<string, string>;
-    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
-    const base = `/api/projects/${PROJECT_ID}`;
     const path = url.pathname;
-    let match: RegExpExecArray | null;
 
-    if (method === "GET" && (path === `${base}/benches` || path === "/api/benches")) {
-      return respond(200, copy(this.benches));
+    if (method === "POST" && path === `${BASE}/benches` && typeof init?.body === "string") {
+      this.createRequests.push(JSON.parse(init.body) as unknown);
     }
-    if (method === "POST" && path === `${base}/benches`) return this.createBench(body);
-    if (method === "GET" && path === `${base}/testbench/specs`) {
-      return respond(200, { specs: [discoveredFixtureSpec()], invalid: [] });
-    }
-    if (method === "GET" && path === `${base}/specbench/specs/${SPEC_SLUG}/summary`) {
-      return respond(200, this.specSummary());
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)$`).exec(path)) && method === "GET") {
-      const bench = this.benches.find((b) => b.id === Number(match?.[1]));
-      return bench
-        ? respond(200, copy(bench))
-        : respond(404, { error: "Bench not found", code: "NOT_FOUND" });
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)/terminals$`).exec(path))) {
-      return respond(200, []);
-    }
-    // Opening a bench clears its notifications; the fixture bench has none.
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/notifications$`).exec(path)) &&
-      method === "DELETE"
-    ) {
-      return respond(200, []);
-    }
-    if ((match = new RegExp(`^${base}/benches/(\\d+)/delivery$`).exec(path)) && method === "GET") {
-      return this.readDelivery(Number(match[1]));
-    }
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/events$`).exec(path)) &&
-      method === "GET"
-    ) {
-      return this.readEvents(Number(match[1]), url.searchParams);
-    }
-    if (new RegExp(`^${base}/benches/\\d+/delivery/resume$`).test(path) && method === "POST") {
+    if (REAL_ROUTES.some((route) => route.methods.includes(method) && route.path.test(path))) {
       return this.routed(method, `${path}${url.search}`, init);
     }
-    if (method === "POST" && path === DELIVERY_EVENT_HOOK_PATH) {
-      return this.ingest(url.searchParams, headers.Authorization, body);
+    if (method === "GET" && path === "/api/benches") {
+      return respond(200, copy(routeServices.benches));
+    }
+    if (method === "GET" && path === `${BASE}/testbench/specs`) {
+      return respond(200, { specs: [discoveredFixtureSpec()], invalid: [] });
+    }
+    if (method === "GET" && new RegExp(`^${BASE}/benches/\\d+/terminals$`).test(path)) {
+      return respond(200, []);
     }
     this.unrouted.push(`${method} ${path}${url.search}`);
     return respond(404, { error: `The stand-in serves no ${method} ${path}`, code: "NOT_FOUND" });
   }
 
-  // A request that the real router answers, in-process, through supertest.
+  // A request that the real routers answer, in-process, through supertest.
   private async routed(
     method: string,
     target: string,
@@ -479,64 +640,31 @@ class RouboServerStandIn {
   ): Promise<StandInResponse> {
     const agent = request(this.app) as unknown as Record<string, SupertestMethod>;
     let pending = agent[method.toLowerCase()](target);
-    for (const [name, value] of Object.entries((init?.headers ?? {}) as Record<string, string>)) {
+    new Headers(init?.headers).forEach((value, name) => {
       pending = pending.set(name, value);
-    }
+    });
     const res = typeof init?.body === "string" ? await pending.send(init.body) : await pending;
     return respond(res.status, res.body as unknown);
   }
 
-  // GET /specbench/specs/fixture-spec/summary: the spec's unit and gate
-  // counts, and the committed record only, never the working tree's.
-  private specSummary(): SpecBenchSpecSummary {
-    const plan = twoUnitsInRecord();
-    const summary: SpecBenchSpecSummary = {
-      slug: SPEC_SLUG,
-      units: plan.units.length,
-      gates: plan.stack.gates.length,
-    };
-    const validated =
-      this.committedRecord === undefined ? undefined : validateDeliveryRecord(this.committedRecord);
-    if (validated?.ok === true) summary.delivery = summarizeSpecDelivery(validated.data);
-    return summary;
-  }
-
-  // POST /api/projects/:projectId/benches with variant specbench, as the real
-  // route validates it. An attached bench launches nothing and mints nothing.
-  // Its workspace, a temporary folder, holds what its worktree checks out: the
-  // committed record, when there is one, and never the working tree's copy.
-  private createBench(body: unknown): StandInResponse {
-    this.createRequests.push(body);
-    const request = (body ?? {}) as {
-      variant?: unknown;
-      focusedSpecPath?: unknown;
-      delivery?: { mode?: unknown } | null;
-    };
-    if (request.variant !== "specbench") {
-      return respond(400, { error: "The journey sets up a specbench variant", code: "INVALID" });
+  // The bench manager's create, below the real benches route: it claims the
+  // bench and provisions its workspace as a git worktree of the checkout at the
+  // commit that the real resolveWorktreeStartCommit names, so the workspace
+  // holds what that commit holds and nothing of the checkout's working tree.
+  private createBench(projectId: string, options: CreateBenchOptions): Bench {
+    const folder = resolve(checkout, options.focusedSpecPath ?? "");
+    if (folder !== join(checkout, SPEC_FOLDER) || !existsSync(folder)) {
+      throw new routeServices.BenchError(
+        `Invalid focusedSpecPath: no spec folder ${String(options.focusedSpecPath)}`,
+        "INVALID_FOCUS",
+      );
     }
-    const mode = request.delivery?.mode;
-    if (typeof mode !== "string" || !(SPEC_BENCH_BIND_MODES as readonly string[]).includes(mode)) {
-      return respond(400, {
-        error: `delivery.mode must be one of ${SPEC_BENCH_BIND_MODES.join(", ")} for a specbench variant`,
-        code: "INVALID_DELIVERY",
-      });
-    }
-    const folder = String(request.focusedSpecPath ?? "").replace(/\/+$/, "");
-    if (folder !== SPEC_FOLDER && folder !== `${REPO_PATH}/${SPEC_FOLDER}`) {
-      return respond(400, {
-        error: `Invalid focusedSpecPath: no spec folder ${String(request.focusedSpecPath)}`,
-        code: "INVALID_FOCUS",
-      });
-    }
-    const id = this.benches.length + 1;
-    const workspacePath = join(this.workspaces, `bench-${id}`);
-    mkdirSync(join(workspacePath, SPEC_FOLDER), { recursive: true });
+    const id = routeServices.benches.length + 1;
     const bench: Bench = {
       id,
-      projectId: PROJECT_ID,
+      projectId,
       branch: `bench-${id}`,
-      workspacePath,
+      workspacePath: join(scratch, "workspaces", `bench-${id}`),
       status: "preparing",
       ports: {},
       components: {},
@@ -545,147 +673,40 @@ class RouboServerStandIn {
       teardownSteps: [],
       notifications: [],
       variant: "specbench",
-      focusedSpecPath: `${REPO_PATH}/${SPEC_FOLDER}`,
-      deliveryBindMode: mode as Bench["deliveryBindMode"],
+      focusedSpecPath: folder,
+      ...(options.delivery && {
+        deliveryBindMode: options.delivery.mode as Bench["deliveryBindMode"],
+      }),
     };
-    this.benches.push(bench);
-    if (this.committedRecord !== undefined) {
-      this.records.set(id, copy(this.committedRecord));
-      writeFileSync(
-        join(workspacePath, SPEC_FOLDER, DELIVERY_RECORD_FILE),
-        `${JSON.stringify(this.committedRecord, null, 2)}\n`,
+    routeServices.benches.push(bench);
+    routeServices.provisioned.set(id, this.provision(bench));
+    return bench;
+  }
+
+  private async provision(bench: Bench): Promise<void> {
+    const project = fixtureProject();
+    const start = await this.modules.gitHelpers.resolveWorktreeStartCommit(
+      project.repoPath,
+      project.settings.worktreeSource,
+    );
+    if (start === null) {
+      bench.status = "error";
+    } else {
+      await gitAsync(
+        "git",
+        ["worktree", "add", "-q", "-b", bench.branch, bench.workspacePath, start],
+        { cwd: checkout },
       );
+      bench.status = "active";
     }
-    if (mode === "launch") this.launch(bench, {});
-    return respond(201, copy(bench));
-  }
-
-  // The launch executor's side: a fresh token, the descriptor built from the
-  // options the launch was given, and the session recorded on the bench.
-  private launch(bench: Bench, options: { resume?: string }): DeliveryLaunchDescriptor {
-    const token = `token-${bench.id}-${Math.random().toString(36).slice(2)}`;
-    this.tokens.set(bench.id, token);
-    bench.deliverySessionId = `delivery-session-${bench.id}-${this.launches.length + 1}`;
-    const query = new URLSearchParams({ projectId: PROJECT_ID, benchId: String(bench.id) });
-    const descriptor: DeliveryLaunchDescriptor = {
-      eventUrl: `http://localhost:4000${DELIVERY_EVENT_HOOK_PATH}?${query.toString()}`,
-      controlsUrl: `http://localhost:4000${DELIVERY_CONTROLS_HOOK_PATH}?${query.toString()}`,
-      token,
-      ...(options.resume !== undefined && { resume: options.resume }),
-    };
-    this.launches.push(descriptor);
-    this.onLaunch?.(descriptor);
-    return descriptor;
-  }
-
-  private loadRecord(
-    benchId: number,
-  ): { ok: true; record: DeliveryRecord } | { ok: false; error: DeliveryReadError } {
-    const raw = this.records.get(benchId);
-    if (raw === undefined) {
-      return {
-        ok: false,
-        error: {
-          code: "DELIVERY_RECORD_MISSING",
-          error: "No delivery record yet in the spec folder of the bench workspace",
-        },
-      };
-    }
-    const validated = validateDeliveryRecord(raw);
-    if (!validated.ok) {
-      return {
-        ok: false,
-        error: { code: "DELIVERY_INVALID", error: validated.errors.join("; ") },
-      };
-    }
-    return { ok: true, record: validated.data };
-  }
-
-  private readDelivery(benchId: number): StandInResponse {
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    const events = this.events.get(benchId) ?? [];
-    return respond(200, foldDelivery({ record: loaded.record, events, now: Date.now() }));
-  }
-
-  private readEvents(benchId: number, query: URLSearchParams): StandInResponse {
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    const after = query.get("after");
-    const unit = query.get("unit");
-    const accepted = this.events.get(benchId) ?? [];
-    const body: DeliveryEventsResponse = {
-      events: accepted.filter(
-        (item) =>
-          (after === null || item.seq > Number(after)) && (unit === null || item.unit_id === unit),
-      ),
-      acceptedSeq: accepted.at(-1)?.seq ?? loaded.record.last_event_seq,
-    };
-    if (unit !== null) body.folded = 0;
-    return respond(200, body);
-  }
-
-  // POST /api/hooks/delivery-event: the token first, then the envelopes, then
-  // the sequence, then a delivery frame on the notification stream.
-  private ingest(
-    query: URLSearchParams,
-    authorization: string | null,
-    body: unknown,
-  ): StandInResponse {
-    const benchId = Number(query.get("benchId"));
-    const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? "")?.[1];
-    if (
-      query.get("projectId") !== PROJECT_ID ||
-      token === undefined ||
-      this.tokens.get(benchId) !== token
-    ) {
-      return respond(401, { error: "A valid delivery token is required", code: "UNAUTHORIZED" });
-    }
-    const raw =
-      typeof body === "object" && body !== null && "events" in body
-        ? (body as { events: unknown[] }).events
-        : [body];
-    const loaded = this.loadRecord(benchId);
-    const accepted = this.events.get(benchId) ?? [];
-    let seq = accepted.at(-1)?.seq ?? (loaded.ok ? loaded.record.last_event_seq : 0);
-    for (const [index, item] of raw.entries()) {
-      const validated = validateDeliveryEvent(item);
-      if (!validated.ok) {
-        return respond(400, {
-          error: `Invalid delivery event at index ${index}: ${validated.errors.join("; ")}`,
-          code: "INVALID_EVENT",
-        });
-      }
-      if (validated.data.seq !== seq + 1) {
-        return respond(409, {
-          error: `Expected seq ${seq + 1}, got ${validated.data.seq}`,
-          code: "SEQ_GAP",
-        });
-      }
-      seq = validated.data.seq;
-      accepted.push(validated.data);
-    }
-    this.events.set(benchId, accepted);
-    const frame: DeliveryStreamFrame = {
-      type: "delivery",
-      projectId: PROJECT_ID,
-      benchId,
-      change: "snapshot",
-      seq,
-    };
-    for (const stream of this.streams) {
-      if (stream.readyState === 1) {
-        stream.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
-      }
-    }
-    return respond(202, { acceptedSeq: seq });
+    this.modules.sse.broadcastBenchStatus(bench);
   }
 }
 
 function discoveredFixtureSpec() {
   return {
     slug: SPEC_SLUG,
-    path: `${REPO_PATH}/${SPEC_FOLDER}/test-cases.json`,
+    path: `${checkout}/${SPEC_FOLDER}/test-cases.json`,
     caseCount: 2,
     verification: {
       classification: "needs-attention",
@@ -702,8 +723,8 @@ function discoveredFixtureSpec() {
 
 // ── The fake delivery tooling ──
 //
-// It holds the launch descriptor the stand-in hands it on a resume, and posts
-// its events to the event URL with the token.
+// It holds the launch descriptor the launch executor hands it, and posts its
+// events to the event URL with the token.
 class FakeDeliveryTooling {
   descriptor: DeliveryLaunchDescriptor | undefined;
 
@@ -819,20 +840,26 @@ function healthChip(): HTMLElement {
   return within(rail).getByTestId("delivery-health-chip");
 }
 
+// The created bench, once the real create-time binding has run: its workspace
+// is provisioned and the launcher has decided whether to launch.
+async function boundBench(): Promise<Bench> {
+  await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
+  const bench = server.benches[0];
+  await serverModules.launcher.whenDeliveryBound(PROJECT_ID, bench.id);
+  return bench;
+}
+
 let serverModules: ServerModules;
 
 beforeAll(async () => {
-  routeServices.workspaceRoot = mkdtempSync(join(tmpdir(), "spec-bench-attach-journey-"));
   serverModules = await loadServerModules();
-});
-
-afterAll(() => {
-  rmSync(routeServices.workspaceRoot, { recursive: true, force: true });
 });
 
 beforeEach(() => {
   localStorage.clear();
   serverModules.eventLog.forgetDeliveryEventLog();
+  serverModules.controlOutbox.forgetDeliveryControlMemory();
+  createCheckout();
   server = new RouboServerStandIn(serverModules);
   vi.stubGlobal(
     "fetch",
@@ -852,8 +879,12 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  server.close();
+  serverModules.sse._resetClientsForTest();
   vi.unstubAllGlobals();
   serverModules.eventLog.forgetDeliveryEventLog();
+  serverModules.controlOutbox.forgetDeliveryControlMemory();
+  rmSync(scratch, { recursive: true, force: true });
 });
 
 describe("Spec Bench attach journey", () => {
@@ -872,8 +903,8 @@ describe("Spec Bench attach journey", () => {
       owners(["launcher"]),
       () => {
         expect(validateDeliveryRecord(record).ok).toBe(true);
-        server.copyIntoCheckout(record);
-        server.commitCheckoutRecord();
+        copyIntoCheckout(record);
+        commitCheckoutRecord();
         renderRoubo();
       },
     );
@@ -918,19 +949,19 @@ describe("Spec Bench attach journey", () => {
       owners(["launcher"], ["setup", "health", "map"]),
       async () => {
         await user.click(choice(setupDialog(), /confirm|set up/i));
-        await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
+        const bench = await boundBench();
         expect(server.createRequests.at(-1)).toMatchObject({
           variant: "specbench",
           focusedSpecPath: expect.stringContaining(SPEC_FOLDER),
           delivery: { mode: "attach" },
         });
+        expect(bench.status, "the bench workspace was not provisioned").toBe("active");
         expect(server.launches, "an attach launched a session").toHaveLength(0);
-        const created = server.benches[0].id;
-        server.workspaceReady(created);
+        expect(bench.deliveryTokenHash, "an attach minted a delivery token").toBeUndefined();
         await user.click(
           await screen.findByRole(
             "link",
-            { name: new RegExp(`Bench ${created}`) },
+            { name: new RegExp(`Bench ${bench.id}`) },
             { timeout: 3000 },
           ),
         );
@@ -948,7 +979,7 @@ describe("Spec Bench attach journey", () => {
         expect(chip).toHaveAttribute("data-health", "attached");
         expect(chip).toHaveTextContent(/^attached$/);
         expect(chip).not.toHaveAttribute("data-tone", "active");
-        return created;
+        return bench.id;
       },
     );
 
@@ -964,14 +995,16 @@ describe("Spec Bench attach journey", () => {
         await waitFor(() => expect(resume).toBeEnabled());
         await user.click(resume);
         await waitFor(() => expect(server.launches).toHaveLength(1), { timeout: 3000 });
+        const [launch] = server.launches;
         const bench = server.benches.find((b) => b.id === benchId);
-        // The options are what the real resume route passed to the launcher,
-        // and the tooling's descriptor is built from them.
-        expect(server.launcherOptions, "the options the resume route launched with").toEqual([
-          { resume: record.delivery_id },
-        ]);
-        expect(tooling.descriptor?.resume).toBe(record.delivery_id);
-        expect(bench?.deliverySessionId).toBeDefined();
+        // The descriptor is the one the real launcher built for the resume.
+        expect(launch.benchId).toBe(benchId);
+        expect(launch.specSlug).toBe(SPEC_SLUG);
+        expect(launch.workspacePath).toBe(bench?.workspacePath);
+        expect(launch.descriptor.resume, "the resume argument the session launched with").toBe(
+          record.delivery_id,
+        );
+        expect(bench?.deliverySessionId).toBe(`delivery-session-${benchId}-1`);
         // No event has arrived yet, so the chip is not active.
         expect(healthChip()).not.toHaveAttribute("data-tone", "active");
 
@@ -994,7 +1027,7 @@ describe("Spec Bench attach journey", () => {
 
   it("SB-TC-007: a record copied into fixture-spec but not committed is neither shown nor joined", async () => {
     const user = userEvent.setup();
-    server.copyIntoCheckout(twoUnitsInRecord());
+    copyIntoCheckout(twoUnitsInRecord());
     renderRoubo();
 
     await user.click(await findSetUpSpecBench(user));
@@ -1009,10 +1042,13 @@ describe("Spec Bench attach journey", () => {
     expect(within(setupDialog()).queryByTestId("specbench-setup-summary-progress")).toBeNull();
 
     await user.click(choice(setupDialog(), /confirm|set up/i));
-    await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
-    const read = await server.fetch(
-      `/api/projects/${PROJECT_ID}/benches/${server.benches[0].id}/delivery`,
-    );
+    const bench = await boundBench();
+    expect(bench.status, "the bench workspace was not provisioned").toBe("active");
+    // The checkout's working tree holds the record, and the bench's worktree,
+    // checked out from the commit, holds the spec folder without it.
+    expect(existsSync(join(checkout, CHECKOUT_RECORD))).toBe(true);
+    expect(existsSync(join(bench.workspacePath, SPEC_FOLDER))).toBe(true);
+    const read = await server.fetch(`${BASE}/benches/${bench.id}/delivery`);
     expect(read.status).toBe(409);
     expect(await read.json()).toMatchObject({ code: "DELIVERY_RECORD_MISSING" });
   });

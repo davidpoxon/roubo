@@ -260,6 +260,46 @@ describe("GET /:projectId/specbench/specs/:slug/summary", () => {
     expect(res.body.delivery).toBeUndefined();
   });
 
+  it("SB-TC-007: with Pull latest but not Branch from default branch, reads origin's copy of the checked-out branch", async () => {
+    const other = withOrigin();
+    useWorktreeSource(false, true);
+    git(repo, "checkout", "-q", "-b", "feature");
+    git(repo, "push", "-q", "-u", "origin", "feature");
+    git(other, "fetch", "-q", "origin");
+    git(other, "checkout", "-q", "-b", "feature", "origin/feature");
+    commitRecord("fixture-spec", twoUnitsIn(), other);
+    git(other, "push", "-q", "origin", "feature");
+    const unfetched = await request(app).get(SUMMARY);
+    expect(unfetched.body.delivery).toBeUndefined();
+
+    git(repo, "fetch", "-q", "origin");
+    // Only origin/feature holds the record: neither the local branch nor
+    // origin's default branch does.
+    expect(git(repo, "ls-tree", "-r", "--name-only", "origin/main")).not.toContain(
+      DELIVERY_RECORD_FILE,
+    );
+    expect(git(repo, "ls-tree", "-r", "--name-only", "feature")).not.toContain(
+      DELIVERY_RECORD_FILE,
+    );
+    const fetched = await request(app).get(SUMMARY);
+    expect(fetched.body.delivery).toEqual(deliveryOf(twoUnitsIn(), 2));
+  });
+
+  it("SB-TC-007: with Pull latest but not Branch from default branch, names no delivery on a detached HEAD", async () => {
+    withOrigin();
+    commitRecord("fixture-spec", twoUnitsIn());
+    git(repo, "checkout", "-q", "--detach", "HEAD");
+    // Without Pull latest the detached HEAD is the start, and it holds the record.
+    useWorktreeSource(false, false);
+    const atHead = await request(app).get(SUMMARY);
+    expect(atHead.body.delivery).toEqual(deliveryOf(twoUnitsIn(), 2));
+
+    useWorktreeSource(false, true);
+    const res = await request(app).get(SUMMARY);
+    expect(res.status).toBe(200);
+    expect(res.body.delivery).toBeUndefined();
+  });
+
   it("SB-TC-007: names no delivery for a committed record over the size limit", async () => {
     // Valid JSON once parsed, so only the size check leaves the delivery out.
     const folder = path.join(repo, ".specifications", "fixture-spec");
