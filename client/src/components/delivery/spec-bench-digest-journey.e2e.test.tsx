@@ -256,12 +256,11 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is exactly this journey's blocked-by set, and every step names at
-// least one of them. A slice that a step also crosses but that sits outside the
-// blocked-by set is labelled apart.
+// This journey's blocked-by set is one slice, and OWNERS names it, so every
+// step names that slice. A slice that a step also crosses but that sits outside
+// the blocked-by set is labelled apart.
 const OWNERS = {
-  digest: "'Since-you-left digest of the delivery' (SB-FR-012, SB-US-012)",
-  catchUp: "the blocked-by slice that shares SB-FR-012 and SB-US-012 with the digest",
+  digest: "'Since-you-left digest' (SB-FR-012, SB-US-012)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
@@ -947,7 +946,7 @@ describe("Spec Bench digest journey", () => {
     await step(
       "1. View the bench and leave it",
       `the bench opens on its Delivery tab with no digest, its view is stored as the last view at seq ${RECORD_SEQ}, and the operator leaves`,
-      owners(["digest", "catchUp"], ["launcher"]),
+      owners(["digest"], ["launcher"]),
       async () => {
         const view = renderRoubo();
         await openBench(bench.id, user);
@@ -971,7 +970,7 @@ describe("Spec Bench digest journey", () => {
     await step(
       "2. Post events covering a unit done, a decision proceeded on default and a drift entry",
       `the event endpoint accepts the four events of the time away with the token, up to seq ${LAST_SEQ}`,
-      owners(["catchUp"], ["ingest", "reducer"]),
+      owners(["digest"], ["ingest", "reducer"]),
       async () => {
         const status = await tooling.post(timeAwayEvents());
         expect(status).toBe(202);
@@ -988,7 +987,7 @@ describe("Spec Bench digest journey", () => {
     await step(
       "3. Reopen the bench",
       `the digest opens first, above the rest of the delivery, and lists the three changes: unit ${DONE_UNIT} running to done, ${DEFAULTED_DECISION_ID} defaulted, and the drift entry "${DRIFT_SUMMARY}"`,
-      owners(["digest", "catchUp"], ["reducer"]),
+      owners(["digest"], ["reducer"]),
       async () => {
         renderRoubo();
         await openBench(bench.id, user);
@@ -1040,7 +1039,7 @@ describe("Spec Bench digest journey", () => {
     await step(
       `4. Click the decision entry ${DEFAULTED_DECISION_ID}`,
       `the decision pile opens, in view and focused, with ${DEFAULTED_DECISION_ID} on top, its default "${DEFAULT_OPTION}" applied, and ${OPEN_DECISION_ID} under it`,
-      owners(["digest", "catchUp"], ["inbox", "reducer"]),
+      owners(["digest"], ["inbox", "reducer"]),
       async () => {
         const pile = () =>
           within(screen.getByRole("region", { name: "Decisions" })).getByRole("list", {
@@ -1094,7 +1093,7 @@ describe("Spec Bench digest journey", () => {
     await step(
       "5. Mark the digest seen",
       `the digest closes, the last view is stored at seq ${LAST_SEQ}, and after a reload the bench opens with no digest`,
-      owners(["digest", "catchUp"]),
+      owners(["digest"]),
       async () => {
         const digest = screen.getByTestId("delivery-digest");
         await user.click(within(digest).getByRole("button", { name: "Dismiss" }));
