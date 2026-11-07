@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench } from "@roubo/shared";
 import {
@@ -18,6 +18,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
   return {
     ...actual,
     fetchDelivery: vi.fn(),
+    fetchDeliveryCrossCheck: vi.fn(),
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
     fetchTerminals: vi.fn(),
@@ -103,6 +104,12 @@ beforeEach(() => {
   vi.mocked(api.resumeDelivery).mockReset();
   vi.mocked(api.launchDelivery).mockReset();
   vi.mocked(api.fetchTerminals).mockReset();
+  vi.mocked(api.fetchDeliveryCrossCheck).mockReset();
+  vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+    disagreements: [],
+    refreshedAt: null,
+    sourceError: null,
+  });
 });
 
 describe("DeliveryTabPanel", () => {
@@ -419,5 +426,44 @@ describe("DeliveryTabPanel", () => {
     ]);
     await act(() => queryClient.invalidateQueries({ queryKey: ["terminals"] }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
+  });
+
+  it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail within 5 seconds", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const classes = [
+      "branch-missing",
+      "head-commit-differs",
+      "layer-order-differs",
+      "pr-state-differs",
+      "base-branch-differs",
+      "gate-state-differs",
+      "case-status-differs",
+      "plan-hash-mismatch",
+      "record-stale",
+    ];
+    vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+      disagreements: classes.map((cls) => ({
+        class: cls,
+        blocking: false,
+        unitId: "A",
+        claimed: "claimed",
+        observed: "observed",
+        source: "git",
+      })),
+      refreshedAt: "2026-10-16T10:00:05Z",
+      sourceError: { source: "github", message: "fetch failed" },
+    });
+    const started = Date.now();
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const rail = await screen.findByRole("group", { name: "Delivery health" });
+    await waitFor(() =>
+      expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
+    );
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledWith("demo", 3);
+    expect(within(rail).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
+      "GitHub could not be read",
+    );
   });
 });

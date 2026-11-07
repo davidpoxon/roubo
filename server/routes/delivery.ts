@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
+// SB-FR-009, SB-FR-013, SB-FR-030, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
 // SB-FR-032, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
@@ -33,6 +33,21 @@
 //                                                    400 INVALID_QUERY + field: `after`
 //                                                        is not a non-negative integer,
 //                                                        or `unit` is not one id
+//                                                    404 and 409 as the snapshot read
+//   GET  /:projectId/benches/:id/delivery/crosscheck
+//                                                 -> 200 DeliveryCrossCheckResponse
+//                                                    {disagreements, refreshedAt,
+//                                                    sourceError}: the bench's last
+//                                                    cross-check (SB-FR-030). The first
+//                                                    read since the server started arms
+//                                                    the bench's refreshes and waits for
+//                                                    its load refresh. sourceError is
+//                                                    null, or {source: "github",
+//                                                    message} when the last refresh
+//                                                    could not read GitHub, which then
+//                                                    keeps the GitHub classes of the
+//                                                    refresh before (see
+//                                                    services/delivery-cross-check-loader.ts)
 //                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/launch  -> 202 a launch-mode bench's session
 //                                                    launched again with no resume
@@ -331,6 +346,7 @@ import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
 import {
   DELIVERY_DIFF_MAX_BYTES,
+  type DeliveryCrossCheckResponse,
   type DeliveryEventsResponse,
   type DeliveryUnitDiffResponse,
   type DeliveryUnitTranscriptResponse,
@@ -363,6 +379,7 @@ import {
   deliveryEventsAfterRecord,
   deliveryUnitEventSpan,
 } from "../services/delivery-event-log.js";
+import { readDeliveryCrossCheck } from "../services/delivery-cross-check-loader.js";
 import { runCommand } from "../services/exec.js";
 import { resolveGitIdentity } from "../services/git-helpers.js";
 import {
@@ -534,6 +551,22 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
   }
   res.json(body);
 });
+
+router.get(
+  "/:projectId/benches/:id/delivery/crosscheck",
+  deliveryReadRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const loaded = loadBenchDeliveryRecord(bench);
+    if (!loaded.ok) {
+      res.status(409).json(loaded.error);
+      return;
+    }
+    const body: DeliveryCrossCheckResponse = await readDeliveryCrossCheck(bench);
+    res.json(body);
+  },
+);
 
 // ── Unit drill-in reads (SB-FR-013) ──
 

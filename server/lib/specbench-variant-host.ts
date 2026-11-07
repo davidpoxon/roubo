@@ -8,7 +8,8 @@
 //     recorded, must still be on disk.
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
 //     session, then revokes the delivery token and drops the events and the
-//     control outbox held for the bench; the bench manager removes the
+//     control outbox held for the bench, and stops its cross-check's watch and
+//     timers; the bench manager removes the
 //     workspace after that (SB-TC-005).
 //
 // The session writes the delivery record to `.specifications/<slug>/` inside the
@@ -29,6 +30,7 @@ import {
 import { revokeDeliveryToken } from "../services/delivery-token-registry.js";
 import { forgetDeliveryEventLog } from "../services/delivery-event-log.js";
 import { forgetDeliveryControls } from "../services/delivery-control-outbox.js";
+import { forgetDeliveryCrossCheck } from "../services/delivery-cross-check-loader.js";
 
 /** The pin path of a bench when it passes the safe-path allowlist, else undefined. */
 function safePinPath(bench: Bench): string | undefined {
@@ -88,6 +90,8 @@ export const specbenchVariantHost: VariantHost = {
     revokeDeliveryToken(bench);
     forgetDeliveryEventLog(bench.projectId, bench.id);
     forgetDeliveryControls(bench);
+    // 4. The cross-check's watch of the workspace and its timers.
+    forgetDeliveryCrossCheck(bench.projectId, bench.id);
   },
 };
 
