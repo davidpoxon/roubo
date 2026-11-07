@@ -321,22 +321,22 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is this journey's blocked-by set, each slice named by the title of
-// its issue and the spec ids it implements, and every step names at least one
-// of them. A slice that a step also crosses but that sits outside the
-// blocked-by set is labelled apart.
+// OWNERS is exactly this journey's blocked-by set, eight slices, each named by
+// the exact title of its issue, and every step names at least one of them. A
+// slice that a step also crosses but that sits outside the blocked-by set is
+// labelled apart.
 const OWNERS = {
-  setUpMode: "'Decision mode in the set-up dialog and the launch descriptor' (SB-FR-031)",
-  modeSwitch:
-    "'Mode switch control with a pending badge, the read-back, and the mode in the shell and the card' (SB-FR-032, SB-US-013)",
-  reviewCards:
-    "'Agent decision cards on the pile and the review call notification' (SB-FR-033, SB-FR-034)",
-  reviewControls: "'Accept and overturn agent decisions as review controls' (SB-FR-035, SB-US-014)",
-  thread: "'Discussion thread on the review card' (SB-FR-036)",
+  reviewCards: "'Agent decision cards on the pile and the review call notification'",
+  reviewControls:
+    "'Accept and overturn as review controls, early during a run and at an open review'",
+  waitingRead: "'Waiting control read for the tooling'",
+  thread: "'Discussion thread on the review card'",
+  controlQueue: "'Durable control queue on the bench record with ordered replay at resume'",
+  provisionalRules: "'Provisional gate rules in the cross-check and the approval refusals'",
   provisional:
-    "'Provisional gate on the map, its review card, and the confirm of its marks in the sitting' (SB-FR-038, SB-US-014)",
+    "'Provisional gate on the map, the gate card that opens a sitting, and the provisional mark with confirm'",
   surfaces:
-    "'Keyboard and screen-reader paths for the mode switch, the review card, the thread and the provisional mark' (SB-NFR-004, SB-US-013)",
+    "'Keyboard and screen-reader paths for the mode switch, the review card, the thread and the provisional mark'",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
@@ -346,7 +346,6 @@ const OUTSIDE_BLOCKED_BY = {
   launcher: "'Record loader, token registry and session launcher for launch and attach'",
   lifecycle: "'Role matrix and lifecycle controls: pause, wind-down, resume and approve'",
   sittingMarks: "marking a gate sitting's cases on the TestBench surfaces (SB-FR-026, SB-US-009)",
-  crossCheck: "provisional gate rules in the cross-check and the approval (SB-FR-039)",
 } as const;
 
 type BlockedBySlice = keyof typeof OWNERS;
@@ -1352,7 +1351,10 @@ describe("Spec Bench review journey", () => {
     await step(
       `2. Accept D-1 (${D1.id})`,
       `the fake tooling reads a review_accept control for ${D1.id}, ${D1.id} stays on the pile until its review.outcome, and leaves after it`,
-      owners(["reviewControls", "reviewCards"], ["controls", "reducer"]),
+      owners(
+        ["reviewControls", "waitingRead", "controlQueue", "reviewCards"],
+        ["controls", "reducer"],
+      ),
       async () => {
         await user.click(within(topCard(D1.id)).getByRole("button", { name: "Accept" }));
         await requestAnswered(bench.id, "POST", `delivery/decisions/${D1.id}/accept`, 202);
@@ -1382,7 +1384,7 @@ describe("Spec Bench review journey", () => {
     await step(
       `3. Open the thread on D-2 (${D2.id}), ask a question, and post a reply as the fake tooling`,
       `the fake tooling reads the question as a thread_message for ${D2.id}, and its reply shows on the card`,
-      owners(["thread", "surfaces"], ["controls", "reducer"]),
+      owners(["thread", "waitingRead", "controlQueue", "surfaces"], ["controls", "reducer"]),
       async () => {
         const card = topCard(D2.id);
         await user.click(within(card).getByRole("button", { name: "Discuss" }));
@@ -1432,7 +1434,7 @@ describe("Spec Bench review journey", () => {
     await step(
       `4. Overturn D-2 (${D2.id}) to its other option and post the outcome with a summary`,
       `${D2.id} leaves the pile, chooses "${D2.options[1]}", and its summary is recorded on the decision`,
-      owners(["reviewControls", "thread"], ["controls", "reducer"]),
+      owners(["reviewControls", "waitingRead", "controlQueue", "thread"], ["controls", "reducer"]),
       async () => {
         const card = topCard(D2.id);
         await user.click(within(card).getByRole("button", { name: "Overturn" }));
@@ -1477,7 +1479,7 @@ describe("Spec Bench review journey", () => {
     await step(
       "5. Open the sitting from the gate card and confirm the provisional mark",
       `the sitting of ${GATE} opens, and ${GATE_CASE}'s mark is in test-results.json as passed with the operator, ${OPERATOR.name}, as author`,
-      owners(["provisional", "surfaces"], ["sittingMarks", "crossCheck"]),
+      owners(["provisional", "provisionalRules", "surfaces"], ["sittingMarks"]),
       async () => {
         const card = topCard(GATE);
         expect(within(card).getByTestId(`provisional-mark-badge-${GATE_CASE}`)).toHaveTextContent(
@@ -1523,7 +1525,7 @@ describe("Spec Bench review journey", () => {
     await step(
       "6. Post gate.confirmed and the closing review state, then approve the delivery",
       "the review closes with nothing waiting, and the approval request returns 202",
-      owners(["provisional", "reviewCards"], ["lifecycle", "crossCheck", "controls"]),
+      owners(["provisional", "provisionalRules", "reviewCards"], ["lifecycle", "controls"]),
       async () => {
         await tooling.post([
           tooling.event(
@@ -1550,7 +1552,7 @@ describe("Spec Bench review journey", () => {
     await step(
       "6. Post gate.confirmed and the closing review state, then approve the delivery: the terminal",
       "the terminal was not opened for any step: its tab was never selected, and the delivery session took no input",
-      owners(["reviewControls", "thread", "provisional"], ["launcher"]),
+      owners(["reviewControls", "thread", "provisional", "provisionalRules"], ["launcher"]),
       () => {
         expect(terminalTabSelected.filter((entry) => entry.selected)).toEqual([]);
         expect(terminalTabSelected).toHaveLength(6);
