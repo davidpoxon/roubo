@@ -345,3 +345,58 @@ export async function fastForwardLocalBranch(repoPath: string, branch: string): 
     throw refUpdateError(branch, updated.stderr, "git update-ref failed");
   }
 }
+
+async function resolveCommit(repoPath: string, rev: string): Promise<string | null> {
+  const result = await runCommand(
+    "git",
+    ["rev-parse", "--verify", "--quiet", `${rev}^{commit}`],
+    repoPath,
+    undefined,
+    REF_COMMAND_TIMEOUT_MS,
+  );
+  const sha = result.stdout.trim();
+  return result.code === 0 && sha ? sha : null;
+}
+
+/**
+ * The commit that a bench created now would start its worktree from, resolved
+ * without changing anything: no fetch and no fast-forward. It follows the
+ * worktree provisioning of bench-manager. With Branch from default branch the
+ * worktree is cut from the project's default branch, else from the checkout's
+ * HEAD. With Pull latest that branch is first brought up to `origin/<branch>`,
+ * so of the local branch and its remote-tracking branch, as last fetched, the
+ * start is the one that contains the other. A fetch at creation can still bring
+ * commits that the remote-tracking branch does not have yet.
+ *
+ * Returns null where the creation would fail too: no default branch, a
+ * detached HEAD under Pull latest, a branch that diverged from origin, or a
+ * branch that does not resolve.
+ */
+export async function resolveWorktreeStartCommit(
+  repoPath: string,
+  source: { branchFromDefault: boolean; pullLatest: boolean },
+): Promise<string | null> {
+  let branch: string | undefined;
+  try {
+    if (source.branchFromDefault) branch = await resolveDefaultBranch(repoPath);
+    else if (source.pullLatest) branch = await resolveHeadBranch(repoPath);
+  } catch {
+    return null;
+  }
+  if (!source.pullLatest || branch === undefined) {
+    return resolveCommit(repoPath, branch ?? "HEAD");
+  }
+
+  const [local, remote] = await Promise.all([
+    resolveCommit(repoPath, `refs/heads/${branch}`),
+    resolveCommit(repoPath, `refs/remotes/origin/${branch}`),
+  ]);
+  if (local === null || remote === null) return local ?? remote;
+  try {
+    if (await isAncestor(repoPath, local, remote)) return remote;
+    if (await isAncestor(repoPath, remote, local)) return local;
+  } catch {
+    return null;
+  }
+  return null;
+}

@@ -8,10 +8,12 @@
 //                            `.specifications/<slug>/work-units.json` in the
 //                            project checkout; 0 and 0 when the file is absent.
 //                            With `delivery` {deliveryId, lifecycleState,
-//                            unitsDone, units} when the spec folder of the
-//                            checkout holds a conformant delivery record, the
-//                            one an attached bench joins; no `delivery` when it
-//                            holds none, or one that does not conform
+//                            unitsDone, units} when a conformant delivery record
+//                            of the spec is committed at the commit that a bench
+//                            created now would start its worktree from, the
+//                            record an attached bench joins; no `delivery` when
+//                            none is committed there, or one that does not
+//                            conform. The working tree's record is never read.
 //                            400 INVALID_SLUG: the slug fails the spec-slug allowlist
 //                            400 WORK_UNITS_INVALID + errors: the file is present but
 //                                does not validate
@@ -21,28 +23,33 @@
 // the bench with POST /:projectId/benches { variant: "specbench" } (benches.ts).
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import type { SpecBenchSpecDelivery, SpecBenchSpecSummary } from "@roubo/shared/delivery-bench";
-import { classifyUnitStatus } from "@roubo/shared/delivery-reducer";
+import {
+  summarizeSpecDelivery,
+  type SpecBenchSpecDelivery,
+  type SpecBenchSpecSummary,
+} from "@roubo/shared/delivery-bench";
+import type { RegisteredProject } from "@roubo/shared";
 import * as projectRegistry from "../services/project-registry.js";
 import * as workUnitLoader from "../services/work-unit-loader.js";
-import { loadDeliveryRecord } from "../lib/delivery-record-loader.js";
-import { resolveWithin, UnsafePathError } from "../lib/safe-path.js";
+import { resolveWorktreeStartCommit } from "../services/git-helpers.js";
+import { loadCommittedDeliveryRecord } from "../lib/delivery-record-loader.js";
+import { UnsafePathError } from "../lib/safe-path.js";
 
 const router = Router();
 
-// The delivery record in the spec folder of the project checkout, as the
-// dialog shows it before an attach: its progress and its lifecycle state. The
-// record is only read here; the bench reads its own copy in its workspace.
-function checkoutDelivery(repoPath: string, slug: string): SpecBenchSpecDelivery | undefined {
-  const loaded = loadDeliveryRecord(resolveWithin(repoPath, ".specifications", slug));
-  if (!loaded.ok) return undefined;
-  const { record } = loaded;
-  return {
-    deliveryId: record.delivery_id,
-    lifecycleState: record.lifecycle.state,
-    unitsDone: record.units.filter((unit) => classifyUnitStatus(unit.status) === "done").length,
-    units: record.units.length,
-  };
+// The delivery record that an attached bench created now would join, as the
+// dialog shows it before an attach: the record committed at the commit the
+// bench's worktree would start from, as the project's worktree source settings
+// (Branch from default branch, Pull latest) resolve it. Nothing is fetched and
+// nothing is written; the bench reads its own copy in its workspace.
+async function committedDelivery(
+  project: RegisteredProject,
+  slug: string,
+): Promise<SpecBenchSpecDelivery | undefined> {
+  const start = await resolveWorktreeStartCommit(project.repoPath, project.settings.worktreeSource);
+  if (start === null) return undefined;
+  const loaded = await loadCommittedDeliveryRecord(project.repoPath, start, slug);
+  return loaded.ok ? summarizeSpecDelivery(loaded.record) : undefined;
 }
 
 // The handler reads the spec's work-units.json from disk (CodeQL
@@ -54,32 +61,38 @@ const summaryReadRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-router.get("/:projectId/specbench/specs/:slug/summary", summaryReadRateLimiter, (req, res) => {
-  const projectId = String(req.params.projectId);
-  const project = projectRegistry.getProject(projectId);
-  if (!project || !project.config) {
-    res.status(404).json({ error: `Project '${projectId}' not found`, code: "NOT_FOUND" });
-    return;
-  }
-  const slug = String(req.params.slug);
-  try {
-    const units = workUnitLoader.loadAllUnitsForSlug(project.repoPath, slug);
-    const gates = units.filter((unit) => unit.kind === "verify").length;
-    const body: SpecBenchSpecSummary = { slug, units: units.length - gates, gates };
-    const delivery = checkoutDelivery(project.repoPath, slug);
-    if (delivery !== undefined) body.delivery = delivery;
-    res.json(body);
-  } catch (err) {
-    if (err instanceof UnsafePathError) {
-      res.status(400).json({ error: err.message, code: "INVALID_SLUG" });
+router.get(
+  "/:projectId/specbench/specs/:slug/summary",
+  summaryReadRateLimiter,
+  async (req, res) => {
+    const projectId = String(req.params.projectId);
+    const project = projectRegistry.getProject(projectId);
+    if (!project || !project.config) {
+      res.status(404).json({ error: `Project '${projectId}' not found`, code: "NOT_FOUND" });
       return;
     }
-    if (err instanceof workUnitLoader.WorkUnitsValidationError) {
-      res.status(400).json({ error: err.message, code: "WORK_UNITS_INVALID", errors: err.errors });
-      return;
+    const slug = String(req.params.slug);
+    try {
+      const units = workUnitLoader.loadAllUnitsForSlug(project.repoPath, slug);
+      const gates = units.filter((unit) => unit.kind === "verify").length;
+      const body: SpecBenchSpecSummary = { slug, units: units.length - gates, gates };
+      const delivery = await committedDelivery(project, slug);
+      if (delivery !== undefined) body.delivery = delivery;
+      res.json(body);
+    } catch (err) {
+      if (err instanceof UnsafePathError) {
+        res.status(400).json({ error: err.message, code: "INVALID_SLUG" });
+        return;
+      }
+      if (err instanceof workUnitLoader.WorkUnitsValidationError) {
+        res
+          .status(400)
+          .json({ error: err.message, code: "WORK_UNITS_INVALID", errors: err.errors });
+        return;
+      }
+      res.status(500).json({ error: (err as Error).message });
     }
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
+  },
+);
 
 export default router;

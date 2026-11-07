@@ -46,7 +46,8 @@ const ROW_CLASS = (selected: boolean) =>
 // project, choose how the bench binds to its delivery and, for a launch, who
 // decides in it (SB-FR-031: attended by default), read the spec, the mode and a
 // summary of the spec's units and gates (for an attach, also the progress and
-// lifecycle state of the delivery record the spec holds), then confirm. Confirm calls onConfirm
+// lifecycle state of the delivery record committed where the bench's worktree
+// will start, which is the record the bench joins), then confirm. Confirm calls onConfirm
 // with the spec folder, the mode and the decision mode, and the host owns the
 // create call. Dismissal never calls onConfirm.
 export default function SpecBenchSetupModal({
@@ -263,7 +264,9 @@ export default function SpecBenchSetupModal({
                         </span>
                       </span>
                     ) : (
-                      <span className="text-text-secondary">no delivery record in this spec</span>
+                      <span className="text-text-secondary">
+                        no committed delivery record for the bench to join
+                      </span>
                     )}
                   </p>
                 )}

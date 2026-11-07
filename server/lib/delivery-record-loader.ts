@@ -2,12 +2,13 @@
 // `delivery-observation.json` in `.specifications/<slug>/` inside the bench
 // workspace, where the delivery session that the bench launches runs and writes
 // it. The slug is the one of the spec folder the bench focuses on in the project
-// checkout, but the bench never reads or writes the record in that checkout
-// folder (only the Set up Spec Bench dialog's summary reads it, for display,
-// before an attach): the bench's record lives only in the workspace and goes
-// with it when Clear bench or
-// Cleanup & Retry removes it. A record placed in the checkout reaches the bench
-// only as a committed file that the worktree checks out. The spill file of the
+// checkout, but the record in that checkout folder is never read or written:
+// the bench's record lives only in the workspace and goes with it when Clear
+// bench or Cleanup & Retry removes it. A record placed in the checkout reaches
+// the bench only as a file committed at the commit the worktree starts from,
+// which the worktree checks out. The Set up Spec Bench dialog's summary reads
+// that committed file, never the working tree, to show what an attached bench
+// will join (loadCommittedDeliveryRecord). The spill file of the
 // bench's event log sits beside the record and goes with the workspace too. The
 // spec's plan, results and lifecycle, which the fold reads for gate state and
 // progress, are read from the same workspace (`loadBenchDeliveryVerifyInputs`).
@@ -35,6 +36,7 @@ import {
   reconcileDeliveryDecisionMode,
 } from "../services/delivery-control-outbox.js";
 import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
+import { runCommand } from "../services/exec.js";
 import { broadcastBenchDecisionMode } from "../services/sse.js";
 import { MissingPlanError, readPlanAndResults } from "./testbench-store.js";
 import { buildPlanLifecycle } from "./plan-lifecycle.js";
@@ -207,20 +209,26 @@ export function loadDeliveryRecord(specFolder: string): DeliveryRecordCheck {
       },
     };
   }
-  if (stat.size > DELIVERY_RECORD_MAX_BYTES) {
-    return {
-      ok: false,
-      error: {
-        code: "DELIVERY_INVALID",
-        error: `The delivery record is ${stat.size} bytes, over the ${DELIVERY_RECORD_MAX_BYTES} byte limit`,
-        errors: ["the record is too large"],
-      },
-    };
-  }
+  if (stat.size > DELIVERY_RECORD_MAX_BYTES) return oversizeRecord(stat.size);
 
+  return parseDeliveryRecord(fs.readFileSync(recordPath, "utf8"));
+}
+
+function oversizeRecord(size: number): DeliveryRecordCheck {
+  return {
+    ok: false,
+    error: {
+      code: "DELIVERY_INVALID",
+      error: `The delivery record is ${size} bytes, over the ${DELIVERY_RECORD_MAX_BYTES} byte limit`,
+      errors: ["the record is too large"],
+    },
+  };
+}
+
+function parseDeliveryRecord(text: string): DeliveryRecordCheck {
   let raw: unknown;
   try {
-    raw = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+    raw = JSON.parse(text);
   } catch (err) {
     return {
       ok: false,
@@ -232,4 +240,52 @@ export function loadDeliveryRecord(specFolder: string): DeliveryRecordCheck {
     };
   }
   return checkDeliveryRecord(raw);
+}
+
+const GIT_READ_TIMEOUT_MS = 10_000;
+
+/**
+ * Loads the delivery record of the spec `slug` as it is committed at `commit`
+ * in the repository at `repoPath`, without touching the working tree: the
+ * record that a worktree cut from that commit checks out. The Set up Spec Bench
+ * dialog reads it this way to show the delivery that an attached bench will
+ * join (see resolveWorktreeStartCommit), so a record that is only in the
+ * working tree of the checkout, or a local edit of a committed one, is not
+ * what it shows. Throws UnsafePathError when the slug fails the allowlist.
+ */
+export async function loadCommittedDeliveryRecord(
+  repoPath: string,
+  commit: string,
+  slug: string,
+): Promise<DeliveryRecordCheck> {
+  assertSafeIdentifier(slug, SPEC_SLUG_RE, "spec slug");
+  // `./` makes the path relative to repoPath, which can be a subdirectory of
+  // the repository's top level.
+  const object = `${commit}:./.specifications/${slug}/${DELIVERY_RECORD_FILE}`;
+  const size = await runCommand(
+    "git",
+    ["cat-file", "-s", object],
+    repoPath,
+    undefined,
+    GIT_READ_TIMEOUT_MS,
+  );
+  const missing: DeliveryRecordCheck = {
+    ok: false,
+    error: {
+      code: "DELIVERY_RECORD_MISSING",
+      error: `No delivery record: ${DELIVERY_RECORD_FILE} is not committed in the spec folder at ${commit}`,
+    },
+  };
+  if (size.code !== 0) return missing;
+  const bytes = Number(size.stdout.trim());
+  if (bytes > DELIVERY_RECORD_MAX_BYTES) return oversizeRecord(bytes);
+  const blob = await runCommand(
+    "git",
+    ["cat-file", "blob", object],
+    repoPath,
+    undefined,
+    GIT_READ_TIMEOUT_MS,
+  );
+  if (blob.code !== 0) return missing;
+  return parseDeliveryRecord(blob.stdout);
 }

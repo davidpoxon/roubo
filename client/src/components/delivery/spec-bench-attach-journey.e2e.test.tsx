@@ -11,20 +11,27 @@
 // controls), the real React Query hooks, the real `lib/api` request layer and
 // the real notification stream hook. The one stand-in is the network: `fetch`
 // and `EventSource` reach an in-process Roubo server stand-in below, which
-// answers each route the journey calls with the body and the status the real
-// route answers (server/routes/benches.ts, server/routes/delivery.ts,
-// server/routes/delivery-hooks.ts, server/routes/specbench-specs.ts), folds the
-// record and the accepted events through the shared delivery reducer as GET
-// /delivery does, and checks the delivery token on the event endpoint. A
-// request to any other route answers 404 and is listed in the failure output.
+// answers the routes the journey calls (server/routes/benches.ts,
+// server/routes/delivery.ts, server/routes/delivery-hooks.ts,
+// server/routes/specbench-specs.ts) in the shape of their bodies and statuses,
+// folds the record and the accepted events through the shared delivery reducer
+// as GET /delivery does, summarizes a record with the shared summary helper as
+// the summary route does, and checks the delivery token on the event endpoint.
+// It models the checkout's git state in two slots, the working tree and the
+// commit a new bench's worktree starts from: the summary reads only the
+// committed record, and a created bench's workspace holds only what its
+// worktree checks out from that commit, never a working-tree copy. It does not
+// run git, resolve the project's worktree source settings or provision a
+// worktree; the route's own suite covers those. A request to any other route
+// answers 404 and is listed in the failure output.
 // The hooks and components that the journey does not cross (projects,
 // integration, settings, plugins, terminals, logs, issue controls) are stubbed
 // as in the page suites.
 //
-// The delivery was started elsewhere: its record sits committed in the spec
-// folder of the project checkout, two units in, and no session runs it. An
-// attached bench launches nothing; its worktree checks the committed record
-// out, so the bench reads it from its workspace. Resume launches the session
+// The delivery was started elsewhere: its record is copied into the spec folder
+// of the project checkout and committed there, two units in, and no session
+// runs it. An attached bench launches nothing; its worktree checks the
+// committed record out, so the bench reads it from its workspace. Resume launches the session
 // with the record's resume argument, and the fake delivery tooling, handed that
 // launch descriptor, posts its first event with the token.
 //
@@ -47,11 +54,12 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
-import { classifyUnitStatus, foldDelivery } from "@roubo/shared/delivery-reducer";
+import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { selectLifecycleAction } from "@roubo/shared/delivery-selectors";
 import {
   DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
+  summarizeSpecDelivery,
   type DeliveryEventsResponse,
   type DeliveryLaunchDescriptor,
   type DeliveryReadError,
@@ -144,16 +152,18 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// The blocked-by slices come first, by title and FR id. A slice that a step
-// also crosses but that sits outside the blocked-by set is labelled apart.
+// OWNERS is exactly this journey's blocked-by set, named by slice title, and
+// every step names at least one of them. A slice that a step also crosses but
+// that sits outside the blocked-by set is labelled apart.
 const OWNERS = {
-  setup: "Spec Bench variant and its set up from a spec folder (SB-FR-001, SB-FR-003)",
-  bind: "delivery session launch and attach, with the resume argument (SB-FR-002, SB-FR-003)",
-  lifecycle: "role matrix and the Pause, Wind down, Resume and Approve controls (SB-FR-022)",
-  health: "delivery health chip and staleness (SB-FR-019)",
+  launcher: "record loader, token registry and session launcher for launch and attach (SB-FR-003)",
+  controls: "control service, outbox and token-gated controls endpoint",
+  lifecycle: "role matrix and lifecycle controls (SB-FR-022)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
+  setup: "Spec Bench variant and its set up from a spec folder (SB-FR-001)",
+  health: "delivery health chip and staleness (SB-FR-019)",
   map: "delivery map graph and list views (SB-FR-010)",
   ingest: "delivery token and event ingest (SB-FR-007)",
 } as const;
@@ -259,8 +269,10 @@ class RouboServerStandIn {
   createRequests: unknown[] = [];
   unrouted: string[] = [];
   launches: DeliveryLaunchDescriptor[] = [];
-  // The committed record in the spec folder of the project checkout.
-  private checkoutRecord: DeliveryRecord | undefined;
+  // The record in the spec folder of the checkout's working tree, and the
+  // record committed at the commit a new bench's worktree starts from.
+  private workingTreeRecord: DeliveryRecord | undefined;
+  private committedRecord: DeliveryRecord | undefined;
   private records = new Map<number, DeliveryRecord>();
   private events = new Map<number, DeliveryEvent[]>();
   private tokens = new Map<number, string>();
@@ -285,8 +297,16 @@ class RouboServerStandIn {
     return source;
   }
 
-  writeCheckoutRecord(record: DeliveryRecord): void {
-    this.checkoutRecord = record;
+  // A copy of the record into the spec folder of the checkout: the working
+  // tree only.
+  copyIntoCheckout(record: DeliveryRecord): void {
+    this.workingTreeRecord = copy(record);
+  }
+
+  // A commit of the working tree's record on the branch a new bench's worktree
+  // starts from.
+  commitCheckoutRecord(): void {
+    this.committedRecord = this.workingTreeRecord && copy(this.workingTreeRecord);
   }
 
   workspaceReady(benchId: number): void {
@@ -351,8 +371,8 @@ class RouboServerStandIn {
     return respond(404, { error: `The stand-in serves no ${method} ${path}`, code: "NOT_FOUND" });
   }
 
-  // GET /specbench/specs/fixture-spec/summary, as the real route counts the
-  // spec's work-units.json and reads the record committed in the checkout.
+  // GET /specbench/specs/fixture-spec/summary: the spec's unit and gate
+  // counts, and the committed record only, never the working tree's.
   private specSummary(): SpecBenchSpecSummary {
     const plan = twoUnitsInRecord();
     const summary: SpecBenchSpecSummary = {
@@ -360,21 +380,16 @@ class RouboServerStandIn {
       units: plan.units.length,
       gates: plan.stack.gates.length,
     };
-    const record = this.checkoutRecord;
-    if (record !== undefined && validateDeliveryRecord(record).ok) {
-      summary.delivery = {
-        deliveryId: record.delivery_id,
-        lifecycleState: record.lifecycle.state,
-        unitsDone: record.units.filter((unit) => classifyUnitStatus(unit.status) === "done").length,
-        units: record.units.length,
-      };
-    }
+    const validated =
+      this.committedRecord === undefined ? undefined : validateDeliveryRecord(this.committedRecord);
+    if (validated?.ok === true) summary.delivery = summarizeSpecDelivery(validated.data);
     return summary;
   }
 
   // POST /api/projects/:projectId/benches with variant specbench, as the real
-  // route validates it. An attached bench launches nothing and mints nothing;
-  // its worktree checks out the record committed in the spec folder.
+  // route validates it. An attached bench launches nothing and mints nothing.
+  // Its workspace holds what its worktree checks out: the committed record,
+  // when there is one, and never the working tree's copy.
   private createBench(body: unknown): StandInResponse {
     this.createRequests.push(body);
     const request = (body ?? {}) as {
@@ -417,7 +432,7 @@ class RouboServerStandIn {
       deliveryBindMode: mode as Bench["deliveryBindMode"],
     };
     this.benches.push(bench);
-    if (this.checkoutRecord !== undefined) this.records.set(id, copy(this.checkoutRecord));
+    if (this.committedRecord !== undefined) this.records.set(id, copy(this.committedRecord));
     if (mode === "launch") this.launch(bench, {});
     return respond(201, copy(bench));
   }
@@ -738,15 +753,17 @@ describe("Spec Bench attach journey", () => {
     server.setLaunchExecutor((descriptor) => tooling.launched(descriptor));
     const record = twoUnitsInRecord();
 
-    // Step 1 is a setup step: the delivery started elsewhere is committed in
-    // the spec folder of the checkout, two units in.
+    // Step 1 is a setup step: the delivery started elsewhere is copied into
+    // the spec folder of the checkout, two units in, and committed, as a
+    // delivery run elsewhere leaves it for a bench's worktree to check out.
     await step(
       "1. Copy the record fixture into fixture-spec as a delivery already two units in",
       "a conformant record at the contract version, with A and B done",
-      owners(["bind"]),
+      owners(["launcher"]),
       () => {
         expect(validateDeliveryRecord(record).ok).toBe(true);
-        server.writeCheckoutRecord(record);
+        server.copyIntoCheckout(record);
+        server.commitCheckoutRecord();
         renderRoubo();
       },
     );
@@ -754,7 +771,7 @@ describe("Spec Bench attach journey", () => {
     await step(
       "2. Open Set up Spec Bench, choose Attach and pick fixture-spec",
       "the dialog shows the record's progress (2 of 4 units done) and lifecycle state (running), and says no session will be launched",
-      owners(["setup"]),
+      owners(["launcher"], ["setup"]),
       async () => {
         await user.click(await findSetUpSpecBench(user));
         await waitFor(() => setupDialog());
@@ -788,7 +805,7 @@ describe("Spec Bench attach journey", () => {
     const benchId = await step(
       "3. Confirm and open the bench",
       "no session launches, the map shows A and B done and C pending, and the health chip reads attached",
-      owners(["setup", "bind", "health"], ["map"]),
+      owners(["launcher"], ["setup", "health", "map"]),
       async () => {
         await user.click(choice(setupDialog(), /confirm|set up/i));
         await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
@@ -828,7 +845,7 @@ describe("Spec Bench attach journey", () => {
     await step(
       "4. Click Resume in the controls view",
       "the session launches with the record's resume argument, and the health chip turns active once the first event arrives",
-      owners(["lifecycle", "bind", "health"], ["ingest"]),
+      owners(["lifecycle", "controls", "launcher"], ["health", "ingest"]),
       async () => {
         await user.click(screen.getByRole("button", { name: "Cost, health and controls" }));
         const controls = screen.getByRole("region", { name: "Cost, health and controls" });
@@ -858,5 +875,30 @@ describe("Spec Bench attach journey", () => {
         );
       },
     );
+  });
+
+  it("SB-TC-007: a record copied into fixture-spec but not committed is neither shown nor joined", async () => {
+    const user = userEvent.setup();
+    server.copyIntoCheckout(twoUnitsInRecord());
+    renderRoubo();
+
+    await user.click(await findSetUpSpecBench(user));
+    await waitFor(() => setupDialog());
+    await user.click(choice(setupDialog(), /^attach/i));
+    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await waitFor(() =>
+      expect(
+        within(setupDialog()).getByTestId("specbench-setup-summary-delivery"),
+      ).toHaveTextContent(/no committed delivery record/i),
+    );
+    expect(within(setupDialog()).queryByTestId("specbench-setup-summary-progress")).toBeNull();
+
+    await user.click(choice(setupDialog(), /confirm|set up/i));
+    await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
+    const read = await server.fetch(
+      `/api/projects/${PROJECT_ID}/benches/${server.benches[0].id}/delivery`,
+    );
+    expect(read.status).toBe(409);
+    expect(await read.json()).toMatchObject({ code: "DELIVERY_RECORD_MISSING" });
   });
 });
