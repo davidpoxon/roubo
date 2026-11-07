@@ -53,7 +53,13 @@ const plan: TestCasesPlan = {
     area: "fixture",
     level: 1,
     type: "functional",
-    steps: [],
+    steps: [
+      {
+        id: "s1",
+        instruction: `Open ${id}`,
+        observations: [{ id: "o1", expected: `${id} behaves` }],
+      },
+    ],
     tags: [],
     linked_requirement_ids: ["FX-FR-001"],
     linked_user_story_ids: [],
@@ -107,22 +113,55 @@ afterEach(() => {
 });
 
 describe("Spec Bench test bench tab", () => {
-  it("lists the escalated cases on the case surface and marks one Met, and one Not met with a note, through the case status route", async () => {
+  it("SB-TC-063 lists the escalated cases on the TestBench case surface and marks one Met through its status control, and one Not met with a note, through the case status route", async () => {
     const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       snapshot({ gateId: "gate-after-b", state: "open" }),
     );
+    vi.mocked(api.setStatusOverride).mockImplementation(async (_p, _b, caseId, override) => ({
+      observationMarks: {},
+      derivedStatus: "not_started",
+      statusOverride: {
+        status: override as CaseStatus,
+        author: { name: "Ada Operator", email: "ada@example.test" },
+        timestamp: "2026-10-16T10:00:00Z",
+      },
+      notes: [],
+      ...(caseId === "FX-TC-002" && {
+        fixUnitError: { error: "The fix unit could not be filed." },
+      }),
+    }));
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
     const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
-    const surfaces = within(list).getAllByTestId("testbench-case-surface");
-    expect(surfaces.map((s) => s.getAttribute("data-case-id"))).toEqual(CASES);
+    const items = within(list).getAllByTestId("sitting-case");
+    expect(items.map((item) => item.getAttribute("data-case-id"))).toEqual(CASES);
 
-    await user.click(within(surfaces[0]).getByRole("button", { name: "Met" }));
+    // Each case renders on the TestBench case surface: its detail region, with
+    // the case's title, its steps and observations, and its status control.
+    CASES.forEach((caseId, index) => {
+      const detail = within(items[index]).getByRole("region", {
+        name: `Case detail: Case ${caseId}`,
+      });
+      expect(within(detail).getByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
+      expect(within(detail).getByText(`Open ${caseId}`)).toBeInTheDocument();
+      expect(within(detail).getByText(`${caseId} behaves`)).toBeInTheDocument();
+      expect(within(detail).getByRole("button", { name: /Case status/ })).toBeInTheDocument();
+    });
+
+    // Met: the case surface's status control sets the override to Passed.
+    await user.click(within(items[0]).getByRole("button", { name: /Case status/ }));
+    await user.click(await screen.findByRole("option", { name: "Passed" }));
     await waitFor(() =>
       expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-001", "passed"),
     );
 
-    await user.click(within(surfaces[1]).getByRole("button", { name: "Not met" }));
+    // Not met with evidence, through the same case status route.
+    const evidenceToggle = within(items[1]).getByRole("button", {
+      name: "Mark FX-TC-002 Not met with evidence",
+    });
+    expect(evidenceToggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(evidenceToggle);
+    expect(evidenceToggle).toHaveAttribute("aria-expanded", "true");
     const form = screen.getByRole("form", { name: "Not met evidence for FX-TC-002" });
     await user.type(within(form).getByRole("textbox", { name: "Note" }), "Broken banner.");
     await user.click(within(form).getByRole("button", { name: "Mark Not met" }));
@@ -131,6 +170,11 @@ describe("Spec Bench test bench tab", () => {
         note: "Broken banner.",
       }),
     );
+    // A fix unit the server could not file shows as an alert on that case only.
+    expect(await within(items[1]).findByRole("alert")).toHaveTextContent(
+      "The fix unit could not be filed.",
+    );
+    expect(within(items[0]).queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the gate blocked while a fix unit holds it, and the stage control opens a ready sitting", async () => {
@@ -182,23 +226,39 @@ describe("Spec Bench test bench tab", () => {
     ]);
     items.forEach((item) => expect(item).toHaveClass("animate-rise-in"));
 
-    const reached: string[] = [];
-    for (let i = 0; i < 5; i += 1) {
+    // Tab order: the stage control, then on each case's TestBench surface its
+    // status control, its observation mark, its lifecycle actions and its notes,
+    // and then its Not met evidence control. Each is found by its name.
+    const expected: HTMLElement[] = [screen.getByRole("button", { name: "Close the sitting" })];
+    CASES.forEach((caseId, index) => {
+      const item = items[index];
+      expected.push(
+        within(item).getByRole("button", { name: /Case status/ }),
+        within(
+          within(item).getByRole("radiogroup", {
+            name: `Mark observation pass or fail: ${caseId} behaves`,
+          }),
+        ).getByRole("radio", { name: "Pass" }),
+        within(item).getByRole("button", { name: "Retire" }),
+        within(item).getByRole("button", { name: "Supersede" }),
+        within(item).getByRole("button", { name: "Notes (0)" }),
+        within(item).getByRole("button", { name: `Mark ${caseId} Not met with evidence` }),
+      );
+    });
+    for (const element of expected) {
       await user.tab();
-      const focused = document.activeElement as HTMLElement;
-      expect(focused).not.toBe(document.body);
-      reached.push(focused.textContent ?? "");
+      expect(document.activeElement).toBe(element);
     }
-    expect(reached).toEqual(["Close the sitting", "Met", "Not met", "Met", "Not met"]);
-    expect(
-      within(list)
-        .getAllByRole("group")
-        .map((group) => group.getAttribute("aria-label")),
-    ).toEqual(["Mark FX-TC-001", "Mark FX-TC-002"]);
 
-    // Step 3: no WCAG 2.1 AA finding, with the evidence form open too.
+    // Step 3: no WCAG 2.1 AA finding with the case surfaces rendered, and with
+    // the evidence form open too.
     expectNoAxeFindings(await axe(container));
-    await user.click(within(items[0]).getByRole("button", { name: "Not met" }));
+    await user.click(
+      within(items[0]).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
+    );
+    const form = screen.getByRole("form", { name: "Not met evidence for FX-TC-001" });
+    expect(within(form).getByRole("textbox", { name: "Note" })).toBeInTheDocument();
+    expect(within(form).getByLabelText("Screenshot")).toBeInTheDocument();
     expectNoAxeFindings(await axe(container));
     unmount();
 

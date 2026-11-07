@@ -1,10 +1,10 @@
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useId, useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import { ownValue } from "@roubo/shared/delivery-reducer";
-import type { Case, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
+import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import * as api from "../../lib/api";
 import { deliveryQueryKey, useDelivery, useSittingStage } from "../../hooks/useDelivery";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
@@ -13,7 +13,7 @@ import { useTestbenchPlan } from "../../hooks/useTestbenchPlan";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { FIELD_LABEL_CLASS, inputClass } from "../ui/styles";
-import StatusIndicator from "../testbench/StatusIndicator";
+import CaseDetail from "../testbench/CaseDetail";
 import { TestbenchApiContext, type TestbenchApi } from "../testbench/TestbenchApiContext";
 import {
   sittingPhase,
@@ -23,11 +23,13 @@ import {
 
 // The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027, SB-US-009): the
 // gate sitting's three phases, its stage control, and, once the sitting is
-// open, the escalated cases of its gate on the TestBench case surface. A mark
-// goes through the TestBench's case status route, which the server resolves
-// through the TestbenchHostResolver into the workspace's test-results.json. A
-// Not met mark carries a note and a screenshot, and the server files a fix unit
-// below the gate that keeps it blocked.
+// open, the escalated cases of its gate on the TestBench case surface
+// (CaseDetail). A mark, from the case's status control or from its Not met
+// evidence form, goes through the TestBench's case status route, which the
+// server resolves through the TestbenchHostResolver into the workspace's
+// test-results.json. A Not met mark with evidence carries a note and a
+// screenshot, and the server files a fix unit below the gate that keeps it
+// blocked.
 //
 // The cases enter with the `stagger.gate-cases` orchestration of DESIGN.md:
 // `rise-in`, 40ms apart in forward order. It moves no focus, and under reduced
@@ -82,21 +84,37 @@ function Sitting({
 }) {
   const phase = sittingPhase(sitting);
   const queryClient = useQueryClient();
+  // The fix unit error of the last mark of each case, which the case surface
+  // shows beside it.
+  const [fixUnitErrors, setFixUnitErrors] = useState<Record<string, string>>({});
+  const readDelivery = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: deliveryQueryKey(bench.projectId, bench.id),
+    });
+  }, [queryClient, bench.projectId, bench.id]);
   // The marks go through the plain routes, then the delivery is read again, so
   // a fix unit a Not met mark filed shows on the sitting at once.
   const markApi = useMemo<TestbenchApi>(
     () => ({
       setStatusOverride: async (...args) => {
+        const caseId = args[2];
         try {
-          return await api.setStatusOverride(...args);
-        } finally {
-          void queryClient.invalidateQueries({
-            queryKey: deliveryQueryKey(bench.projectId, bench.id),
+          const response = await api.setStatusOverride(...args);
+          setFixUnitErrors((current) => {
+            const next = Object.fromEntries(
+              Object.entries(current).filter(([id]) => id !== caseId),
+            );
+            return response.fixUnitError === undefined
+              ? next
+              : { ...next, [caseId]: response.fixUnitError.error };
           });
+          return response;
+        } finally {
+          readDelivery();
         }
       },
     }),
-    [queryClient, bench.projectId, bench.id],
+    [readDelivery],
   );
   const blockers = sitting.fixUnitBlockers ?? [];
   return (
@@ -132,7 +150,13 @@ function Sitting({
       )}
       {phase === "open" ? (
         <TestbenchApiContext.Provider value={markApi}>
-          <SittingCases bench={bench} snapshot={snapshot} sitting={sitting} />
+          <SittingCases
+            bench={bench}
+            snapshot={snapshot}
+            sitting={sitting}
+            fixUnitErrors={fixUnitErrors}
+            onMarked={readDelivery}
+          />
         </TestbenchApiContext.Provider>
       ) : (
         <p className="text-13 text-text-secondary">
@@ -175,10 +199,14 @@ function SittingCases({
   bench,
   snapshot,
   sitting,
+  fixUnitErrors,
+  onMarked,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshotResponse;
   sitting: DeliverySittingView;
+  fixUnitErrors: Record<string, string>;
+  onMarked: () => void;
 }) {
   const plan = useTestbenchPlan(bench.projectId, bench.id);
   const reducedMotion = usePrefersReducedMotion();
@@ -212,6 +240,7 @@ function SittingCases({
         <li
           key={testCase.id}
           data-testid="sitting-case"
+          data-case-id={testCase.id}
           className={reducedMotion ? undefined : "animate-rise-in"}
           style={
             reducedMotion
@@ -219,12 +248,14 @@ function SittingCases({
               : { animationDelay: `${index * GATE_CASES_STAGGER_MS}ms`, animationFillMode: "both" }
           }
         >
-          <SittingCaseSurface
+          <SittingCase
             projectId={bench.projectId}
             benchId={bench.id}
             testCase={testCase}
             result={ownValue(caseResults, testCase.id)}
             fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
+            fixUnitError={ownValue(fixUnitErrors, testCase.id)}
+            onMarked={onMarked}
           />
         </li>
       ))}
@@ -232,72 +263,67 @@ function SittingCases({
   );
 }
 
-// One escalated case on the TestBench case surface: its id, title and status,
-// a Met and a Not met mark, and the Not met mark's evidence.
-function SittingCaseSurface({
+// One escalated case: the TestBench case surface (CaseDetail), whose status
+// control marks it Met or Not met, and beside it the evidence of a Not met mark,
+// a note and a screenshot, that the same case status route takes.
+function SittingCase({
   projectId,
   benchId,
   testCase,
   result,
   fixRef,
+  fixUnitError,
+  onMarked,
 }: {
   projectId: string;
   benchId: number;
   testCase: Case;
   result: CaseResult | undefined;
   fixRef: string | undefined;
+  fixUnitError: string | undefined;
+  onMarked: () => void;
 }) {
-  const titleId = useId();
+  const evidencePanelId = useId();
   const setStatus = useSetStatusOverride();
   const [evidenceOpen, setEvidenceOpen] = useState(false);
-  const status: CaseStatus =
-    result?.statusOverride?.status ?? result?.derivedStatus ?? "not_started";
-  const fixUnitError = setStatus.data?.fixUnitError;
   return (
-    <article
-      aria-labelledby={titleId}
+    <div
       data-testid="testbench-case-surface"
       data-case-id={testCase.id}
-      className="space-y-2 rounded-control border border-border bg-bg-surface p-3"
+      className="space-y-3 rounded-control border border-border bg-bg-surface p-3"
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-11 text-text-secondary">{testCase.id}</span>
-        <h3 id={titleId} className="min-w-0 flex-1 text-13 text-text-primary">
-          {testCase.title}
-        </h3>
-        <StatusIndicator status={status} />
-      </div>
-      <div role="group" aria-label={`Mark ${testCase.id}`} className="flex flex-wrap gap-2">
-        <Button
-          onPress={() => {
-            setEvidenceOpen(false);
-            setStatus.mutate({ projectId, benchId, caseId: testCase.id, override: "passed" });
-          }}
-          isDisabled={setStatus.isPending}
-        >
-          Met
-        </Button>
+      <CaseDetail
+        projectId={projectId}
+        benchId={benchId}
+        testCase={testCase}
+        result={result}
+        onMarked={onMarked}
+      />
+      <div>
         <Button
           aria-expanded={evidenceOpen}
+          aria-controls={evidencePanelId}
           onPress={() => setEvidenceOpen((open) => !open)}
           isDisabled={setStatus.isPending}
         >
-          Not met
+          Mark {testCase.id} Not met with evidence
         </Button>
       </div>
-      {evidenceOpen && (
-        <NotMetEvidenceForm
-          caseId={testCase.id}
-          isPending={setStatus.isPending}
-          onCancel={() => setEvidenceOpen(false)}
-          onSubmit={(evidence) =>
-            setStatus.mutate(
-              { projectId, benchId, caseId: testCase.id, override: "failed", evidence },
-              { onSuccess: () => setEvidenceOpen(false) },
-            )
-          }
-        />
-      )}
+      <div id={evidencePanelId} hidden={!evidenceOpen}>
+        {evidenceOpen && (
+          <NotMetEvidenceForm
+            caseId={testCase.id}
+            isPending={setStatus.isPending}
+            onCancel={() => setEvidenceOpen(false)}
+            onSubmit={(evidence) =>
+              setStatus.mutate(
+                { projectId, benchId, caseId: testCase.id, override: "failed", evidence },
+                { onSuccess: () => setEvidenceOpen(false) },
+              )
+            }
+          />
+        )}
+      </div>
       {setStatus.isError && (
         <p role="alert" className="text-12 text-danger-text">
           {setStatus.error.message}
@@ -305,7 +331,7 @@ function SittingCaseSurface({
       )}
       {fixUnitError !== undefined && (
         <p role="alert" className="text-12 text-danger-text">
-          {fixUnitError.error}
+          {fixUnitError}
         </p>
       )}
       {fixRef !== undefined && (
@@ -313,7 +339,7 @@ function SittingCaseSurface({
           Fix unit <span className="font-mono">{fixRef}</span> blocks the gate.
         </p>
       )}
-    </article>
+    </div>
   );
 }
 

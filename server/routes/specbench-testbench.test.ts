@@ -74,10 +74,23 @@ vi.mock("../services/fix-issue-filer.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/fix-issue-filer.js")>()),
   fileFixIssueAndBlock: vi.fn(),
 }));
-vi.mock("../services/work-unit-loader.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../services/work-unit-loader.js")>()),
-  loadVerifyUnits: vi.fn(),
-}));
+vi.mock("../services/work-unit-loader.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/work-unit-loader.js")>();
+  return {
+    ...actual,
+    loadVerifyUnits: vi.fn(),
+    // The gates route loads the spec's gates through this; a case sets them.
+    loadVerifyUnitsWithDiagnostics: vi.fn(actual.loadVerifyUnitsWithDiagnostics),
+  };
+});
+// The gates route reads the operator's merges and splits; none are recorded.
+vi.mock("../services/gate-override-store.js", async (importOriginal) => {
+  const { emptyGateOverrides } = await import("@roubo/shared/gate-overrides-contract");
+  return {
+    ...(await importOriginal<typeof import("../services/gate-override-store.js")>()),
+    loadOverrides: vi.fn(() => emptyGateOverrides()),
+  };
+});
 
 import * as benchManager from "../services/bench-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -104,6 +117,7 @@ import testbenchRouter, {
   testbenchCaseStatusBodyParser,
 } from "./testbench.js";
 import deliveryRouter from "./delivery.js";
+import gatesRouter from "./gates.js";
 import deliveryHooksRouter, { deliveryEventBodyParser } from "./delivery-hooks.js";
 
 const TOKEN = "delivery-token-for-the-fixture";
@@ -300,6 +314,7 @@ beforeEach(() => {
   app.use("/api/hooks", deliveryHooksRouter);
   app.use("/api/projects", testbenchRouter);
   app.use("/api/projects", deliveryRouter);
+  app.use("/api/projects", gatesRouter);
 });
 
 afterEach(() => {
@@ -310,7 +325,7 @@ afterEach(() => {
 });
 
 describe("the Spec Bench's TestBench host", () => {
-  it("SB-TC-063 escalated cases are listed, a Met mark lands in the workspace's test-results.json with the operator as author, the gates and read purposes admit the specbench variant, and refocus is refused", async () => {
+  it("SB-TC-063 escalated cases are listed, a Met mark lands in the workspace's test-results.json with the operator as author, the gates route admits the specbench variant, and the refocus route is refused", async () => {
     openSitting();
     // Step 1: the plan read lists the cases of the spec, from the workspace.
     const planRes = await request(app).get(`${marks}/plan`);
@@ -325,9 +340,65 @@ describe("the Spec Bench's TestBench host", () => {
     expect(written.statusOverride?.status).toBe("passed");
     expect(written.statusOverride?.author).toEqual(OPERATOR);
 
-    // Step 3: the gates route resolves its results root through the "gate"
-    // purpose, and the plan route through "read": both admit a Spec Bench and
-    // root at its workspace.
+    // Step 3: the gates route reads the gate of the spec from the Spec Bench's
+    // workspace, where the marks are, through the "gate" purpose of the
+    // resolver. The project checkout holds no results, so a gate read from it
+    // would be stale: a passed gate shows that the Spec Bench was admitted.
+    vi.mocked(workUnitLoader.loadVerifyUnitsWithDiagnostics).mockReturnValueOnce({
+      loaded: [
+        {
+          slug: "fixture-spec",
+          unit: {
+            id: GATE,
+            title: `Verify ${GATE}`,
+            type: "task",
+            kind: "verify",
+            description: "gate",
+            acceptance_criteria: [],
+            depends_on: [],
+            covers: [],
+            implements: {
+              requirement_ids: [],
+              user_story_ids: [],
+              test_case_ids: ["FX-TC-001", "FX-TC-002"],
+            },
+          },
+        } as never,
+      ],
+      invalidSpecs: [],
+    });
+    const gatesRes = await request(app).get("/api/projects/demo/gates?slug=fixture-spec");
+    expect(gatesRes.status).toBe(200);
+    expect(gatesRes.body.gates).toHaveLength(1);
+    expect(gatesRes.body.gates[0]).toMatchObject({
+      gateId: GATE,
+      status: "passed",
+      unresolvedCaseIds: [],
+    });
+
+    // The focus route reaches the resolver's "focus" purpose through the bench
+    // manager, as the real setFocusedSpecPath does before it writes anything.
+    vi.mocked(benchManager.setFocusedSpecPath).mockImplementation((projectId, benchId) => {
+      const target = benchManager.getBench(projectId, benchId);
+      if (!target) throw new benchManager.BenchError("Bench not found", "NOT_FOUND");
+      const host = resolveTestbenchHost(target, "focus");
+      if (!host.ok) throw new benchManager.BenchError(host.error, host.code ?? "NOT_TESTBENCH");
+      return target;
+    });
+    // Step 4: the refocus route is refused for the Spec Bench, and the bench
+    // keeps its spec.
+    const focusedBefore = bench.focusedSpecPath;
+    vi.mocked(stateService.updateBench).mockClear();
+    const focusRes = await request(app)
+      .put(`${marks}/focus`)
+      .send({ focusedSpecPath: path.join(repo, ".specifications", "other-spec") });
+    expect(focusRes.status).toBe(400);
+    expect(focusRes.body.code).toBe("NOT_TESTBENCH");
+    expect(bench.focusedSpecPath).toBe(focusedBefore);
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+
+    // The same answers, from the resolver itself: the "gate" and "read"
+    // purposes admit a Spec Bench and root at its workspace.
     for (const purpose of ["gate", "read"] as const) {
       const resolved = resolveTestbenchHost(bench, purpose, repo);
       expect(resolved.ok, purpose).toBe(true);
@@ -337,7 +408,7 @@ describe("the Spec Bench's TestBench host", () => {
         expect(resolved.host.refocusable).toBe(false);
       }
     }
-    // Step 4: the refocus is refused.
+    // And the "focus" purpose refuses it.
     const focus = resolveTestbenchHost(bench, "focus");
     expect(focus.ok).toBe(false);
     if (!focus.ok) {
