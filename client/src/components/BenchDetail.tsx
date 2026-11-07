@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import {
   Button,
   ModalOverlay,
@@ -85,6 +85,7 @@ import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
 import DeliveryTabPanel from "./delivery/DeliveryTabPanel";
+import { DECISION_PILE_HASH } from "../hooks/useDeepLink";
 import VariantBadge from "./VariantBadge";
 import { TAB_CLASS } from "./ui/Tabs";
 import StatusIndicator from "./ui/StatusIndicator";
@@ -503,6 +504,7 @@ export default function BenchDetail() {
   }>();
   const benchId = parseInt(benchIdStr, 10);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { data: bench, isLoading, isError } = useBenchDetail(projectId, benchId);
   const { data: projects } = useProjects();
@@ -640,6 +642,15 @@ export default function BenchDetail() {
   const defaultTab: BenchTabId = availableTabIds[0];
   const selectedTab: BenchTabId =
     activeTab && availableTabIds.includes(activeTab) ? activeTab : defaultTab;
+
+  // A delivery-decision notification links to the decision pile (SB-FR-014):
+  // the link opens a Spec Bench on its Delivery tab and brings the pile into
+  // focus, once per navigation, keyed by the navigation's location key.
+  const decisionPileKey =
+    isSpecbench && location.hash === DECISION_PILE_HASH ? location.key : undefined;
+  useEffect(() => {
+    if (decisionPileKey !== undefined) setActiveTab("delivery");
+  }, [decisionPileKey, setActiveTab]);
 
   if (isLoading) {
     return (
@@ -938,7 +949,7 @@ export default function BenchDetail() {
 
           {isSpecbench && (
             <TabPanel id="delivery" className="outline-none overflow-auto flex-1">
-              <DeliveryTabPanel bench={bench} />
+              <DeliveryTabPanel bench={bench} decisionPileFocusKey={decisionPileKey} />
             </TabPanel>
           )}
 
