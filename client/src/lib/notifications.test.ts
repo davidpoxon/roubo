@@ -140,6 +140,16 @@ describe("formatNotification", () => {
       title: "Delivery cross-check",
       body: "The delivery record disagrees with its source: pr-state-differs",
     });
+    // With the units it is found on, it names them too.
+    expect(
+      formatNotification({
+        ...n,
+        metadata: { class: "head-commit-differs", count: 1, unitIds: ["A"] },
+      }),
+    ).toEqual({
+      title: "Delivery cross-check",
+      body: "The delivery record disagrees with its source: head-commit-differs for A",
+    });
     // With no class, the type's own copy.
     expect(formatNotification(makeNotification("action-needed", "delivery-crosscheck"))).toEqual({
       title: "Delivery cross-check",
