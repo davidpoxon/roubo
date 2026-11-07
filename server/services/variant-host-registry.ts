@@ -30,8 +30,11 @@ export interface VariantHost {
   teardownLabel: string;
   /** The directory a component of this bench runs in. */
   componentRoot(bench: Bench): string;
-  /** Checks the variant's own state during reconcile. */
-  verifyVariantState(bench: Bench): VariantStateResult;
+  /**
+   * Checks the variant's own state during reconcile. A check that runs a
+   * command answers with a promise, which reconcile awaits.
+   */
+  verifyVariantState(bench: Bench): VariantStateResult | Promise<VariantStateResult>;
   /** Runs before the bench's terminals, components and workspace are torn down. */
   beforeTeardown(bench: Bench, ctx: VariantTeardownContext): Promise<void>;
 }
@@ -59,8 +62,8 @@ export function componentRoot(bench: Bench): string {
 }
 
 /** The reconcile check of a bench: its host's answer, or sound. */
-export function verifyVariantState(bench: Bench): VariantStateResult {
-  return getVariantHost(bench.variant)?.verifyVariantState(bench) ?? { ok: true };
+export async function verifyVariantState(bench: Bench): Promise<VariantStateResult> {
+  return (await getVariantHost(bench.variant)?.verifyVariantState(bench)) ?? { ok: true };
 }
 
 /** The pre-teardown work of a bench: its host's, or nothing. */
