@@ -16,6 +16,7 @@ import { foldDelivery } from "./delivery-reducer.js";
 import { resolvePlan } from "./lifecycle-resolver.js";
 import {
   selectApprovalAvailability,
+  selectDecisionHolds,
   selectDecisionPile,
   selectDecisionThread,
   selectDependencyEdges,
@@ -72,6 +73,33 @@ function event(
 }
 
 describe("delivery selectors", () => {
+  it("selectDecisionHolds holds the units that build on a decision and lets the rest continue", () => {
+    const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
+    // decision-1 of unit A names no affected units: B and C depend on A, and A
+    // itself is done, so it is in neither list.
+    expect(selectDecisionHolds(snapshot, snapshot.decisionsById["decision-1"])).toEqual({
+      held: ["B", "C"],
+      continuing: ["D"],
+    });
+    // decision-2 of unit B names B and C: its own unit B goes on with the default.
+    expect(selectDecisionHolds(snapshot, snapshot.decisionsById["decision-2"])).toEqual({
+      held: ["C"],
+      continuing: ["B", "D"],
+    });
+    // A finished unit leaves both lists.
+    const later = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        event(8, "unit.changed", { status: "done" }, "C"),
+        event(9, "unit.changed", { status: "skipped" }, "D"),
+      ],
+    });
+    expect(selectDecisionHolds(later, later.decisionsById["decision-1"])).toEqual({
+      held: ["B"],
+      continuing: [],
+    });
+  });
+
   it("selectUnitStatus reads the status word and its kind, null for an unknown unit", () => {
     const snapshot = foldDelivery({ record: fixtureRecord(), events: [] });
     expect(selectUnitStatus(snapshot, "A")).toEqual({ status: "done", kind: "done" });
