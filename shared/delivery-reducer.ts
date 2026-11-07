@@ -216,6 +216,9 @@ export interface DeliveryStaleness {
 
 export interface DeliverySnapshot {
   deliveryId: string;
+  // The record's `plan_hash`, verbatim: the plan hash the gates are evaluated
+  // against. The delivery cross-check compares it with the results' own hash.
+  planHash: string;
   // The last accepted seq.
   seq: number;
   gap?: DeliveryGap;
@@ -1485,6 +1488,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     .map((unit) => unit.id);
   const snapshot: DeliverySnapshot = {
     deliveryId: record.delivery_id,
+    planHash: record.plan_hash,
     seq: state.seq,
     mode: state.mode,
     review: state.review,
