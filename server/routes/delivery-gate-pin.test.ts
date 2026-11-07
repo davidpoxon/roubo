@@ -1213,6 +1213,34 @@ describe("the call to a gate sitting after gate.reached", () => {
       expect(sittingNotifications()).toHaveLength(1);
     });
 
+    it("SB-TC-058 keeps checking the build when the restart after the pin record throws", async () => {
+      // The restart from the pin throws out of its own error handling: the
+      // error it logs cannot be read.
+      const unreadable = Object.defineProperty(new Error(), "message", {
+        get() {
+          throw new Error("the restart error cannot be read");
+        },
+      });
+      vi.mocked(benchManager.startComponentsAndWait).mockImplementationOnce(async () => {
+        throw unreadable;
+      });
+      await reachGate();
+
+      // The pin stands, so the gate waits for its build, not yet checked.
+      expect(bench.gatePin).toMatchObject({ gateId: "gate-after-b", commit: commits[1] });
+      expect(bench.deliverySitting).toMatchObject({ gateId: "gate-after-b", state: "preparing" });
+      expect(bench.deliverySitting?.smokeCheck).toBeUndefined();
+      expect(sittingNotifications()).toEqual([]);
+
+      // The operator brings the build up; the next check calls the operator.
+      await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+      expect(componentCalls.at(-1)).toBe(`start ${pin}`);
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS);
+      await vi.waitFor(() => expect(bench.deliverySitting?.state).toBe("ready"));
+      expect(bench.deliverySitting?.smokeCheck).toMatchObject({ passed: true });
+      expect(sittingNotifications()).toHaveLength(1);
+    });
+
     it("SB-TC-058 checks a waiting gate again after a server restart and calls the operator once the build is up", async () => {
       bench.components.web.status = "stopped";
       await reachGate();

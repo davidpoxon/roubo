@@ -753,7 +753,9 @@ export function prepareGateSitting(
           announce(bench);
         } else {
           // The pin stands, so the gate waits for its build as after a failed
-          // smoke check.
+          // smoke check. A step after the pin record can throw before the
+          // watch is set, so the watch then reads the components that run now.
+          ensureWatch(bench, sitting.gateId);
           scheduleRecheck(bench, sitting.gateId);
         }
       }
