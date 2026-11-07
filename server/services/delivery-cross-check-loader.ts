@@ -29,17 +29,17 @@
 //   - load: the first read of the bench's cross-check since the server started
 //     arms it and runs one refresh, which the read waits for, at most 4 seconds:
 //     it then answers what that refresh has read so far;
-//   - events: one refresh per accepted batch that holds a `unit.boundary`,
-//     `pr.submitted`, `gate.reached`, `unit.changed` or `gate.changed` event of
-//     an armed bench (the events of one batch, or that come while a refresh
-//     waits to start, share that refresh);
+//   - events: one refresh per accepted `unit.boundary`, `pr.submitted`,
+//     `gate.reached`, `unit.changed` or `gate.changed` event of an armed bench,
+//     the events of one batch included;
 //   - file changes: a change of the record or of test-results.json in the spec
 //     folder of the workspace runs one refresh after a 500 ms debounce;
 //   - backstop: 60 seconds after the last refresh of any kind, one refresh.
 // File-change and backstop refreshes run at most once per 30 seconds: one that
 // comes sooner is deferred to the end of the window, where it runs once for
 // every change that came in it. Refreshes of one bench never overlap, and a
-// trigger that comes while one waits to start joins it.
+// load, file-change or backstop trigger that comes while one waits to start
+// joins it.
 //
 // A GitHub failure (a refused or failed request, or a body that does not read)
 // keeps the disagreements GitHub settles (layer-order-differs,
@@ -54,15 +54,24 @@
 // by it, so a repeat raises none. A refresh that no longer finds the class
 // dismisses it, so a class cleared and found again raises a new one. While
 // GitHub cannot be read, every GitHub-settled class that the bench had found
-// stays found, even after a restart that forgot the list: it is neither
-// dismissed nor taken as cleared. So does a pull-request class that a full
-// page leaves unobserved. After a restart, the classes found before are the
-// bench's notifications and the class it first went blocking on. The bench
-// records when the delivery first went blocking (`deliveryFirstSeenBlocking`)
-// and the class it went blocking on (`deliveryFirstSeenBlockingClass`), and
-// clears both once no blocking class is left.
+// stays found: it is neither dismissed nor taken as cleared. A full page keeps
+// the entry of each unit that disagreed before and is off the page, and so its
+// class; a unit off the page that did not disagree before adds nothing, so
+// the class of another unit clears as usual.
+//
+// The bench keeps across a restart (`deliveryCrossCheckMemory`) the blocking
+// classes the last refresh found and the GitHub-settled entries of its list.
+// So a restart raises no notification again for a class still found, even one
+// whose notification was dismissed; the first read lists the GitHub classes
+// before GitHub answers; and the first refresh carries those entries through a
+// GitHub failure or a full page per unit. A bench that kept none takes its
+// notifications and the class it first went blocking on as the classes found
+// before. The bench records when the delivery first went blocking
+// (`deliveryFirstSeenBlocking`) and the class it went blocking on
+// (`deliveryFirstSeenBlockingClass`), and clears both once no blocking class is
+// left.
 import fs from "node:fs";
-import type { Bench } from "@roubo/shared";
+import type { Bench, DeliveryCrossCheckMemory } from "@roubo/shared";
 import {
   DELIVERY_RECORD_FILE,
   type DeliveryCrossCheckResponse,
@@ -472,31 +481,24 @@ function entryKey(entry: DeliveryCrossCheckEntry): string {
   return `${entry.class}\u0000${entry.unitId ?? ""}`;
 }
 
-interface FullPageReading {
-  disagreements: DeliveryCrossCheckEntry[];
-  // The classes the page left unobserved for at least one unit: not known to
-  // have cleared.
-  unobserved: Set<string>;
-}
-
 // A full page's disagreements. What the page cannot settle is not taken as
 // cleared: the refresh before's entry for the same class and unit is carried,
 // for a unit whose pull request is not on the page (pr-state-differs), and for
 // an upper unit whose own or lower pull request is not on it
-// (base-branch-differs).
+// (base-branch-differs). A unit that did not disagree before is not taken as
+// disagreeing either, so an unobserved unit keeps its class found only through
+// an entry of its own, and the class of another unit clears as usual.
 function readFullPage(
   fresh: readonly DeliveryCrossCheckEntry[],
   previous: readonly DeliveryCrossCheckEntry[],
   snapshot: ReturnType<typeof foldDelivery>,
   pullRequests: DeliveryPullRequestsObservation,
-): FullPageReading {
+): DeliveryCrossCheckEntry[] {
   const kept: DeliveryCrossCheckEntry[] = [];
   const dropped = new Set<string>();
-  const unobserved = new Set<string>();
   for (const entry of fresh) {
     if (isUnobservedOnFullPage(entry, pullRequests)) {
       dropped.add(entryKey(entry));
-      unobserved.add(entry.class);
     } else {
       kept.push(entry);
     }
@@ -518,8 +520,7 @@ function readFullPage(
     // entry was dropped for it).
     return !onPage(unit.branch) || dropped.has(entryKey(entry));
   });
-  for (const entry of carried) unobserved.add(entry.class);
-  return { disagreements: byClass([...kept, ...carried]), unobserved };
+  return byClass([...kept, ...carried]);
 }
 
 // ── A refresh ──
@@ -551,39 +552,50 @@ function persist(bench: Bench): void {
   stateService.updateBench(stateService.toPersistedBench(bench));
 }
 
+// What the bench keeps of its cross-check across a restart, from the seen
+// classes and the list of a refresh; undefined when it keeps nothing.
+function memoryOf(
+  seen: readonly string[],
+  disagreements: readonly DeliveryCrossCheckEntry[],
+): DeliveryCrossCheckMemory | undefined {
+  const github = disagreements.filter(isGitHubSettled);
+  return seen.length === 0 && github.length === 0 ? undefined : { seen: [...seen], github };
+}
+
+// The seen classes of the first refresh since the server started: the ones the
+// bench kept, else (a bench that kept none) its notifications and the class it
+// first went blocking on, whose notification the operator may have dismissed.
+function seenAfterRestart(bench: Bench): Set<string> {
+  if (bench.deliveryCrossCheckMemory !== undefined) {
+    return new Set(bench.deliveryCrossCheckMemory.seen);
+  }
+  return new Set([
+    ...bench.notifications
+      .filter((n) => n.type === DELIVERY_CROSS_CHECK_NOTIFICATION && n.dedupeKey !== undefined)
+      .map((n) => n.dedupeKey as string),
+    ...(bench.deliveryFirstSeenBlockingClass !== undefined
+      ? [bench.deliveryFirstSeenBlockingClass]
+      : []),
+  ]);
+}
+
 function applyBlockingNotifications(
   state: CrossCheckEntryState,
   disagreements: readonly DeliveryCrossCheckEntry[],
   refreshedAt: string,
   githubUnread: boolean,
-  unobserved: ReadonlySet<string>,
 ): void {
   const { bench } = state;
   const found: string[] = [];
   for (const entry of disagreements) {
     if (entry.blocking && !found.includes(entry.class)) found.push(entry.class);
   }
-  // The first refresh since the server started seeds the seen classes from
-  // what the bench kept: its notifications, and the class it first went
-  // blocking on, whose notification the operator may have dismissed.
-  const seen =
-    state.blockingSeen ??
-    new Set([
-      ...bench.notifications
-        .filter((n) => n.type === DELIVERY_CROSS_CHECK_NOTIFICATION && n.dedupeKey !== undefined)
-        .map((n) => n.dedupeKey as string),
-      ...(bench.deliveryFirstSeenBlockingClass !== undefined
-        ? [bench.deliveryFirstSeenBlockingClass]
-        : []),
-    ]);
-  // A class found before that this refresh could not observe is not known to
-  // have cleared: it stays found. That is every GitHub-settled class while
-  // GitHub could not be read, and each class a full pull-request page left
-  // unobserved. The list can lack it (a restart forgot the list), so the seen
-  // classes count too.
+  const seen = state.blockingSeen ?? seenAfterRestart(bench);
+  // While GitHub cannot be read, a GitHub-settled class found before is not
+  // known to have cleared: it stays found, even when the list lacks it.
   for (const cls of seen) {
     if (found.includes(cls)) continue;
-    if ((githubUnread && isGitHubClass(cls)) || unobserved.has(cls)) found.push(cls);
+    if (githubUnread && isGitHubClass(cls)) found.push(cls);
   }
   for (const cls of found) {
     if (seen.has(cls)) continue;
@@ -603,10 +615,17 @@ function applyBlockingNotifications(
   }
   state.blockingSeen = new Set(found);
 
+  let changed = false;
+  const memory = memoryOf(found, disagreements);
+  if (JSON.stringify(memory) !== JSON.stringify(bench.deliveryCrossCheckMemory)) {
+    bench.deliveryCrossCheckMemory = memory;
+    changed = true;
+  }
+
   if (found.length > 0 && bench.deliveryFirstSeenBlocking === undefined) {
     bench.deliveryFirstSeenBlocking = refreshedAt;
     bench.deliveryFirstSeenBlockingClass = found[0];
-    persist(bench);
+    changed = true;
   } else if (
     found.length === 0 &&
     bench.deliveryFirstSeenBlocking !== undefined &&
@@ -619,8 +638,9 @@ function applyBlockingNotifications(
   ) {
     bench.deliveryFirstSeenBlocking = undefined;
     bench.deliveryFirstSeenBlockingClass = undefined;
-    persist(bench);
+    changed = true;
   }
+  if (changed) persist(bench);
 }
 
 async function refresh(state: CrossCheckEntryState): Promise<void> {
@@ -687,7 +707,6 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
 
   const fresh = crossCheckDelivery(snapshot, git, stacks, pullRequests, verify.results, context);
   let disagreements: DeliveryCrossCheckEntry[];
-  let unobserved: ReadonlySet<string> = new Set();
   if (repository === null) {
     disagreements = fresh.filter((entry) => !isGitHubSettled(entry));
   } else if (sourceError !== null) {
@@ -696,14 +715,12 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
       ...state.disagreements.filter(isGitHubSettled),
     ]);
   } else if (!pullRequestsComplete) {
-    const reading = readFullPage(
+    disagreements = readFullPage(
       fresh,
       state.disagreements.filter(isGitHubSettled),
       snapshot,
       pullRequests,
     );
-    disagreements = reading.disagreements;
-    unobserved = reading.unobserved;
   } else {
     disagreements = fresh;
   }
@@ -712,7 +729,7 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
   state.disagreements = disagreements;
   state.sourceError = sourceError;
   state.refreshedAt = refreshedAt;
-  applyBlockingNotifications(state, disagreements, refreshedAt, sourceError !== null, unobserved);
+  applyBlockingNotifications(state, disagreements, refreshedAt, sourceError !== null);
 }
 
 // ── Scheduling ──
@@ -736,9 +753,11 @@ function requestRun(
   state: CrossCheckEntryState,
   trigger: DeliveryCrossCheckTrigger,
 ): Promise<void> {
-  if (state.queued !== null) return state.queued;
+  // A load, file-change or backstop trigger joins a refresh that waits to
+  // start; each refreshing event queues one of its own.
+  if (trigger !== "event" && state.queued !== null) return state.queued;
   const queued = state.tail.then(async () => {
-    state.queued = null;
+    if (state.queued === queued) state.queued = null;
     if (!isTracked(state)) return;
     if (trigger === "file" || trigger === "backstop") state.lastThrottledAt = deps.now();
     try {
@@ -802,7 +821,14 @@ function armed(bench: Bench): CrossCheckEntryState {
   }
   const state: CrossCheckEntryState = {
     bench,
-    disagreements: [],
+    // The GitHub-settled entries the bench kept: the first read after a
+    // restart lists them before GitHub answers, and the first refresh carries
+    // them through a GitHub failure or a full pull-request page.
+    disagreements: byClass(
+      (
+        (bench.deliveryCrossCheckMemory?.github ?? []) as unknown as DeliveryCrossCheckEntry[]
+      ).filter(isGitHubSettled),
+    ),
     refreshedAt: null,
     sourceError: null,
     stacksEtag: null,
@@ -863,9 +889,9 @@ export async function readDeliveryCrossCheck(bench: Bench): Promise<DeliveryCros
 }
 
 /**
- * Runs one refresh for a batch of accepted events that holds one of a
- * refreshing type, on an armed bench (requests that come while a refresh waits
- * to start share it). Resolves when that refresh ran.
+ * Runs one refresh for each accepted event of a refreshing type, on an armed
+ * bench, in order after any refresh that runs or waits. Resolves when those
+ * refreshes ran.
  */
 export function refreshDeliveryCrossCheckOnEvents(
   bench: Bench,

@@ -549,4 +549,21 @@ describe("POST /api/hooks/delivery-event and the cross-check", () => {
     await post(seq, "decision.raised");
     expect(runs()).toBe(before);
   });
+
+  it("SB-TC-071 runs one refresh per refreshing event of one posted batch", async () => {
+    writeSpec(computePlanHash(plan), []);
+    const loaded = await request(app).get(`${base}/crosscheck`);
+    expect(loaded.status).toBe(200);
+    expect(runs()).toBe(1);
+
+    const res = await request(app)
+      .post(`${DELIVERY_EVENT_HOOK_PATH}?projectId=${bench.projectId}&benchId=${bench.id}`)
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        events: [posted(8, "unit.boundary"), posted(9, "pr.submitted"), posted(10, "gate.reached")],
+      });
+    expect(res.status).toBe(202);
+    await whenDeliveryCrossCheckIdle(bench.projectId, bench.id);
+    expect(runs()).toBe(4);
+  });
 });

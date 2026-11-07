@@ -314,6 +314,9 @@ export function initialize() {
       ...(ps.deliveryFirstSeenBlockingClass !== undefined && {
         deliveryFirstSeenBlockingClass: ps.deliveryFirstSeenBlockingClass,
       }),
+      ...(ps.deliveryCrossCheckMemory !== undefined && {
+        deliveryCrossCheckMemory: ps.deliveryCrossCheckMemory,
+      }),
       // Benches persisted before this field existed (pre-#997) were provisioned
       // under the old flow, which always ran `benches.setup`, so treat a missing
       // flag as complete rather than re-running setup on their next Start.
