@@ -71,7 +71,12 @@ import {
   type DeliveryControlReadReply,
   type DeliveryControlStatus,
 } from "@roubo/shared/delivery-control-contract";
-import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
+import type {
+  DeliveryEvent,
+  DeliveryModeValue,
+  DeliveryRecord,
+} from "@roubo/shared/delivery-observation-contract";
+import { isModeValue } from "@roubo/shared/delivery-reducer";
 import type { Author } from "@roubo/shared/testbench-contracts";
 import * as stateService from "./state.js";
 
@@ -399,6 +404,65 @@ export function applyDeliveryControlReadBacks(
     persist(bench);
   }
   return applied;
+}
+
+/**
+ * Keeps the bench's `deliveryDecisionMode` at the mode in effect (SB-FR-032):
+ * the value of the last `mode.changed` among the accepted events, so the bench
+ * card names the mode the session applied, never one a switch only asked for.
+ * Persists the bench when the mode changed, and returns the new mode then, else
+ * undefined.
+ */
+export function applyDeliveryModeReadBack(
+  bench: Bench,
+  events: readonly DeliveryEvent[],
+): DeliveryModeValue | undefined {
+  return setDeliveryDecisionMode(bench, lastChangedMode(undefined, events));
+}
+
+/**
+ * Keeps the bench's `deliveryDecisionMode` at the mode the folded record states
+ * (SB-FR-032): the record's `mode.value`, moved on by the last `mode.changed`
+ * among the accepted events above the record, as the shell reads it. So a
+ * record that states a mode whose event the bench never accepted (the session
+ * wrote the record first, or its post was lost) still moves the bench card, and
+ * an attached bench gets the mode of its delivery. The record loader calls it on
+ * every load of a bench's record. Persists the bench when the mode changed, and
+ * returns the new mode then, else undefined.
+ */
+export function reconcileDeliveryDecisionMode(
+  bench: Bench,
+  record: Pick<DeliveryRecord, "mode">,
+  eventsAfterRecord: readonly DeliveryEvent[],
+): DeliveryModeValue | undefined {
+  const recorded = isModeValue(record.mode.value) ? record.mode.value : undefined;
+  return setDeliveryDecisionMode(bench, lastChangedMode(recorded, eventsAfterRecord));
+}
+
+// The value of the last `mode.changed` among the events, else `from`.
+function lastChangedMode(
+  from: DeliveryModeValue | undefined,
+  events: readonly DeliveryEvent[],
+): DeliveryModeValue | undefined {
+  let mode = from;
+  for (const event of events) {
+    if (event.type !== "mode.changed") continue;
+    const value = (event.payload as { value?: unknown }).value;
+    if (isModeValue(value)) mode = value;
+  }
+  return mode;
+}
+
+// Sets and persists the bench's mode in effect when it differs, and returns the
+// new mode then, else undefined.
+function setDeliveryDecisionMode(
+  bench: Bench,
+  mode: DeliveryModeValue | undefined,
+): DeliveryModeValue | undefined {
+  if (mode === undefined || mode === bench.deliveryDecisionMode) return undefined;
+  bench.deliveryDecisionMode = mode;
+  persist(bench);
+  return mode;
 }
 
 /** What the record states that a prune of the queue reads. */

@@ -36,9 +36,8 @@
 // is lost, never replayed. The three kinds and the read response are defined
 // here. GET /api/hooks/delivery-controls answers the read response. POST
 // .../delivery/decisions/:decisionId/accept issues a `review_accept`, and POST
-// .../delivery/decisions/:decisionId/thread a `thread_message` (see
-// server/routes/delivery.ts); the route that issues a `mode_switch` is not
-// built yet.
+// .../delivery/decisions/:decisionId/thread a `thread_message`, and PUT
+// .../delivery/mode a `mode_switch` (see server/routes/delivery.ts).
 
 import { z } from "zod";
 import { DELIVERY_TEXT_MAX_LENGTH, DeliveryModeValueSchema } from "./delivery-observation-contract";

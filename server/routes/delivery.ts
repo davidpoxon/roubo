@@ -1,6 +1,6 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
 // SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
-// SB-FR-034, SB-FR-035).
+// SB-FR-032, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -249,6 +249,25 @@
 //                                                        or the control fails the control
 //                                                        contract
 //                                                    404 and 409 as the snapshot read
+//   PUT  /:projectId/benches/:id/delivery/mode
+//        body {mode}                          -> 202 DeliveryOutboxControl: a
+//                                                    mode_switch control of the
+//                                                    delivery, with no target and
+//                                                    body {mode}, issued as an answer
+//                                                    is (SB-FR-032); the session reads
+//                                                    it back with a mode.changed
+//                                                    {value, control_seq}, which makes
+//                                                    the mode the one in effect. The
+//                                                    same mode again while that switch
+//                                                    waits answers 202 with it
+//                                                    400 INVALID_BODY + field `mode`:
+//                                                        not `attended` or `auto`
+//                                                    409 MODE_UNCHANGED + mode: the
+//                                                        mode is in effect already and
+//                                                        no switch is pending
+//                                                    404 and 409 as the snapshot read
+//                                                 No cross-check and no lifecycle
+//                                                 state blocks it.
 //   POST /:projectId/benches/:id/delivery/pause
 //        body {reason?}                       -> 202 DeliveryOutboxControl: a pause
 //                                                    control of the delivery, with no
@@ -330,6 +349,7 @@ import {
   foldDelivery,
   isDecisionDefaulted,
   isDecisionOpen,
+  isModeValue,
   ownValue,
   type DeliverySnapshot,
 } from "@roubo/shared/delivery-reducer";
@@ -1236,6 +1256,54 @@ router.put(
       return;
     }
     issueControl(res, context, "role-change", role, { tier });
+  },
+);
+
+// ── The decision mode (SB-FR-032) ──
+
+// The last outstanding mode switch of the delivery, if any.
+function waitingModeSwitch(bench: Bench, deliveryId: string) {
+  return deliveryControlsOf(bench)
+    .filter(
+      (control) =>
+        control.kind === "mode_switch" &&
+        control.delivery_id === deliveryId &&
+        isControlOutstanding(control),
+    )
+    .at(-1);
+}
+
+router.put(
+  "/:projectId/benches/:id/delivery/mode",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const mode: unknown = (req.body as { mode?: unknown } | undefined)?.mode;
+    if (!isModeValue(mode)) {
+      sendInvalidBody(res, "mode", "mode must be attended or auto");
+      return;
+    }
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    // No cross-check and no lifecycle state holds a switch back: only the mode
+    // decides.
+    const waiting = waitingModeSwitch(bench, context.record.delivery_id);
+    if (waiting !== undefined && (waiting.body as { mode?: unknown }).mode === mode) {
+      // The same switch is on its way already.
+      res.status(202).json(waiting);
+      return;
+    }
+    const inEffect = context.snapshot.mode;
+    if (waiting === undefined && inEffect.value === mode && (inEffect.pending ?? null) === null) {
+      res.status(409).json({
+        error: `The delivery is in ${mode} mode already`,
+        code: "MODE_UNCHANGED",
+        mode,
+      });
+      return;
+    }
+    issueControl(res, context, "mode_switch", undefined, { mode });
   },
 );
 
