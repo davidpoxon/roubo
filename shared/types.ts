@@ -1789,6 +1789,24 @@ export interface BenchDeliverySitting {
    * close.
    */
   resultsSpecPath?: string;
+  /**
+   * The fix units filed for cases marked Not met during the sitting
+   * (SB-FR-027). Each blocks the gate until a `unit.changed` event moves the
+   * record's unit that carries its fix issue ref to `done` while the case reads
+   * passed in test-results.json. Absent while none is filed.
+   */
+  fixUnitBlockers?: DeliveryFixUnitBlocker[];
+}
+
+/**
+ * A fix unit that blocks a gate sitting's gate (SB-FR-027): the case marked
+ * Not met, the tracker ref of the fix issue the fix-issue filer filed for it,
+ * and when it was filed (ISO-8601).
+ */
+export interface DeliveryFixUnitBlocker {
+  caseId: string;
+  fixRef: string;
+  filedAt: string;
 }
 
 /**

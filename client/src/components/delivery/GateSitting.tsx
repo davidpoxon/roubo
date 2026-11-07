@@ -35,6 +35,13 @@ export default function GateSitting({ sitting }: { sitting: DeliverySittingView 
           check passes.
         </p>
       )}
+      {sitting.blocked === true && (
+        <p data-testid="delivery-gate-sitting-blocked" className="text-text-secondary">
+          Blocked by {sitting.fixUnitBlockers?.length === 1 ? "a fix unit" : "fix units"} filed for
+          cases marked Not met:{" "}
+          {(sitting.fixUnitBlockers ?? []).map((blocker) => blocker.fixRef).join(", ")}
+        </p>
+      )}
       {failed && sitting.smokeCheck?.detail !== undefined && (
         <p data-testid="delivery-gate-sitting-smoke" className="text-text-secondary">
           Last smoke check: {sitting.smokeCheck.detail}

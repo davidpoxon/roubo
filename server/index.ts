@@ -16,6 +16,7 @@ import * as projectRegistry from "./services/project-registry.js";
 import { initializeIntegrationMigrations } from "./services/integration-migrations.js";
 import * as benchManager from "./services/bench-manager.js";
 import { registerSpecbenchVariantHost } from "./lib/specbench-variant-host.js";
+import { registerSpecbenchTestbenchAdapter } from "./lib/specbench-testbench-adapter.js";
 import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
 import * as terminalService from "./services/terminal.js";
@@ -26,7 +27,10 @@ import benchesRouter from "./routes/benches.js";
 import containersRouter from "./routes/containers.js";
 import filesystemRouter from "./routes/filesystem.js";
 import terminalRouter from "./routes/terminal.js";
-import testbenchRouter from "./routes/testbench.js";
+import testbenchRouter, {
+  TESTBENCH_CASE_STATUS_PATH,
+  testbenchCaseStatusBodyParser,
+} from "./routes/testbench.js";
 import gatesRouter from "./routes/gates.js";
 import deliveryRouter from "./routes/delivery.js";
 import specbenchSpecsRouter from "./routes/specbench-specs.js";
@@ -120,6 +124,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // events, which is over the global limit, so it parses its own body first;
   // the global parser then skips the body it finds already read.
   app.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
+  // The case status route can carry a mark's screenshot, over the global limit.
+  app.use(TESTBENCH_CASE_STATUS_PATH, testbenchCaseStatusBodyParser);
   app.use(express.json({ limit: "210kb" }));
 
   app.use("/api/projects", projectsRouter);
@@ -290,6 +296,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // The delivery domain registers its Spec Bench host before the bench manager
   // hydrates and reconciles any Spec Bench (SB-FR-004).
   registerSpecbenchVariantHost();
+  // And the Spec Bench's TestBench host, so a sitting's cases are marked on the
+  // TestBench surfaces (SB-FR-026).
+  registerSpecbenchTestbenchAdapter();
 
   console.log("Initializing bench manager...");
   benchManager.initialize();

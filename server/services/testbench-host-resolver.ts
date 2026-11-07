@@ -33,13 +33,18 @@ export interface TestbenchHost extends TestbenchHostPermissions {
   slug: string;
 }
 
-/** The refusal of the port: always a 400, with the message the route returns. */
+/**
+ * The refusal of the port, with the message the route returns: a 400, or a 409
+ * when a provider's mark check finds the bench in a state that blocks a mark.
+ */
 export interface TestbenchHostRefusal {
   ok: false;
-  status: 400;
+  status: 400 | 409;
   error: string;
-  /** A BenchError code, set only for the focus purpose. */
+  /** A BenchError code for the focus purpose, or the code of a mark check's refusal. */
   code?: string;
+  /** The blocking classes a 409 CROSSCHECK_BLOCKED names. */
+  classes?: string[];
 }
 
 export type TestbenchHostResult<T> = { ok: true; host: T } | TestbenchHostRefusal;
@@ -48,8 +53,33 @@ export type TestbenchHostResult<T> = { ok: true; host: T } | TestbenchHostRefusa
 export interface TestbenchHostProvider extends TestbenchHostPermissions {
   /** The root the focused spec's plan and results are read and written under. */
   rootPath(bench: Bench): string | undefined;
-  /** The bench's focused spec path, as persisted. */
+  /**
+   * The path of the bench's focused test-cases.json inside the project, which
+   * the slug is resolved from.
+   */
   focusedSpecPath(bench: Bench): string | undefined;
+  /**
+   * A check of the bench's own state before a mark, for a variant whose
+   * benches accept marks only at some times: the refusal, or undefined when the
+   * mark may go on. Only resolveTestbenchMarkHost runs it.
+   */
+  checkMark?(bench: Bench): Promise<TestbenchHostRefusal | undefined>;
+  /**
+   * Runs after the case status route wrote a status override, with what it
+   * wrote. What it returns is added to the route's answer beside the case
+   * result. Never throws: a failure is part of what it returns.
+   */
+  afterStatusMark?(bench: Bench, mark: TestbenchStatusMark): Promise<Record<string, unknown>>;
+}
+
+/** A status override the case status route wrote, as a provider's afterStatusMark reads it. */
+export interface TestbenchStatusMark {
+  rootPath: string;
+  slug: string;
+  caseId: string;
+  override: string | null;
+  /** The note of the mark's evidence, when it carried one. */
+  note?: string;
 }
 
 /**
@@ -154,4 +184,19 @@ export function resolveTestbenchHost(
     return refuse(`Invalid focusedSpecPath: ${(err as Error).message}`);
   }
   return { ok: true, host: { rootPath, slug, ...permissions } };
+}
+
+/**
+ * Resolves the TestBench host of a bench for a mark, then runs its provider's
+ * mark check, if it has one. Every route that writes a mark, an override, a
+ * lifecycle record, a note or a reconcile resolves through here.
+ */
+export async function resolveTestbenchMarkHost(
+  bench: Bench,
+  repoPath: string,
+): Promise<TestbenchHostResult<TestbenchHost>> {
+  const resolved = resolveTestbenchHost(bench, "mark", repoPath);
+  if (!resolved.ok) return resolved;
+  const refusal = await getTestbenchHostProvider(bench.variant)?.checkMark?.(bench);
+  return refusal ?? resolved;
 }

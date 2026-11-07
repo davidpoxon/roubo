@@ -274,3 +274,20 @@ export function useDeliverySessionLive(bench: Bench): boolean {
   if (sessionId === undefined) return false;
   return (sessions.data ?? []).some((s) => s.id === sessionId && s.status === "live");
 }
+
+/**
+ * The stage control of a gate sitting (SB-FR-023): opens the sitting of a
+ * gate, or closes the bench's sitting in any state. The snapshot is read
+ * again once the request settles, so the sitting's phase follows.
+ */
+export function useSittingStage(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stage: { action: "open"; gateId: string } | { action: "close" }) =>
+      stage.action === "open"
+        ? api.openDeliverySitting(projectId, benchId, stage.gateId).then(() => undefined)
+        : api.closeDeliverySitting(projectId, benchId),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}

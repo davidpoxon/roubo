@@ -7,6 +7,8 @@ import type {
 } from "@roubo/shared/testbench-contracts";
 import { deriveStatus } from "@roubo/shared/testbench-domain";
 import * as api from "../lib/api";
+import type { CaseMarkEvidence, CaseStatusMarkResponse } from "../lib/api";
+import { useTestbenchApi } from "../components/testbench/TestbenchApiContext";
 import { testbenchPlanQueryKey, type TestbenchPlanData } from "./useTestbenchPlan";
 
 // Observation-mark and status-override mutations for the case detail pane (#471,
@@ -134,13 +136,25 @@ interface OverrideVars {
   benchId: number;
   caseId: string;
   override: CaseStatus | null;
+  // The mark's note and screenshot (SB-FR-027), sent beside the override.
+  evidence?: CaseMarkEvidence;
 }
 
+// The write goes through the TestbenchApiContext, so a host of the TestBench
+// surfaces, such as a Spec Bench's gate sitting, can follow each mark up.
 export function useSetStatusOverride() {
   const queryClient = useQueryClient();
-  return useMutation<CaseResult, Error, OverrideVars, { previous: TestbenchPlanData | undefined }>({
-    mutationFn: ({ projectId, benchId, caseId, override }) =>
-      api.setStatusOverride(projectId, benchId, caseId, override),
+  const testbenchApi = useTestbenchApi();
+  return useMutation<
+    CaseStatusMarkResponse,
+    Error,
+    OverrideVars,
+    { previous: TestbenchPlanData | undefined }
+  >({
+    mutationFn: ({ projectId, benchId, caseId, override, evidence }) =>
+      evidence === undefined
+        ? testbenchApi.setStatusOverride(projectId, benchId, caseId, override)
+        : testbenchApi.setStatusOverride(projectId, benchId, caseId, override, evidence),
     onMutate: async (vars) => {
       const key = testbenchPlanQueryKey(vars.projectId, vars.benchId);
       await queryClient.cancelQueries({ queryKey: key });
