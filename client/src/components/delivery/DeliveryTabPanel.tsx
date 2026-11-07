@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
@@ -36,7 +36,18 @@ import RoleMatrix from "./RoleMatrix";
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
 // session again, since no record means no session has run the delivery yet.
-export default function DeliveryTabPanel({ bench }: { bench: Bench }) {
+//
+// `decisionPileFocusKey` is set when the bench was opened from a link to its
+// decision pile, such as a delivery-decision notification's (SB-FR-014): the
+// pile is scrolled into view and focused once the snapshot shows, once for each
+// key.
+export default function DeliveryTabPanel({
+  bench,
+  decisionPileFocusKey,
+}: {
+  bench: Bench;
+  decisionPileFocusKey?: string | undefined;
+}) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
   const delivery = useDelivery(bench.projectId, bench.id);
@@ -71,7 +82,13 @@ export default function DeliveryTabPanel({ bench }: { bench: Bench }) {
           {delivery.error.message}
         </Callout>
       )}
-      {delivery.isSuccess && <DeliverySnapshotView bench={bench} snapshot={delivery.data} />}
+      {delivery.isSuccess && (
+        <DeliverySnapshotView
+          bench={bench}
+          snapshot={delivery.data}
+          decisionPileFocusKey={decisionPileFocusKey}
+        />
+      )}
     </div>
   );
 }
@@ -136,10 +153,31 @@ function LaunchDeliveryControl({ bench }: { bench: Bench }) {
   );
 }
 
-function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: DeliverySnapshot }) {
+function DeliverySnapshotView({
+  bench,
+  snapshot,
+  decisionPileFocusKey,
+}: {
+  bench: Bench;
+  snapshot: DeliverySnapshot;
+  decisionPileFocusKey: string | undefined;
+}) {
   const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
   const costHealthControls = useRef<HTMLElement>(null);
+  const decisionPile = useRef<HTMLDivElement>(null);
+  const focusedPileKey = useRef<string | undefined>(undefined);
+  // A link to the decision pile brings it into view and focus, once per link.
+  useEffect(() => {
+    if (decisionPileFocusKey === undefined || focusedPileKey.current === decisionPileFocusKey) {
+      return;
+    }
+    const pile = decisionPile.current;
+    if (pile === null) return;
+    focusedPileKey.current = decisionPileFocusKey;
+    pile.scrollIntoView?.({ block: "start" });
+    pile.focus();
+  }, [decisionPileFocusKey]);
   // A complete delivery takes no role change and no mode switch.
   const ended = classifyLifecycleState(snapshot.lifecycle.state) === "complete";
   // The view of cost, health and controls: the burn meter, the jam list, the
@@ -204,12 +242,19 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
 
         <DeliveryDriftLedger snapshot={snapshot} />
 
-        <DecisionPile
-          projectId={bench.projectId}
-          benchId={bench.id}
-          snapshot={snapshot}
-          sessionLive={sessionLive}
-        />
+        <div
+          ref={decisionPile}
+          tabIndex={-1}
+          data-testid="delivery-decision-pile-target"
+          className="focus:outline-none"
+        >
+          <DecisionPile
+            projectId={bench.projectId}
+            benchId={bench.id}
+            snapshot={snapshot}
+            sessionLive={sessionLive}
+          />
+        </div>
 
         <section data-testid="delivery-steering-controls" aria-label="Steering">
           <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />

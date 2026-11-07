@@ -4,6 +4,7 @@ import {
   hasActionNeeded,
   collectActionNeeded,
   formatNotification,
+  notificationRouteTo,
 } from "./notifications";
 import type {
   Bench,
@@ -124,9 +125,28 @@ describe("formatNotification", () => {
       metadata: { decisionId: "decision-1", question: "One file per unit or one per stack?" },
     };
     expect(formatNotification(n)).toEqual({
-      title: "Delivery decision",
+      title: "Delivery decision decision-1",
       body: "One file per unit or one per stack?",
     });
+  });
+
+  it("a delivery-decision notification names its decision and links to the pile", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-decision"),
+      metadata: { decisionId: "decision-1", question: "One file per unit or one per stack?" },
+    };
+    expect(formatNotification(n).title).toBe("Delivery decision decision-1");
+    expect(notificationRouteTo("p1", 2, n)).toBe("roubo://project/p1/bench/2/decisions");
+    // A review call waits on the same pile.
+    const review = {
+      ...makeNotification("action-needed", "delivery-decision"),
+      metadata: { review: true, count: 2 },
+    };
+    expect(notificationRouteTo("p1", 2, review)).toBe("roubo://project/p1/bench/2/decisions");
+    // Every other notification leads to the bench.
+    expect(notificationRouteTo("p1", 2, makeNotification("action-needed", "delivery-jam"))).toBe(
+      "roubo://project/p1/bench/2",
+    );
   });
 
   it("SB-TC-081: composes a review call's notification from its count alone", () => {
