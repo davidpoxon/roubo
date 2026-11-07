@@ -17,8 +17,10 @@
 // When a refresh runs:
 //   - load: the first read of the bench's cross-check since the server started
 //     arms it and runs one refresh, which the read waits for;
-//   - events: one refresh per accepted `unit.boundary`, `pr.submitted` or
-//     `gate.reached` event of an armed bench;
+//   - events: one refresh per accepted `unit.boundary`, `pr.submitted`,
+//     `gate.reached`, `unit.changed` or `gate.changed` event of an armed bench
+//     (the events of one batch, or that come while a refresh waits to start,
+//     share that refresh);
 //   - file changes: a change of the record or of test-results.json in the spec
 //     folder of the workspace runs one refresh after a 500 ms debounce;
 //   - backstop: 60 seconds after the last refresh of any kind, one refresh.
@@ -77,11 +79,15 @@ import * as stateService from "./state.js";
 
 export const DELIVERY_CROSS_CHECK_NOTIFICATION = "delivery-crosscheck";
 
-// The event types that run a refresh of an armed bench.
+// The event types that run a refresh of an armed bench: the unit-boundary,
+// submit and gate names of SB-FR-030, and the delivery observation contract's
+// unit.changed and gate.changed, which a real session posts at those moments.
 export const DELIVERY_CROSS_CHECK_EVENT_TYPES: ReadonlySet<string> = new Set([
   "unit.boundary",
   "pr.submitted",
   "gate.reached",
+  "unit.changed",
+  "gate.changed",
 ]);
 
 // The results file of the spec folder, beside the record.

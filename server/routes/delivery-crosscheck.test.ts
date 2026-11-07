@@ -1,7 +1,9 @@
 // GET /delivery/crosscheck of a Spec Bench over a fixture workspace
 // (SB-FR-030, SB-NFR-005): after a restart the first read lists every
 // disagreement within 5 seconds and the snapshot's seq is the record's, and a
-// GitHub failure answers the last list with a source error naming GitHub.
+// GitHub failure answers the last list with a source error naming GitHub. An
+// event that the tooling posts to the event route runs one refresh per
+// refreshing type.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +11,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bench } from "@roubo/shared";
+import { DELIVERY_EVENT_HOOK_PATH } from "@roubo/shared/delivery-bench";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
@@ -26,6 +29,10 @@ vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
   isBenchLive: vi.fn(() => false),
   whenWorkspaceProvisioned: vi.fn(async () => undefined),
+}));
+vi.mock("../services/state.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/state.js")>()),
+  updateBench: vi.fn(),
 }));
 vi.mock("../services/delivery-session-launcher.js", () => ({
   DeliveryLaunchBlockedError: class extends Error {},
@@ -50,12 +57,18 @@ import {
   type DeliveryGitObservation,
 } from "../lib/delivery-cross-check.js";
 import {
+  deliveryCrossCheckRunCount,
   forgetDeliveryCrossCheck,
   refreshDeliveryCrossCheckOnEvents,
   setDeliveryCrossCheckDeps,
+  whenDeliveryCrossCheckIdle,
 } from "../services/delivery-cross-check-loader.js";
+import { hashDeliveryToken } from "../services/delivery-token-registry.js";
 import { computePlanHash } from "../lib/testbench-store.js";
+import deliveryHooksRouter, { deliveryEventBodyParser } from "./delivery-hooks.js";
 import router from "./delivery.js";
+
+const TOKEN = "delivery-token-for-the-cross-check";
 
 const UPDATED_AT = "2026-10-16T09:30:00Z";
 const BEFORE_UPDATE = "2026-10-16T09:00:00Z";
@@ -232,6 +245,8 @@ beforeEach(() => {
     focusedSpecPath: "/repo/.specifications/fixture-spec",
     workspacePath: workspace,
     deliveryDecisionMode: "auto",
+    deliveryBindMode: "launch",
+    deliveryTokenHash: hashDeliveryToken(TOKEN),
     components: {},
     notifications: [],
   } as unknown as Bench;
@@ -250,6 +265,9 @@ beforeEach(() => {
   forgetDeliveryCrossCheck();
   forgetDeliveryEventLog();
   app = express();
+  app.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
+  app.use(express.json());
+  app.use("/api/hooks", deliveryHooksRouter);
   app.use("/api/projects", router);
 });
 
@@ -347,5 +365,70 @@ describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
     ]);
     const restored = await request(app).get(`${base}/crosscheck`);
     expect(restored.body.sourceError).toBeNull();
+  });
+});
+
+describe("POST /api/hooks/delivery-event and the cross-check", () => {
+  function posted(seq: number, type: string): Record<string, unknown> {
+    return {
+      $schema: DELIVERY_EVENT_SCHEMA_ID,
+      schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+      delivery_id: "fixture-delivery",
+      type,
+      seq,
+      ts: "2026-10-16T09:40:00Z",
+      ...(type === "unit.changed" && { unit_id: "A" }),
+      payload:
+        type === "unit.changed"
+          ? { status: "running" }
+          : type === "gate.changed"
+            ? { gate_id: "gate-after-b", status: "passed" }
+            : {},
+    };
+  }
+
+  async function post(seq: number, type: string): Promise<void> {
+    const res = await request(app)
+      .post(`${DELIVERY_EVENT_HOOK_PATH}?projectId=${bench.projectId}&benchId=${bench.id}`)
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({ events: [posted(seq, type)] });
+    expect(res.status, type).toBe(202);
+    await whenDeliveryCrossCheckIdle(bench.projectId, bench.id);
+  }
+
+  function runs(): number {
+    return deliveryCrossCheckRunCount(bench.projectId, bench.id);
+  }
+
+  it("SB-TC-071 runs one refresh per posted unit.boundary, pr.submitted, gate.reached, unit.changed and gate.changed, and none for another type", async () => {
+    writeSpec(computePlanHash(plan), []);
+
+    // Before a read arms the bench, a posted event runs none.
+    await post(8, "unit.boundary");
+    expect(runs()).toBe(0);
+
+    // Step 1: the load.
+    const loaded = await request(app).get(`${base}/crosscheck`);
+    expect(loaded.status).toBe(200);
+    expect(runs()).toBe(1);
+
+    // Step 2: one run per posted event of a refreshing type.
+    let seq = 9;
+    for (const type of [
+      "unit.boundary",
+      "pr.submitted",
+      "gate.reached",
+      "unit.changed",
+      "gate.changed",
+    ]) {
+      const before = runs();
+      await post(seq++, type);
+      expect(runs(), type).toBe(before + 1);
+    }
+
+    // Another type runs none.
+    const before = runs();
+    await post(seq, "decision.raised");
+    expect(runs()).toBe(before);
   });
 });
