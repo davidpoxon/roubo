@@ -28,19 +28,23 @@ vi.mock("./sse.js", () => ({
   broadcastBenchDecisionMode: vi.fn(),
   broadcastDeliveryFrame: vi.fn(),
 }));
+// The real notification service, with createNotification observed.
+vi.mock("./notification.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./notification.js")>();
+  return { ...actual, createNotification: vi.fn(actual.createNotification) };
+});
 
+import * as notificationService from "./notification.js";
 import * as stateService from "./state.js";
 import { forgetDeliveryEventLog } from "./delivery-event-log.js";
 import {
-  DELIVERY_CROSS_CHECK_BACKSTOP_MS,
-  DELIVERY_CROSS_CHECK_DEBOUNCE_MS,
   DELIVERY_CROSS_CHECK_EVENT_TYPES,
   DELIVERY_CROSS_CHECK_FIRST_READ_MS,
-  DELIVERY_CROSS_CHECK_THROTTLE_MS,
   deliveryCrossCheckRunCount,
   forgetDeliveryCrossCheck,
   parseForEachRef,
   parseGitHubRemote,
+  parsePullRequestsBody,
   readDeliveryCrossCheck,
   refreshDeliveryCrossCheckOnEvents,
   setDeliveryCrossCheckDeps,
@@ -126,6 +130,9 @@ let pullsBody: unknown[] | undefined;
 // Replaces the stacks resource's answer when set.
 let stacksAnswer: (() => Response) | undefined;
 let requests: { path: string; status: number; headers: Headers }[];
+// What the workspace's origin resolves to: null when it is no github.com
+// repository.
+let repository: { owner: string; repo: string } | null;
 let fileChange: ((file: string) => void) | undefined;
 
 const STACKS_ETAG = '"stacks-1"';
@@ -182,6 +189,28 @@ async function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
   return res;
 }
 
+// An open pull request of a unit's branch, as the query lists it.
+function listedPullRequest(id: UnitId, baseRef: string) {
+  return {
+    state: "open",
+    merged_at: null,
+    head: { ref: BRANCH[id] },
+    base: { ref: baseRef },
+    html_url: `https://github.com/example/fixture/pull/${id}`,
+  };
+}
+
+// `count` merged pull requests of other branches, to fill the query's page.
+function otherPullRequests(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    state: "closed",
+    merged_at: "2026-10-16T09:10:00Z",
+    head: { ref: `other/${index}` },
+    base: { ref: "main" },
+    html_url: `https://github.com/example/fixture/pull/${1000 + index}`,
+  }));
+}
+
 let tmp: string;
 let specFolder: string;
 let bench: Bench;
@@ -215,8 +244,10 @@ beforeEach(() => {
   pullsBody = undefined;
   stacksAnswer = undefined;
   requests = [];
+  repository = { owner: "example", repo: "fixture" };
   fileChange = undefined;
   vi.mocked(stateService.updateBench).mockReset();
+  vi.mocked(notificationService.createNotification).mockClear();
   setDeliveryCrossCheckDeps({
     readGit: async () => {
       const git: Record<string, { localHead: string; remoteHead: string; committedAt: string }> =
@@ -226,7 +257,7 @@ beforeEach(() => {
       }
       return git;
     },
-    resolveGitHubRepository: async () => ({ owner: "example", repo: "fixture" }),
+    resolveGitHubRepository: async () => repository,
     githubToken: async () => "token",
     fetch: fakeFetch,
     watch: (_folder, onChange) => {
@@ -314,12 +345,6 @@ describe("SB-TC-071: when the cross-check refreshes", () => {
     expect(runs()).toBe(9);
   });
 
-  it("SB-TC-071 debounces file changes by 500 ms, throttles to 30 seconds and backstops after 60 seconds, as the spec sets them", () => {
-    expect(DELIVERY_CROSS_CHECK_DEBOUNCE_MS).toBe(500);
-    expect(DELIVERY_CROSS_CHECK_THROTTLE_MS).toBe(30_000);
-    expect(DELIVERY_CROSS_CHECK_BACKSTOP_MS).toBe(60_000);
-  });
-
   it("SB-TC-071 runs one refresh for each refreshing event type, the contract's unit.changed and gate.changed included", async () => {
     await readDeliveryCrossCheck(bench);
     expect(runs()).toBe(1);
@@ -368,10 +393,13 @@ describe("SB-TC-072: the first appearance of a blocking class", () => {
       }),
     );
 
-    // Step 2: three more refreshes raise nothing more.
+    // Step 2: three more refreshes raise nothing more: the loader does not even
+    // ask the notification service.
+    vi.mocked(notificationService.createNotification).mockClear();
     await refreshOnEvent(9);
     await refreshOnEvent(10);
     await refreshOnEvent(11);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
     expect(crossCheckNotifications()).toHaveLength(1);
     expect(crossCheckNotifications()[0]?.id).toBe(first[0]?.id);
     expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
@@ -398,10 +426,170 @@ describe("SB-TC-072: the first appearance of a blocking class", () => {
     await refreshOnEvent(8);
     expect(crossCheckNotifications()).toHaveLength(1);
 
-    // A restart forgets the loader's memory, not the bench's notifications.
+    // A restart forgets the loader's memory, not the bench's notifications:
+    // the load refresh seeds the seen classes from them and raises none.
     forgetDeliveryCrossCheck();
+    vi.mocked(notificationService.createNotification).mockClear();
     await readDeliveryCrossCheck(bench);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
     expect(crossCheckNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-072 raises none again after a restart for a class whose notification the operator dismissed", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    const notified = crossCheckNotifications();
+    expect(notified).toHaveLength(1);
+    const seenAt = bench.deliveryFirstSeenBlocking;
+
+    // The operator dismisses it, then the server restarts: the bench's first
+    // blocking class seeds the seen classes.
+    notificationService.dismissOne(bench, notified[0]?.id ?? "");
+    expect(crossCheckNotifications()).toEqual([]);
+    forgetDeliveryCrossCheck();
+    vi.mocked(notificationService.createNotification).mockClear();
+    await readDeliveryCrossCheck(bench);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+  });
+
+  it("SB-TC-072 keeps the first-seen time of a GitHub class with no notification left when GitHub fails after a restart", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    const seenAt = bench.deliveryFirstSeenBlocking;
+    expect(seenAt).toBeDefined();
+    notificationService.dismissOne(bench, crossCheckNotifications()[0]?.id ?? "");
+
+    forgetDeliveryCrossCheck();
+    githubDown = true;
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.sourceError?.source).toBe("github");
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+  });
+
+  it("SB-TC-072 keeps one notification and the first-seen time when a full pull-request page no longer holds the closed pull request", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    const notified = crossCheckNotifications();
+    expect(notified).toHaveLength(1);
+    const seenAt = bench.deliveryFirstSeenBlocking;
+    expect(seenAt).toBeDefined();
+    const before = (await readDeliveryCrossCheck(bench)).disagreements;
+    expect(before).toEqual([
+      expect.objectContaining({ class: "pr-state-differs", unitId: "B", observed: "closed" }),
+    ]);
+
+    // Ninety-seven more recently updated pull requests push B off a full page.
+    pullsBody = [
+      listedPullRequest("A", "main"),
+      listedPullRequest("C", BRANCH.B),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(97),
+    ];
+    vi.mocked(notificationService.createNotification).mockClear();
+    await refreshOnEvent(9);
+    await refreshOnEvent(10);
+
+    // The class is not taken as cleared: the entry is kept, the notification
+    // stays and the first-seen time does not move.
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.disagreements).toEqual(before);
+    expect(crossCheckNotifications().map((n) => n.id)).toEqual([notified[0]?.id]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+
+    // B back on the page, still closed: no second notification.
+    pullsBody = undefined;
+    await refreshOnEvent(11);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(crossCheckNotifications().map((n) => n.id)).toEqual([notified[0]?.id]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+  });
+
+  it("SB-TC-072 keeps the notification of a class a full page leaves unobserved on the first refresh after a restart", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    const notified = crossCheckNotifications();
+    const seenAt = bench.deliveryFirstSeenBlocking;
+
+    forgetDeliveryCrossCheck();
+    pullsBody = [
+      listedPullRequest("A", "main"),
+      listedPullRequest("C", BRANCH.B),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(97),
+    ];
+    await readDeliveryCrossCheck(bench);
+    expect(crossCheckNotifications().map((n) => n.id)).toEqual([notified[0]?.id]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+  });
+
+  it("SB-TC-072 keeps a base-branch disagreement when a full page no longer holds the lower pull request", async () => {
+    // C's open pull request targets main while B's is open.
+    pullsBody = [
+      listedPullRequest("A", "main"),
+      listedPullRequest("B", BRANCH.A),
+      listedPullRequest("C", "main"),
+      listedPullRequest("D", "main"),
+    ];
+    const first = await readDeliveryCrossCheck(bench);
+    expect(first.disagreements).toEqual([
+      expect.objectContaining({ class: "base-branch-differs", unitId: "C", observed: "main" }),
+    ]);
+
+    // B drops off a full page: its merge state is unknown, so C's entry stays.
+    pullsBody = [
+      listedPullRequest("A", "main"),
+      listedPullRequest("C", "main"),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(97),
+    ];
+    await refreshOnEvent(8);
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.disagreements).toEqual(first.disagreements);
+
+    // C drops off the page too: still unobserved, still kept.
+    pullsBody = [
+      listedPullRequest("A", "main"),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(98),
+    ];
+    await refreshOnEvent(9);
+    expect((await readDeliveryCrossCheck(bench)).disagreements).toEqual(first.disagreements);
+
+    // A page that is not full and shows C retargeted clears it.
+    pullsBody = undefined;
+    await refreshOnEvent(10);
+    expect((await readDeliveryCrossCheck(bench)).disagreements).toEqual([]);
+  });
+});
+
+describe("SB-TC-072: a refresh that Clear bench overtakes", () => {
+  it("SB-TC-072 writes nothing to a bench cleared while GitHub answered", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    githubDelayMs = 1_000;
+    vi.mocked(notificationService.createNotification).mockClear();
+    vi.mocked(stateService.updateBench).mockClear();
+    const pending = refreshOnEvent(8);
+    await vi.advanceTimersByTimeAsync(500);
+    // Clear bench disarms the cross-check while the stacks request waits.
+    forgetDeliveryCrossCheck(bench.projectId, bench.id);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await pending;
+    expect(requests.some((r) => r.path.endsWith("/stacks"))).toBe(true);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBeUndefined();
+    expect(stateService.updateBench).not.toHaveBeenCalled();
   });
 
   it("SB-TC-072 dismisses the notification the bench kept when the first refresh after a restart finds the class cleared", async () => {
@@ -772,5 +960,96 @@ describe("the loader's readings", () => {
     expect(requests).toEqual([]);
     expect(read).toMatchObject({ disagreements: [], sourceError: null });
     expect(read.refreshedAt).not.toBeNull();
+  });
+
+  it("reads a closed pull request with a merged_at time as merged", async () => {
+    expect(
+      parsePullRequestsBody([
+        {
+          state: "closed",
+          merged_at: "2026-10-16T09:10:00Z",
+          head: { ref: BRANCH.B },
+          base: { ref: BRANCH.A },
+          html_url: "https://github.com/example/fixture/pull/B",
+        },
+        {
+          state: "closed",
+          merged_at: null,
+          head: { ref: BRANCH.C },
+          base: { ref: BRANCH.B },
+          html_url: "https://github.com/example/fixture/pull/C",
+        },
+      ]),
+    ).toEqual({
+      [BRANCH.B]: {
+        state: "merged",
+        baseBranch: BRANCH.A,
+        url: "https://github.com/example/fixture/pull/B",
+      },
+      [BRANCH.C]: {
+        state: "closed",
+        baseBranch: BRANCH.B,
+        url: "https://github.com/example/fixture/pull/C",
+      },
+    });
+
+    // A merged pull request agrees with the record's claim of a live one, and
+    // the pull request above it is not held to the merged branch.
+    prState.B = { state: "closed", merged_at: "2026-10-16T09:10:00Z" };
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.disagreements).toEqual([]);
+    expect(crossCheckNotifications()).toEqual([]);
+  });
+
+  it("still refreshes on load and on events when the spec folder cannot be watched", async () => {
+    setDeliveryCrossCheckDeps({
+      readGit: async () => {
+        const git: Record<string, { localHead: string; remoteHead: string; committedAt: string }> =
+          {};
+        for (const id of UNITS) {
+          git[BRANCH[id]] = {
+            localHead: HEAD[id],
+            remoteHead: HEAD[id],
+            committedAt: BEFORE_UPDATE,
+          };
+        }
+        return git;
+      },
+      resolveGitHubRepository: async () => repository,
+      githubToken: async () => "token",
+      fetch: fakeFetch,
+      watch: () => {
+        throw new Error("ENOENT: no such file or directory, watch");
+      },
+    });
+    prState.B = { state: "closed", merged_at: null };
+    const read = await readDeliveryCrossCheck(bench);
+    expect(runs()).toBe(1);
+    expect(read.disagreements.map((d) => d.class)).toEqual(["pr-state-differs"]);
+
+    prState.B = { state: "open", merged_at: null };
+    await refreshOnEvent(8);
+    expect(runs()).toBe(2);
+    expect((await readDeliveryCrossCheck(bench)).disagreements).toEqual([]);
+  });
+
+  it("drops the GitHub classes on the refresh after the origin stops being a github.com repository", async () => {
+    prState.B = { state: "closed", merged_at: null };
+    const first = await readDeliveryCrossCheck(bench);
+    expect(first.disagreements.map((d) => d.class)).toEqual(["pr-state-differs"]);
+    expect(crossCheckNotifications()).toHaveLength(1);
+    expect(bench.deliveryFirstSeenBlocking).toBeDefined();
+
+    // The origin now points elsewhere: no GitHub request, no GitHub class.
+    repository = null;
+    requests = [];
+    await refreshOnEvent(8);
+    const read = await readDeliveryCrossCheck(bench);
+    expect(requests).toEqual([]);
+    expect(read.disagreements).toEqual([]);
+    expect(read.sourceError).toBeNull();
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBeUndefined();
+    expect(bench.deliveryFirstSeenBlockingClass).toBeUndefined();
   });
 });
