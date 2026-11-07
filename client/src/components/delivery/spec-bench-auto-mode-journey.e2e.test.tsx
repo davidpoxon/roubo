@@ -266,16 +266,17 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is exactly this journey's blocked-by set, named by what each slice
-// delivers and the spec ids it implements, and every step names at least one
-// of them. A slice that a step also crosses but that sits outside the
-// blocked-by set is labelled apart.
+// OWNERS is exactly this journey's blocked-by set, named by the exact title of
+// each slice issue and the spec ids it implements, and every step names at
+// least one of them. A slice that a step also crosses but that sits outside
+// the blocked-by set is labelled apart.
 const OWNERS = {
-  setUpMode: "'Choose attended or auto decision mode at set-up' (SB-FR-031)",
-  modeSwitch: "'Mode switch control with a pending badge' (SB-FR-032, SB-US-013)",
-  reviewCards: "'Agent decisions as review cards on the decision pile' (SB-FR-033)",
+  setUpMode: "'Decision mode in the set-up dialog and the launch descriptor' (SB-FR-031)",
+  modeSwitch:
+    "'Mode switch control with a pending badge, the read-back, and the mode in the shell and the card' (SB-FR-032, SB-US-013)",
+  reviewCards: "'Agent decision cards on the pile and the review call notification' (SB-FR-033)",
   surfaces:
-    "'Keyboard and screen-reader paths for the Spec Bench surfaces' (SB-NFR-004, SB-US-013)",
+    "'Keyboard and screen-reader paths for the mode switch, the review card, the thread and the provisional mark' (SB-NFR-004, SB-US-013)",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
