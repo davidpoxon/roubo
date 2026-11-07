@@ -4,19 +4,25 @@
 //
 // Preparing a sitting (prepareGateSitting) runs when the delivery session posts
 // `gate.reached` (see services/delivery-sitting.ts), out of band of the hook's
-// answer. It runs steps 1 to 6 below and records `deliverySitting` in state
-// `preparing`, with the smoke check's verdict in `smokeCheck`. The smoke check
+// answer. It first records `deliverySitting` in state `preparing`, so the gate
+// reads waiting for build from the start, then runs steps 1 to 6 below and
+// records the smoke check's verdict in `smokeCheck`; a step that cannot pin
+// the commit clears the sitting again. The smoke check
 // of a prepared pin also fails while no component of the bench runs, since no
 // build is then live. While it fails, the pin stays and the check runs again
 // every SMOKE_RECHECK_MS, so a build that the operator brings up (a component
 // started or restarted, which runs from the pin) passes it. Once it passes, the
 // sitting is `ready` and the bench's `delivery-sitting` notification for the
 // gate calls the operator. Each change of the sitting goes out as a `controls`
-// delivery frame, so the Delivery tab reads it again.
+// delivery frame, so the Delivery tab reads it again. The recheck timers live
+// in memory: after a server restart, resumeGateSittingWatches starts them again
+// for each `preparing` sitting, or starts its preparation again when its pin
+// was never recorded.
 //
 // Opening a sitting on a `ready` pin (openPreparedSitting) moves it to `open`
-// and dismisses the notification. A `preparing` one is refused with 409
-// BUILD_NOT_SMOKE_CHECKED. With no prepared sitting, openGatePin runs the whole
+// and dismisses the notification. A `preparing` one, also while its pin is
+// still being made, is refused with 409 BUILD_NOT_SMOKE_CHECKED. With no
+// prepared sitting, openGatePin runs the whole
 // sequence while the request waits:
 //   1. resolves the gate commit, before anything else moves, so a commit git
 //      does not know is refused with no worktree created and the components
@@ -688,16 +694,18 @@ function scheduleRecheck(bench: Bench, gateId: string): void {
 }
 
 /**
- * Prepares the sitting of a gate the delivery reached: pins the gate commit as
- * openGatePin does (steps 1 to 5), records `deliverySitting` in state
- * `preparing`, and smoke-checks the pinned build. When the check passes the
- * sitting is `ready` and the `delivery-sitting` notification of the gate calls
- * the operator; while it fails the pin stays and the check runs again every
- * SMOKE_RECHECK_MS. Does nothing, and returns undefined, while the bench has a
- * sitting or a pin already, or another open or close runs. A step that cannot
- * pin the commit undoes what it moved and returns undefined, logged; the
- * operator can still open the sitting, which then runs the whole sequence.
- * Never throws.
+ * Prepares the sitting of a gate the delivery reached. It first records
+ * `deliverySitting` in state `preparing`, persists it and announces it, so the
+ * gate reads waiting for build and POST /sittings is refused with
+ * BUILD_NOT_SMOKE_CHECKED from the start. Then it pins the gate commit as
+ * openGatePin does (steps 1 to 5), and smoke-checks the pinned build. When the
+ * check passes the sitting is `ready` and the `delivery-sitting` notification
+ * of the gate calls the operator; while it fails the pin stays and the check
+ * runs again every SMOKE_RECHECK_MS. Does nothing, and returns undefined, while
+ * the bench has a sitting or a pin already, or another open or close runs. A
+ * step that cannot pin the commit undoes what it moved, clears the sitting and
+ * returns undefined, logged; the operator can still open the sitting, which
+ * then runs the whole sequence. Never throws.
  */
 export function prepareGateSitting(
   bench: Bench,
@@ -706,18 +714,23 @@ export function prepareGateSitting(
   const key = benchKey(bench);
   const run = (async (): Promise<BenchDeliverySitting | undefined> => {
     if (bench.deliverySitting !== undefined || bench.gatePin !== undefined) return undefined;
+    if (inFlight.has(key)) return undefined;
+    // Nothing awaits between the checks above and exclusive() below, so no
+    // other open or close slips in between.
+    const sitting: BenchDeliverySitting = {
+      gateId: input.gateId,
+      preparedAt: new Date().toISOString(),
+      commit: input.commit,
+      state: "preparing",
+      resultsSpecPath: input.resultsSpecPath,
+    };
+    bench.deliverySitting = sitting;
+    stopWatch(bench);
     try {
       return await exclusive(bench, async () => {
-        if (bench.deliverySitting !== undefined || bench.gatePin !== undefined) return undefined;
+        announce(bench);
         const pinned = await pinGateCommit(bench, input);
-        const sitting: BenchDeliverySitting = {
-          gateId: input.gateId,
-          preparedAt: pinned.now,
-          commit: pinned.sha,
-          state: "preparing",
-          resultsSpecPath: input.resultsSpecPath,
-        };
-        bench.deliverySitting = sitting;
+        sitting.commit = pinned.sha;
         stopWatch(bench);
         watches.set(key, { gateId: input.gateId, expected: pinned.running });
         const problem = await preparedSmokeCheck(
@@ -733,6 +746,17 @@ export function prepareGateSitting(
       console.warn(
         `[gate-pin] Could not prepare the sitting of gate ${input.gateId} on bench ${bench.id}: ${(err as Error).message}`,
       );
+      if (bench.deliverySitting === sitting) {
+        if (bench.gatePin === undefined) {
+          // No pin was recorded: the gate has nothing to wait on.
+          bench.deliverySitting = undefined;
+          announce(bench);
+        } else {
+          // The pin stands, so the gate waits for its build as after a failed
+          // smoke check.
+          scheduleRecheck(bench, sitting.gateId);
+        }
+      }
       return undefined;
     }
   })();
@@ -754,23 +778,42 @@ function pinCheckout(pin: BenchGatePin): string | undefined {
   return within(pin.workspacePath, pin.submodulePath);
 }
 
+// The watch of the bench's prepared sitting of `gateId`. A sitting prepared
+// before a server restart has none in memory: its components are then those
+// that run now.
+function ensureWatch(bench: Bench, gateId: string): SittingWatch {
+  const key = benchKey(bench);
+  const watch = watches.get(key);
+  if (watch !== undefined && watch.gateId === gateId) return watch;
+  stopWatch(bench);
+  const fresh: SittingWatch = { gateId, expected: [] };
+  watches.set(key, fresh);
+  return fresh;
+}
+
 /**
  * Runs the smoke check of the bench's `preparing` sitting again, and records
  * its verdict as the preparation does. Returns the sitting, or undefined when
- * the bench has no `preparing` sitting with a pin. Skips the check, and returns
- * the sitting, while another open or close of the bench runs.
+ * the bench has no `preparing` sitting with a pin. While another open or close
+ * of the bench runs, skips the check, schedules the next one, and returns the
+ * sitting.
  */
 export async function recheckGateSitting(bench: Bench): Promise<BenchDeliverySitting | undefined> {
   const stillPreparing = (): boolean =>
     bench.deliverySitting?.state === "preparing" &&
     bench.gatePin !== undefined &&
     bench.gatePin.gateId === bench.deliverySitting.gateId;
-  if (!stillPreparing()) {
+  const current = bench.deliverySitting;
+  if (!stillPreparing() || current === undefined) {
     stopWatch(bench);
     return undefined;
   }
   const key = benchKey(bench);
-  if (inFlight.has(key)) return bench.deliverySitting;
+  if (inFlight.has(key)) {
+    ensureWatch(bench, current.gateId);
+    scheduleRecheck(bench, current.gateId);
+    return current;
+  }
   return exclusive(bench, async () => {
     const sitting = bench.deliverySitting;
     const pin = bench.gatePin;
@@ -778,14 +821,7 @@ export async function recheckGateSitting(bench: Bench): Promise<BenchDeliverySit
       stopWatch(bench);
       return undefined;
     }
-    let watch = watches.get(key);
-    if (watch === undefined || watch.gateId !== sitting.gateId) {
-      // A sitting prepared before a server restart: its components are those
-      // that run now.
-      stopWatch(bench);
-      watch = { gateId: sitting.gateId, expected: [] };
-      watches.set(key, watch);
-    }
+    const watch = ensureWatch(bench, sitting.gateId);
     const checkout = pinCheckout(pin);
     const sha = pin.commit ?? sitting.commit;
     const problem =
@@ -801,10 +837,18 @@ export async function recheckGateSitting(bench: Bench): Promise<BenchDeliverySit
  * Opens the bench's prepared sitting of `gateId` once its smoke check passed:
  * the sitting moves from `ready` to `open`, and the gate's notification goes.
  * Throws GatePinError: 409 BUILD_NOT_SMOKE_CHECKED while the sitting is
- * `preparing`, 409 SITTING_BUSY as the open, and 404 SITTING_NOT_FOUND when the
- * bench has no prepared sitting of the gate.
+ * `preparing`, also while its pin is still being made, 409 SITTING_BUSY as the
+ * open, and 404 SITTING_NOT_FOUND when the bench has no prepared sitting of the
+ * gate.
  */
 export function openPreparedSitting(bench: Bench, gateId: string): Promise<BenchDeliverySitting> {
+  const preparing = bench.deliverySitting;
+  // A preparation holds the bench while it pins and checks the build, so the
+  // refusal comes before exclusive(), which would answer SITTING_BUSY.
+  if (preparing?.gateId === gateId && preparing.state === "preparing") {
+    const why = preparing.smokeCheck?.detail ?? "the build of the gate is not live yet";
+    return Promise.reject(notSmokeChecked(`gate ${gateId} waits for its build: ${why}`));
+  }
   return exclusive(bench, async () => {
     const sitting = bench.deliverySitting;
     if (sitting === undefined || sitting.gateId !== gateId) {
@@ -827,6 +871,43 @@ export function openPreparedSitting(bench: Bench, gateId: string): Promise<Bench
     }
     return sitting;
   });
+}
+
+/**
+ * Picks up the `preparing` sittings that a server stop left behind, so each
+ * gate that waited for its build is called once the build is up. Called once at
+ * startup, after reconcile. For a bench whose sitting has its pin, the smoke
+ * check runs again after SMOKE_RECHECK_MS, and every SMOKE_RECHECK_MS after
+ * that while it fails. A bench whose sitting has no pin yet was stopped while
+ * it pinned the gate commit: its preparation starts again from the commit the
+ * sitting names. A bench in error, or one that prepares now, is left alone.
+ * Never throws.
+ */
+export function resumeGateSittingWatches(benches: readonly Bench[]): void {
+  for (const bench of benches) {
+    const sitting = bench.deliverySitting;
+    if (sitting?.state !== "preparing" || bench.status === "error") continue;
+    const key = benchKey(bench);
+    if (preparations.has(key) || inFlight.has(key)) continue;
+    const pin = bench.gatePin;
+    if (pin !== undefined) {
+      if (pin.gateId !== sitting.gateId) continue;
+      ensureWatch(bench, sitting.gateId);
+      scheduleRecheck(bench, sitting.gateId);
+      continue;
+    }
+    bench.deliverySitting = undefined;
+    const commit = sitting.commit;
+    const resultsSpecPath = sitting.resultsSpecPath;
+    if (commit === undefined || resultsSpecPath === undefined) {
+      console.warn(
+        `[gate-pin] The sitting of gate ${sitting.gateId} on bench ${bench.id} names no commit to pin: dropped`,
+      );
+      announce(bench);
+      continue;
+    }
+    void prepareGateSitting(bench, { gateId: sitting.gateId, commit, resultsSpecPath });
+  }
 }
 
 /** Stops every recheck timer and forgets every preparation; for tests. */

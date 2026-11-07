@@ -20,6 +20,7 @@ import { isAlertExternalId } from "./services/alert-external-id.js";
 import * as processManager from "./services/process-manager.js";
 import * as terminalService from "./services/terminal.js";
 import { releaseDeliveryControlWaiters } from "./services/delivery-control-outbox.js";
+import { resumeGateSittingWatches } from "./services/gate-pin.js";
 import projectsRouter from "./routes/projects.js";
 import benchesRouter from "./routes/benches.js";
 import containersRouter from "./routes/containers.js";
@@ -304,6 +305,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   console.log("Reconciling state with system...");
   await benchManager.reconcile();
+
+  // A Spec Bench gate that waited for its build when the server stopped is
+  // called once its build is up (SB-FR-023): its smoke check runs again.
+  resumeGateSittingWatches(benchManager.getBenches());
 
   console.log("Loading persisted terminal sessions...");
   terminalService.loadPersistedSessions();
