@@ -41,7 +41,9 @@
 //                                                    cross-check (SB-FR-030). The first
 //                                                    read since the server started arms
 //                                                    the bench's refreshes and waits for
-//                                                    its load refresh. sourceError is
+//                                                    its load refresh, at most 4 seconds,
+//                                                    then answers what that refresh has
+//                                                    read so far. sourceError is
 //                                                    null, or {source: "github",
 //                                                    message} when the last refresh
 //                                                    could not read GitHub, which then

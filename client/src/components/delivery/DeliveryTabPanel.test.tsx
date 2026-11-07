@@ -25,6 +25,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
   };
 });
 import * as api from "../../lib/api";
+import { DELIVERY_CROSS_CHECK_REFETCH_MS } from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
 
 const bench = {
@@ -428,7 +429,7 @@ describe("DeliveryTabPanel", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
   });
 
-  it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail within 5 seconds", async () => {
+  it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     const classes = [
       "branch-missing",
@@ -453,17 +454,69 @@ describe("DeliveryTabPanel", () => {
       refreshedAt: "2026-10-16T10:00:05Z",
       sourceError: { source: "github", message: "fetch failed" },
     });
-    const started = Date.now();
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
     const rail = await screen.findByRole("group", { name: "Delivery health" });
     await waitFor(() =>
       expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
     );
-    expect(Date.now() - started).toBeLessThan(5_000);
     expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledWith("demo", 3);
     expect(within(rail).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
       "GitHub could not be read",
     );
+  });
+
+  it("SB-TC-074 reads the cross-check again after exactly 5 seconds, so the rail lists what a restart reconciled within 5 seconds", async () => {
+    expect(DELIVERY_CROSS_CHECK_REFETCH_MS).toBe(5_000);
+    // Only the query's interval runs on the test's clock; every other timer is
+    // real, so reads resolve and render on their own.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+      const nine = [
+        "branch-missing",
+        "head-commit-differs",
+        "layer-order-differs",
+        "pr-state-differs",
+        "base-branch-differs",
+        "gate-state-differs",
+        "case-status-differs",
+        "plan-hash-mismatch",
+        "record-stale",
+      ].map((cls) => ({
+        class: cls,
+        blocking: false,
+        unitId: "A",
+        claimed: "claimed",
+        observed: "observed",
+        source: "git" as const,
+      }));
+      // The first read lists nothing yet; every read after it lists the nine.
+      vi.mocked(api.fetchDeliveryCrossCheck)
+        .mockResolvedValueOnce({ disagreements: [], refreshedAt: null, sourceError: null })
+        .mockResolvedValue({
+          disagreements: nine,
+          refreshedAt: "2026-10-16T10:00:05Z",
+          sourceError: null,
+        });
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+      const rail = await screen.findByRole("group", { name: "Delivery health" });
+      await waitFor(() => expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+
+      // Not before the interval.
+      await act(() => vi.advanceTimersByTimeAsync(4_999));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1);
+      expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+
+      // At the interval, the second read lists all nine.
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+      await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

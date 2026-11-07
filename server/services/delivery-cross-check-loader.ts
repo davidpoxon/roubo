@@ -11,16 +11,27 @@
 //   - GitHub, when the workspace's `origin` is a github.com repository: at most
 //     one GET /repos/{owner}/{repo}/stacks, sent with If-None-Match so an
 //     unchanged resource answers 304 and the last body is used again, and one
-//     pull-request query (GET /repos/{owner}/{repo}/pulls). No other GitHub
-//     request is made, so a refresh costs at most two.
+//     pull-request query (GET /repos/{owner}/{repo}/pulls, the 100 most
+//     recently updated). No other GitHub request is made, so a refresh costs at
+//     most two. When the query's page is full, a unit branch with no pull
+//     request on it is unobserved, not absent: its pull request may be older
+//     than the page, so it reports no pull request or base-branch disagreement.
+//     A repository whose stacks request answers 404 lists no stack order; the
+//     loader logs that once per bench, since layer-order-differs then never
+//     reports.
+//
+// A refresh publishes the classes that git and the results settle as soon as
+// it read them, beside the GitHub classes of the refresh before, and then
+// reads GitHub. So a read that cannot wait for GitHub still answers them.
 //
 // When a refresh runs:
 //   - load: the first read of the bench's cross-check since the server started
-//     arms it and runs one refresh, which the read waits for;
-//   - events: one refresh per accepted `unit.boundary`, `pr.submitted`,
-//     `gate.reached`, `unit.changed` or `gate.changed` event of an armed bench
-//     (the events of one batch, or that come while a refresh waits to start,
-//     share that refresh);
+//     arms it and runs one refresh, which the read waits for, at most 4 seconds:
+//     it then answers what that refresh has read so far;
+//   - events: one refresh per accepted batch that holds a `unit.boundary`,
+//     `pr.submitted`, `gate.reached`, `unit.changed` or `gate.changed` event of
+//     an armed bench (the events of one batch, or that come while a refresh
+//     waits to start, share that refresh);
 //   - file changes: a change of the record or of test-results.json in the spec
 //     folder of the workspace runs one refresh after a 500 ms debounce;
 //   - backstop: 60 seconds after the last refresh of any kind, one refresh.
@@ -40,8 +51,10 @@
 // Notification: a refresh that finds a blocking class the refresh before did
 // not find raises one `delivery-crosscheck` notification naming the class, keyed
 // by it, so a repeat raises none. A refresh that no longer finds the class
-// dismisses it, so a class cleared and found again raises a new one. A
-// GitHub-settled class kept through a GitHub failure stays found. The bench
+// dismisses it, so a class cleared and found again raises a new one. While
+// GitHub cannot be read, every GitHub-settled class that the bench had found
+// stays found, even after a restart that forgot the list: it is neither
+// dismissed nor taken as cleared. The bench
 // records when the delivery first went blocking (`deliveryFirstSeenBlocking`)
 // and the class it went blocking on (`deliveryFirstSeenBlockingClass`), and
 // clears both once no blocking class is left.
@@ -56,6 +69,7 @@ import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract"
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import {
   DELIVERY_CROSS_CHECK_CLASSES,
+  DELIVERY_CROSS_CHECK_SOURCES,
   crossCheckDelivery,
   type DeliveryCrossCheckEntry,
   type DeliveryGitObservation,
@@ -96,6 +110,11 @@ export const DELIVERY_RESULTS_FILE = "test-results.json";
 export const DELIVERY_CROSS_CHECK_DEBOUNCE_MS = 500;
 export const DELIVERY_CROSS_CHECK_THROTTLE_MS = 30_000;
 export const DELIVERY_CROSS_CHECK_BACKSTOP_MS = 60_000;
+// How long the first read waits for the load refresh before it answers what
+// has been read, inside the 5-second bound of SB-NFR-005.
+export const DELIVERY_CROSS_CHECK_FIRST_READ_MS = 4_000;
+// The pull-request query's page size: a full page may leave pull requests out.
+export const DELIVERY_PULL_REQUEST_PAGE = 100;
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_TIMEOUT_MS = 10_000;
@@ -131,6 +150,8 @@ interface CrossCheckEntryState {
   // The stacks resource's last ETag and the observation its body gave.
   stacksEtag: string | null;
   stacks: DeliveryStacksObservation;
+  // Whether the stacks request's 404 was logged for this bench.
+  stacksMissingLogged: boolean;
   // The blocking classes the last refresh found; undefined before the first
   // refresh since the server started, which seeds it from the bench's
   // notifications so a restart raises none again.
@@ -376,7 +397,14 @@ async function readStacks(
   );
   if (res.status === 304) return entry.stacks;
   if (res.status === 404) {
-    // The repository has no stacks resource: nothing lists an order.
+    // The repository has no stacks resource: nothing lists an order, so
+    // layer-order-differs cannot report. Say so once, not on every refresh.
+    if (!entry.stacksMissingLogged) {
+      entry.stacksMissingLogged = true;
+      console.warn(
+        `[delivery-crosscheck] bench ${entry.bench.projectId}/${entry.bench.id}: GitHub answered the stacks request for ${repository.owner}/${repository.repo} with 404, so no stack order is compared`,
+      );
+    }
     entry.stacksEtag = null;
     entry.stacks = {};
     return entry.stacks;
@@ -393,12 +421,19 @@ async function readStacks(
   return stacks;
 }
 
+interface PullRequestsRead {
+  pullRequests: DeliveryPullRequestsObservation;
+  // False when the page was full: a branch with no pull request in it is then
+  // unobserved, not absent.
+  complete: boolean;
+}
+
 async function readPullRequests(
   repository: GitHubRepository,
   token: string | null,
-): Promise<DeliveryPullRequestsObservation> {
+): Promise<PullRequestsRead> {
   const res = await githubGet(
-    `/repos/${repository.owner}/${repository.repo}/pulls?state=all&sort=updated&direction=desc&per_page=100`,
+    `/repos/${repository.owner}/${repository.repo}/pulls?state=all&sort=updated&direction=desc&per_page=${DELIVERY_PULL_REQUEST_PAGE}`,
     token,
   );
   if (!res.ok) {
@@ -409,7 +444,25 @@ async function readPullRequests(
       "GitHub answered the pull request query with a body that is no JSON",
     );
   });
-  return parsePullRequestsBody(body);
+  return {
+    pullRequests: parsePullRequestsBody(body),
+    complete: !Array.isArray(body) || body.length < DELIVERY_PULL_REQUEST_PAGE,
+  };
+}
+
+// The pull-request disagreements that a full page cannot settle: a unit whose
+// branch has no pull request on the page (pr-state-differs observing none),
+// and an upper pull request whose lower branch has none on it, since the lower
+// one may have merged (base-branch-differs). Both are unobserved.
+function isUnobservedOnFullPage(
+  entry: DeliveryCrossCheckEntry,
+  pullRequests: DeliveryPullRequestsObservation,
+): boolean {
+  if (entry.class === "pr-state-differs") return entry.observed === null;
+  if (entry.class === "base-branch-differs") {
+    return typeof entry.claimed === "string" && !Object.hasOwn(pullRequests, entry.claimed);
+  }
+  return false;
 }
 
 // ── A refresh ──
@@ -429,6 +482,13 @@ function isGitHubSettled(entry: DeliveryCrossCheckEntry): boolean {
   return GITHUB_SOURCES.has(entry.source);
 }
 
+function isGitHubClass(cls: string): boolean {
+  if (!Object.hasOwn(DELIVERY_CROSS_CHECK_SOURCES, cls)) return false;
+  return GITHUB_SOURCES.has(
+    DELIVERY_CROSS_CHECK_SOURCES[cls as keyof typeof DELIVERY_CROSS_CHECK_SOURCES],
+  );
+}
+
 function persist(bench: Bench): void {
   if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
   stateService.updateBench(stateService.toPersistedBench(bench));
@@ -438,6 +498,7 @@ function applyBlockingNotifications(
   state: CrossCheckEntryState,
   disagreements: readonly DeliveryCrossCheckEntry[],
   refreshedAt: string,
+  githubUnread: boolean,
 ): void {
   const { bench } = state;
   const found: string[] = [];
@@ -451,6 +512,14 @@ function applyBlockingNotifications(
         .filter((n) => n.type === DELIVERY_CROSS_CHECK_NOTIFICATION && n.dedupeKey !== undefined)
         .map((n) => n.dedupeKey as string),
     );
+  // GitHub could not be read, so a GitHub-settled class found before is not
+  // known to have cleared: it stays found. The list can lack it (a restart
+  // forgot the list), so the notifications the bench holds count too.
+  if (githubUnread) {
+    for (const cls of seen) {
+      if (isGitHubClass(cls) && !found.includes(cls)) found.push(cls);
+    }
+  }
   for (const cls of found) {
     if (seen.has(cls)) continue;
     const count = disagreements.filter((entry) => entry.class === cls).length;
@@ -496,17 +565,35 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
   );
   const verify = loadBenchDeliveryVerifyInputs(paths);
   const snapshot = foldDelivery({ record: loaded.record, events, ...verify });
+  const context = {
+    ...(verify.plan !== undefined && { plan: verify.plan }),
+    ...(verify.lifecycle !== undefined && { lifecycle: verify.lifecycle }),
+  };
   const git = await deps.readGit(bench.workspacePath);
+  const repository = await deps.resolveGitHubRepository(bench.workspacePath);
+
+  if (repository !== null) {
+    // What git and the results settle, published before GitHub is read, beside
+    // the GitHub classes of the refresh before: a read that cannot wait for
+    // GitHub answers it. No notification moves until the refresh ends.
+    const local = crossCheckDelivery(snapshot, git, {}, {}, verify.results, context).filter(
+      (entry) => !isGitHubSettled(entry),
+    );
+    state.disagreements = byClass([...local, ...state.disagreements.filter(isGitHubSettled)]);
+    state.refreshedAt ??= new Date(deps.now()).toISOString();
+  }
 
   let stacks: DeliveryStacksObservation = {};
   let pullRequests: DeliveryPullRequestsObservation = {};
+  let pullRequestsComplete = true;
   let sourceError: DeliveryCrossCheckSourceError | null = null;
-  const repository = await deps.resolveGitHubRepository(bench.workspacePath);
   if (repository !== null) {
     try {
       const token = await deps.githubToken();
       stacks = await readStacks(state, repository, token);
-      pullRequests = await readPullRequests(repository, token);
+      const read = await readPullRequests(repository, token);
+      pullRequests = read.pullRequests;
+      pullRequestsComplete = read.complete;
     } catch (err) {
       sourceError = {
         source: "github",
@@ -518,10 +605,7 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
     }
   }
 
-  const fresh = crossCheckDelivery(snapshot, git, stacks, pullRequests, verify.results, {
-    ...(verify.plan !== undefined && { plan: verify.plan }),
-    ...(verify.lifecycle !== undefined && { lifecycle: verify.lifecycle }),
-  });
+  const fresh = crossCheckDelivery(snapshot, git, stacks, pullRequests, verify.results, context);
   let disagreements: DeliveryCrossCheckEntry[];
   if (repository === null) {
     disagreements = fresh.filter((entry) => !isGitHubSettled(entry));
@@ -530,6 +614,8 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
       ...fresh.filter((entry) => !isGitHubSettled(entry)),
       ...state.disagreements.filter(isGitHubSettled),
     ]);
+  } else if (!pullRequestsComplete) {
+    disagreements = fresh.filter((entry) => !isUnobservedOnFullPage(entry, pullRequests));
   } else {
     disagreements = fresh;
   }
@@ -538,7 +624,7 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
   state.disagreements = disagreements;
   state.sourceError = sourceError;
   state.refreshedAt = refreshedAt;
-  applyBlockingNotifications(state, disagreements, refreshedAt);
+  applyBlockingNotifications(state, disagreements, refreshedAt, sourceError !== null);
 }
 
 // ── Scheduling ──
@@ -633,6 +719,7 @@ function armed(bench: Bench): CrossCheckEntryState {
     sourceError: null,
     stacksEtag: null,
     stacks: {},
+    stacksMissingLogged: false,
     blockingSeen: undefined,
     runs: 0,
     lastThrottledAt: null,
@@ -668,17 +755,29 @@ function responseOf(state: CrossCheckEntryState): DeliveryCrossCheckResponse {
 
 /**
  * The bench's last cross-check. The first read since the server started arms
- * the bench and waits for its load refresh.
+ * the bench and waits for its load refresh, at most
+ * DELIVERY_CROSS_CHECK_FIRST_READ_MS: it then answers what that refresh has
+ * read so far (the classes git and the results settle, once git answered).
  */
 export async function readDeliveryCrossCheck(bench: Bench): Promise<DeliveryCrossCheckResponse> {
   const state = armed(bench);
-  await state.loaded;
+  let timer: NodeJS.Timeout | undefined;
+  const bound = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, DELIVERY_CROSS_CHECK_FIRST_READ_MS);
+    timer.unref();
+  });
+  try {
+    await Promise.race([state.loaded, bound]);
+  } finally {
+    clearTimeout(timer);
+  }
   return responseOf(state);
 }
 
 /**
- * Runs one refresh per accepted event of a refreshing type, on an armed bench.
- * Resolves when those refreshes ran.
+ * Runs one refresh for a batch of accepted events that holds one of a
+ * refreshing type, on an armed bench (requests that come while a refresh waits
+ * to start share it). Resolves when that refresh ran.
  */
 export function refreshDeliveryCrossCheckOnEvents(
   bench: Bench,

@@ -35,6 +35,7 @@ import {
   DELIVERY_CROSS_CHECK_BACKSTOP_MS,
   DELIVERY_CROSS_CHECK_DEBOUNCE_MS,
   DELIVERY_CROSS_CHECK_EVENT_TYPES,
+  DELIVERY_CROSS_CHECK_FIRST_READ_MS,
   DELIVERY_CROSS_CHECK_THROTTLE_MS,
   deliveryCrossCheckRunCount,
   forgetDeliveryCrossCheck,
@@ -118,7 +119,13 @@ function event(seq: number, type: string): DeliveryEvent {
 // The sources, which a test changes.
 let prState: Record<UnitId, { state: string; merged_at: string | null }>;
 let githubDown: boolean;
-let requests: { path: string; status: number }[];
+// A delay of every GitHub answer, on the test's timers.
+let githubDelayMs: number;
+// Replaces the pull-request query's body when set.
+let pullsBody: unknown[] | undefined;
+// Replaces the stacks resource's answer when set.
+let stacksAnswer: (() => Response) | undefined;
+let requests: { path: string; status: number; headers: Headers }[];
 let fileChange: ((file: string) => void) | undefined;
 
 const STACKS_ETAG = '"stacks-1"';
@@ -132,40 +139,46 @@ function respond(status: number, body: unknown, headers: Record<string, string> 
 
 async function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = new URL(String(input));
+  const headers = new Headers(init?.headers);
+  if (githubDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, githubDelayMs));
+  }
   if (githubDown) {
-    requests.push({ path: url.pathname, status: 0 });
+    requests.push({ path: url.pathname, status: 0, headers });
     throw new TypeError("fetch failed");
   }
-  const headers = new Headers(init?.headers);
   let res: Response;
   if (url.pathname === "/repos/example/fixture/stacks") {
     res =
-      headers.get("if-none-match") === STACKS_ETAG
-        ? respond(304, null)
-        : respond(
-            200,
-            [
-              { name: "A", branches: [BRANCH.A, BRANCH.B, BRANCH.C] },
-              { name: "D", branches: [BRANCH.D] },
-            ],
-            { etag: STACKS_ETAG },
-          );
+      stacksAnswer !== undefined
+        ? stacksAnswer()
+        : headers.get("if-none-match") === STACKS_ETAG
+          ? respond(304, null)
+          : respond(
+              200,
+              [
+                { name: "A", branches: [BRANCH.A, BRANCH.B, BRANCH.C] },
+                { name: "D", branches: [BRANCH.D] },
+              ],
+              { etag: STACKS_ETAG },
+            );
   } else if (url.pathname === "/repos/example/fixture/pulls") {
     const base: Record<UnitId, string> = { A: "main", B: BRANCH.A, C: BRANCH.B, D: "main" };
     res = respond(
       200,
-      UNITS.map((id) => ({
-        state: prState[id].state,
-        merged_at: prState[id].merged_at,
-        head: { ref: BRANCH[id] },
-        base: { ref: base[id] },
-        html_url: `https://github.com/example/fixture/pull/${id}`,
-      })),
+      pullsBody ??
+        UNITS.map((id) => ({
+          state: prState[id].state,
+          merged_at: prState[id].merged_at,
+          head: { ref: BRANCH[id] },
+          base: { ref: base[id] },
+          html_url: `https://github.com/example/fixture/pull/${id}`,
+        })),
     );
   } else {
     res = respond(404, { message: "Not Found" });
   }
-  requests.push({ path: url.pathname, status: res.status });
+  requests.push({ path: url.pathname, status: res.status, headers });
   return res;
 }
 
@@ -198,6 +211,9 @@ beforeEach(() => {
     D: { state: "open", merged_at: null },
   };
   githubDown = false;
+  githubDelayMs = 0;
+  pullsBody = undefined;
+  stacksAnswer = undefined;
   requests = [];
   fileChange = undefined;
   vi.mocked(stateService.updateBench).mockReset();
@@ -275,27 +291,33 @@ describe("SB-TC-071: when the cross-check refreshes", () => {
     expect(runs()).toBe(6);
 
     // Step 3: the record, then the results file, each one run after the
-    // debounce. A file of another name runs none.
+    // 500 ms debounce. A file of another name runs none.
     fileChange?.("delivery-observation.json");
-    await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_DEBOUNCE_MS - 1);
+    await vi.advanceTimersByTimeAsync(499);
     expect(runs()).toBe(6);
     await vi.advanceTimersByTimeAsync(1);
     await idle();
     expect(runs()).toBe(7);
 
-    await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_THROTTLE_MS);
+    await vi.advanceTimersByTimeAsync(30_000);
     fileChange?.("test-results.json");
     fileChange?.("notes.txt");
-    await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(500);
     await idle();
     expect(runs()).toBe(8);
 
     // Step 4: 60 quiet seconds give one backstop run.
-    await vi.advanceTimersByTimeAsync(DELIVERY_CROSS_CHECK_BACKSTOP_MS - 1);
+    await vi.advanceTimersByTimeAsync(59_999);
     expect(runs()).toBe(8);
     await vi.advanceTimersByTimeAsync(1);
     await idle();
     expect(runs()).toBe(9);
+  });
+
+  it("SB-TC-071 debounces file changes by 500 ms, throttles to 30 seconds and backstops after 60 seconds, as the spec sets them", () => {
+    expect(DELIVERY_CROSS_CHECK_DEBOUNCE_MS).toBe(500);
+    expect(DELIVERY_CROSS_CHECK_THROTTLE_MS).toBe(30_000);
+    expect(DELIVERY_CROSS_CHECK_BACKSTOP_MS).toBe(60_000);
   });
 
   it("SB-TC-071 runs one refresh for each refreshing event type, the contract's unit.changed and gate.changed included", async () => {
@@ -381,6 +403,101 @@ describe("SB-TC-072: the first appearance of a blocking class", () => {
     await readDeliveryCrossCheck(bench);
     expect(crossCheckNotifications()).toHaveLength(1);
   });
+
+  it("SB-TC-072 dismisses the notification the bench kept when the first refresh after a restart finds the class cleared", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    expect(crossCheckNotifications()).toHaveLength(1);
+    expect(bench.deliveryFirstSeenBlocking).toBeDefined();
+
+    // The restart forgets the loader's memory; the seen classes come from the
+    // bench's notifications, and the class has cleared meanwhile.
+    forgetDeliveryCrossCheck();
+    prState.B = { state: "open", merged_at: null };
+    await readDeliveryCrossCheck(bench);
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBeUndefined();
+    expect(bench.deliveryFirstSeenBlockingClass).toBeUndefined();
+  });
+
+  it("SB-TC-072 keeps the notification and the first-seen time of a GitHub class when GitHub fails on the first refresh after a restart", async () => {
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    const notified = crossCheckNotifications();
+    expect(notified).toHaveLength(1);
+    const seenAt = bench.deliveryFirstSeenBlocking;
+    expect(seenAt).toBeDefined();
+
+    // A restart, then GitHub down on the load refresh: the class is not known
+    // to have cleared, so nothing is dismissed and nothing is cleared.
+    forgetDeliveryCrossCheck();
+    githubDown = true;
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.sourceError?.source).toBe("github");
+    expect(crossCheckNotifications().map((n) => n.id)).toEqual([notified[0]?.id]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+
+    // GitHub back, the class still there: no new notification.
+    githubDown = false;
+    await refreshOnEvent(9);
+    expect(crossCheckNotifications().map((n) => n.id)).toEqual([notified[0]?.id]);
+    expect(bench.deliveryFirstSeenBlocking).toBe(seenAt);
+  });
+});
+
+describe("SB-TC-074: the first read after a restart", () => {
+  it("SB-TC-074 answers within 4 seconds with the git and results classes while GitHub is slower than 5 seconds", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    expect(DELIVERY_CROSS_CHECK_FIRST_READ_MS).toBe(4_000);
+    // D's branch is missing (git) and B's pull request closed (GitHub), and
+    // each GitHub answer takes 6 seconds.
+    setDeliveryCrossCheckDeps({
+      readGit: async () => {
+        const git: Record<string, { localHead: string; remoteHead: string; committedAt: string }> =
+          {};
+        for (const id of UNITS) {
+          if (id === "D") continue;
+          git[BRANCH[id]] = {
+            localHead: HEAD[id],
+            remoteHead: HEAD[id],
+            committedAt: BEFORE_UPDATE,
+          };
+        }
+        return git;
+      },
+      resolveGitHubRepository: async () => ({ owner: "example", repo: "fixture" }),
+      githubToken: async () => "token",
+      fetch: fakeFetch,
+      watch: () => ({ close: () => undefined }),
+    });
+    prState.B = { state: "closed", merged_at: null };
+    githubDelayMs = 6_000;
+
+    const started = Date.now();
+    let answered: Awaited<ReturnType<typeof readDeliveryCrossCheck>> | undefined;
+    let answeredAt = 0;
+    void readDeliveryCrossCheck(bench).then((read) => {
+      answered = read;
+      answeredAt = Date.now();
+    });
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(answered).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(answered).toBeDefined();
+    expect(answeredAt - started).toBe(4_000);
+    expect(answered?.disagreements.map((d) => d.class)).toEqual(["branch-missing"]);
+    expect(answered?.sourceError).toBeNull();
+    expect(answered?.refreshedAt).not.toBeNull();
+
+    // GitHub answers later, and the next read lists its class too.
+    await vi.advanceTimersByTimeAsync(12_000);
+    await idle();
+    const later = await readDeliveryCrossCheck(bench);
+    expect(later.disagreements.map((d) => d.class)).toEqual(["branch-missing", "pr-state-differs"]);
+  });
 });
 
 describe("SB-TC-073: the cost of a refresh", () => {
@@ -399,6 +516,104 @@ describe("SB-TC-073: the cost of a refresh", () => {
     // The 304 reuses the stacks body: no order disagreement appears.
     const read = await readDeliveryCrossCheck(bench);
     expect(read.disagreements).toEqual([]);
+  });
+
+  it("SB-TC-073 sends the token as a Bearer header and the stacks ETag as If-None-Match", async () => {
+    await readDeliveryCrossCheck(bench);
+    await refreshOnEvent(8);
+    const stacks = requests.filter((r) => r.path.endsWith("/stacks"));
+    const pulls = requests.filter((r) => r.path.endsWith("/pulls"));
+    expect(requests.every((r) => r.headers.get("authorization") === "Bearer token")).toBe(true);
+    expect(stacks[0]?.headers.get("if-none-match")).toBeNull();
+    expect(stacks[1]?.headers.get("if-none-match")).toBe(STACKS_ETAG);
+    expect(pulls.every((r) => r.headers.get("if-none-match") === null)).toBe(true);
+  });
+
+  it("SB-TC-073 sends no Authorization header when no GitHub token is stored", async () => {
+    setDeliveryCrossCheckDeps({
+      readGit: async () => ({}),
+      resolveGitHubRepository: async () => ({ owner: "example", repo: "fixture" }),
+      githubToken: async () => null,
+      fetch: fakeFetch,
+      watch: () => ({ close: () => undefined }),
+    });
+    await readDeliveryCrossCheck(bench);
+    expect(requests).toHaveLength(2);
+    expect(requests.every((r) => r.headers.get("authorization") === null)).toBe(true);
+  });
+
+  it("SB-TC-073 reads a stacks body that lists the stacks under a stacks key", async () => {
+    stacksAnswer = () =>
+      respond(200, {
+        stacks: [
+          { name: "A", branches: [{ name: BRANCH.A }, { ref: BRANCH.C }, { branch: BRANCH.B }] },
+          { name: "D", branches: [BRANCH.D] },
+        ],
+      });
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.sourceError).toBeNull();
+    expect(read.disagreements).toEqual([
+      expect.objectContaining({
+        class: "layer-order-differs",
+        stack: "A",
+        claimed: [BRANCH.A, BRANCH.B, BRANCH.C],
+        observed: [BRANCH.A, BRANCH.C, BRANCH.B],
+      }),
+    ]);
+  });
+
+  it("SB-TC-073 logs a stacks 404 once per bench and compares no stack order, with no source error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      stacksAnswer = () => respond(404, { message: "Not Found" });
+      const read = await readDeliveryCrossCheck(bench);
+      await refreshOnEvent(8);
+      expect(read).toMatchObject({ disagreements: [], sourceError: null });
+      const logged = warn.mock.calls.filter((call) => String(call[0]).includes("stacks request"));
+      expect(logged).toHaveLength(1);
+      expect(String(logged[0]?.[0])).toMatch(/example\/fixture with 404/);
+      // The 404 drops the ETag, so the next request sends none.
+      const stacks = requests.filter((r) => r.path.endsWith("/stacks"));
+      expect(stacks.map((r) => r.headers.get("if-none-match"))).toEqual([null, null]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("SB-TC-073 leaves a unit unobserved, not absent, when the full pull-request page does not hold its branch", async () => {
+    // One hundred pull requests, the most recently updated: A, C and D, and
+    // 97 of other branches. B's open pull request is older than the page, and
+    // C targets main while B's merge state is unknown.
+    const others = Array.from({ length: 97 }, (_, index) => ({
+      state: "closed",
+      merged_at: "2026-10-16T09:10:00Z",
+      head: { ref: `other/${index}` },
+      base: { ref: "main" },
+      html_url: `https://github.com/example/fixture/pull/${1000 + index}`,
+    }));
+    const listed = (id: UnitId, baseRef: string) => ({
+      state: "open",
+      merged_at: null,
+      head: { ref: BRANCH[id] },
+      base: { ref: baseRef },
+      html_url: `https://github.com/example/fixture/pull/${id}`,
+    });
+    pullsBody = [listed("A", "main"), listed("C", "main"), listed("D", "main"), ...others];
+    expect(pullsBody).toHaveLength(100);
+    const read = await readDeliveryCrossCheck(bench);
+    expect(read.sourceError).toBeNull();
+    expect(read.disagreements).toEqual([]);
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(requests.filter((r) => r.path.endsWith("/pulls"))).toHaveLength(1);
+
+    // A page that is not full does hold every pull request: a branch missing
+    // from it has none, and that disagrees.
+    pullsBody = [listed("A", "main"), listed("C", BRANCH.B), listed("D", "main")];
+    await refreshOnEvent(8);
+    const short = await readDeliveryCrossCheck(bench);
+    expect(short.disagreements).toEqual([
+      expect.objectContaining({ class: "pr-state-differs", unitId: "B", observed: null }),
+    ]);
   });
 
   it("SB-TC-073 runs file-change and backstop refreshes at most once in any 30-second window", async () => {
@@ -428,26 +643,25 @@ describe("SB-TC-073: the cost of a refresh", () => {
     });
     await readDeliveryCrossCheck(bench);
     times.length = 0;
+    const t0 = Date.now();
 
-    // Step 2: the results file touched five times in 10 seconds.
+    // Step 2: the results file touched five times in 10 seconds, every 2.5 s
+    // from t0.
     for (let touch = 0; touch < 5; touch += 1) {
       fileChange?.("test-results.json");
       await vi.advanceTimersByTimeAsync(2_500);
     }
-    // Two minutes on, with the backstop running too.
-    await vi.advanceTimersByTimeAsync(120_000);
+    // To t0 + 40 s: the first touch runs after the debounce, at t0 + 0.5 s, and
+    // the other four share one run at the end of its 30-second window, at
+    // t0 + 30.5 s.
+    await vi.advanceTimersByTimeAsync(40_000 - 12_500);
     await idle();
+    expect(times.map((t) => t - t0)).toEqual([500, 30_500]);
 
-    expect(times.length).toBeGreaterThanOrEqual(2);
-    for (let index = 1; index < times.length; index += 1) {
-      expect(times[index] - times[index - 1]).toBeGreaterThanOrEqual(
-        DELIVERY_CROSS_CHECK_THROTTLE_MS,
-      );
-    }
-    // The five touches ran at most two refreshes in their first 30 seconds:
-    // the first change, and the window's end for the rest.
-    const start = times[0];
-    expect(times.filter((t) => t < start + DELIVERY_CROSS_CHECK_THROTTLE_MS)).toHaveLength(1);
+    // Then the backstop, 60 seconds after the last run, at t0 + 90.5 s.
+    await vi.advanceTimersByTimeAsync(60_000);
+    await idle();
+    expect(times.map((t) => t - t0)).toEqual([500, 30_500, 90_500]);
   });
 });
 

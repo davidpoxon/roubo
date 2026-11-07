@@ -5,6 +5,17 @@ import path from "node:path";
 import { makeBench } from "../test/fixtures.js";
 import { registerSpecbenchVariantHost, specbenchVariantHost } from "./specbench-variant-host.js";
 import * as registry from "../services/variant-host-registry.js";
+import {
+  DELIVERY_EVENT_SCHEMA_ID,
+  DELIVERY_EVENT_SCHEMA_VERSION,
+} from "@roubo/shared/delivery-observation-contract";
+import {
+  deliveryCrossCheckRunCount,
+  forgetDeliveryCrossCheck,
+  readDeliveryCrossCheck,
+  refreshDeliveryCrossCheckOnEvents,
+  setDeliveryCrossCheckDeps,
+} from "../services/delivery-cross-check-loader.js";
 
 let tmp: string;
 
@@ -171,6 +182,49 @@ describe("Spec Bench host: beforeTeardown", () => {
     expect(fs.readFileSync(path.join(checkout, "test-results.json"), "utf8")).toBe(
       '{"results":[]}\n',
     );
+  });
+
+  it("stops the bench's cross-check on Clear bench: its watch closes and an event runs no refresh", async () => {
+    const bench = specBench();
+    fs.mkdirSync(path.join(bench.workspacePath, ".specifications", "fixture-spec"), {
+      recursive: true,
+    });
+    const close = vi.fn();
+    setDeliveryCrossCheckDeps({
+      readGit: async () => ({}),
+      resolveGitHubRepository: async () => null,
+      githubToken: async () => null,
+      fetch: vi.fn(),
+      watch: () => ({ close }),
+    });
+    try {
+      await readDeliveryCrossCheck(bench);
+      expect(deliveryCrossCheckRunCount(bench.projectId, bench.id)).toBe(1);
+
+      await specbenchVariantHost.beforeTeardown(bench, {
+        project: undefined,
+        removeWorktree: vi.fn(),
+        stopSession: vi.fn(),
+      });
+
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(deliveryCrossCheckRunCount(bench.projectId, bench.id)).toBe(0);
+      await refreshDeliveryCrossCheckOnEvents(bench, [
+        {
+          $schema: DELIVERY_EVENT_SCHEMA_ID,
+          schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+          delivery_id: "fixture-delivery",
+          type: "unit.boundary",
+          seq: 8,
+          ts: "2026-10-16T09:40:00Z",
+          payload: {},
+        },
+      ]);
+      expect(deliveryCrossCheckRunCount(bench.projectId, bench.id)).toBe(0);
+    } finally {
+      forgetDeliveryCrossCheck();
+      setDeliveryCrossCheckDeps();
+    }
   });
 
   it("does nothing beyond clearing the fields when no sitting is open", async () => {
