@@ -1770,7 +1770,10 @@ export interface BenchDeliverySitting {
   openedAt?: string;
   /** When the server started to prepare the gate's pin on `gate.reached`. */
   preparedAt?: string;
-  /** The full gate commit the sitting's pin checks out. */
+  /**
+   * The gate commit: the one the delivery record names while the pin is being
+   * made, then the full commit the sitting's pin checks out.
+   */
   commit?: string;
   /**
    * Where the sitting stands. Absent reads as `open`, as a sitting recorded

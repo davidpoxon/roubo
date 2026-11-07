@@ -416,7 +416,8 @@
 //                                                        or being prepared
 //                                                    409 BUILD_NOT_SMOKE_CHECKED: the
 //                                                        gate's prepared sitting waits
-//                                                        for its build (as above)
+//                                                        for its build (as above), also
+//                                                        while its pin is being made
 //                                                 then, with no prepared sitting, once
 //                                                 no check refuses:
 //                                                    409 GATE_COMMIT_MISSING + gateId:
