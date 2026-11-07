@@ -75,6 +75,21 @@ export const DELIVERY_CROSS_CHECK_SOURCES: Readonly<
   "plan-hash-mismatch": "test-results.json",
 };
 
+// Whether each class blocks the delivery (SB-FR-029): an entry's `blocking` is
+// always this value, whatever the claimed and observed values are. Five classes
+// block; the other four are shown to the operator only.
+export const DELIVERY_CROSS_CHECK_BLOCKING: Readonly<Record<DeliveryCrossCheckClass, boolean>> = {
+  "branch-missing": true,
+  "head-commit-differs": true,
+  "pr-state-differs": true,
+  "gate-state-differs": true,
+  "plan-hash-mismatch": true,
+  "layer-order-differs": false,
+  "base-branch-differs": false,
+  "case-status-differs": false,
+  "record-stale": false,
+};
+
 // ── Inputs ──
 
 // What local git shows for one branch: its local head, its remote-tracking head
@@ -123,8 +138,8 @@ export type DeliveryCrossCheckValue =
 
 export interface DeliveryCrossCheckEntry {
   class: DeliveryCrossCheckClass;
-  // True when the disagreement stops the delivery from landing as recorded; see
-  // `crossCheckDelivery` for the reading of each class.
+  // Whether the class blocks the delivery: always
+  // `DELIVERY_CROSS_CHECK_BLOCKING[class]`.
   blocking: boolean;
   // The unit the entry is about. For gate-state-differs and case-status-differs
   // it is the gate's id, which is the id of the verify unit the gate is. Absent on
@@ -134,9 +149,10 @@ export interface DeliveryCrossCheckEntry {
   stack?: string;
   // The case the entry is about, on case-status-differs.
   caseId?: string;
-  // On pr-state-differs: the units above this one in its stack, base first. A
-  // pull request that closed mid-stack blocks them, since GitHub does not
-  // retarget the pull requests above it.
+  // On pr-state-differs, only when the pull request is closed or absent: the
+  // units above this one in its stack, base first. A pull request that closed
+  // mid-stack blocks them, since GitHub does not retarget the pull requests
+  // above it.
   blocksAbove?: string[];
   claimed: DeliveryCrossCheckValue;
   observed: DeliveryCrossCheckValue;
@@ -166,10 +182,14 @@ function prState(pullRequest: DeliveryPullRequest | undefined): string | null {
 
 function entry(
   cls: DeliveryCrossCheckClass,
-  blocking: boolean,
   fields: Omit<DeliveryCrossCheckEntry, "class" | "blocking" | "source">,
 ): DeliveryCrossCheckEntry {
-  return { class: cls, blocking, ...fields, source: DELIVERY_CROSS_CHECK_SOURCES[cls] };
+  return {
+    class: cls,
+    blocking: DELIVERY_CROSS_CHECK_BLOCKING[cls],
+    ...fields,
+    source: DELIVERY_CROSS_CHECK_SOURCES[cls],
+  };
 }
 
 // The units of a stack in the record's order, base first. Ids the record lists
@@ -225,13 +245,13 @@ export function crossCheckDelivery(
   const current = results ?? null;
   const out: DeliveryCrossCheckEntry[] = [];
 
-  // branch-missing: the record names a branch that git does not have. Blocking:
-  // nothing of the unit can land, and every git class below skips the unit.
+  // branch-missing: the record names a branch that git does not have. Every git
+  // class below skips the unit.
   for (const unit of units) {
     if (unit.branch === undefined) continue;
     if (ownValue(git, unit.branch) === undefined) {
       out.push(
-        entry("branch-missing", true, {
+        entry("branch-missing", {
           unitId: unit.id,
           claimed: unit.branch,
           observed: null,
@@ -242,8 +262,7 @@ export function crossCheckDelivery(
 
   // head-commit-differs: the record's local head (`head`) and, when the record
   // carries one, its remote head (the loose `remote_head` key) against git. A
-  // mismatch on either side, or both, is one entry for the unit. Blocking: the
-  // record describes commits that are not the ones on the branch.
+  // mismatch on either side, or both, is one entry for the unit.
   for (const unit of units) {
     const observedBranch = unit.branch === undefined ? undefined : ownValue(git, unit.branch);
     if (observedBranch === undefined) continue;
@@ -262,15 +281,14 @@ export function crossCheckDelivery(
       claimed.remote = claimedRemote;
       observed.remote = observedBranch.remoteHead;
     }
-    out.push(entry("head-commit-differs", true, { unitId: unit.id, claimed, observed }));
+    out.push(entry("head-commit-differs", { unitId: unit.id, claimed, observed }));
   }
 
   // layer-order-differs: the record's order of a stack's branches against the
   // order the stacks resource lists them. Only the branches both sides know are
   // compared: a unit with no branch yet, or a branch the resource lists beyond the
   // record (a trunk it puts first, say), is not an order claim. A stack the
-  // resource does not list is skipped. Informational: base-branch-differs reports
-  // the pull requests that a reorder actually mistargets.
+  // resource does not list is skipped.
   for (const stack of Object.keys(snapshot.stacks)) {
     const observedOrder = ownValue(stacks, stack);
     if (observedOrder === undefined) continue;
@@ -286,7 +304,7 @@ export function crossCheckDelivery(
       claimedKnown.every((branch, index) => branch === observedKnown[index]);
     if (!same) {
       out.push(
-        entry("layer-order-differs", false, {
+        entry("layer-order-differs", {
           stack,
           claimed: claimedKnown,
           observed: observedKnown,
@@ -299,9 +317,9 @@ export function crossCheckDelivery(
   // or the loose `pr_state` word) and the query shows otherwise. With a
   // `pr_state` claim the words are compared. With only a `pr_url` the claim is a
   // live pull request: `open` and `merged` agree, `closed` (closed unmerged) and
-  // absent (the query returned none for the branch) disagree. Blocking when the
-  // pull request is closed or absent: the unit cannot land as recorded, and the
-  // units above it in the stack are named in `blocksAbove`.
+  // absent (the query returned none for the branch) disagree. When the pull
+  // request is closed or absent, the units above it in the stack are named in
+  // `blocksAbove`: GitHub does not retarget their pull requests.
   for (const unit of units) {
     if (unit.branch === undefined) continue;
     const claimedState = stringKey(unit, "pr_state")?.toLowerCase();
@@ -312,25 +330,24 @@ export function crossCheckDelivery(
         ? claimedState !== observedState
         : observedState !== "open" && observedState !== "merged";
     if (!differs) continue;
-    const stackIds = ownValue(snapshot.stacks, unit.stack) ?? [];
-    const index = stackIds.indexOf(unit.id);
-    const blocksAbove = index < 0 ? [] : stackIds.slice(index + 1);
-    out.push(
-      entry("pr-state-differs", observedState === null || observedState === "closed", {
-        unitId: unit.id,
-        blocksAbove,
-        claimed: claimedState ?? unit.pr_url ?? null,
-        observed: observedState,
-      }),
-    );
+    const fields: Omit<DeliveryCrossCheckEntry, "class" | "blocking" | "source"> = {
+      unitId: unit.id,
+      claimed: claimedState ?? unit.pr_url ?? null,
+      observed: observedState,
+    };
+    if (observedState === null || observedState === "closed") {
+      const stackIds = ownValue(snapshot.stacks, unit.stack) ?? [];
+      const index = stackIds.indexOf(unit.id);
+      fields.blocksAbove = index < 0 ? [] : stackIds.slice(index + 1);
+    }
+    out.push(entry("pr-state-differs", fields));
   }
 
   // base-branch-differs: an open pull request of a unit above the base of its
   // stack must target the branch of the unit below it. The base layer is skipped
   // (the record names no trunk), as is a unit whose lower unit has no branch, and
   // a lower unit whose pull request merged: GitHub then retargets the upper pull
-  // request to the trunk, which is not a disagreement. Blocking: the pull request
-  // would merge into the wrong branch.
+  // request to the trunk, which is not a disagreement.
   for (const stack of Object.keys(snapshot.stacks)) {
     const ordered = stackUnits(snapshot, stack);
     for (let index = 1; index < ordered.length; index += 1) {
@@ -342,7 +359,7 @@ export function crossCheckDelivery(
       if (prState(ownValue(pullRequests, below.branch)) === "merged") continue;
       if (pullRequest.baseBranch !== below.branch) {
         out.push(
-          entry("base-branch-differs", true, {
+          entry("base-branch-differs", {
             unitId: unit.id,
             claimed: below.branch,
             observed: pullRequest.baseBranch,
@@ -356,9 +373,7 @@ export function crossCheckDelivery(
   // the results and the record's plan hash. The record's word is open: only a
   // claim that is one of the evaluator's own words is compared, so a word such as
   // `provisional` (the session's judgement awaiting the operator, whose marks
-  // case-status-differs checks) is never a disagreement. Blocking when the record
-  // claims `passed` and the results do not: a false pass would let the delivery
-  // move past the gate.
+  // case-status-differs checks) is never a disagreement.
   for (const view of gates) {
     const claimed = view.gate.status;
     if (!EVALUATOR_STATUSES.has(claimed)) continue;
@@ -380,7 +395,7 @@ export function crossCheckDelivery(
           );
     if (evaluated.status !== claimed) {
       out.push(
-        entry("gate-state-differs", claimed === "passed", {
+        entry("gate-state-differs", {
           unitId: view.gate.id,
           claimed,
           observed: evaluated.status,
@@ -393,8 +408,7 @@ export function crossCheckDelivery(
   // of its gates (`met` or `not_met`), so the class is confined to them. A mark
   // agrees when `met` reads the same as the result's met reading (`isCaseMet`,
   // as the gate reads it). A case with no recorded result is skipped: the results
-  // observe nothing about it. Blocking when the mark says `met` and the result
-  // does not, the same false pass as above.
+  // observe nothing about it.
   if (current !== null) {
     const resolutionById = indexResolutions(context.lifecycle);
     for (const view of gates) {
@@ -413,7 +427,7 @@ export function crossCheckDelivery(
             ? "orphaned"
             : (result.statusOverride?.status ?? result.derivedStatus);
         out.push(
-          entry("case-status-differs", mark.mark === "met", {
+          entry("case-status-differs", {
             unitId: view.gate.id,
             caseId: mark.case,
             claimed: mark.mark,
@@ -426,10 +440,10 @@ export function crossCheckDelivery(
 
   // plan-hash-mismatch: the record's plan hash against the results' own. With no
   // results there is nothing to compare (the gates read stale, which
-  // gate-state-differs reports). Blocking: every result belongs to another plan.
+  // gate-state-differs reports).
   if (current !== null && current.planHash !== snapshot.planHash) {
     out.push(
-      entry("plan-hash-mismatch", true, {
+      entry("plan-hash-mismatch", {
         claimed: snapshot.planHash,
         observed: current.planHash,
       }),
@@ -438,7 +452,7 @@ export function crossCheckDelivery(
 
   // record-stale: a branch head committed after the record's `updated_at`, so the
   // record has not caught up with the branch. A time that does not parse is not
-  // compared. Informational: the next record write catches up.
+  // compared.
   const updatedAt = Date.parse(snapshot.staleness.updatedAt);
   if (!Number.isNaN(updatedAt)) {
     for (const unit of units) {
@@ -447,7 +461,7 @@ export function crossCheckDelivery(
       const committedAt = Date.parse(observedBranch.committedAt);
       if (Number.isNaN(committedAt) || committedAt <= updatedAt) continue;
       out.push(
-        entry("record-stale", false, {
+        entry("record-stale", {
           unitId: unit.id,
           claimed: snapshot.staleness.updatedAt,
           observed: observedBranch.committedAt,

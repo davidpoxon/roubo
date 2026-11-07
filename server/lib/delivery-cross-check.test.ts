@@ -8,6 +8,7 @@ import {
 import { foldDelivery, type DeliveryResults } from "@roubo/shared/delivery-reducer";
 import type { CaseResult, CaseStatus, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import {
+  DELIVERY_CROSS_CHECK_BLOCKING,
   DELIVERY_CROSS_CHECK_CLASSES,
   crossCheckDelivery,
   type DeliveryGitObservation,
@@ -219,7 +220,7 @@ describe("crossCheckDelivery", () => {
       },
       {
         class: "base-branch-differs",
-        blocking: true,
+        blocking: false,
         unitId: "C",
         claimed: BRANCH.B,
         observed: "main",
@@ -235,7 +236,7 @@ describe("crossCheckDelivery", () => {
       },
       {
         class: "case-status-differs",
-        blocking: true,
+        blocking: false,
         unitId: "gate-after-c",
         caseId: "FX-TC-003",
         claimed: "met",
@@ -342,8 +343,134 @@ describe("crossCheckDelivery", () => {
       ["pr-state-differs", "D"],
     ]);
     expect(entries[0].claimed).toEqual({ local: HEAD.A, remote: "f".repeat(40) });
-    expect(entries[1]).toMatchObject({ claimed: "merged", observed: "open", blocking: false });
-    expect(entries[1].blocksAbove).toEqual([]);
+    expect(entries[1]).toMatchObject({ claimed: "merged", observed: "open", blocking: true });
+    expect(entries[1]).not.toHaveProperty("blocksAbove");
+  });
+
+  it("SB-TC-069 sets blocking from the class alone, per SB-FR-029", () => {
+    expect(DELIVERY_CROSS_CHECK_BLOCKING).toEqual({
+      "branch-missing": true,
+      "head-commit-differs": true,
+      "pr-state-differs": true,
+      "gate-state-differs": true,
+      "plan-hash-mismatch": true,
+      "layer-order-differs": false,
+      "base-branch-differs": false,
+      "case-status-differs": false,
+      "record-stale": false,
+    });
+  });
+
+  it("SB-TC-069 blocks on a gate the record claims failed while the results read passed", () => {
+    const record = buildRecord();
+    record.stack.gates[0] = { ...record.stack.gates[0], status: "failed" };
+    const inputs = { ...agreeing(), snapshot: foldDelivery({ record, events: [] }) };
+
+    expect(run(inputs)).toEqual([
+      {
+        class: "gate-state-differs",
+        blocking: true,
+        unitId: "gate-after-b",
+        claimed: "failed",
+        observed: "passed",
+        source: "test-results.json",
+      },
+    ]);
+  });
+
+  it("SB-TC-076 names no blocked layers when the pull request merged over a claimed open state", () => {
+    const record = buildRecord();
+    record.units[1] = { ...record.units[1], pr_state: "open" };
+    const inputs = { ...agreeing(), snapshot: foldDelivery({ record, events: [] }) };
+    inputs.pullRequests[BRANCH.B].state = "MERGED";
+    // C's pull request is retargeted to the trunk once B merges.
+    inputs.pullRequests[BRANCH.C].baseBranch = "main";
+
+    expect(run(inputs)).toEqual([
+      {
+        class: "pr-state-differs",
+        blocking: true,
+        unitId: "B",
+        claimed: "open",
+        observed: "merged",
+        source: "pull-request-api",
+      },
+    ]);
+  });
+
+  it("SB-TC-076 names the layers above a claimed pull request the query did not return", () => {
+    const inputs = agreeing();
+    inputs.pullRequests = Object.fromEntries(
+      Object.entries(inputs.pullRequests).filter(([branch]) => branch !== BRANCH.B),
+    );
+
+    expect(run(inputs)).toEqual([
+      {
+        class: "pr-state-differs",
+        blocking: true,
+        unitId: "B",
+        blocksAbove: ["C"],
+        claimed: "https://github.com/example/fixture/pull/B",
+        observed: null,
+        source: "pull-request-api",
+      },
+    ]);
+  });
+
+  it("SB-TC-069 skips base-branch-differs when the lower unit's pull request merged", () => {
+    const inputs = agreeing();
+    inputs.pullRequests[BRANCH.B].state = "merged";
+    inputs.pullRequests[BRANCH.C].baseBranch = "main";
+
+    expect(run(inputs)).toEqual([]);
+  });
+
+  it("SB-TC-069 compares a stack's order only over the branches both sides list", () => {
+    const inputs = agreeing();
+    inputs.stacks.A = ["main", BRANCH.A, BRANCH.B, "fx/unknown", BRANCH.C];
+
+    expect(run(inputs)).toEqual([]);
+  });
+
+  it("SB-TC-069 reports a not_met mark over a passed result as non-blocking", () => {
+    const record = buildRecord();
+    const gate = record.stack.gates[1];
+    record.stack.gates[1] = {
+      ...gate,
+      provisionalCases: (gate.provisionalCases ?? []).map((mark) => ({
+        ...mark,
+        mark: "not_met" as const,
+      })),
+    };
+    const inputs = { ...agreeing(), snapshot: foldDelivery({ record, events: [] }) };
+
+    expect(run(inputs)).toEqual([
+      {
+        class: "case-status-differs",
+        blocking: false,
+        unitId: "gate-after-c",
+        caseId: "FX-TC-003",
+        claimed: "not_met",
+        observed: "passed",
+        source: "test-results.json",
+      },
+    ]);
+  });
+
+  it("SB-TC-069 skips record-stale when a commit time or the record's updated_at does not parse", () => {
+    const inputs = agreeing();
+    inputs.git[BRANCH.A].committedAt = "not a time";
+    inputs.git[BRANCH.B].committedAt = "2026-10-16T09:45:00Z";
+    expect(run(inputs).map((e) => [e.class, e.unitId])).toEqual([["record-stale", "B"]]);
+
+    const unparseable = {
+      ...inputs,
+      snapshot: {
+        ...inputs.snapshot,
+        staleness: { ...inputs.snapshot.staleness, updatedAt: "not a time" },
+      },
+    };
+    expect(run(unparseable)).toEqual([]);
   });
 
   it("SB-TC-069 does not compare a provisional gate word or a missing results file", () => {
