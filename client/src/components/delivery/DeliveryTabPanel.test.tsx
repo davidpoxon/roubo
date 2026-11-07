@@ -25,7 +25,12 @@ vi.mock("../../lib/api", async (importOriginal) => {
   };
 });
 import * as api from "../../lib/api";
-import { DELIVERY_CROSS_CHECK_REFETCH_MS } from "../../hooks/useDeliveryCrossCheck";
+import {
+  DELIVERY_CROSS_CHECK_REFETCH_MS,
+  DELIVERY_CROSS_CHECK_RETRIES,
+  DELIVERY_CROSS_CHECK_RETRY_MS,
+  shouldRetryDeliveryCrossCheck,
+} from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
 
 const bench = {
@@ -518,5 +523,60 @@ describe("DeliveryTabPanel", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("SB-TC-074 reads the cross-check again 1 second after a read the restarting server could not answer, well within 5 seconds", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const nine = [
+      "branch-missing",
+      "head-commit-differs",
+      "layer-order-differs",
+      "pr-state-differs",
+      "base-branch-differs",
+      "gate-state-differs",
+      "case-status-differs",
+      "plan-hash-mismatch",
+      "record-stale",
+    ].map((cls) => ({
+      class: cls,
+      blocking: false,
+      unitId: "A",
+      claimed: "claimed",
+      observed: "observed",
+      source: "git" as const,
+    }));
+    // The server is down for the first read, and back for the next.
+    vi.mocked(api.fetchDeliveryCrossCheck)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({
+        disagreements: nine,
+        refreshedAt: "2026-10-16T10:00:05Z",
+        sourceError: null,
+      });
+    const started = Date.now();
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9), {
+      timeout: 4_000,
+    });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it("SB-TC-074 retries a cross-check read only when the server could not answer it", () => {
+    expect(DELIVERY_CROSS_CHECK_RETRY_MS).toBe(1_000);
+    expect(shouldRetryDeliveryCrossCheck(0, new TypeError("Failed to fetch"))).toBe(true);
+    expect(shouldRetryDeliveryCrossCheck(0, new api.ApiError("Bad Gateway", 502))).toBe(true);
+    expect(
+      shouldRetryDeliveryCrossCheck(
+        0,
+        readError({
+          code: "DELIVERY_RECORD_MISSING",
+          error: "No delivery record",
+        } as DeliveryReadError),
+      ),
+    ).toBe(false);
+    expect(
+      shouldRetryDeliveryCrossCheck(DELIVERY_CROSS_CHECK_RETRIES, new TypeError("Failed to fetch")),
+    ).toBe(false);
   });
 });

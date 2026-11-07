@@ -359,6 +359,34 @@ describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
     expect(snapshot.body.seq).toBe(507);
   });
 
+  it("SB-TC-074 lists all nine disagreements on the first read after a restart, with the snapshot seq equal to the record's last_event_seq", async () => {
+    // Step 1: one disagreement of each class, and no event above the record.
+    nine = true;
+    writeSpec("plan-hash-of-another-plan", ["FX-TC-003"]);
+    forgetDeliveryCrossCheck();
+    forgetDeliveryEventLog();
+
+    // Step 2: the first reads after the restart, timed.
+    const started = Date.now();
+    const [crossCheck, snapshot] = await Promise.all([
+      request(app).get(`${base}/crosscheck`),
+      request(app).get(base),
+    ]);
+    expect(Date.now() - started).toBeLessThan(5_000);
+
+    expect(crossCheck.status).toBe(200);
+    const classes = (crossCheck.body.disagreements as { class: string }[]).map((d) => d.class);
+    expect(classes).toEqual([...DELIVERY_CROSS_CHECK_CLASSES]);
+    expect(crossCheck.body.sourceError).toBeNull();
+
+    const recorded = JSON.parse(
+      fs.readFileSync(path.join(specFolder, "delivery-observation.json"), "utf8"),
+    ) as { last_event_seq: number };
+    expect(snapshot.status).toBe(200);
+    expect(snapshot.body.seq).toBe(recorded.last_event_seq);
+    expect(snapshot.body.seq).toBe(7);
+  });
+
   it("SB-TC-074 answers the first read after a restart within 5 seconds with the git and results classes while GitHub takes longer", async () => {
     nine = true;
     writeSpec("plan-hash-of-another-plan", ["FX-TC-003"]);

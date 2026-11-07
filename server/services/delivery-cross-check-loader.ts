@@ -15,7 +15,8 @@
 //     recently updated). No other GitHub request is made, so a refresh costs at
 //     most two. When the query's page is full, a unit branch with no pull
 //     request on it is unobserved, not absent: its pull request may be older
-//     than the page, so it reports no pull request or base-branch disagreement.
+//     than the page, so the page reports no new pull request or base-branch
+//     disagreement for it, and the one the refresh before found is kept.
 //     A repository whose stacks request answers 404 lists no stack order; the
 //     loader logs that once per bench, since layer-order-differs then never
 //     reports.
@@ -54,7 +55,9 @@
 // dismisses it, so a class cleared and found again raises a new one. While
 // GitHub cannot be read, every GitHub-settled class that the bench had found
 // stays found, even after a restart that forgot the list: it is neither
-// dismissed nor taken as cleared. The bench
+// dismissed nor taken as cleared. So does a pull-request class that a full
+// page leaves unobserved. After a restart, the classes found before are the
+// bench's notifications and the class it first went blocking on. The bench
 // records when the delivery first went blocking (`deliveryFirstSeenBlocking`)
 // and the class it went blocking on (`deliveryFirstSeenBlockingClass`), and
 // clears both once no blocking class is left.
@@ -154,7 +157,7 @@ interface CrossCheckEntryState {
   stacksMissingLogged: boolean;
   // The blocking classes the last refresh found; undefined before the first
   // refresh since the server started, which seeds it from the bench's
-  // notifications so a restart raises none again.
+  // notifications and its first blocking class so a restart raises none again.
   blockingSeen: Set<string> | undefined;
   runs: number;
   // When the last file-change or backstop refresh started, for the window.
@@ -465,6 +468,60 @@ function isUnobservedOnFullPage(
   return false;
 }
 
+function entryKey(entry: DeliveryCrossCheckEntry): string {
+  return `${entry.class}\u0000${entry.unitId ?? ""}`;
+}
+
+interface FullPageReading {
+  disagreements: DeliveryCrossCheckEntry[];
+  // The classes the page left unobserved for at least one unit: not known to
+  // have cleared.
+  unobserved: Set<string>;
+}
+
+// A full page's disagreements. What the page cannot settle is not taken as
+// cleared: the refresh before's entry for the same class and unit is carried,
+// for a unit whose pull request is not on the page (pr-state-differs), and for
+// an upper unit whose own or lower pull request is not on it
+// (base-branch-differs).
+function readFullPage(
+  fresh: readonly DeliveryCrossCheckEntry[],
+  previous: readonly DeliveryCrossCheckEntry[],
+  snapshot: ReturnType<typeof foldDelivery>,
+  pullRequests: DeliveryPullRequestsObservation,
+): FullPageReading {
+  const kept: DeliveryCrossCheckEntry[] = [];
+  const dropped = new Set<string>();
+  const unobserved = new Set<string>();
+  for (const entry of fresh) {
+    if (isUnobservedOnFullPage(entry, pullRequests)) {
+      dropped.add(entryKey(entry));
+      unobserved.add(entry.class);
+    } else {
+      kept.push(entry);
+    }
+  }
+  const keptKeys = new Set(kept.map(entryKey));
+  const onPage = (branch: string): boolean => Object.hasOwn(pullRequests, branch);
+  const carried = previous.filter((entry) => {
+    if (entry.unitId === undefined || keptKeys.has(entryKey(entry))) return false;
+    if (entry.class !== "pr-state-differs" && entry.class !== "base-branch-differs") return false;
+    const unit = Object.hasOwn(snapshot.unitsById, entry.unitId)
+      ? snapshot.unitsById[entry.unitId]
+      : undefined;
+    if (unit?.branch === undefined) return false;
+    if (entry.class === "pr-state-differs") {
+      // The record still claims a pull request the page does not hold.
+      return dropped.has(entryKey(entry));
+    }
+    // The upper pull request is off the page, or the lower one is (the fresh
+    // entry was dropped for it).
+    return !onPage(unit.branch) || dropped.has(entryKey(entry));
+  });
+  for (const entry of carried) unobserved.add(entry.class);
+  return { disagreements: byClass([...kept, ...carried]), unobserved };
+}
+
 // ── A refresh ──
 
 const CLASS_ORDER = new Map<string, number>(
@@ -499,26 +556,34 @@ function applyBlockingNotifications(
   disagreements: readonly DeliveryCrossCheckEntry[],
   refreshedAt: string,
   githubUnread: boolean,
+  unobserved: ReadonlySet<string>,
 ): void {
   const { bench } = state;
   const found: string[] = [];
   for (const entry of disagreements) {
     if (entry.blocking && !found.includes(entry.class)) found.push(entry.class);
   }
+  // The first refresh since the server started seeds the seen classes from
+  // what the bench kept: its notifications, and the class it first went
+  // blocking on, whose notification the operator may have dismissed.
   const seen =
     state.blockingSeen ??
-    new Set(
-      bench.notifications
+    new Set([
+      ...bench.notifications
         .filter((n) => n.type === DELIVERY_CROSS_CHECK_NOTIFICATION && n.dedupeKey !== undefined)
         .map((n) => n.dedupeKey as string),
-    );
-  // GitHub could not be read, so a GitHub-settled class found before is not
-  // known to have cleared: it stays found. The list can lack it (a restart
-  // forgot the list), so the notifications the bench holds count too.
-  if (githubUnread) {
-    for (const cls of seen) {
-      if (isGitHubClass(cls) && !found.includes(cls)) found.push(cls);
-    }
+      ...(bench.deliveryFirstSeenBlockingClass !== undefined
+        ? [bench.deliveryFirstSeenBlockingClass]
+        : []),
+    ]);
+  // A class found before that this refresh could not observe is not known to
+  // have cleared: it stays found. That is every GitHub-settled class while
+  // GitHub could not be read, and each class a full pull-request page left
+  // unobserved. The list can lack it (a restart forgot the list), so the seen
+  // classes count too.
+  for (const cls of seen) {
+    if (found.includes(cls)) continue;
+    if ((githubUnread && isGitHubClass(cls)) || unobserved.has(cls)) found.push(cls);
   }
   for (const cls of found) {
     if (seen.has(cls)) continue;
@@ -542,7 +607,16 @@ function applyBlockingNotifications(
     bench.deliveryFirstSeenBlocking = refreshedAt;
     bench.deliveryFirstSeenBlockingClass = found[0];
     persist(bench);
-  } else if (found.length === 0 && bench.deliveryFirstSeenBlocking !== undefined) {
+  } else if (
+    found.length === 0 &&
+    bench.deliveryFirstSeenBlocking !== undefined &&
+    // While GitHub cannot be read, a GitHub class is not known to have cleared.
+    !(
+      githubUnread &&
+      bench.deliveryFirstSeenBlockingClass !== undefined &&
+      isGitHubClass(bench.deliveryFirstSeenBlockingClass)
+    )
+  ) {
     bench.deliveryFirstSeenBlocking = undefined;
     bench.deliveryFirstSeenBlockingClass = undefined;
     persist(bench);
@@ -571,6 +645,8 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
   };
   const git = await deps.readGit(bench.workspacePath);
   const repository = await deps.resolveGitHubRepository(bench.workspacePath);
+  // Clear bench came while git answered: the bench is going, so leave it.
+  if (!isTracked(state)) return;
 
   if (repository !== null) {
     // What git and the results settle, published before GitHub is read, beside
@@ -605,8 +681,13 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
     }
   }
 
+  // Clear bench came while GitHub answered: write nothing to the state or the
+  // bench being torn down.
+  if (!isTracked(state)) return;
+
   const fresh = crossCheckDelivery(snapshot, git, stacks, pullRequests, verify.results, context);
   let disagreements: DeliveryCrossCheckEntry[];
+  let unobserved: ReadonlySet<string> = new Set();
   if (repository === null) {
     disagreements = fresh.filter((entry) => !isGitHubSettled(entry));
   } else if (sourceError !== null) {
@@ -615,7 +696,14 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
       ...state.disagreements.filter(isGitHubSettled),
     ]);
   } else if (!pullRequestsComplete) {
-    disagreements = fresh.filter((entry) => !isUnobservedOnFullPage(entry, pullRequests));
+    const reading = readFullPage(
+      fresh,
+      state.disagreements.filter(isGitHubSettled),
+      snapshot,
+      pullRequests,
+    );
+    disagreements = reading.disagreements;
+    unobserved = reading.unobserved;
   } else {
     disagreements = fresh;
   }
@@ -624,7 +712,7 @@ async function refresh(state: CrossCheckEntryState): Promise<void> {
   state.disagreements = disagreements;
   state.sourceError = sourceError;
   state.refreshedAt = refreshedAt;
-  applyBlockingNotifications(state, disagreements, refreshedAt, sourceError !== null);
+  applyBlockingNotifications(state, disagreements, refreshedAt, sourceError !== null, unobserved);
 }
 
 // ── Scheduling ──
