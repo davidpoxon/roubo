@@ -18,6 +18,7 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract";
+import { classifyUnitStatus } from "./delivery-reducer";
 import type { SpecBenchDecisionMode } from "./types";
 
 // ── Routes ──
@@ -99,16 +100,30 @@ export interface DeliveryStreamFrame {
 // `work-units.json` in the project checkout. A spec with no `work-units.json`
 // answers 0 and 0.
 //
-// `delivery` is present only when the spec folder of the project checkout holds
-// a conformant delivery record: a delivery started elsewhere, which an attached
-// bench joins once its worktree checks the committed record out (SB-FR-003). It
-// names the record's progress (its units done, of all its units) and its
-// lifecycle state, read for the dialog only.
+// `delivery` is present only when a conformant delivery record of the spec is
+// committed at the commit that a bench created now would start its worktree
+// from (the default branch or the checkout's HEAD, as the project's worktree
+// source settings say): a delivery started elsewhere, the record an attached
+// bench's worktree checks out and joins (SB-FR-003). A record that is only in
+// the working tree of the checkout, or a local edit of a committed one, is not
+// what the bench sees, so it is not what the summary names. It names the
+// record's progress (its units done, of all its units) and its lifecycle state,
+// read for the dialog only.
 export interface SpecBenchSpecDelivery {
   deliveryId: string;
   lifecycleState: string;
   unitsDone: number;
   units: number;
+}
+
+/** The summary's `delivery` of a conformant record. */
+export function summarizeSpecDelivery(record: DeliveryRecord): SpecBenchSpecDelivery {
+  return {
+    deliveryId: record.delivery_id,
+    lifecycleState: record.lifecycle.state,
+    unitsDone: record.units.filter((unit) => classifyUnitStatus(unit.status) === "done").length,
+    units: record.units.length,
+  };
 }
 
 export interface SpecBenchSpecSummary {
