@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /// <reference types="node" />
-// References node types for the `process.env` perf-harness gate below; the client
+// References node types for the `process.env` perf-harness flag below; the client
 // tsconfig pins `types: ["vite/client"]`, so @types/node is not otherwise in scope
 // for this file.
 /**
@@ -13,13 +13,19 @@
  * is the pile's selectors and its render (one live top card and 99 title bars).
  * The clock stops when render() returns (it is act()-wrapped, so the commit is
  * complete); the check that every card painted runs after the sample, with a
- * plain selector. The budget assertion is gated behind RUN_PERF_HARNESS=1, the
- * repo's perf convention (`npm run test:perf`): WARMUP_ITERATIONS unmeasured
- * renders, then measured iterations, inline median and p95, a structured
- * perf-evidence log. Under the default run, where the measured test is skipped,
- * a non-gated structural test pins that the 100-card pile paints every card with
- * the oldest on top. The structural test asserts no budget, so its name carries
- * no case id. The numbers are jsdom render times, not real-browser paint times.
+ * plain selector. WARMUP_ITERATIONS unmeasured renders come first, then the
+ * measured iterations, an inline median and p95, and the budget assertion.
+ *
+ * Unlike the repo's other budget harnesses, the budget assertion runs in the
+ * default suite, not behind RUN_PERF_HARNESS=1: the case's verify gate reads the
+ * default run's JUnit report, so a gated assertion would leave it no evidence.
+ * The measured headroom is more than 10x (a median near 9 ms, a p95 near 17 ms),
+ * so the wall-clock assertion is not a flake risk at this budget. The
+ * perf-evidence log prints only under RUN_PERF_HARNESS=1 (`npm run test:perf`),
+ * so the default run stays silent. A structural test also pins that the
+ * 100-card pile paints every card with the oldest on top; it asserts no budget,
+ * so its name carries no case id. The numbers are jsdom render times, not
+ * real-browser paint times.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup } from "@testing-library/react";
@@ -33,7 +39,7 @@ import { fourUnitRecord } from "../../test/delivery-fixtures";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import DecisionPile from "./DecisionPile";
 
-const RUN = process.env.RUN_PERF_HARNESS === "1";
+const LOG_EVIDENCE = process.env.RUN_PERF_HARNESS === "1";
 const CARD_COUNT = 100;
 const ITERATIONS = 20;
 const WARMUP_ITERATIONS = 5;
@@ -112,24 +118,26 @@ function benchmarkPile() {
 
   const medianMs = percentile(samples, 0.5);
   const p95Ms = percentile(samples, 0.95);
-  console.log(
-    JSON.stringify({
-      kind: "perf-evidence",
-      tc: "SB-TC-101",
-      cardCount: CARD_COUNT,
-      iterations: ITERATIONS,
-      warmupIterations: WARMUP_ITERATIONS,
-      medianMs,
-      p95Ms,
-      budgetMs: BUDGET_MS,
-    }),
-  );
+  if (LOG_EVIDENCE) {
+    console.log(
+      JSON.stringify({
+        kind: "perf-evidence",
+        tc: "SB-TC-101",
+        cardCount: CARD_COUNT,
+        iterations: ITERATIONS,
+        warmupIterations: WARMUP_ITERATIONS,
+        medianMs,
+        p95Ms,
+        budgetMs: BUDGET_MS,
+      }),
+    );
+  }
 
   expect(medianMs).toBeLessThan(BUDGET_MS);
   expect(p95Ms).toBeLessThan(BUDGET_MS);
 }
 
-it.runIf(RUN)(
+it(
   "SB-TC-101 renders the decision pile with 100 cards under 200 ms at the median and p95",
   benchmarkPile,
   120_000,
