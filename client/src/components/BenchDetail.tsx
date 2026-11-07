@@ -645,9 +645,15 @@ export default function BenchDetail() {
 
   // A delivery-decision notification links to the decision pile (SB-FR-014):
   // the link opens a Spec Bench on its Delivery tab and brings the pile into
-  // focus, once per navigation, keyed by the navigation's location key.
+  // focus, once per navigation, keyed by the navigation's location key. The key
+  // of the link that the pile last took focus for is kept here, above the
+  // Delivery tab panel, which unmounts while another tab is selected: a return
+  // to the Delivery tab under the same link leaves the focus on the tab.
   const decisionPileKey =
     isSpecbench && location.hash === DECISION_PILE_HASH ? location.key : undefined;
+  const [focusedDecisionPileKey, setFocusedDecisionPileKey] = useState<string | undefined>();
+  const pendingDecisionPileKey =
+    decisionPileKey !== focusedDecisionPileKey ? decisionPileKey : undefined;
   useEffect(() => {
     if (decisionPileKey !== undefined) setActiveTab("delivery");
   }, [decisionPileKey, setActiveTab]);
@@ -949,7 +955,11 @@ export default function BenchDetail() {
 
           {isSpecbench && (
             <TabPanel id="delivery" className="outline-none overflow-auto flex-1">
-              <DeliveryTabPanel bench={bench} decisionPileFocusKey={decisionPileKey} />
+              <DeliveryTabPanel
+                bench={bench}
+                decisionPileFocusKey={pendingDecisionPileKey}
+                onDecisionPileFocused={setFocusedDecisionPileKey}
+              />
             </TabPanel>
           )}
 
