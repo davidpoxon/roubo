@@ -153,15 +153,13 @@ interface InternalSession {
   // Spec Bench's drill-in cuts a unit's transcript out of the scrollback by
   // these times (SB-FR-013).
   bufferTimes: CircularBuffer<number>;
-  // Every chunk written into the PTY as input, in the order it was written:
-  // what a viewer typed through its socket and what core wrote with
-  // writeToSession. Output never lands here. A Spec Bench reads it to show that
-  // the operator's delivery controls reached the session through the controls
-  // endpoint and were never typed into its terminal (SB-FR-022). It is kept in
-  // memory only, because typed input can hold a secret that the terminal never
-  // echoed, so a session restored after a restart has null: its input is not
-  // known.
-  input: CircularBuffer<string> | null;
+  // How many chunks were written into the PTY as input: what a viewer typed
+  // through its socket and what core wrote with writeToSession. Only the count
+  // is kept, never the input itself, because typed input can hold a secret that
+  // the terminal never echoed. A test can read it to show that no input was
+  // typed into a session (SB-FR-022). It is kept in memory only, so a session
+  // restored after a restart has null: its input count is not known.
+  inputCount: number | null;
   exitCode: number | null;
   quiescenceTimer: ReturnType<typeof setTimeout> | null;
   // Timestamps used to gate quiescence-driven notifications: we only re-notify
@@ -277,11 +275,11 @@ function generateLabel(
   return `Terminal ${index} - ${projectName} #${benchId}`;
 }
 
-/** Write one chunk of input into a live session's PTY, and keep it in its input. */
+/** Write one chunk of input into a live session's PTY, and count it. */
 function writeInput(internal: InternalSession, data: string): void {
   if (!internal.pty) return;
   internal.pty.write(data);
-  internal.input?.push(data);
+  if (internal.inputCount !== null) internal.inputCount += 1;
 }
 
 /** Append one chunk to the scrollback with the time it was written. */
@@ -652,7 +650,7 @@ function registerSession(
     viewers: new Map(),
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
     bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
-    input: new CircularBuffer(MAX_BUFFER_CHUNKS),
+    inputCount: 0,
     exitCode: null,
     quiescenceTimer: null,
     lastOutputAt: null,
@@ -1134,14 +1132,14 @@ export function getSessionScrollback(
 }
 
 /**
- * The input chunks written into a session's PTY, in the order they were
- * written: what a viewer typed through its socket and what core wrote with
- * writeToSession. Undefined when no such session exists, or when its input is
- * not known because the session was restored after a restart: the input is
- * kept in memory only.
+ * How many input chunks were written into a session's PTY: what a viewer
+ * typed through its socket and what core wrote with writeToSession. The input
+ * itself is never kept. Undefined when no such session exists, or when the
+ * count is not known because the session was restored after a restart: the
+ * count is kept in memory only.
  */
-export function getSessionInput(sessionId: string): string[] | undefined {
-  return sessions.get(sessionId)?.input?.toArray();
+export function getSessionInputCount(sessionId: string): number | undefined {
+  return sessions.get(sessionId)?.inputCount ?? undefined;
 }
 
 export function getSessions(projectId: string, benchId: number): TerminalSession[] {
@@ -1304,8 +1302,8 @@ export function loadPersistedSessions(): void {
         viewers: new Map(),
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
         bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
-        // The input is never written to disk, so it is not known here.
-        input: null,
+        // The input count is never written to disk, so it is not known here.
+        inputCount: null,
         exitCode: persisted.session.exitCode ?? null,
         quiescenceTimer: null,
         lastOutputAt: null,

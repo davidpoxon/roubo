@@ -340,13 +340,14 @@ describe("output buffer", () => {
 });
 
 describe("session input", () => {
-  it("keeps socket input and writeToSession input in order, and no output", async () => {
+  it("counts socket input and writeToSession input, and no output", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
-    const { createSession, handleWebSocket, writeToSession, getSessionInput } = await loadModule();
+    const { createSession, handleWebSocket, writeToSession, getSessionInputCount } =
+      await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
-    expect(getSessionInput(session.id)).toEqual([]);
+    expect(getSessionInputCount(session.id)).toBe(0);
 
     pty._emit("data", "prompt$ ");
     const ws = createMockWs();
@@ -355,9 +356,9 @@ describe("session input", () => {
     ws._trigger("message", Buffer.from(JSON.stringify({ type: "resize", cols: 100, rows: 30 })));
     expect(writeToSession(session.id, "/jig\n")).toBe(true);
 
-    expect(getSessionInput(session.id)).toEqual(["ls\n", "/jig\n"]);
+    expect(getSessionInputCount(session.id)).toBe(2);
     expect(pty.write.mock.calls).toEqual([["ls\n"], ["/jig\n"]]);
-    expect(getSessionInput("no-such-session")).toBeUndefined();
+    expect(getSessionInputCount("no-such-session")).toBeUndefined();
   });
 
   it("never writes the input to disk", async () => {
@@ -376,7 +377,7 @@ describe("session input", () => {
     }
   });
 
-  it("knows no input of a session restored after a restart", async () => {
+  it("knows no input count of a session restored after a restart", async () => {
     const id = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
     mockReaddirSync.mockReturnValue([`${id}.json`]);
     mockReadFileSync.mockReturnValue(
@@ -393,10 +394,10 @@ describe("session input", () => {
       }),
     );
 
-    const { loadPersistedSessions, getSessionInput, writeToSession } = await loadModule();
+    const { loadPersistedSessions, getSessionInputCount, writeToSession } = await loadModule();
     loadPersistedSessions();
 
-    expect(getSessionInput(id)).toBeUndefined();
+    expect(getSessionInputCount(id)).toBeUndefined();
     expect(writeToSession(id, "ls\n")).toBe(false);
   });
 });

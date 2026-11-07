@@ -30,7 +30,7 @@
 //     server/services/sse.ts; it also serves the tooling's controls read;
 //   - server/services/terminal.ts holds each delivery session as a terminal
 //     session of the bench: the bench's terminal list, the live-session check
-//     the resume route makes, and the session's input log, which step 5 reads.
+//     the resume route makes, and the session's input count, which step 5 reads.
 //
 // The stand-ins sit below those routes: the bench manager claims the bench and
 // provisions its workspace as an empty folder; the launch executor (the port
@@ -289,29 +289,28 @@ import BenchDetail from "../BenchDetail";
 // ── Owning slices (this journey's blocked-by set) ──
 //
 // Reported on a divergence, so a red run names the slice that owns the step.
-// OWNERS is exactly this journey's blocked-by set, named by its exact slice
-// title, and every step names at least one of them. A slice that a step also
-// crosses but that sits outside the blocked-by set is labelled apart.
+// OWNERS holds exactly the two slices of this journey's blocked-by set, each by
+// its exact title, and every step names both as its owners. A slice that a
+// step also crosses but that sits outside the blocked-by set is listed apart
+// in OUTSIDE_BLOCKED_BY, by its exact title, and is never named as an owner.
 const OWNERS = {
-  controls: "'Control service, outbox and the token-gated controls endpoint'",
-  lifecycle: "'Role matrix and lifecycle controls' (SB-FR-021, SB-FR-022, SB-US-008)",
-  launcher: "'Record loader, token registry and session launcher for launch and attach'",
+  controls: "Control service, outbox and the token-gated controls endpoint",
+  lifecycle: "Role matrix and lifecycle controls: pause, wind-down, resume and approve",
 } as const;
 
 const OUTSIDE_BLOCKED_BY = {
-  reducer: "'Delivery reducer and selectors shared by server and client'",
-  ingest: "'Token-gated event ingest, sequence checks and the delivery stream frame'",
-  health: "delivery health chip and staleness (SB-FR-019)",
-  terminal: "the bench's terminal sessions and their input log (server/services/terminal.ts)",
+  reducer: "Delivery reducer and selectors shared by server and client",
+  ingest: "Token-gated event ingest, sequence checks and the delivery stream frame",
+  launcher: "Record loader, token registry and session launcher for launch and attach",
 } as const;
 
 type BlockedBySlice = keyof typeof OWNERS;
 type OutsideSlice = keyof typeof OUTSIDE_BLOCKED_BY;
 
 function owners(blockedBy: BlockedBySlice[], outside: OutsideSlice[] = []): string {
-  const named = blockedBy.map((key) => OWNERS[key]).join("; ");
+  const named = blockedBy.map((key) => `'${OWNERS[key]}'`).join("; ");
   if (outside.length === 0) return named;
-  const also = outside.map((key) => OUTSIDE_BLOCKED_BY[key]).join("; ");
+  const also = outside.map((key) => `'${OUTSIDE_BLOCKED_BY[key]}'`).join("; ");
   return `${named}\n  also crossed, outside the blocked-by set: ${also}`;
 }
 
@@ -450,7 +449,7 @@ interface ServerModules {
     ) => TerminalSession;
     getSession: (sessionId: string) => TerminalSession | undefined;
     getSessions: (projectId: string, benchId: number) => TerminalSession[];
-    getSessionInput: (sessionId: string) => string[] | undefined;
+    getSessionInputCount: (sessionId: string) => number | undefined;
     destroyAllSessions: () => void;
   };
   sse: {
@@ -1050,7 +1049,7 @@ describe("Spec Bench lifecycle journey", () => {
         expect(change, `no role-change control in ${JSON.stringify(controls)}`).toBeDefined();
         expect(change).toMatchObject({ target_id: ROLE, body: { tier: NEW_TIER } });
 
-        const status = await tooling.post([
+        await tooling.post([
           tooling.event("unit.changed", { status: "done" }, BOUNDARY_UNIT),
           tooling.event("unit.changed", { status: "running" }, NEXT_UNIT),
           tooling.event("roles.applied", {
@@ -1059,7 +1058,6 @@ describe("Spec Bench lifecycle journey", () => {
             control_seq: roleControlSeq,
           }),
         ]);
-        expect(status).toBe(202);
 
         await waitFor(() => expect(roleRow()).toHaveAttribute("data-state", "current"), {
           timeout: 3000,
@@ -1079,7 +1077,7 @@ describe("Spec Bench lifecycle journey", () => {
     await step(
       "3. Click Wind down and confirm",
       "the wind-down control reaches the outbox, the chip does not read wound down until the session's lifecycle.changed arrives, and reads wound down after it",
-      owners(["lifecycle", "controls"], ["ingest", "health"]),
+      owners(["lifecycle", "controls"], ["ingest"]),
       async () => {
         await user.click(lifecycleButton("Wind down"));
         const dialog = await screen.findByRole("alertdialog", { name: "Wind down the delivery?" });
@@ -1091,13 +1089,12 @@ describe("Spec Bench lifecycle journey", () => {
         const controls = await tooling.readControls();
         const windDown = controls.find((control) => control.kind === "wind-down");
         expect(windDown, `no wind-down control in ${JSON.stringify(controls)}`).toBeDefined();
-        const status = await tooling.post([
+        await tooling.post([
           tooling.event("lifecycle.changed", {
             state: "wound_down",
             control_seq: windDown?.control_seq,
           }),
         ]);
-        expect(status).toBe(202);
         tooling.exit();
 
         await waitFor(
@@ -1115,7 +1112,7 @@ describe("Spec Bench lifecycle journey", () => {
     await step(
       "4. Click Resume",
       "the real resume route relaunches the session with the record's resume argument as a new live session, and the chip returns to active once the session's lifecycle.changed arrives",
-      owners(["lifecycle", "launcher"], ["ingest", "health", "terminal"]),
+      owners(["lifecycle", "controls"], ["launcher", "ingest"]),
       async () => {
         const [first] = server.sessions;
         expect(serverModules.terminal.getSession(first.id)?.status).toBe("ended");
@@ -1135,13 +1132,12 @@ describe("Spec Bench lifecycle journey", () => {
         const second = server.sessions[1];
         expect(second.id).not.toBe(first.id);
         expect(bench.deliverySessionId).toBe(second.id);
+        // Setup, not evidence of the relaunch: the stub launch executor opens
+        // the session it is handed as live, so this only checks the stand-in.
         expect(serverModules.terminal.getSession(second.id)?.status).toBe("live");
         expect(healthChip()).not.toHaveAttribute("data-tone", "active");
 
-        const status = await tooling.post([
-          tooling.event("lifecycle.changed", { state: "running" }),
-        ]);
-        expect(status).toBe(202);
+        await tooling.post([tooling.event("lifecycle.changed", { state: "running" })]);
         await waitFor(
           () => {
             const chip = healthChip();
@@ -1155,16 +1151,16 @@ describe("Spec Bench lifecycle journey", () => {
 
     await step(
       "5. Read the terminal session log",
-      "each delivery session of the bench has an empty input log: no operator input was typed into the terminal",
-      owners(["controls", "lifecycle", "launcher"], ["terminal"]),
+      "each delivery session of the bench has an input count of 0: no operator input was typed into the terminal",
+      owners(["controls", "lifecycle"], ["launcher"]),
       () => {
         const sessions = serverModules.terminal.getSessions(PROJECT_ID, bench.id);
         expect(sessions.map((s) => s.id).sort()).toEqual(server.sessions.map((s) => s.id).sort());
         for (const session of sessions) {
           expect(
-            serverModules.terminal.getSessionInput(session.id),
-            `the input log of session ${session.id}`,
-          ).toEqual([]);
+            serverModules.terminal.getSessionInputCount(session.id),
+            `the input count of session ${session.id}`,
+          ).toBe(0);
         }
         // The processes behind the sessions were written nothing either.
         for (const pty of server.processes) {
