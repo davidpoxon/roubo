@@ -10,6 +10,7 @@ import type {
 } from "./config-schema.js";
 import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
 import type { DeliveryControl } from "./delivery-control-contract.js";
+import type { DeliveryCrossCheckDisagreement } from "./delivery-bench.js";
 import type { Author } from "./testbench-contracts.js";
 import type {
   AgentCliStep,
@@ -1710,6 +1711,19 @@ export interface BenchGatePin {
 }
 
 /** The gate sitting a Spec Bench has open, and the session that runs it. */
+/**
+ * What a Spec Bench's delivery cross-check keeps across a server restart: the
+ * blocking classes its last refresh found, so a restart raises no notification
+ * again for one of them even when the operator dismissed it, and the
+ * disagreements that GitHub settles from its last refresh, so the first read
+ * after a restart lists them before GitHub answers, and a refresh that cannot
+ * read GitHub, or reads a full pull-request page, keeps them per unit.
+ */
+export interface DeliveryCrossCheckMemory {
+  seen: string[];
+  github: DeliveryCrossCheckDisagreement[];
+}
+
 export interface BenchDeliverySitting {
   gateId: string;
   /** The terminal session of the sitting, stopped by Clear bench after the pin. */
@@ -1835,6 +1849,11 @@ export interface Bench {
    * set and cleared with `deliveryFirstSeenBlocking`.
    */
   deliveryFirstSeenBlockingClass?: string;
+  /**
+   * Spec Bench only: what the delivery cross-check keeps across a restart
+   * (SB-FR-030, SB-NFR-005). Absent while it keeps nothing.
+   */
+  deliveryCrossCheckMemory?: DeliveryCrossCheckMemory;
   /**
    * Whether the bench-level setup command (`benches.setup`) has already run to
    * completion for this bench. `benches.setup` is documented as running once
@@ -2190,6 +2209,8 @@ export interface PersistedBench {
   deliveryFirstSeenBlocking?: string;
   /** Persisted mirror of Bench.deliveryFirstSeenBlockingClass. Spec Bench only. */
   deliveryFirstSeenBlockingClass?: string;
+  /** Persisted mirror of Bench.deliveryCrossCheckMemory. Spec Bench only. */
+  deliveryCrossCheckMemory?: DeliveryCrossCheckMemory;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag

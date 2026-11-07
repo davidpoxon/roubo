@@ -134,6 +134,8 @@ let requests: { path: string; status: number; headers: Headers }[];
 // repository.
 let repository: { owner: string; repo: string } | null;
 let fileChange: ((file: string) => void) | undefined;
+// The units whose branch local git does not hold.
+let gitMissing: Set<UnitId>;
 
 const STACKS_ETAG = '"stacks-1"';
 
@@ -246,6 +248,7 @@ beforeEach(() => {
   requests = [];
   repository = { owner: "example", repo: "fixture" };
   fileChange = undefined;
+  gitMissing = new Set();
   vi.mocked(stateService.updateBench).mockReset();
   vi.mocked(notificationService.createNotification).mockClear();
   setDeliveryCrossCheckDeps({
@@ -253,6 +256,7 @@ beforeEach(() => {
       const git: Record<string, { localHead: string; remoteHead: string; committedAt: string }> =
         {};
       for (const id of UNITS) {
+        if (gitMissing.has(id)) continue;
         git[BRANCH[id]] = { localHead: HEAD[id], remoteHead: HEAD[id], committedAt: BEFORE_UPDATE };
       }
       return git;
@@ -356,6 +360,49 @@ describe("SB-TC-071: when the cross-check refreshes", () => {
       await refreshOnEvent(seq++, type);
       expect(runs(), type).toBe(before + 1);
     }
+  });
+
+  it("SB-TC-071 runs one refresh per refreshing event of one batch", async () => {
+    await readDeliveryCrossCheck(bench);
+    expect(runs()).toBe(1);
+    await refreshDeliveryCrossCheckOnEvents(bench, [
+      event(8, "unit.boundary"),
+      event(9, "decision.raised"),
+      event(10, "pr.submitted"),
+      event(11, "gate.reached"),
+    ]);
+    await idle();
+    expect(runs()).toBe(4);
+  });
+
+  it("SB-TC-071 runs one refresh per refreshing event posted while a refresh waits to start", async () => {
+    await readDeliveryCrossCheck(bench);
+    expect(runs()).toBe(1);
+    // Three batches arrive at once: none waits for the one before, so each
+    // queues behind a refresh that has not started yet.
+    await Promise.all([
+      refreshOnEvent(8, "unit.boundary"),
+      refreshOnEvent(9, "pr.submitted"),
+      refreshOnEvent(10, "gate.reached"),
+    ]);
+    await idle();
+    expect(runs()).toBe(4);
+  });
+
+  it("SB-TC-071 lets a file change join a refresh that waits to start", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await readDeliveryCrossCheck(bench);
+    expect(runs()).toBe(1);
+    githubDelayMs = 1_000;
+    // One event refresh runs, a second waits; the debounced file change joins
+    // the waiting one.
+    void refreshOnEvent(8, "unit.boundary");
+    void refreshOnEvent(9, "pr.submitted");
+    fileChange?.("test-results.json");
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await idle();
+    expect(runs()).toBe(3);
   });
 
   it("SB-TC-071 runs nothing on an event before a read arms the bench", async () => {
@@ -569,6 +616,99 @@ describe("SB-TC-072: the first appearance of a blocking class", () => {
     await refreshOnEvent(10);
     expect((await readDeliveryCrossCheck(bench)).disagreements).toEqual([]);
   });
+
+  it("SB-TC-072 clears a class on a full page while another unit's pull request is off it, and raises a new notification when the class comes back", async () => {
+    // Every page is full: A's merged pull request is older than the 100 most
+    // recently updated, so the page never holds it.
+    const page = (bState: string) => [
+      { ...listedPullRequest("B", BRANCH.A), state: bState },
+      listedPullRequest("C", BRANCH.B),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(97),
+    ];
+    pullsBody = page("open");
+    await readDeliveryCrossCheck(bench);
+    expect(crossCheckNotifications()).toEqual([]);
+
+    // B's pull request closed unmerged: notified.
+    pullsBody = page("closed");
+    await refreshOnEvent(8);
+    const first = crossCheckNotifications();
+    expect(first).toHaveLength(1);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+
+    // B reopened: the class clears although A stays off the page.
+    pullsBody = page("open");
+    await refreshOnEvent(9);
+    expect((await readDeliveryCrossCheck(bench)).disagreements).toEqual([]);
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBeUndefined();
+    expect(bench.deliveryFirstSeenBlockingClass).toBeUndefined();
+
+    // B closed again: a new notification.
+    pullsBody = page("closed");
+    await refreshOnEvent(10);
+    const again = crossCheckNotifications();
+    expect(again).toHaveLength(1);
+    expect(again[0]?.id).not.toBe(first[0]?.id);
+    expect(bench.deliveryFirstSeenBlockingClass).toBe("pr-state-differs");
+  });
+
+  it("SB-TC-072 clears a class on a full page after a restart while another unit's pull request is off it", async () => {
+    pullsBody = undefined;
+    await readDeliveryCrossCheck(bench);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(8);
+    expect(crossCheckNotifications()).toHaveLength(1);
+
+    // A restart, then B reopened on a full page that does not hold A.
+    forgetDeliveryCrossCheck();
+    pullsBody = [
+      listedPullRequest("B", BRANCH.A),
+      listedPullRequest("C", BRANCH.B),
+      listedPullRequest("D", "main"),
+      ...otherPullRequests(97),
+    ];
+    await readDeliveryCrossCheck(bench);
+    expect(crossCheckNotifications()).toEqual([]);
+    expect(bench.deliveryFirstSeenBlocking).toBeUndefined();
+    expect(bench.deliveryCrossCheckMemory).toBeUndefined();
+  });
+
+  it("SB-TC-072 raises none again after a restart for any class found before, when every notification was dismissed", async () => {
+    // Two blocking classes: D's branch is missing and B's pull request closed.
+    gitMissing.add("D");
+    prState.B = { state: "closed", merged_at: null };
+    await readDeliveryCrossCheck(bench);
+    expect(
+      crossCheckNotifications()
+        .map((n) => n.dedupeKey)
+        .sort(),
+    ).toEqual(["branch-missing", "pr-state-differs"]);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryCrossCheckMemory: expect.objectContaining({
+          seen: ["branch-missing", "pr-state-differs"],
+        }) as unknown,
+      }),
+    );
+
+    // The operator dismisses every bench notification, then the server
+    // restarts: neither class is notified again.
+    notificationService.dismissBenchLevelForBench(bench);
+    expect(crossCheckNotifications()).toEqual([]);
+    forgetDeliveryCrossCheck();
+    vi.mocked(notificationService.createNotification).mockClear();
+    await readDeliveryCrossCheck(bench);
+    expect(notificationService.createNotification).not.toHaveBeenCalled();
+
+    // One clears and comes back: a new notification for it only.
+    prState.B = { state: "open", merged_at: null };
+    await refreshOnEvent(8);
+    prState.B = { state: "closed", merged_at: null };
+    await refreshOnEvent(9);
+    expect(crossCheckNotifications().map((n) => n.dedupeKey)).toEqual(["pr-state-differs"]);
+  });
 });
 
 describe("SB-TC-072: a refresh that Clear bench overtakes", () => {
@@ -685,6 +825,30 @@ describe("SB-TC-074: the first read after a restart", () => {
     await idle();
     const later = await readDeliveryCrossCheck(bench);
     expect(later.disagreements.map((d) => d.class)).toEqual(["branch-missing", "pr-state-differs"]);
+  });
+
+  it("SB-TC-074 lists the GitHub classes found before the restart on the first read while GitHub is slower than 5 seconds", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    gitMissing.add("D");
+    prState.B = { state: "closed", merged_at: null };
+    const before = await readDeliveryCrossCheck(bench);
+    expect(before.disagreements.map((d) => d.class)).toEqual([
+      "branch-missing",
+      "pr-state-differs",
+    ]);
+
+    // The restart: the loader forgets its list, and GitHub answers in 6 s.
+    forgetDeliveryCrossCheck();
+    githubDelayMs = 6_000;
+    let answered: Awaited<ReturnType<typeof readDeliveryCrossCheck>> | undefined;
+    void readDeliveryCrossCheck(bench).then((read) => {
+      answered = read;
+    });
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(answered?.disagreements).toEqual(before.disagreements);
+    expect(answered?.sourceError).toBeNull();
+    await vi.advanceTimersByTimeAsync(12_000);
+    await idle();
   });
 });
 

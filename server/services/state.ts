@@ -295,6 +295,9 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ...(bench.deliveryFirstSeenBlockingClass !== undefined && {
       deliveryFirstSeenBlockingClass: bench.deliveryFirstSeenBlockingClass,
     }),
+    ...(bench.deliveryCrossCheckMemory !== undefined && {
+      deliveryCrossCheckMemory: bench.deliveryCrossCheckMemory,
+    }),
   };
 }
 
