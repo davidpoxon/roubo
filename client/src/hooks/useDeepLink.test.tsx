@@ -42,6 +42,18 @@ describe("useDeepLink", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/benches/bench-2");
   });
 
+  it("navigates a decision-pile link to the bench's decision pile", () => {
+    renderHook(() => useDeepLink());
+    act(() => fireDeepLink("roubo://project/proj-1/bench/2/decisions"));
+    expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/benches/2#decisions");
+  });
+
+  it("ignores a bench link with an unknown trailing segment", () => {
+    renderHook(() => useDeepLink());
+    act(() => fireDeepLink("roubo://project/proj-1/bench/2/unknown"));
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it("ignores a GitHub OAuth callback: sign-in uses the device flow (#1457)", () => {
     renderHook(() => useDeepLink());
     expect(() =>

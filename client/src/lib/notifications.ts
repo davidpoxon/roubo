@@ -96,13 +96,35 @@ export function formatNotification(notification: BenchNotification): {
           : `${count} agent decisions wait for your review`,
     };
   }
+  // A decision's notification names the decision by its id in the title and
+  // asks its question in the body (SB-FR-014).
   const question = notification.metadata?.question;
   if (
     notification.type === "delivery-decision" &&
     typeof question === "string" &&
     question.length > 0
   ) {
-    return { title: notificationMessages["delivery-decision"].title, body: question };
+    const decisionId = notification.metadata?.decisionId;
+    const title = notificationMessages["delivery-decision"].title;
+    return {
+      title:
+        typeof decisionId === "string" && decisionId.length > 0 ? `${title} ${decisionId}` : title,
+      body: question,
+    };
   }
   return notificationMessages[notification.type] ?? { title: "Notification", body: "" };
+}
+
+/**
+ * Where a notification leads when it is clicked: the bench, or for a
+ * delivery-decision notification the bench's decision pile (SB-FR-014), where
+ * the decision, or the review call's cards, wait for the operator.
+ */
+export function notificationRouteTo(
+  projectId: string,
+  benchId: number,
+  notification: BenchNotification,
+): string {
+  const bench = `roubo://project/${projectId}/bench/${String(benchId)}`;
+  return notification.type === "delivery-decision" ? `${bench}/decisions` : bench;
 }

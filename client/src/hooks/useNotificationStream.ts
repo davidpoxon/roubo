@@ -3,7 +3,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { Bench, BenchNotification, BenchStatus, SpecBenchDecisionMode } from "@roubo/shared";
 import type { DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { formatNotification } from "../lib/notifications";
+import { formatNotification, notificationRouteTo } from "../lib/notifications";
 import { deliveryQueryKey } from "./useDelivery";
 
 interface NotificationsEvent {
@@ -125,11 +125,11 @@ export function useNotificationStream(): void {
       });
 
       if (window.roubo?.showNotification) {
-        const routeTo = `roubo://project/${data.projectId}/bench/${String(data.benchId)}`;
         for (const n of data.notifications) {
           if (n.priority === "action-needed" && !firedIds.current.has(n.id)) {
             firedIds.current.add(n.id);
             const { title, body } = formatNotification(n);
+            const routeTo = notificationRouteTo(data.projectId, data.benchId, n);
             window.roubo.showNotification({ title, body, routeTo });
           }
         }

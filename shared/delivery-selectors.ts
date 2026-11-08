@@ -291,6 +291,55 @@ export function selectDecisionPile(snapshot: DeliverySnapshot): DeliveryDecision
     });
 }
 
+// What an open decision holds and what goes on without it (SB-FR-014): a
+// decision blocks only the units that build on its choice, and the rest of the
+// delivery continues. The units that build on it are its `affected_units` when
+// the decision names them, else every unit that depends on the decision's unit,
+// directly or through another unit. The decision's own unit is not held: it
+// goes on with the default until an answer lands. Of the units that have not
+// finished (neither done nor skipped), `held` lists those that build on the
+// decision and `continuing` every other, in the snapshot's unit order.
+export interface DecisionHolds {
+  held: string[];
+  continuing: string[];
+}
+
+function dependentsOf(snapshot: DeliverySnapshot, unitId: string): Set<string> {
+  const found = new Set<string>();
+  const queue = [unitId];
+  for (let current = queue.shift(); current !== undefined; current = queue.shift()) {
+    for (const unit of Object.values(snapshot.unitsById)) {
+      if (unit.id === unitId || found.has(unit.id)) continue;
+      if (unit.depends_on.includes(current)) {
+        found.add(unit.id);
+        queue.push(unit.id);
+      }
+    }
+  }
+  return found;
+}
+
+export function selectDecisionHolds(
+  snapshot: DeliverySnapshot,
+  decision: DeliveryDecision,
+): DecisionHolds {
+  const buildsOn =
+    decision.affected_units !== undefined
+      ? new Set(decision.affected_units)
+      : decision.unit_id !== undefined
+        ? dependentsOf(snapshot, decision.unit_id)
+        : new Set<string>();
+  if (decision.unit_id !== undefined) buildsOn.delete(decision.unit_id);
+  const held: string[] = [];
+  const continuing: string[] = [];
+  for (const unit of Object.values(snapshot.unitsById)) {
+    const kind = classifyUnitStatus(unit.status);
+    if (kind === "done" || kind === "skipped") continue;
+    (buildsOn.has(unit.id) ? held : continuing).push(unit.id);
+  }
+  return { held, continuing };
+}
+
 // The steering notes that reach a unit: those naming it, and those naming no
 // unit (which apply to every unit).
 export function selectSteeringFor(snapshot: DeliverySnapshot, unitId: string): DeliverySteering[] {

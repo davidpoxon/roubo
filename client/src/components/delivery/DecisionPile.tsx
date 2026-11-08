@@ -3,7 +3,12 @@ import { Button as AriaButton } from "react-aria-components";
 import type { DeliveryControl } from "@roubo/shared/delivery-control-contract";
 import type { DeliveryDecision } from "@roubo/shared/delivery-observation-contract";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { isDecisionDefaulted, selectDecisionPile } from "@roubo/shared/delivery-selectors";
+import {
+  isDecisionDefaulted,
+  selectDecisionHolds,
+  selectDecisionPile,
+  type DecisionHolds,
+} from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
@@ -14,7 +19,9 @@ import ReviewPile from "./ReviewPile";
 // Decision item of DESIGN.md. Every question the delivery session asked that is
 // open, defaulted or overturned sits on the pile, newest on top. The top card is
 // live under the 2px accent rule, with its state badge, a mono origin line, the
-// question and the options as buttons, the recorded default as the primary. A
+// question and the options as buttons, the recorded default as the primary. An
+// open top card also lists the units the decision holds and the units that
+// continue without it (see selectDecisionHolds). A
 // lower card shows only its title bar, and raises on click or Enter. A card
 // arrives with `slide-under`, a raised card enters with `rise-in`, and a card
 // that leaves the pile (its answer landed) leaves with `drop-away`.
@@ -162,14 +169,36 @@ function OptionButtons({
   );
 }
 
+// The units an open decision holds and the units that go on without it.
+function HoldsList({ decision, holds }: { decision: DeliveryDecision; holds: DecisionHolds }) {
+  const named = (ids: readonly string[]) => (ids.length === 0 ? "none" : ids.join(", "));
+  return (
+    <dl
+      aria-label={`Units ${decision.id} holds`}
+      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-12"
+    >
+      <dt className="text-text-secondary">Held</dt>
+      <dd data-testid="decision-held-units" className="font-mono text-text-primary">
+        {named(holds.held)}
+      </dd>
+      <dt className="text-text-secondary">Continue</dt>
+      <dd data-testid="decision-continuing-units" className="font-mono text-text-primary">
+        {named(holds.continuing)}
+      </dd>
+    </dl>
+  );
+}
+
 function TopCard({
   decision,
   state,
+  holds,
   isSending,
   onSend,
 }: {
   decision: DeliveryDecision;
   state: DecisionState;
+  holds: DecisionHolds;
   isSending: boolean;
   onSend: (kind: DecisionControlKind, option: string) => void;
 }) {
@@ -189,6 +218,7 @@ function TopCard({
 
       {state.kind === "open" && (
         <>
+          <HoldsList decision={decision} holds={holds} />
           <OptionButtons
             decision={decision}
             options={decision.options}
@@ -364,6 +394,7 @@ export default function DecisionPile({
             <TopCard
               decision={top}
               state={decisionState(top, snapshot.controls)}
+              holds={selectDecisionHolds(snapshot, top)}
               isSending={control.isPending}
               onSend={(kind, option) => send(kind, top.id, option)}
             />
