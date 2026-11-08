@@ -70,10 +70,7 @@
 import express, { Router, type Request, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
-import {
-  DELIVERY_CONTROL_WAIT_MAX_MS,
-  DELIVERY_EVENT_LOG_MAX,
-} from "@roubo/shared/delivery-bench";
+import { DELIVERY_CONTROL_WAIT_MAX_MS, DELIVERY_EVENT_LOG_MAX } from "@roubo/shared/delivery-bench";
 import type { DeliveryControlReadSuperseded } from "@roubo/shared/delivery-control-contract";
 import {
   validateDeliveryEvent,
