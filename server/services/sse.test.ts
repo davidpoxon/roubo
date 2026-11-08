@@ -4,8 +4,10 @@ import {
   broadcast,
   broadcastBenchStatus,
   broadcastComponentStatusChange,
+  broadcastDeliveryFrame,
   clearComponentStatusForBench,
   getClientCount,
+  SSE_RETRY_MS,
   _resetClientsForTest,
 } from "./sse.js";
 import type { Response } from "express";
@@ -41,8 +43,18 @@ describe("addClient", () => {
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-cache");
     expect(res.setHeader).toHaveBeenCalledWith("Connection", "keep-alive");
     expect(res.flushHeaders).toHaveBeenCalled();
-    expect(res.write).toHaveBeenCalledWith(":ok\n\n");
+    expect(res.write).toHaveBeenCalledWith(`:ok\nretry: ${SSE_RETRY_MS}\n\n`);
 
+    res._trigger("close");
+  });
+
+  it("tells the client to reconnect well inside 5 seconds after a disconnect", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+    const first = String(vi.mocked(res.write).mock.calls[0]?.[0]);
+    const retry = /^retry: (\d+)$/m.exec(first);
+    expect(retry).not.toBeNull();
+    expect(Number(retry?.[1])).toBeLessThan(5_000);
     res._trigger("close");
   });
 
@@ -54,6 +66,23 @@ describe("addClient", () => {
 
     res._trigger("close");
     expect(getClientCount()).toBe(0);
+  });
+});
+
+describe("broadcastDeliveryFrame", () => {
+  it("writes the delivery frame with the accepted seq and no event", () => {
+    const res = makeResponse() as Response & { _trigger: (event: string) => void };
+    addClient(res);
+    broadcastDeliveryFrame("proj-1", 3, 41);
+    const frame = {
+      type: "delivery",
+      projectId: "proj-1",
+      benchId: 3,
+      change: "snapshot",
+      seq: 41,
+    };
+    expect(res.write).toHaveBeenCalledWith(`data: ${JSON.stringify(frame)}\n\n`);
+    res._trigger("close");
   });
 });
 
@@ -100,7 +129,7 @@ describe("broadcast", () => {
     const failing = makeResponse() as Response & { _trigger: (event: string) => void };
     const healthy = makeResponse() as Response & { _trigger: (event: string) => void };
     vi.mocked(failing.write)
-      .mockImplementationOnce(() => true) // allow the initial ':ok\n\n' write in addClient
+      .mockImplementationOnce(() => true) // allow the initial ':ok' and retry write in addClient
       .mockImplementation(() => {
         throw new Error("socket closed");
       });

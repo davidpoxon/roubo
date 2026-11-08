@@ -25,8 +25,8 @@ describe("buildDeliveryLaunchDescriptor", () => {
       token: "t0ken",
     });
     expect(descriptor).toEqual({
-      eventUrl: "http://localhost:3335/api/projects/demo/benches/4/delivery/events",
-      controlsUrl: "http://localhost:3335/api/projects/demo/benches/4/delivery/controls",
+      eventUrl: "http://localhost:3335/api/hooks/delivery-event?projectId=demo&benchId=4",
+      controlsUrl: "http://localhost:3335/api/hooks/delivery-controls?projectId=demo&benchId=4",
       token: "t0ken",
     });
     expect(descriptor).not.toHaveProperty("resume");
@@ -44,7 +44,10 @@ describe("buildDeliveryLaunchDescriptor", () => {
   });
 
   it("encodes the project id into the paths", () => {
-    expect(deliveryRoutePaths("a b", 1).base).toBe("/api/projects/a%20b/benches/1/delivery");
+    const paths = deliveryRoutePaths("a b&c", 1);
+    expect(paths.base).toBe("/api/projects/a%20b%26c/benches/1/delivery");
+    expect(new URL(paths.events, "http://x").searchParams.get("projectId")).toBe("a b&c");
+    expect(new URL(paths.controls, "http://x").searchParams.get("benchId")).toBe("1");
   });
 
   it("names the launch route beside resume", () => {

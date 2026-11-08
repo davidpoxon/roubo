@@ -1,21 +1,35 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, waitFor } from "@testing-library/react";
 import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
 import { useNotificationStream } from "./useNotificationStream";
+import { deliveryQueryKey, useDelivery } from "./useDelivery";
 import type { Bench, BenchNotification } from "@roubo/shared";
+import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import * as api from "../lib/api";
+
+vi.mock("../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/api")>();
+  return { ...actual, fetchDelivery: vi.fn() };
+});
 
 interface MockEventSource {
   onmessage: ((event: MessageEvent) => void) | null;
   onerror: ((event: Event) => void) | null;
+  onopen: ((event: Event) => void) | null;
+  readyState: number;
   close: ReturnType<typeof vi.fn>;
   _fire: (data: unknown) => void;
   _fireError: (event?: Event) => void;
+  _open: () => void;
 }
 
 function makeMockEventSource(): MockEventSource {
   const source: MockEventSource = {
     onmessage: null,
     onerror: null,
+    onopen: null,
+    readyState: 0,
     close: vi.fn(),
     _fire(data: unknown) {
       this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
@@ -23,12 +37,18 @@ function makeMockEventSource(): MockEventSource {
     _fireError(event: Event = new Event("error")) {
       this.onerror?.(event);
     },
+    _open() {
+      this.readyState = 1;
+      this.onopen?.(new Event("open"));
+    },
   };
   return source;
 }
 
+// Each construction opens a new mock connection; `mockSource` is the latest.
 let mockSource: MockEventSource;
 const MockEventSource = vi.fn(function MockEventSourceCtor() {
+  mockSource = makeMockEventSource();
   return mockSource;
 });
 
@@ -311,6 +331,104 @@ describe("useNotificationStream", () => {
           status: "idle",
         });
       }).not.toThrow();
+    });
+  });
+
+  describe("delivery frames", () => {
+    function snapshot(seq: number): DeliverySnapshot {
+      return { deliveryId: "d1", seq } as DeliverySnapshot;
+    }
+
+    function frame(seq: number) {
+      return { type: "delivery", projectId: "p1", benchId: 1, change: "snapshot", seq };
+    }
+
+    it("refetches the delivery snapshot for a frame past the held seq, and skips one it holds", () => {
+      const queryClient = makeQueryClient();
+      queryClient.setQueryData(deliveryQueryKey("p1", 1), snapshot(9));
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+      renderHookWithProviders(() => useNotificationStream(), { queryClient });
+
+      mockSource._fire(frame(9));
+      expect(invalidateSpy).not.toHaveBeenCalled();
+
+      mockSource._fire(frame(12));
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: deliveryQueryKey("p1", 1) });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ["benches"] });
+      expect(showNotification).not.toHaveBeenCalled();
+    });
+
+    it("leaves the delivery queries alone on the first open", () => {
+      const queryClient = makeQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+      renderHookWithProviders(() => useNotificationStream(), { queryClient });
+      mockSource._open();
+      expect(invalidateSpy).not.toHaveBeenCalled();
+    });
+
+    it("lets a dropped connection reconnect on its own, and opens no second stream", () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      renderHookWithProviders(() => useNotificationStream());
+      mockSource.readyState = 0;
+      mockSource._fireError();
+      expect(MockEventSource).toHaveBeenCalledTimes(1);
+    });
+
+    it("SB-TC-054: The event stream reconnects automatically after a disconnect", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const queryClient = makeQueryClient();
+      const fetchDelivery = vi.mocked(api.fetchDelivery);
+      fetchDelivery.mockResolvedValue(snapshot(7));
+      const { result } = renderHookWithProviders(
+        () => {
+          useNotificationStream();
+          return useDelivery("p1", 1);
+        },
+        { queryClient },
+      );
+      const first = mockSource;
+      first._open();
+      await waitFor(() => expect(result.current.data?.seq).toBe(7));
+
+      // Step 1: the server kills the connection and the browser gives it up;
+      // the client opens the stream again within 5 seconds.
+      const killedAt = Date.now();
+      act(() => {
+        first.readyState = 2;
+        first._fireError();
+      });
+      expect(first.close).toHaveBeenCalled();
+      await waitFor(() => expect(MockEventSource).toHaveBeenCalledTimes(2), { timeout: 5_000 });
+      expect(Date.now() - killedAt).toBeLessThan(5_000);
+      const second = mockSource;
+      expect(second).not.toBe(first);
+
+      // Step 2: events were posted during the gap, so their frames never
+      // arrived. On reconnect the client refetches the snapshot, which holds
+      // every accepted event.
+      fetchDelivery.mockResolvedValue(snapshot(10));
+      act(() => second._open());
+      await waitFor(() => expect(result.current.data?.seq).toBe(10));
+
+      // A frame that jumps past the held seq is a gap: refetched as well.
+      fetchDelivery.mockResolvedValue(snapshot(14));
+      act(() => second._fire(frame(14)));
+      await waitFor(() => expect(result.current.data?.seq).toBe(14));
+    }, 10_000);
+
+    it("stops reconnecting once unmounted", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const { unmount } = renderHookWithProviders(() => useNotificationStream());
+        mockSource.readyState = 2;
+        mockSource._fireError();
+        unmount();
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(MockEventSource).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

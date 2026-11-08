@@ -77,6 +77,7 @@ vi.mock("./notification.js", () => ({
 }));
 vi.mock("./sse.js", () => ({
   broadcast: vi.fn(),
+  broadcastDeliveryFrame: vi.fn(),
   broadcastBenchStatus: vi.fn(),
   broadcastComponentStatusChange: vi.fn(),
   clearComponentStatusForBench: vi.fn(),
@@ -89,6 +90,8 @@ import * as notification from "./notification.js";
 import * as benchManager from "./bench-manager.js";
 import benchesRouter from "../routes/benches.js";
 import deliveryRouter from "../routes/delivery.js";
+import deliveryHooksRouter, { deliveryEventBodyParser } from "../routes/delivery-hooks.js";
+import * as sse from "./sse.js";
 import { registerSpecbenchVariantHost } from "../lib/specbench-variant-host.js";
 import { unregisterVariantHost } from "./variant-host-registry.js";
 import {
@@ -98,6 +101,13 @@ import {
   type DeliveryLaunchRequest,
 } from "./delivery-session-launcher.js";
 import { hashDeliveryToken } from "./delivery-token-registry.js";
+import {
+  DELIVERY_EVENT_HOOK_PATH,
+  DELIVERY_EVENT_LOG_MAX,
+  DELIVERY_EVENT_SPILL_CHUNK,
+  DELIVERY_EVENT_SPILL_FILE,
+} from "@roubo/shared/delivery-bench";
+import { deliveryAcceptedSeq, forgetDeliveryEventLog } from "./delivery-event-log.js";
 
 const FIXTURE_RECORD = fileURLToPath(
   new URL("../../shared/__fixtures__/delivery-record.json", import.meta.url),
@@ -155,6 +165,18 @@ function event(seq: number, type = "unit.changed"): Record<string, unknown> {
   };
 }
 
+// The event endpoint of a bench, as its launch descriptor names it.
+function eventPath(bench: Bench): string {
+  return `/api/hooks/delivery-event?projectId=demo&benchId=${bench.id}`;
+}
+
+// Posts one envelope as it is, or a list of them as a batch { events: [...] }.
+function postEvents(bench: Bench, token: string | undefined, body: unknown) {
+  const req = request(app).post(eventPath(bench));
+  if (token !== undefined) req.set("Authorization", `Bearer ${token}`);
+  return req.send((Array.isArray(body) ? { events: body } : body) as object);
+}
+
 beforeEach(() => {
   tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "roubo-delivery-")));
   repo = path.join(tmp, "repo");
@@ -198,12 +220,15 @@ beforeEach(() => {
   app.use(express.json());
   app.use("/", benchesRouter);
   app.use("/", deliveryRouter);
+  app.use("/api/hooks", deliveryHooksRouter);
+  vi.mocked(sse.broadcastDeliveryFrame).mockClear();
 });
 
 afterEach(() => {
   benchManager.dropProjectBenches("demo");
   unregisterVariantHost("specbench");
   resetDeliveryLaunchExecutor();
+  forgetDeliveryEventLog();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -248,10 +273,12 @@ describe("Launch mode", () => {
     const [launch] = launches;
     const { descriptor } = launch;
     expect(descriptor.eventUrl).toMatch(
-      new RegExp(`^http://localhost:\\d+/api/projects/demo/benches/${bench.id}/delivery/events$`),
+      new RegExp(
+        `^http://localhost:\\d+/api/hooks/delivery-event\\?projectId=demo&benchId=${bench.id}$`,
+      ),
     );
     expect(descriptor.controlsUrl).toMatch(
-      new RegExp(`/api/projects/demo/benches/${bench.id}/delivery/controls$`),
+      new RegExp(`/api/hooks/delivery-controls\\?projectId=demo&benchId=${bench.id}$`),
     );
     expect(typeof descriptor.token).toBe("string");
     expect(descriptor.token.length).toBeGreaterThanOrEqual(32);
@@ -269,32 +296,28 @@ describe("Launch mode", () => {
     expect(JSON.stringify(state.toPersistedBench(bench))).not.toContain(descriptor.token);
     expect(JSON.stringify(bench)).not.toContain(descriptor.token);
 
-    // Step 3: one event posted with the descriptor's token is accepted.
+    // Step 3: one event posted to the descriptor's URL with its token is
+    // accepted, once the session has written the record (last_event_seq 7).
+    writeRecord(bench, fixtureRecord());
+    const url = new URL(descriptor.eventUrl);
     const posted = await request(app)
-      .post(new URL(descriptor.eventUrl).pathname.replace(/^\/api\/projects/, ""))
+      .post(`${url.pathname}${url.search}`)
       .set("Authorization", `Bearer ${descriptor.token}`)
       .send(event(8));
     expect(posted.status).toBe(202);
-    expect(posted.body).toMatchObject({ seq: 8 });
+    expect(posted.body).toEqual({ acceptedSeq: 8 });
   });
 
   it("refuses an event without the token, with another token, or with a malformed body", async () => {
     const { bench } = await createSpecBench("launch");
-    const url = `/demo/benches/${bench.id}/delivery/events`;
 
-    const bare = await request(app).post(url).send(event(8));
+    const bare = await postEvents(bench, undefined, event(8));
     expect(bare.status).toBe(401);
-    const other = await request(app)
-      .post(url)
-      .set("Authorization", "Bearer not-the-token")
-      .send(event(8));
+    const other = await postEvents(bench, "not-the-token", event(8));
     expect(other.status).toBe(401);
 
     const token = launches[0].descriptor.token;
-    const malformed = await request(app)
-      .post(url)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ ...event(8), seq: 0 });
+    const malformed = await postEvents(bench, token, { ...event(8), seq: 0 });
     expect(malformed.status).toBe(400);
     expect(malformed.body.code).toBe("INVALID_EVENT");
     expect(malformed.body.error).toMatch(/seq/);
@@ -364,9 +387,9 @@ describe("Attach mode", () => {
     expect(handout.status).toBe(201);
     expect(handout.headers["cache-control"]).toBe("no-store");
     expect(handout.body.eventUrl).toMatch(
-      new RegExp(`/api/projects/demo/benches/${bench.id}/delivery/events$`),
+      new RegExp(`/api/hooks/delivery-event\\?projectId=demo&benchId=${bench.id}$`),
     );
-    expect(handout.body.controlsUrl).toMatch(/\/delivery\/controls$/);
+    expect(handout.body.controlsUrl).toMatch(/\/api\/hooks\/delivery-controls\?/);
     expect(handout.body).not.toHaveProperty("resume");
     const token = handout.body.token as string;
     expect(token.length).toBeGreaterThanOrEqual(32);
@@ -377,10 +400,7 @@ describe("Attach mode", () => {
     expect(JSON.stringify(lastPersisted(bench.id))).not.toContain(token);
     expect(JSON.stringify(bench)).not.toContain(token);
 
-    const posted = await request(app)
-      .post(`/demo/benches/${bench.id}/delivery/events`)
-      .set("Authorization", `Bearer ${token}`)
-      .send(event(8));
+    const posted = await postEvents(bench, token, event(8));
     expect(posted.status).toBe(202);
   });
 
@@ -436,10 +456,7 @@ describe("One delivery session per bench", () => {
     // No second session, and the running session keeps its token.
     expect(launches).toHaveLength(1);
     expect(bench.deliveryTokenHash).toBe(hashBefore);
-    const posted = await request(app)
-      .post(`/demo/benches/${bench.id}/delivery/events`)
-      .set("Authorization", `Bearer ${token}`)
-      .send(event(8));
+    const posted = await postEvents(bench, token, event(8));
     expect(posted.status).toBe(202);
   });
 
@@ -572,11 +589,16 @@ describe("Record loading", () => {
     expect(read.status).toBe(409);
     expect(read.body).toMatchObject({ code: "DELIVERY_NONCONFORMANT", section: "lifecycle" });
 
-    const posted = await request(app)
-      .post(`/demo/benches/${bench.id}/delivery/events`)
-      .set("Authorization", `Bearer ${token}`)
-      .send(event(8));
+    // The token still opens the endpoint, but no seq can be checked against a
+    // record that does not conform, so the event waits for the record.
+    const waiting = await postEvents(bench, token, event(8));
+    expect(waiting.status).toBe(409);
+    expect(waiting.body).toMatchObject({ code: "DELIVERY_NONCONFORMANT", section: "lifecycle" });
+
+    writeRecord(bench, fixtureRecord());
+    const posted = await postEvents(bench, token, event(8));
     expect(posted.status).toBe(202);
+    expect(posted.body).toEqual({ acceptedSeq: 8 });
   });
 
   it("reads the record from the bench workspace, not from the spec folder of the project checkout", async () => {
@@ -771,5 +793,348 @@ describe("Launching again without a record", () => {
     expect(read.status).toBe(200);
     expect(read.body.budget.estimate_usd).toBe(3.2);
     expect(launches).toHaveLength(0);
+  });
+});
+
+describe("Event ingest", () => {
+  // A launch-mode bench whose session has written the record, and its token.
+  async function benchWithRecord(lastEventSeq = 7): Promise<{ bench: Bench; token: string }> {
+    const { bench } = await createSpecBench("launch");
+    writeRecord(bench, { ...fixtureRecord(), last_event_seq: lastEventSeq });
+    const token = launches.at(-1)?.descriptor.token;
+    if (token === undefined) throw new Error("no launch");
+    return { bench, token };
+  }
+
+  async function snapshotSeq(bench: Bench): Promise<number> {
+    const read = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(read.status).toBe(200);
+    return read.body.seq as number;
+  }
+
+  function restartServer(bench: Bench): void {
+    hoisted.persisted = [state.toPersistedBench(bench)];
+    benchManager.dropProjectBenches("demo");
+    forgetDeliveryEventLog();
+    benchManager.initialize();
+  }
+
+  it("SB-TC-012: Events are accepted only with the bench's token and in sequence", async () => {
+    const { bench, token } = await benchWithRecord();
+    const { token: otherToken } = await benchWithRecord();
+
+    // Step 1: no bearer token, and nothing is applied.
+    const bare = await postEvents(bench, undefined, [event(8)]);
+    expect(bare.status).toBe(401);
+    expect(await snapshotSeq(bench)).toBe(7);
+
+    // Step 2: the token of another bench.
+    const other = await postEvents(bench, otherToken, [event(8)]);
+    expect(other.status).toBe(401);
+    expect(await snapshotSeq(bench)).toBe(7);
+    expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+
+    // Step 3: a valid batch with the right token.
+    const batch = [event(8), event(9)];
+    const accepted = await postEvents(bench, token, batch);
+    expect(accepted.status).toBe(202);
+    expect(accepted.body).toEqual({ acceptedSeq: 9 });
+    expect(await snapshotSeq(bench)).toBe(9);
+
+    // Step 4: the same batch again.
+    const replay = await postEvents(bench, token, batch);
+    expect(replay.status).toBe(400);
+    expect(replay.body).toMatchObject({ code: "STALE_SEQ", field: "seq", acceptedSeq: 9 });
+    expect(replay.body.error).toMatch(/seq/);
+    expect(await snapshotSeq(bench)).toBe(9);
+  });
+
+  it("SB-TC-013: A malformed event is rejected with a 400 that names the field", async () => {
+    const { bench, token } = await benchWithRecord();
+
+    // Step 1: no type.
+    const untyped = event(8);
+    delete untyped.type;
+    const noType = await postEvents(bench, token, untyped);
+    expect(noType.status).toBe(400);
+    expect(noType.body).toMatchObject({ code: "INVALID_EVENT", field: "type", index: 0 });
+    expect(noType.body.error).toMatch(/type/);
+
+    // Step 2: seq as a string.
+    const stringSeq = await postEvents(bench, token, { ...event(8), seq: "8" });
+    expect(stringSeq.status).toBe(400);
+    expect(stringSeq.body).toMatchObject({ code: "INVALID_EVENT", field: "seq" });
+    expect(stringSeq.body.error).toMatch(/seq/);
+
+    // Step 3: the third event of a batch is malformed; the whole batch goes.
+    const third = await postEvents(bench, token, [event(8), event(9), { ...event(10), ts: 5 }]);
+    expect(third.status).toBe(400);
+    expect(third.body).toMatchObject({ code: "INVALID_EVENT", field: "ts", index: 2 });
+    expect(await snapshotSeq(bench)).toBe(7);
+    expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+    const next = await postEvents(bench, token, event(8));
+    expect(next.body).toEqual({ acceptedSeq: 8 });
+  });
+
+  it("SB-TC-014: Bench load validates the record, seeds the accepted sequence and drops old events", async () => {
+    // Step 1: the record says 40.
+    const { bench, token } = await benchWithRecord(40);
+    expect(await snapshotSeq(bench)).toBe(40);
+
+    // Step 2: 38 and 39 are dropped, 41 is accepted.
+    const posted = await postEvents(bench, token, [event(38), event(39), event(41)]);
+    expect(posted.status).toBe(202);
+    expect(posted.body).toEqual({ acceptedSeq: 41 });
+    expect(await snapshotSeq(bench)).toBe(41);
+
+    // Step 3: after a restart the snapshot is rebuilt from the record, and the
+    // accepted seq is seeded from it again.
+    restartServer(bench);
+    const live = benchManager.getBench("demo", bench.id);
+    if (!live) throw new Error("bench vanished");
+    expect(await snapshotSeq(live)).toBeGreaterThanOrEqual(40);
+    const stale = await postEvents(live, token, [event(39), event(40)]);
+    expect(stale.status).toBe(400);
+    expect(stale.body.code).toBe("STALE_SEQ");
+    const again = await postEvents(live, token, event(41));
+    expect(again.body).toEqual({ acceptedSeq: 41 });
+  });
+
+  it("folds the accepted events over the record in GET /delivery", async () => {
+    const { bench, token } = await benchWithRecord();
+    await postEvents(bench, token, event(8));
+
+    const res = await request(app).get(`/demo/benches/${bench.id}/delivery`);
+    expect(res.status).toBe(200);
+    expect(res.body.seq).toBe(8);
+    expect(res.body.unitsById.C.status).toBe("running");
+  });
+
+  it("broadcasts a delivery frame with the accepted seq for each accepted batch", async () => {
+    const { bench, token } = await benchWithRecord();
+    await postEvents(bench, token, [event(8), event(9)]);
+    await postEvents(bench, token, event(10));
+    expect(vi.mocked(sse.broadcastDeliveryFrame).mock.calls).toEqual([
+      ["demo", bench.id, 9],
+      ["demo", bench.id, 10],
+    ]);
+  });
+
+  it("refuses an event that skips a seq, or names another delivery, and applies nothing", async () => {
+    const { bench, token } = await benchWithRecord();
+    const gap = await postEvents(bench, token, [event(8), event(10)]);
+    expect(gap.status).toBe(400);
+    expect(gap.body).toMatchObject({ code: "SEQ_GAP", field: "seq", expected: 9, got: 10 });
+
+    const foreign = await postEvents(bench, token, { ...event(8), delivery_id: "another" });
+    expect(foreign.status).toBe(400);
+    expect(foreign.body).toMatchObject({ code: "INVALID_EVENT", field: "delivery_id" });
+
+    const empty = await postEvents(bench, token, []);
+    expect(empty.status).toBe(400);
+    expect(empty.body.code).toBe("INVALID_EVENT");
+    expect(await snapshotSeq(bench)).toBe(7);
+  });
+
+  it("takes a batch only in an events wrapper, and refuses a bare array or a non-array events", async () => {
+    const { bench, token } = await benchWithRecord();
+    const bare = await request(app)
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send([event(8)]);
+    expect(bare.status).toBe(400);
+    expect(bare.body).toMatchObject({ code: "INVALID_EVENT", field: "events" });
+
+    const notArray = await postEvents(bench, token, { events: event(8) });
+    expect(notArray.status).toBe(400);
+    expect(notArray.body).toMatchObject({ code: "INVALID_EVENT", field: "events" });
+    expect(await snapshotSeq(bench)).toBe(7);
+
+    const wrapped = await postEvents(bench, token, { events: [event(8), event(9)] });
+    expect(wrapped.status).toBe(202);
+    expect(wrapped.body).toEqual({ acceptedSeq: 9 });
+  });
+
+  it("answers 401 for a query that names no Spec Bench", async () => {
+    const { token } = await benchWithRecord();
+    const none = await request(app)
+      .post("/api/hooks/delivery-event?projectId=demo&benchId=99")
+      .set("Authorization", `Bearer ${token}`)
+      .send(event(8));
+    expect(none.status).toBe(401);
+    const bare = await request(app)
+      .post("/api/hooks/delivery-event")
+      .set("Authorization", `Bearer ${token}`)
+      .send(event(8));
+    expect(bare.status).toBe(401);
+  });
+
+  it("starts the sequence at 1 while the bench has no record yet", async () => {
+    const { bench } = await createSpecBench("launch");
+    const token = launches[0].descriptor.token;
+    const early = await postEvents(bench, token, event(8));
+    expect(early.body).toMatchObject({ code: "SEQ_GAP", expected: 1 });
+    const first = await postEvents(bench, token, [event(1), event(2)]);
+    expect(first.body).toEqual({ acceptedSeq: 2 });
+  });
+
+  // The spill file: beside the record in the bench workspace.
+  function spillPath(bench: Bench): string {
+    return path.join(path.dirname(workspaceRecordPath(bench)), DELIVERY_EVENT_SPILL_FILE);
+  }
+
+  function spilledSeqs(bench: Bench): number[] {
+    return fs
+      .readFileSync(spillPath(bench), "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => (JSON.parse(line) as { seq: number }).seq);
+  }
+
+  // Posts the events from..to in batches of 100.
+  async function postRange(bench: Bench, token: string, from: number, to: number): Promise<void> {
+    for (let start = from; start <= to; start += 100) {
+      const batch = Array.from({ length: Math.min(100, to - start + 1) }, (_, i) =>
+        event(start + i),
+      );
+      const res = await postEvents(bench, token, batch);
+      expect(res.status).toBe(202);
+    }
+  }
+
+  it(`moves the oldest ${DELIVERY_EVENT_SPILL_CHUNK} events to the spill file when the log holds ${DELIVERY_EVENT_LOG_MAX}, and accepts the batch`, async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX);
+    expect(fs.existsSync(spillPath(bench))).toBe(false);
+
+    const next = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
+    expect(next.status).toBe(202);
+    expect(next.headers["retry-after"]).toBeUndefined();
+    expect(next.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX + 1 });
+    expect(spilledSeqs(bench)).toEqual(
+      Array.from({ length: DELIVERY_EVENT_SPILL_CHUNK }, (_, i) => i + 1),
+    );
+    // The file is in the workspace only, never in the project checkout.
+    expect(fs.existsSync(path.join(specFolder, DELIVERY_EVENT_SPILL_FILE))).toBe(false);
+
+    // The snapshot folds the spilled events and the ones in memory in seq
+    // order: a hole at any seq would stop the fold short of the last one.
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX + 1);
+
+    // A full batch on top of a full log moves every event in memory out.
+    const fullBatch = Array.from({ length: DELIVERY_EVENT_LOG_MAX }, (_, i) =>
+      event(DELIVERY_EVENT_LOG_MAX + 2 + i),
+    );
+    // Under the production body parsers, so a full batch fits.
+    const big = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send({ events: fullBatch });
+    expect(big.status).toBe(202);
+    expect(spilledSeqs(bench)).toEqual(
+      Array.from({ length: DELIVERY_EVENT_LOG_MAX + 1 }, (_, i) => i + 1),
+    );
+    expect(await snapshotSeq(bench)).toBe(2 * DELIVERY_EVENT_LOG_MAX + 1);
+
+    // Once the record carries the spilled events, the read skips them.
+    writeRecord(bench, { ...fixtureRecord(), last_event_seq: 500 });
+    expect(await snapshotSeq(bench)).toBe(2 * DELIVERY_EVENT_LOG_MAX + 1);
+  });
+
+  it("reads the spilled events again after a server restart", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX + 1);
+    restartServer(bench);
+    const live = benchManager.getBench("demo", bench.id);
+    if (!live) throw new Error("bench vanished");
+    // Memory is gone; the spill file still carries 1..500 above the record.
+    expect(await snapshotSeq(live)).toBe(DELIVERY_EVENT_SPILL_CHUNK);
+  });
+
+  it("answers a 5xx and applies nothing when the spill file cannot be written", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX);
+    vi.mocked(sse.broadcastDeliveryFrame).mockClear();
+    // A folder in the spill file's place makes the append fail.
+    fs.mkdirSync(spillPath(bench));
+
+    const refused = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
+    expect(refused.status).toBeGreaterThanOrEqual(500);
+    expect(refused.body).toMatchObject({
+      code: "EVENT_LOG_SPILL_FAILED",
+      acceptedSeq: DELIVERY_EVENT_LOG_MAX,
+    });
+    expect(deliveryAcceptedSeq("demo", bench.id)).toBe(DELIVERY_EVENT_LOG_MAX);
+    expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+
+    fs.rmdirSync(spillPath(bench));
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX);
+    const retried = await postEvents(bench, token, event(DELIVERY_EVENT_LOG_MAX + 1));
+    expect(retried.status).toBe(202);
+    expect(spilledSeqs(bench)).toHaveLength(DELIVERY_EVENT_SPILL_CHUNK);
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX + 1);
+  });
+
+  // The body parsers as server/index.ts mounts them: the event route's own
+  // parser first, then the global 210 KB one every other route reads with.
+  function productionBodyLimitApp(withEventParser = true): express.Express {
+    const prod = express();
+    if (withEventParser) prod.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
+    prod.use(express.json({ limit: "210kb" }));
+    prod.use("/api/hooks", deliveryHooksRouter);
+    return prod;
+  }
+
+  // A realistic envelope: a unit's status change with its title.
+  function fullBatch(): Record<string, unknown>[] {
+    return Array.from({ length: DELIVERY_EVENT_LOG_MAX }, (_, i) => ({
+      ...event(i + 1),
+      payload: { status: "running", title: "Token-gated event ingest" },
+    }));
+  }
+
+  it(`accepts a batch of ${DELIVERY_EVENT_LOG_MAX} events in sequence under the production body limit`, async () => {
+    const { bench, token } = await benchWithRecord(0);
+    const batch = fullBatch();
+    // The batch is over the global limit, so the route's own parser is what
+    // lets it through.
+    expect(Buffer.byteLength(JSON.stringify(batch))).toBeGreaterThan(210 * 1024);
+
+    const globalOnly = await request(productionBodyLimitApp(false))
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send({ events: batch });
+    expect(globalOnly.status).toBe(413);
+    expect(await snapshotSeq(bench)).toBe(0);
+
+    const accepted = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send({ events: batch });
+    expect(accepted.status).toBe(202);
+    expect(accepted.body).toEqual({ acceptedSeq: DELIVERY_EVENT_LOG_MAX });
+    expect(await snapshotSeq(bench)).toBe(DELIVERY_EVENT_LOG_MAX);
+  });
+
+  it("answers a JSON 413 for an event body over the route's limit, and applies nothing", async () => {
+    const { bench, token } = await benchWithRecord();
+    const huge = { ...event(8), payload: { status: "running", blob: "x".repeat(3 * 1024 * 1024) } };
+    const res = await request(productionBodyLimitApp())
+      .post(eventPath(bench))
+      .set("Authorization", `Bearer ${token}`)
+      .send(huge);
+    expect(res.status).toBe(413);
+    expect(res.body).toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    expect(await snapshotSeq(bench)).toBe(7);
+  });
+
+  it("drops the bench's events, the spill file included, when the bench is cleared", async () => {
+    const { bench, token } = await benchWithRecord(0);
+    await postRange(bench, token, 1, DELIVERY_EVENT_LOG_MAX + 1);
+    expect(fs.existsSync(spillPath(bench))).toBe(true);
+    benchManager.teardownBench("demo", bench.id, true);
+    await cleared("demo", bench.id);
+    expect(deliveryAcceptedSeq("demo", bench.id)).toBeUndefined();
+    expect(fs.existsSync(spillPath(bench))).toBe(false);
   });
 });

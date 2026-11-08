@@ -21,6 +21,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/filesystem/browse`                                                                   | `server/routes/filesystem.ts`           |
 | POST   | `/api/hooks/agent-notification`                                                            | `server/routes/hooks.ts`                |
 | POST   | `/api/hooks/claude-notification`                                                           | `server/routes/hooks.ts`                |
+| POST   | `/api/hooks/delivery-event`                                                                | `server/routes/delivery-hooks.ts`       |
 | GET    | `/api/jigs`                                                                                | `server/routes/app-jigs.ts`             |
 | POST   | `/api/jigs`                                                                                | `server/routes/app-jigs.ts`             |
 | DELETE | `/api/jigs/:id`                                                                            | `server/routes/app-jigs.ts`             |
@@ -75,7 +76,6 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/api/projects/:projectId/benches/:id/components/:name/stop`                               | `server/routes/benches.ts`              |
 | GET    | `/api/projects/:projectId/benches/:id/delivery`                                            | `server/routes/delivery.ts`             |
 | POST   | `/api/projects/:projectId/benches/:id/delivery/attach`                                     | `server/routes/delivery.ts`             |
-| POST   | `/api/projects/:projectId/benches/:id/delivery/events`                                     | `server/routes/delivery.ts`             |
 | POST   | `/api/projects/:projectId/benches/:id/delivery/launch`                                     | `server/routes/delivery.ts`             |
 | POST   | `/api/projects/:projectId/benches/:id/delivery/resume`                                     | `server/routes/delivery.ts`             |
 | DELETE | `/api/projects/:projectId/benches/:id/notifications`                                       | `server/routes/benches.ts`              |
