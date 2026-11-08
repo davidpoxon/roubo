@@ -323,6 +323,35 @@ describe("watchInput lifecycle", () => {
       `[input-watcher] re-armed path=${dir}`,
     ]);
   });
+
+  it("HR-TC-055 arms a file watch on a missing file and handles the file once it appears", async () => {
+    const file = path.join(stateDir, "settings.json");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(watchInput(file, { surface: "settings", settleMs: 50, kind: "file" }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, '{"theme":"dark"}');
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(200);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent('{"theme":"dark"}') });
+    expect(applyLines()).toHaveLength(1);
+    expect(applyLines()[0]).toMatch(LINE_RE);
+    expect(applyLines()[0]).toContain(`path=${file} outcome=applied `);
+  });
+
+  it("settles ready when the watch is disposed before chokidar is ready", async () => {
+    const dir = path.join(stateDir, "plugins");
+    fs.mkdirSync(dir);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = watchInput(dir, { surface: "plugin", settleMs: 50 }, handler);
+    await w.dispose();
+
+    const settled = await Promise.race([w.ready.then(() => true), sleep(1_000).then(() => false)]);
+    expect(settled).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+  });
 });
 
 describe("watchInput logging", () => {
