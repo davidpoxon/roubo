@@ -1,12 +1,23 @@
 name: pr-check
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # An `edited` event that does not change the base (a title or body edit) gets
+  # a group of its own per head commit, so it cannot cancel the pull request's
+  # running checks, and a later edit on the same head cancels an earlier one.
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.event.pull_request.head.sha) || '' }}
   cancel-in-progress: true
 
 on:
+  # Only a pull request into main runs the checks. In a stack, each merge
+  # rebases every layer above it, and only the layer that now targets main can
+  # merge next, so checks on the others would be thrown away. `edited` covers
+  # the layer that GitHub retargets to main: a retarget is an `edited` event,
+  # and the rebase push can land while the base is still the layer below. The
+  # jobs carry no `if` that skips other edits, because a skipped job satisfies
+  # a required check and would hide an earlier failure.
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   workflow_dispatch:
