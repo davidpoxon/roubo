@@ -15,10 +15,13 @@
 // property whose requiredness changed, a closed `additionalProperties` that was
 // open, a changed type, const or format, an enum that lost a value, or a union
 // that lost an option. `title` and `description` are prose and never count.
-// A union's options are matched by their discriminator: the property that every
-// option pins with a `const` (`type` or `kind` in the contracts here), so an
+// A union's options are matched by their discriminator: the property that the
+// options pin with a `const` (`type` or `kind` in the contracts here), so an
 // option inserted in the middle is additive, not a shift of every option after
-// it; see diffOptions. A union with no such property is compared in order.
+// it; see diffOptions. An open option, one that declares the discriminator
+// without pinning it (the catch-all member of the event union), is matched by
+// its position among the open options. A union with no such property is
+// compared in order.
 // The root `$id` and the `$schema` / `schemaVersion` constants carry the version
 // itself, so they are compared through the version rule, not as a change. A
 // contract whose root is a union carries those constants in each root option,
@@ -47,17 +50,17 @@ export interface CompatibilityReport {
 const VERSION_IN_ID = /\/v(\d+)\.(\d+)\.(\d+)\.json$/;
 const PROSE_KEYS = new Set(["title", "description"]);
 const VERSION_CONST_PROPERTIES = new Set(["$schema", "schemaVersion"]);
-// A contract whose root is a union (see schema/delivery-control.schema.json)
-// carries its `$schema` / `schemaVersion` consts in each root option, not at
-// the root itself. An option's path segment is its discriminator value, or its
-// index when the union has no discriminator (see diffOptions).
-const ROOT_OPTION = /^<root>\.(?:anyOf|oneOf)\.[^.]+$/;
 // When more than one property could discriminate a union, prefer these, in
 // this order, as the contracts in shared/ spell their discriminators.
 const PREFERRED_DISCRIMINATORS = ["type", "kind"];
 
-function carriesVersionConsts(path: string): boolean {
-  return path === "" || ROOT_OPTION.test(path);
+// A contract whose root is a union (see schema/delivery-control.schema.json
+// and schema/delivery-event.schema.json) carries its `$schema` /
+// `schemaVersion` consts in each root option, not at the root itself.
+// diffOptions records the path of each root option it compares, so a
+// discriminator value with a dot in it (`unit.changed`) is still a root option.
+function carriesVersionConsts(path: string, out: Collector): boolean {
+  return path === "" || out.rootOptions.has(path);
 }
 
 export function parseSchemaVersion(id: unknown): SchemaVersion {
@@ -92,6 +95,8 @@ function sameJson(a: unknown, b: unknown): boolean {
 interface Collector {
   additive: string[];
   breaking: string[];
+  // The paths of the options of a root union (see carriesVersionConsts).
+  rootOptions: Set<string>;
 }
 
 function withoutConst(node: JsonSchema): JsonSchema {
@@ -169,7 +174,7 @@ function diffProperties(base: JsonSchema, live: JsonSchema, path: string, out: C
     // A root `$schema` / `schemaVersion` const names the version: the version
     // rule covers it.
     if (
-      carriesVersionConsts(path) &&
+      carriesVersionConsts(path, out) &&
       VERSION_CONST_PROPERTIES.has(name) &&
       isSchema(b) &&
       isSchema(l)
@@ -214,35 +219,71 @@ function pinnedConst(option: unknown, name: string): unknown {
   return isSchema(property) && "const" in property ? property.const : undefined;
 }
 
-// The properties that every option of `options` pins with a `const`, each to a
-// value no other option of the same union pins: a property that two options
-// share a value on cannot tell them apart.
-function discriminatorCandidates(options: unknown[]): Set<string> {
-  const out = new Set<string>();
+// The properties that could discriminate `options`: every option declares the
+// property, at least one pins it with a `const`, and no two options pin the
+// same value (a value two options share cannot tell them apart). An option that
+// declares the property without a `const` is an open option. Each candidate
+// maps to its count of open options.
+function discriminatorCandidates(options: unknown[]): Map<string, number> {
+  const out = new Map<string, number>();
   const first = options[0];
   if (!isSchema(first)) return out;
   for (const name of Object.keys(properties(first))) {
-    const values = options.map((option) => pinnedConst(option, name));
-    if (values.some((value) => value === undefined)) continue;
-    if (new Set(values.map(stableStringify)).size !== values.length) continue;
-    out.add(name);
+    if (!options.every((option) => isSchema(option) && name in properties(option))) continue;
+    const pinned = options.map((option) => pinnedConst(option, name)).filter(isPinned);
+    if (pinned.length === 0) continue;
+    if (new Set(pinned.map(stableStringify)).size !== pinned.length) continue;
+    out.set(name, options.length - pinned.length);
   }
   return out;
 }
 
-// The discriminator of a union: a property that qualifies in both the baseline
-// and the live options. `type` wins, then `kind`, then the first in schema
-// order. Null when none qualifies, so diffOptions falls back to position.
-function discriminatorOf(base: unknown[], live: unknown[]): string | null {
-  const liveCandidates = discriminatorCandidates(live);
-  const shared = [...discriminatorCandidates(base)].filter((name) => liveCandidates.has(name));
-  if (shared.length === 0) return null;
-  return PREFERRED_DISCRIMINATORS.find((name) => shared.includes(name)) ?? shared[0];
+function isPinned(value: unknown): boolean {
+  return value !== undefined;
 }
 
-// An option's path segment: its discriminator value, bare when a string.
-function optionSegment(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value);
+// The discriminator of a union: a property that qualifies in both the baseline
+// and the live options. The one with the fewest open options wins, then `type`,
+// then `kind`, then the first in schema order. Null when none qualifies, so
+// diffOptions falls back to position.
+function discriminatorOf(base: unknown[], live: unknown[]): string | null {
+  const baseCandidates = discriminatorCandidates(base);
+  const liveCandidates = discriminatorCandidates(live);
+  const shared = [...baseCandidates.keys()].filter((name) => liveCandidates.has(name));
+  if (shared.length === 0) return null;
+  const open = (name: string) => (baseCandidates.get(name) ?? 0) + (liveCandidates.get(name) ?? 0);
+  const rank = (name: string) => {
+    const preferred = PREFERRED_DISCRIMINATORS.indexOf(name);
+    return preferred < 0 ? PREFERRED_DISCRIMINATORS.length : preferred;
+  };
+  return [...shared].sort((a, b) => open(a) - open(b) || rank(a) - rank(b))[0];
+}
+
+// An option's identity in a keyed union: its pinned value, or `*` for an open
+// option, numbered `*#2`, `*#3` from the second open option on.
+interface KeyedOption {
+  key: string;
+  segment: string;
+  label: string;
+  option: unknown;
+}
+
+function keyOptions(options: unknown[], discriminator: string): KeyedOption[] {
+  let open = 0;
+  return options.map((option) => {
+    const value = pinnedConst(option, discriminator);
+    if (value !== undefined) {
+      return {
+        key: stableStringify(value),
+        segment: typeof value === "string" ? value : JSON.stringify(value),
+        label: `${discriminator}=${JSON.stringify(value)}`,
+        option,
+      };
+    }
+    open += 1;
+    const segment = open === 1 ? "*" : `*#${open}`;
+    return { key: `\u0000${segment}`, segment, label: `${discriminator}=${segment}`, option };
+  });
 }
 
 // A union is compared option by option. zod renders a discriminated union as
@@ -251,13 +292,14 @@ function optionSegment(value: unknown): string {
 // baseline option that pins the same `const` on the union's discriminator, so
 // an option inserted in the middle shifts nothing. The operator chose this over
 // comparing options by position, which read an inserted option as a change to
-// every option after it. An option present only in the live union is additive,
-// as an enum gaining a value is; a baseline option with no live match is
-// breaking, which also covers an option whose discriminator value changed (the
-// old value is lost, the new one gained); a matched option is compared node by
-// node under a path that names its discriminator value. A union whose options
-// pin no common discriminator is compared in order, with the index in the
-// path.
+// every option after it. An open option is matched to the open option at the
+// same place among the open options. An option present only in the live union
+// is additive, as an enum gaining a value is; a baseline option with no live
+// match is breaking, which also covers an option whose discriminator value
+// changed (the old value is lost, the new one gained); a matched option is
+// compared node by node under a path that names its discriminator value. A
+// union whose options pin no common discriminator is compared in order, with
+// the index in the path.
 function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Collector): void {
   const where = path || "<root>";
   if (sameJson(b, l)) return;
@@ -267,29 +309,30 @@ function diffOptions(key: string, b: unknown, l: unknown, path: string, out: Col
   }
   const discriminator = discriminatorOf(b, l);
   if (discriminator === null) {
-    diffOptionsByPosition(key, b, l, where, out);
+    diffOptionsByPosition(key, b, l, path, out);
     return;
   }
-  // Every option of both unions is a schema that pins the discriminator:
-  // discriminatorOf checked so. Key each option by its pinned value.
-  const valueOf = (option: unknown) => pinnedConst(option, discriminator);
-  const label = (value: unknown) => `${discriminator}=${JSON.stringify(value)}`;
-  const liveByValue = new Map<string, JsonSchema>();
-  for (const option of l) liveByValue.set(stableStringify(valueOf(option)), option as JsonSchema);
-  const baseValues = new Set(b.map((option) => stableStringify(valueOf(option))));
-  for (const option of b) {
-    const value = valueOf(option);
-    const live = liveByValue.get(stableStringify(value));
+  const baseOptions = keyOptions(b, discriminator);
+  const liveOptions = keyOptions(l, discriminator);
+  const liveByKey = new Map(liveOptions.map((entry) => [entry.key, entry]));
+  const baseKeys = new Set(baseOptions.map((entry) => entry.key));
+  for (const entry of baseOptions) {
+    const live = liveByKey.get(entry.key);
     if (live === undefined) {
-      out.breaking.push(`${where}: ${key} lost the option ${label(value)}`);
+      out.breaking.push(`${where}: ${key} lost the option ${entry.label}`);
       continue;
     }
-    diffNode(option as JsonSchema, live, `${where}.${key}.${optionSegment(value)}`, out);
+    const optionPath = `${where}.${key}.${entry.segment}`;
+    if (path === "") out.rootOptions.add(optionPath);
+    if (isSchema(entry.option) && isSchema(live.option)) {
+      diffNode(entry.option, live.option, optionPath, out);
+    } else if (!sameJson(entry.option, live.option)) {
+      out.breaking.push(`${optionPath}: option changed`);
+    }
   }
-  for (const option of l) {
-    const value = valueOf(option);
-    if (baseValues.has(stableStringify(value))) continue;
-    out.additive.push(`${where}: ${key} gained the option ${label(value)}`);
+  for (const entry of liveOptions) {
+    if (baseKeys.has(entry.key)) continue;
+    out.additive.push(`${where}: ${key} gained the option ${entry.label}`);
   }
 }
 
@@ -299,12 +342,14 @@ function diffOptionsByPosition(
   key: string,
   b: unknown[],
   l: unknown[],
-  where: string,
+  path: string,
   out: Collector,
 ): void {
+  const where = path || "<root>";
   const shared = Math.min(b.length, l.length);
   for (let i = 0; i < shared; i++) {
     const option = `${where}.${key}.${i}`;
+    if (path === "") out.rootOptions.add(option);
     if (isSchema(b[i]) && isSchema(l[i])) diffNode(b[i], l[i], option, out);
     else if (!sameJson(b[i], l[i])) out.breaking.push(`${option}: option changed`);
   }
@@ -332,7 +377,7 @@ export function classifySchemaChange(
   baseline: JsonSchema,
   live: JsonSchema,
 ): { change: ContractChange; reasons: string[] } {
-  const out: Collector = { additive: [], breaking: [] };
+  const out: Collector = { additive: [], breaking: [], rootOptions: new Set() };
   diffNode(baseline, live, "", out);
   if (out.breaking.length > 0) {
     return { change: "breaking", reasons: [...out.breaking, ...out.additive] };

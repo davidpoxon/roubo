@@ -4,8 +4,8 @@
     "sha256": "36fd5cadafec4c75af48fbc1154bd6a1225bac8bc42b951ec3b5c4ff4546e27c"
   },
   "delivery-event.schema.json": {
-    "version": "1.0.0",
-    "sha256": "edd516dab061cf5e3864728d0928f4f30b0b09deab2a2caf1a869b25db7d563c"
+    "version": "2.0.0",
+    "sha256": "5dfd0da1ff1b65eb4ad9b9ee4e77581d587719b32e40daa3d60358e8fa2bfcb0"
   },
   "delivery-control.schema.json": {
     "version": "1.0.0",

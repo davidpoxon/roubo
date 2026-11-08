@@ -357,6 +357,118 @@ describe("classifySchemaChange", () => {
     });
   });
 
+  describe("a root union of event envelopes with a catch-all", () => {
+    // One typed member per known `type`, and a last member whose `type` is an
+    // open string (see schema/delivery-event.schema.json).
+    const envelope = (type: string | null, payload: JsonSchema, version = "1.2.3"): JsonSchema => ({
+      type: "object",
+      properties: {
+        $schema: { type: "string", const: `https://roubo.dev/schema/demo/v${version}.json` },
+        schemaVersion: { type: "string", const: version },
+        type: type === null ? { type: "string", minLength: 1 } : { type: "string", const: type },
+        payload,
+      },
+      required: ["$schema", "schemaVersion", "type", "payload"],
+      additionalProperties: {},
+    });
+    const counted: JsonSchema = {
+      type: "object",
+      properties: { n: { type: "integer" } },
+      required: ["n"],
+    };
+    const open: JsonSchema = { type: "object", additionalProperties: {} };
+    const events = (version: string, members: JsonSchema[]): JsonSchema => ({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: `https://roubo.dev/schema/demo/v${version}.json`,
+      anyOf: members,
+    });
+    const baseline = events("1.2.3", [envelope("a.changed", counted), envelope(null, open)]);
+
+    it("reads a version bump inside each member, dotted type included, as no change", () => {
+      const rebumped = events("2.0.0", [
+        envelope("a.changed", counted, "2.0.0"),
+        envelope(null, open, "2.0.0"),
+      ]);
+      expect(classifySchemaChange(baseline, rebumped)).toEqual({ change: "none", reasons: [] });
+    });
+
+    it("matches typed members by type and the catch-all by place, so a member inserted before it is additive", () => {
+      const grown = events("1.2.3", [
+        envelope("a.changed", counted),
+        envelope("b.changed", open),
+        envelope(null, open),
+      ]);
+      expect(classifySchemaChange(baseline, grown)).toEqual({
+        change: "additive",
+        reasons: ['<root>: anyOf gained the option type="b.changed"'],
+      });
+    });
+
+    it("sees a change inside a dotted member and inside the catch-all under their own paths", () => {
+      const retyped = clone(baseline);
+      const members = retyped.anyOf as JsonSchema[];
+      const payload = (members[0].properties as Record<string, JsonSchema>).payload;
+      (payload.properties as Record<string, JsonSchema>).n.type = "string";
+      const catchAll = (members[1].properties as Record<string, JsonSchema>).payload;
+      catchAll.properties = { note: { type: "string" } };
+      expect(classifySchemaChange(baseline, retyped)).toEqual({
+        change: "breaking",
+        reasons: [
+          '<root>.anyOf.a.changed.payload.n: type changed from "integer" to "string"',
+          "<root>.anyOf.*.payload.note: new optional property",
+        ],
+      });
+    });
+
+    it("calls a lost catch-all and a second catch-all by their place", () => {
+      const lost = events("1.2.3", [envelope("a.changed", counted)]);
+      expect(classifySchemaChange(baseline, lost)).toEqual({
+        change: "breaking",
+        reasons: ["<root>: anyOf lost the option type=*"],
+      });
+      const doubled = events("1.2.3", [
+        envelope("a.changed", counted),
+        envelope(null, open),
+        envelope(null, open),
+      ]);
+      expect(classifySchemaChange(baseline, doubled)).toEqual({
+        change: "additive",
+        reasons: ["<root>: anyOf gained the option type=*#2"],
+      });
+    });
+
+    it("exempts the version constants only in a root option, not in a nested union", () => {
+      const nested = clone(base);
+      (nested.properties as Record<string, JsonSchema>).event = {
+        anyOf: [envelope("a.changed", counted), envelope(null, open)],
+      };
+      const live = clone(nested);
+      const inner = (live.properties as Record<string, JsonSchema>).event.anyOf as JsonSchema[];
+      (inner[0].properties as Record<string, JsonSchema>).schemaVersion.const = "9.9.9";
+      expect(classifySchemaChange(nested, live)).toEqual({
+        change: "breaking",
+        reasons: ['event.anyOf.a.changed.schemaVersion: const changed from "1.2.3" to "9.9.9"'],
+      });
+    });
+
+    it("keys the options by a fully pinned property over a `type` with an open option", () => {
+      const option = (kind: string, type: string | null): JsonSchema => ({
+        type: "object",
+        properties: {
+          kind: { type: "string", const: kind },
+          type: type === null ? { type: "string", minLength: 1 } : { type: "string", const: type },
+        },
+        required: ["kind", "type"],
+      });
+      const before = events("1.2.3", [option("x", "a"), option("y", null)]);
+      const after = events("1.2.3", [option("x", "a"), option("y", null), option("z", "b")]);
+      expect(classifySchemaChange(before, after)).toEqual({
+        change: "additive",
+        reasons: ['<root>: anyOf gained the option kind="z"'],
+      });
+    });
+  });
+
   it("ranks breaking above additive when both are present", () => {
     const live = clone(base);
     const props = live.properties as Record<string, JsonSchema>;

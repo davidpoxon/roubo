@@ -36,15 +36,18 @@
 // a `review` section, per decision the fields a review reads (`author`,
 // `chosen`, `rationale`, `affected_units`, `review`) and per gate a provisional
 // state. Seven event types move them; their payloads are typed here (see
-// "Decision-mode event payloads") and `validateDeliveryEvent` checks them, so a
-// malformed one fails with an error that names the payload field. All of this
-// joins 1.0.0: no version has shipped.
+// "Decision-mode event payloads").
 //
 // Record 1.1.0 (SB-FR-018, SB-FR-020) adds two optional, additive parts: a
 // per-role cost map on the budget (`by_role`), and the spec-edit fields of a
 // drift entry (`file`, `summary`, `ids`, `pr_url`). A 1.0.0 record still reads:
-// it is the same major (see checkDeliveryRecord in delivery-bench.ts). The event
-// envelope did not change and stays at 1.0.0.
+// it is the same major (see checkDeliveryRecord in delivery-bench.ts).
+//
+// Event 2.0.0 (SB-FR-006, SB-NFR-007) makes the event schema a union: one typed
+// member per event type the reducer applies, each with its payload typed, and a
+// last catch-all member with an open `type` and an open payload for any other
+// type (see "The delivery event union"). A payload that 1.0.0 accepted can now
+// fail, so the major moved. The record did not change and stays at 1.1.0.
 
 import { z } from "zod";
 
@@ -56,8 +59,8 @@ import { z } from "zod";
 export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.1.0.json";
 export const DELIVERY_RECORD_SCHEMA_VERSION = "1.1.0";
 
-export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v1.0.0.json";
-export const DELIVERY_EVENT_SCHEMA_VERSION = "1.0.0";
+export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.0.0.json";
+export const DELIVERY_EVENT_SCHEMA_VERSION = "2.0.0";
 
 // ── Shared scalars ──
 
@@ -392,38 +395,6 @@ export const DeliveryRecordSchema = z
   });
 export type DeliveryRecord = z.infer<typeof DeliveryRecordSchema>;
 
-// ── The delivery event envelope ──
-//
-// Payload decision for 1.0.0: the payload is OPEN, a JSON object with any keys,
-// and `type` is an open string. A typed payload per event type would freeze the
-// event vocabulary into the envelope; an open payload lets a producer add a
-// type and a reader ignore the ones it does not know. The seven decision-mode
-// types are the exception: their payloads are typed below and checked by
-// `validateDeliveryEvent` after the envelope parse, so the rendered JSON Schema
-// stays the envelope and the typed check lives in the validator. A reader that
-// wants a typed view of any other type layers it on its own side. Revisit at
-// 2.0.0 if the vocabulary settles.
-export const DeliveryEventSchema = z
-  .object({
-    $schema: z.literal(DELIVERY_EVENT_SCHEMA_ID),
-    schemaVersion: z.literal(DELIVERY_EVENT_SCHEMA_VERSION),
-    delivery_id: IdSchema,
-    type: z.string().min(1),
-    // Dense, 1-based, strictly increasing per delivery.
-    seq: z.number().int().min(1),
-    ts: TimestampSchema,
-    unit_id: IdSchema.optional(),
-    payload: z.record(z.string(), z.unknown()),
-  })
-  .loose()
-  .meta({
-    $id: DELIVERY_EVENT_SCHEMA_ID,
-    title: "Delivery event",
-    description:
-      "One event of a spec delivery's stream (SB-FR-006). The payload is an open object; `type` names the event.",
-  });
-export type DeliveryEvent = z.infer<typeof DeliveryEventSchema>;
-
 // ── Decision-mode event payloads (SB-FR-040) ──
 //
 // One typed payload per decision-mode event type. Each is `.loose()`, so a
@@ -544,10 +515,125 @@ export const GateConfirmedPayloadSchema = z
   .loose();
 export type GateConfirmedPayload = z.infer<typeof GateConfirmedPayloadSchema>;
 
-// The seven decision-mode event types, each with the payload it carries. The
-// validator reads this table by own key, so a type it does not list keeps the
-// open payload.
-export const DECISION_MODE_EVENT_PAYLOADS = {
+// ── Section event payloads ──
+//
+// One typed payload per event type that moves a record section. Each is the
+// patch the reducer reads (see the `*Payload` views of delivery-reducer.ts):
+// every key is optional, so a sparser payload is valid and the reducer applies
+// what it carries, and every key that a record field also names has that
+// field's type, so a wrongly typed key fails here instead of reaching the fold.
+// Each is `.loose()`, like the sections they patch. The envelope addresses the
+// unit by `unit_id`; every other entity is named by a payload key.
+
+// The plan, whole or in part: the units, the stacks, the gates, the budget and
+// the roles the tooling planned.
+export const DeliveryPlannedPayloadSchema = z
+  .object({
+    units: z.array(DeliveryUnitSchema).optional(),
+    stacks: z.record(IdSchema, z.array(IdSchema)).optional(),
+    gates: z.array(DeliveryGateSchema).optional(),
+    budget: DeliveryBudgetSchema.partial().optional(),
+    roles: z.record(IdSchema, DeliveryRoleSchema).optional(),
+  })
+  .loose();
+
+export const LifecycleChangedPayloadSchema = DeliveryLifecycleSchema.partial();
+
+// One role's tier, applied (SB-FR-021), named by `role`.
+export const RolesAppliedPayloadSchema = z
+  .object({
+    role: IdSchema.optional(),
+    tier: z.string().min(1).optional(),
+    ...readBackFields,
+  })
+  .loose();
+
+// A patch of the unit the envelope's `unit_id` names.
+export const UnitChangedPayloadSchema = DeliveryUnitSchema.omit({ id: true }).partial();
+
+export const GateChangedPayloadSchema = DeliveryGateSchema.omit({ id: true })
+  .partial()
+  .extend({ gate_id: IdSchema.optional() });
+
+// A decision raised, whole. Its id is `decision_id`, or `id`.
+export const DecisionRaisedPayloadSchema = DeliveryDecisionSchema.omit({ id: true })
+  .partial()
+  .extend({ decision_id: IdSchema.optional(), id: IdSchema.optional() });
+
+export const DecisionAnsweredPayloadSchema = z
+  .object({
+    decision_id: IdSchema.optional(),
+    id: IdSchema.optional(),
+    status: StatusSchema.optional(),
+    answer: BoundedLineSchema.optional(),
+    answered_at: TimestampSchema.optional(),
+  })
+  .loose();
+
+// The session went on with a decision's default (SB-FR-015); `chosen` names
+// the applied option when it is not the default.
+export const DecisionDefaultedPayloadSchema = z
+  .object({
+    decision_id: IdSchema.optional(),
+    id: IdSchema.optional(),
+    status: StatusSchema.optional(),
+    chosen: BoundedLineSchema.optional(),
+    defaulted_at: TimestampSchema.optional(),
+  })
+  .loose();
+
+// The operator's overturn of a default landed: `chosen`, or `option` as the
+// overturn control's body names it, is the option that replaced it.
+export const DecisionOverturnedPayloadSchema = z
+  .object({
+    decision_id: IdSchema.optional(),
+    id: IdSchema.optional(),
+    status: StatusSchema.optional(),
+    chosen: BoundedLineSchema.optional(),
+    option: BoundedLineSchema.optional(),
+    overturned_at: TimestampSchema.optional(),
+    ...readBackFields,
+  })
+  .loose();
+
+// A steering note. Its id is `steering_id`, or `id`; `control_seq` names the
+// steering-note control it reads back.
+export const SteeringAddedPayloadSchema = DeliverySteeringSchema.omit({ id: true })
+  .partial()
+  .extend({ steering_id: IdSchema.optional(), id: IdSchema.optional(), ...readBackFields });
+
+export const BudgetChangedPayloadSchema = DeliveryBudgetSchema.partial();
+
+export const HealthChangedPayloadSchema = DeliveryHealthSchema.partial();
+
+export const DriftDetectedPayloadSchema = DeliveryDriftSchema.partial();
+
+// One run of the seam that `seam` names.
+export const SeamRanPayloadSchema = DeliverySeamSchema.partial().extend({
+  seam: IdSchema.optional(),
+});
+
+// ── The delivery event union ──
+//
+// Every event type the reducer applies, each with the payload it carries: the
+// seven decision-mode types and the fourteen section types. The validator
+// reads this table by own key, so a type it does not list goes to the
+// catch-all.
+export const DELIVERY_EVENT_PAYLOADS = {
+  "delivery.planned": DeliveryPlannedPayloadSchema,
+  "lifecycle.changed": LifecycleChangedPayloadSchema,
+  "roles.applied": RolesAppliedPayloadSchema,
+  "unit.changed": UnitChangedPayloadSchema,
+  "gate.changed": GateChangedPayloadSchema,
+  "decision.raised": DecisionRaisedPayloadSchema,
+  "decision.answered": DecisionAnsweredPayloadSchema,
+  "decision.defaulted": DecisionDefaultedPayloadSchema,
+  "decision.overturned": DecisionOverturnedPayloadSchema,
+  "steering.added": SteeringAddedPayloadSchema,
+  "budget.changed": BudgetChangedPayloadSchema,
+  "health.changed": HealthChangedPayloadSchema,
+  "drift.detected": DriftDetectedPayloadSchema,
+  "seam.ran": SeamRanPayloadSchema,
   "mode.changed": ModeChangedPayloadSchema,
   "decision.decided": DecisionDecidedPayloadSchema,
   "review.opened": ReviewOpenedPayloadSchema,
@@ -556,15 +642,89 @@ export const DECISION_MODE_EVENT_PAYLOADS = {
   "gate.provisional": GateProvisionalPayloadSchema,
   "gate.confirmed": GateConfirmedPayloadSchema,
 } as const;
-export type DecisionModeEventType = keyof typeof DECISION_MODE_EVENT_PAYLOADS;
-export const DECISION_MODE_EVENT_TYPES = Object.keys(
-  DECISION_MODE_EVENT_PAYLOADS,
-) as DecisionModeEventType[];
+export type DeliveryEventType = keyof typeof DELIVERY_EVENT_PAYLOADS;
+export const DELIVERY_EVENT_TYPES = Object.keys(DELIVERY_EVENT_PAYLOADS) as DeliveryEventType[];
 
-function decisionModePayloadSchema(type: string): z.ZodType | undefined {
-  return Object.hasOwn(DECISION_MODE_EVENT_PAYLOADS, type)
-    ? DECISION_MODE_EVENT_PAYLOADS[type as DecisionModeEventType]
-    : undefined;
+// The seven decision-mode types (SB-FR-040), a subset of the union's types.
+export const DECISION_MODE_EVENT_TYPES = [
+  "mode.changed",
+  "decision.decided",
+  "review.opened",
+  "review.outcome",
+  "review.reply",
+  "gate.provisional",
+  "gate.confirmed",
+] as const satisfies readonly DeliveryEventType[];
+export type DecisionModeEventType = (typeof DECISION_MODE_EVENT_TYPES)[number];
+
+// One envelope: the fields every event carries, with the member's `type` and
+// payload.
+function envelope<TType extends z.ZodType, TPayload extends z.ZodType>(
+  type: TType,
+  payload: TPayload,
+) {
+  return z
+    .object({
+      $schema: z.literal(DELIVERY_EVENT_SCHEMA_ID),
+      schemaVersion: z.literal(DELIVERY_EVENT_SCHEMA_VERSION),
+      delivery_id: IdSchema,
+      type,
+      // Dense, 1-based, strictly increasing per delivery.
+      seq: z.number().int().min(1),
+      ts: TimestampSchema,
+      unit_id: IdSchema.optional(),
+      payload,
+    })
+    .loose();
+}
+
+// The catch-all member: any non-empty `type`, any JSON object as payload. A
+// reader at an older minor accepts an event type it does not know and ignores
+// it, instead of rejecting the stream.
+export const DeliveryEventCatchAllSchema = envelope(
+  z.string().min(1),
+  z.record(z.string(), z.unknown()),
+);
+
+const typedEventMembers = {} as Record<DeliveryEventType, z.ZodType>;
+for (const type of DELIVERY_EVENT_TYPES) {
+  typedEventMembers[type] = envelope(z.literal(type), DELIVERY_EVENT_PAYLOADS[type]);
+}
+
+// The union, typed members first in table order and the catch-all LAST.
+//
+// Routing. A JSON Schema `anyOf` validator cannot exclude a known type from the
+// catch-all: a `unit.changed` event with a malformed payload still matches the
+// last member, so a plain JSON Schema check accepts it. `validateDeliveryEvent`
+// is what routes by `type`: a known type is parsed by its typed member and
+// reports field-named payload errors, and only an unknown type reaches the
+// catch-all. A reader that needs the typed check calls it, not a generic JSON
+// Schema library.
+//
+// The compatibility classifier matches the members by their `type` const and
+// the catch-all by its place (scripts/contract-compatibility.ts), so a new
+// typed member is additive and a removed or changed one is breaking.
+export const DeliveryEventSchema = z
+  .union([
+    ...DELIVERY_EVENT_TYPES.map((type) => typedEventMembers[type]),
+    DeliveryEventCatchAllSchema,
+  ] as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]])
+  .meta({
+    $id: DELIVERY_EVENT_SCHEMA_ID,
+    title: "Delivery event",
+    description:
+      "One event of a spec delivery's stream (SB-FR-006). A known `type` carries its typed payload; the last member accepts any other type with an open payload.",
+  });
+
+// The validated event a caller reads: the envelope, with `type` and `payload`
+// as the catch-all gives them. A reader narrows the payload by `type` on its own
+// side (see the `*Payload` views of delivery-reducer.ts).
+export type DeliveryEvent = z.infer<typeof DeliveryEventCatchAllSchema>;
+
+function eventMember(type: unknown): z.ZodType {
+  return typeof type === "string" && Object.hasOwn(DELIVERY_EVENT_PAYLOADS, type)
+    ? typedEventMembers[type as DeliveryEventType]
+    : DeliveryEventCatchAllSchema;
 }
 
 // ── Runtime validators ──
@@ -633,26 +793,21 @@ export function validateDeliveryRecord(raw: unknown): ValidationResult<DeliveryR
   return { ok: true, data: parsed.data };
 }
 
-// The envelope first, then the typed payload of a decision-mode type. A payload
-// error names its field under `payload.`, so a `review.outcome` with no
-// decision id fails at `payload.decision_id` and a `gate.provisional` mark
-// outside the vocabulary at `payload.cases.<i>.mark`. The parsed payload keeps
-// the raw keys (every payload schema is loose), so the event a caller gets back
-// is the one it sent, validated.
+// Routes by `type` (see "Routing" above): a known type is parsed by its typed
+// member, so a `review.outcome` with no decision id fails at
+// `payload.decision_id` and a `gate.provisional` mark outside the vocabulary at
+// `payload.cases.<i>.mark`; any other type is parsed by the catch-all. The
+// parsed event keeps the raw keys (every member and payload is loose), so the
+// event a caller gets back is the one it sent, validated.
 export function validateDeliveryEvent(raw: unknown): ValidationResult<DeliveryEvent> {
-  const parsed = DeliveryEventSchema.safeParse(raw);
+  const type = isObject(raw) ? raw.type : undefined;
+  const parsed = eventMember(type).safeParse(raw);
   if (!parsed.success) {
     return { ok: false, errors: zodIssuesToFieldErrors(parsed.error.issues) };
   }
-  const payloadSchema = decisionModePayloadSchema(parsed.data.type);
-  if (payloadSchema !== undefined) {
-    const payload = payloadSchema.safeParse(parsed.data.payload);
-    if (!payload.success) {
-      return {
-        ok: false,
-        errors: zodIssuesToFieldErrors(payload.error.issues).map((error) => `payload.${error}`),
-      };
-    }
-  }
-  return { ok: true, data: parsed.data };
+  return { ok: true, data: parsed.data as DeliveryEvent };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

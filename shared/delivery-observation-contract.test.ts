@@ -13,6 +13,7 @@ import {
 import {
   DECISION_MODE_EVENT_TYPES,
   DELIVERY_EVENT_SCHEMA_ID,
+  DELIVERY_EVENT_TYPES,
   DELIVERY_EVENT_SCHEMA_VERSION,
   DELIVERY_RECORD_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_VERSION,
@@ -182,9 +183,9 @@ describe("delivery observation contract: generated schema", () => {
     "SB-TC-010: $file is zod in shared with a versioned $id and its committed JSON equals a fresh render",
     async ({ file, id, version, schema }) => {
       // The zod source carries the $id, and the id embeds the version: the
-      // record at 1.1.0 (the drift and per-role cost fields), the event
-      // envelope still at 1.0.0.
-      expect(version).toBe(file === "delivery-record.schema.json" ? "1.1.0" : "1.0.0");
+      // record at 1.1.0 (the drift and per-role cost fields), the event union
+      // at 2.0.0.
+      expect(version).toBe(file === "delivery-record.schema.json" ? "1.1.0" : "2.0.0");
       expect(id.endsWith(`/v${version}.json`)).toBe(true);
       expect(schema.meta()?.$id).toBe(id);
 
@@ -200,10 +201,29 @@ describe("delivery observation contract: generated schema", () => {
   it("SB-TC-010: the record and event $schema constants match their $id", async () => {
     for (const { file, id, version } of contracts) {
       const live = await liveSchema(file);
-      const props = live.properties as Record<string, JsonSchema>;
-      expect(props.$schema.const).toBe(id);
-      expect(props.schemaVersion.const).toBe(version);
+      // The event schema is a union: each member carries the constants.
+      const envelopes = (live.anyOf as JsonSchema[] | undefined) ?? [live];
+      for (const envelope of envelopes) {
+        const props = envelope.properties as Record<string, JsonSchema>;
+        expect(props.$schema.const, file).toBe(id);
+        expect(props.schemaVersion.const, file).toBe(version);
+      }
     }
+  });
+
+  it("SB-FR-006: the event schema is one typed member per known type, then the catch-all last", async () => {
+    const live = await liveSchema("delivery-event.schema.json");
+    const members = live.anyOf as JsonSchema[];
+    const types = members.map((member) => (member.properties as Record<string, JsonSchema>).type);
+    expect(types.slice(0, -1).map((type) => type.const)).toEqual(DELIVERY_EVENT_TYPES);
+    // The catch-all: an open string type and an open object payload.
+    const catchAll = members[members.length - 1].properties as Record<string, JsonSchema>;
+    expect(catchAll.type).toEqual({ type: "string", minLength: 1 });
+    expect(catchAll.payload.type).toBe("object");
+    expect(catchAll.payload.additionalProperties).toEqual({});
+    expect(DECISION_MODE_EVENT_TYPES.every((type) => DELIVERY_EVENT_TYPES.includes(type))).toBe(
+      true,
+    );
   });
 });
 
@@ -651,14 +671,64 @@ describe("delivery observation contract: event envelope", () => {
     if (result.ok) expect(result.data.unit_id).toBeUndefined();
   });
 
-  it("accepts any event type outside the decision-mode seven with any payload keys (open payload decision for 1.0.0)", () => {
-    for (const type of ["unit.done", "gate.changed", "decision.raised", "steering.added"]) {
+  it("SB-FR-006: the catch-all accepts any type outside the union with any payload keys", () => {
+    for (const type of ["unit.done", "delivery.armed", "toString", "__proto__"]) {
       const result = validateDeliveryEvent({
         ...minimalEvent,
         type,
-        payload: { anything: [1, 2, 3], nested: { deep: true } },
+        payload: { anything: [1, 2, 3], nested: { deep: true }, status: 5 },
       });
-      expect(result.ok).toBe(true);
+      expect(result, type).toEqual(expect.objectContaining({ ok: true }));
+    }
+  });
+
+  it("SB-FR-006: a known section type takes a sparse patch and keeps unknown payload keys", () => {
+    for (const type of DELIVERY_EVENT_TYPES) {
+      if ((DECISION_MODE_EVENT_TYPES as readonly string[]).includes(type)) continue;
+      const result = validateDeliveryEvent({ ...minimalEvent, type, payload: { extra: true } });
+      expect(result, type).toEqual(expect.objectContaining({ ok: true }));
+    }
+    const unit = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "unit.changed",
+      payload: { status: "jammed", pr_url: "https://example.test/pull/1" },
+    });
+    expect(unit.ok).toBe(true);
+    if (unit.ok)
+      expect(unit.data.payload).toEqual({
+        status: "jammed",
+        pr_url: "https://example.test/pull/1",
+      });
+  });
+
+  it("SB-FR-006: a known section type routes to its typed member, so a wrongly typed payload key fails at its field", () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ["unit.changed", { status: 5 }, "payload.status:"],
+      ["unit.changed", { layer: -1 }, "payload.layer:"],
+      ["gate.changed", { gate_id: "gate-1", after: [] }, "payload.after:"],
+      ["decision.raised", { decision_id: "d-1", options: ["only"] }, "payload.options:"],
+      ["decision.defaulted", { decision_id: "d-1", defaulted_at: "soon" }, "payload.defaulted_at:"],
+      ["steering.added", { id: "s-1", note: "" }, "payload.note:"],
+      ["budget.changed", { spent_usd: -1 }, "payload.spent_usd:"],
+      ["health.changed", { status: "" }, "payload.status:"],
+      ["drift.detected", { kind: "spec", ids: [""] }, "payload.ids.0:"],
+      ["seam.ran", { seam: "plan", last_run_at: "soon" }, "payload.last_run_at:"],
+      ["lifecycle.changed", { armed: "yes" }, "payload.armed:"],
+      ["roles.applied", { role: "unit-coder", tier: "" }, "payload.tier:"],
+      ["delivery.planned", { stacks: { a: "A" } }, "payload.stacks.a:"],
+    ];
+    for (const [type, payload, prefix] of cases) {
+      const result = validateDeliveryEvent({ ...minimalEvent, type, payload });
+      expect(result.ok, type).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          `${type}: ${result.errors.join("; ")}`,
+        ).toBe(true);
+      }
+      // The same payload under a type the union does not know reaches the
+      // catch-all and passes.
+      expect(validateDeliveryEvent({ ...minimalEvent, type: `${type}.v9`, payload }).ok).toBe(true);
     }
   });
 
@@ -1033,19 +1103,53 @@ describe("delivery observation contract: compatibility", () => {
     expect(major.change).toBe("breaking");
   });
 
+  // Each edit applies to every member of the event union, as a change to the
+  // envelope would.
+  function everyMember(schema: JsonSchema, edit: (member: JsonSchema) => JsonSchema): JsonSchema {
+    return { ...schema, anyOf: (schema.anyOf as JsonSchema[]).map(edit) };
+  }
+
   it("SB-TC-019: requiring an optional envelope field is breaking, a new optional one is additive", () => {
     const baseline = baselineSchema("delivery-event.schema.json");
-    const required = baseline.required as string[];
-    const nowRequired = { ...baseline, required: [...required, "unit_id"] };
+    const nowRequired = everyMember(baseline, (member) => ({
+      ...member,
+      required: [...(member.required as string[]), "unit_id"],
+    }));
     expect(classifySchemaChange(baseline, nowRequired).change).toBe("breaking");
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "minor")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(nowRequired, "major")).ok).toBe(true);
 
-    const withActor = {
-      ...baseline,
-      properties: { ...(baseline.properties as JsonSchema), actor: { type: "string" } },
-    };
+    const withActor = everyMember(baseline, (member) => ({
+      ...member,
+      properties: { ...(member.properties as JsonSchema), actor: { type: "string" } },
+    }));
     expect(checkContractCompatibility(baseline, bumped(withActor, "patch")).ok).toBe(false);
     expect(checkContractCompatibility(baseline, bumped(withActor, "minor")).ok).toBe(true);
+  });
+
+  it("SB-FR-006: a new typed event member is additive, a removed one breaking", () => {
+    const baseline = baselineSchema("delivery-event.schema.json");
+    const members = baseline.anyOf as JsonSchema[];
+    const first = members[0];
+    const props = first.properties as Record<string, JsonSchema>;
+    const added = {
+      ...baseline,
+      anyOf: [
+        ...members.slice(0, -1),
+        { ...first, properties: { ...props, type: { type: "string", const: "unit.paused" } } },
+        members[members.length - 1],
+      ],
+    };
+    expect(classifySchemaChange(baseline, added)).toEqual({
+      change: "additive",
+      reasons: ['<root>: anyOf gained the option type="unit.paused"'],
+    });
+    expect(checkContractCompatibility(baseline, bumped(added, "minor")).ok).toBe(true);
+
+    const removed = { ...baseline, anyOf: members.slice(1) };
+    expect(classifySchemaChange(baseline, removed)).toEqual({
+      change: "breaking",
+      reasons: [`<root>: anyOf lost the option type=${JSON.stringify(props.type.const)}`],
+    });
   });
 });
