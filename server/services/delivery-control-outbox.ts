@@ -24,9 +24,12 @@
 // decision an answer control targets, marks the control `applied`. A control
 // stays `pending` until then.
 //
-// The read takes the seq to read after only. The service keeps the read open to
-// a later long poll (a `wait` and one waiting read per bench), which would wait
-// here for the next issued control.
+// A read with a `wait` and nothing to return waits here for the next issued
+// control (SB-FR-041): `waitForDeliveryControl` keeps one waiter per bench in
+// memory, and `issueDeliveryControl` wakes it. A second waiter for the same
+// bench ends the first as superseded. A token revoke or a new token ends it as
+// revoked (see delivery-token-registry.ts), and a server shutdown ends every
+// waiter.
 import type { Bench, DeliveryOutboxControl } from "@roubo/shared";
 import {
   DELIVERY_CONTROL_DURABILITY,
@@ -46,6 +49,13 @@ const volatileControls = new Map<string, DeliveryOutboxControl[]>();
 // The last control_seq issued per bench, volatile controls included. Seeded
 // after a restart from the persisted `deliveryControlSeq` and the queue.
 const latestSeqs = new Map<string, number>();
+
+interface ControlWaiter {
+  end(reason: DeliveryControlWaitEnd): void;
+}
+
+// The one held control read per bench.
+const waiters = new Map<string, ControlWaiter>();
 
 function benchKey(projectId: string, benchId: number): string {
   return `${projectId}:${benchId}`;
@@ -131,7 +141,71 @@ export function issueDeliveryControl(
     volatileControls.set(key, [...(volatileControls.get(key) ?? []), control]);
   }
   persist(bench);
+  waiters.get(key)?.end("control");
   return { ok: true, control };
+}
+
+/**
+ * Why a held control read ended:
+ *   control     a control was issued for the bench
+ *   timeout     the wait ran out
+ *   superseded  a second held read for the same bench took its place
+ *   revoked     the bench's token was revoked or replaced
+ *   shutdown    the server is shutting down
+ *   closed      the reader went away, so nothing answers it
+ */
+export type DeliveryControlWaitEnd =
+  "control" | "timeout" | "superseded" | "revoked" | "shutdown" | "closed";
+
+export interface DeliveryControlWait {
+  /** Settles once, with the first reason the wait ended for. */
+  done: Promise<DeliveryControlWaitEnd>;
+  /** Ends the wait as `closed`: the reader went away. */
+  cancel(): void;
+}
+
+/**
+ * Holds a control read of the bench for up to `waitMs`. A held read of the
+ * same bench ends at once as `superseded`. The caller reads the outbox first:
+ * this waits for the next issued control only.
+ */
+export function waitForDeliveryControl(bench: Bench, waitMs: number): DeliveryControlWait {
+  const key = benchKey(bench.projectId, bench.id);
+  waiters.get(key)?.end("superseded");
+  let settle: (reason: DeliveryControlWaitEnd) => void = () => undefined;
+  const done = new Promise<DeliveryControlWaitEnd>((resolve) => {
+    settle = resolve;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const waiter: ControlWaiter = {
+    end(reason) {
+      if (waiters.get(key) === waiter) waiters.delete(key);
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      settle(reason);
+    },
+  };
+  waiters.set(key, waiter);
+  timer = setTimeout(() => waiter.end("timeout"), waitMs);
+  return { done, cancel: () => waiter.end("closed") };
+}
+
+/** Whether a control read of the bench is held. */
+export function hasDeliveryControlWaiter(bench: Bench): boolean {
+  return waiters.has(benchKey(bench.projectId, bench.id));
+}
+
+/** Ends the bench's held control read, if any, for the reason given. */
+export function releaseDeliveryControlWaiter(
+  bench: Pick<Bench, "projectId" | "id">,
+  reason: DeliveryControlWaitEnd,
+): void {
+  waiters.get(benchKey(bench.projectId, bench.id))?.end(reason);
+}
+
+/** Ends every held control read as `shutdown`. */
+export function releaseDeliveryControlWaiters(): void {
+  for (const waiter of [...waiters.values()]) waiter.end("shutdown");
 }
 
 /**
@@ -207,8 +281,12 @@ export function forgetDeliveryControls(bench: Bench): void {
   bench.deliveryControlSeq = undefined;
 }
 
-/** Drops the in-memory part of every outbox, as a server restart does. */
+/**
+ * Drops the in-memory part of every outbox, as a server restart does, and ends
+ * every held read as a shutdown does.
+ */
 export function forgetDeliveryControlMemory(): void {
+  releaseDeliveryControlWaiters();
   volatileControls.clear();
   latestSeqs.clear();
 }
