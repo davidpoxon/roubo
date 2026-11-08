@@ -30,6 +30,7 @@ export function DeliveryHealthChip({ health }: { health: DeliveryHealthView }) {
         type="button"
         data-testid="delivery-health-chip"
         data-health={health.word}
+        data-tone={tone}
         aria-label={`Show health detail: ${label}`}
         aria-expanded={open}
         aria-controls={reasonId}
@@ -60,11 +61,14 @@ export interface DeliveryRailProps {
   snapshot: DeliverySnapshot;
   // True while the view knows the event stream to be down.
   disconnected?: boolean;
+  // True for an attached bench that holds no session (SB-FR-003): the chip
+  // reads attached until the first event arrives.
+  attached?: boolean;
 }
 
-export default function DeliveryRail({ snapshot, disconnected }: DeliveryRailProps) {
+export default function DeliveryRail({ snapshot, disconnected, attached }: DeliveryRailProps) {
   const now = useNow(DELIVERY_HEALTH_TICK_MS);
-  const health = selectHealth(snapshot, now, { disconnected });
+  const health = selectHealth(snapshot, now, { disconnected, attached });
   const { stale, ageMs } = health.staleness;
   return (
     <div

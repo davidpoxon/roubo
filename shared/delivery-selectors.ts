@@ -635,11 +635,22 @@ export function selectDriftLedger(snapshot: DeliverySnapshot): DeliveryDrift[] {
 // The health chip's one word (DESIGN.md Health chip): `blocked` while a unit is
 // jammed, else `disconnected` while the stream is down (the stream's word, which
 // a view that holds the stream state passes in), else the lifecycle's word while
-// the delivery is paused, wound down or complete (SB-FR-022), else `stale` once
-// the delivery has been quiet for 2 minutes, else `fresh`. A paused delivery
-// sends no event, so its lifecycle word goes before `stale`.
+// the delivery is paused, wound down or complete (SB-FR-022), else `attached`
+// while an attached bench holds no session and no event has arrived since it
+// attached (SB-FR-003: the view passes `attached` for an attached bench with no
+// session), else `stale` once the delivery has been quiet for 2 minutes, else
+// `fresh`. A paused delivery sends no event, so its lifecycle word goes before
+// `stale`, and so does `attached`: a delivery started elsewhere is quiet until a
+// session runs it again, and the first event it sends clears the word.
 export type DeliveryHealthWord =
-  "fresh" | "stale" | "disconnected" | "blocked" | "paused" | "wound down" | "complete";
+  | "fresh"
+  | "stale"
+  | "disconnected"
+  | "blocked"
+  | "paused"
+  | "wound down"
+  | "complete"
+  | "attached";
 
 export interface DeliveryHealthView {
   word: DeliveryHealthWord;
@@ -657,7 +668,7 @@ function minutes(ms: number): string {
 export function selectHealth(
   snapshot: DeliverySnapshot,
   now?: number,
-  options: { disconnected?: boolean } = {},
+  options: { disconnected?: boolean; attached?: boolean } = {},
 ): DeliveryHealthView {
   const jammed = selectJammedUnits(snapshot);
   const staleness = selectStaleness(snapshot, now);
@@ -681,6 +692,14 @@ export function selectHealth(
   const lifecycle = LIFECYCLE_HEALTH[classifyLifecycleState(snapshot.lifecycle.state)];
   if (lifecycle !== undefined) {
     return { ...lifecycle, jammed, staleness };
+  }
+  if (options.attached === true && staleness.lastEventAt === null) {
+    return {
+      word: "attached",
+      reason: "Attached to a delivery started elsewhere: no session runs it on this bench yet",
+      jammed,
+      staleness,
+    };
   }
   if (staleness.stale && staleness.quietMs !== null) {
     return {
