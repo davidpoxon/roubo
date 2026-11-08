@@ -133,6 +133,53 @@ describe("watchInput allowlist", () => {
     );
     expect(vi.mocked(watch).mock.calls.length).toBe(before);
   });
+
+  it("HR-TC-046 refuses to arm a missing directory that later appears as a symlink outside every root", async () => {
+    fs.writeFileSync(path.join(outsideDir, "a.txt"), "a");
+    fs.writeFileSync(path.join(outsideDir, "b.txt"), "b");
+    const plugins = path.join(stateDir, "plugins");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(plugins, { surface: "plugin", settleMs: 50, rearmPollMs: 100 }, handler),
+    );
+    await w.ready;
+    const before = vi.mocked(watch).mock.calls.length;
+
+    fs.symlinkSync(outsideDir, plugins);
+    await waitFor(() => lines.some((l) => l.includes("arm refused")));
+    fs.writeFileSync(path.join(outsideDir, "a.txt"), "changed");
+    await sleep(500);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(applyLines()).toEqual([]);
+    expect(vi.mocked(watch).mock.calls.length).toBe(before);
+    expect(lines.filter((l) => l.includes("arm refused"))).toEqual([
+      `[input-watcher] arm refused path=${plugins} reason=outside-roots`,
+    ]);
+  });
+
+  it("HR-TC-046 refuses unread an entry of a watched directory that is a symlink outside every root", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const settled = vi.fn(async (): Promise<boolean> => true);
+    const w = track(
+      watchInput(plugins, { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled }, handler),
+    );
+    await w.ready;
+
+    const link = path.join(plugins, "linked");
+    fs.symlinkSync(outsideDir, link);
+    await waitFor(() => outcomeCount("refused") === 1);
+    await sleep(200);
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(settled).not.toHaveBeenCalled();
+    expect(applyLines()).toHaveLength(1);
+    expect(applyLines()[0]).toMatch(LINE_RE);
+    expect(applyLines()[0]).toContain(`path=${link} outcome=refused hash8=none `);
+  });
 });
 
 describe("watchInput dedupe and self-write", () => {
@@ -315,6 +362,56 @@ describe("watchInput logging", () => {
     }
     const mentions = lines.filter((l) => l.includes(dir));
     expect(mentions).toEqual(outcomeLines);
+  });
+
+  it("HR-TC-055 still writes exactly one outcome line when disposed while the handler is awaited", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    let release: (value: HandlerResult) => void = () => {};
+    const handler = vi.fn(
+      () =>
+        new Promise<HandlerResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => handler.mock.calls.length === 1);
+    await w.dispose();
+    release("applied");
+    await waitFor(() => applyLines().length === 1);
+    await sleep(200);
+
+    expect(applyLines()).toHaveLength(1);
+    expect(applyLines()[0]).toMatch(LINE_RE);
+    expect(applyLines()[0]).toContain(
+      `path=${file} outcome=applied hash8=${hashContent("name: two\n").slice(0, 8)} `,
+    );
+  });
+
+  it("HR-TC-055 keeps the caller's depth for a directory watch with allow", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const manifest = path.join(plugins, "p1", "roubo-plugin.yaml");
+    fs.mkdirSync(path.dirname(manifest), { recursive: true });
+    fs.writeFileSync(manifest, "id: p1\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(
+        stateDir,
+        { surface: "plugin", settleMs: 50, allow: ["plugins"], depth: 3 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(manifest, "id: p1\nversion: 2\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ path: plugins }));
+    expect(applyLines()[0]).toMatch(LINE_RE);
   });
 
   it("HR-TC-055 adds action=<action> on the plugin surface", () => {
