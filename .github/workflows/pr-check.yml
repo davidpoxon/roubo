@@ -2,8 +2,9 @@ name: pr-check
 
 concurrency:
   # An `edited` event that does not change the base (a title or body edit) gets
-  # a group of its own, so it cannot cancel the pull request's running checks.
-  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.run_id) || '' }}
+  # a group of its own per head commit, so it cannot cancel the pull request's
+  # running checks, and a later edit on the same head cancels an earlier one.
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'edited' && !github.event.changes.base && format('-edit-{0}', github.event.pull_request.head.sha) || '' }}
   cancel-in-progress: true
 
 on:
