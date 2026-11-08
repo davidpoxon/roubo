@@ -48,6 +48,12 @@ describe("useDeepLink", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/benches/2#decisions");
   });
 
+  it("SB-TC-068: navigates a sitting link to the bench's gate sitting", () => {
+    renderHook(() => useDeepLink());
+    act(() => fireDeepLink("roubo://project/proj-1/bench/2/sitting"));
+    expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/benches/2#sitting");
+  });
+
   it("ignores a bench link with an unknown trailing segment", () => {
     renderHook(() => useDeepLink());
     act(() => fireDeepLink("roubo://project/proj-1/bench/2/unknown"));

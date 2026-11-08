@@ -86,7 +86,7 @@ import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
 import SpecBenchTestBench from "./delivery/SpecBenchTestBench";
 import DeliveryTabPanel from "./delivery/DeliveryTabPanel";
-import { DECISION_PILE_HASH } from "../hooks/useDeepLink";
+import { DECISION_PILE_HASH, GATE_SITTING_HASH } from "../hooks/useDeepLink";
 import VariantBadge from "./VariantBadge";
 import { TAB_CLASS } from "./ui/Tabs";
 import StatusIndicator from "./ui/StatusIndicator";
@@ -659,6 +659,15 @@ export default function BenchDetail() {
   useEffect(() => {
     if (decisionPileKey !== undefined) setActiveTab("delivery");
   }, [decisionPileKey, setActiveTab]);
+
+  // A delivery-sitting notification links to the gate sitting (SB-FR-023,
+  // SB-US-009): the link opens a Spec Bench on its Test bench tab, once per
+  // navigation, so the operator can then move to another tab.
+  const gateSittingKey =
+    isSpecbench && location.hash === GATE_SITTING_HASH ? location.key : undefined;
+  useEffect(() => {
+    if (gateSittingKey !== undefined) setActiveTab("testbench");
+  }, [gateSittingKey, setActiveTab]);
 
   if (isLoading) {
     return (

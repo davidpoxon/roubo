@@ -192,6 +192,14 @@ describe("formatNotification", () => {
     );
   });
 
+  it("SB-TC-068: a delivery-sitting notification links to the bench's gate sitting", () => {
+    const n = {
+      ...makeNotification("action-needed", "delivery-sitting"),
+      metadata: { gateId: "gate-after-b" },
+    };
+    expect(notificationRouteTo("p1", 2, n)).toBe("roubo://project/p1/bench/2/sitting");
+  });
+
   it("SB-TC-081: composes a review call's notification from its count alone", () => {
     const n = {
       ...makeNotification("action-needed", "delivery-decision"),

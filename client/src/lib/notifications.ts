@@ -152,9 +152,11 @@ export function formatNotification(notification: BenchNotification): {
 }
 
 /**
- * Where a notification leads when it is clicked: the bench, or for a
+ * Where a notification leads when it is clicked: the bench, for a
  * delivery-decision notification the bench's decision pile (SB-FR-014), where
- * the decision, or the review call's cards, wait for the operator.
+ * the decision, or the review call's cards, wait for the operator, and for a
+ * delivery-sitting notification the bench's gate sitting on its Test bench tab
+ * (SB-FR-023, SB-US-009).
  */
 export function notificationRouteTo(
   projectId: string,
@@ -162,5 +164,7 @@ export function notificationRouteTo(
   notification: BenchNotification,
 ): string {
   const bench = `roubo://project/${projectId}/bench/${String(benchId)}`;
-  return notification.type === "delivery-decision" ? `${bench}/decisions` : bench;
+  if (notification.type === "delivery-decision") return `${bench}/decisions`;
+  if (notification.type === "delivery-sitting") return `${bench}/sitting`;
+  return bench;
 }
