@@ -4,14 +4,8 @@ import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { selectApprovalAvailability } from "@roubo/shared/delivery-selectors";
-import {
-  useApproveDelivery,
-  useDelivery,
-  useDeliverySessionLive,
-  useLaunchDelivery,
-  useResumeDelivery,
-} from "../../hooks/useDelivery";
+import { classifyLifecycleState } from "@roubo/shared/delivery-selectors";
+import { useDelivery, useDeliverySessionLive, useLaunchDelivery } from "../../hooks/useDelivery";
 import { deliveryReadErrorOf } from "../../lib/api";
 import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
@@ -21,6 +15,8 @@ import DeliveryRail from "./DeliveryHealth";
 import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
+import LifecycleControls from "./LifecycleControls";
+import RoleMatrix from "./RoleMatrix";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
@@ -30,8 +26,9 @@ import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
 // default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
 // to review on the same pile (SB-FR-033), the boundary panel with the steering
-// composer (SB-FR-016, SB-FR-017), and the controls, among them Approve,
-// which waits while a review is open (SB-FR-034), when the
+// composer (SB-FR-016, SB-FR-017), the role matrix (SB-FR-021), and the
+// lifecycle controls (SB-FR-022), among them Approve, which waits while a
+// review is open (SB-FR-034) or a gating case is unmet, when the
 // record conforms, or the named error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
@@ -138,14 +135,8 @@ function LaunchDeliveryControl({ bench }: { bench: Bench }) {
 }
 
 function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: DeliverySnapshot }) {
-  const roles = Object.entries(snapshot.roles);
-  const resume = useResumeDelivery(bench.projectId, bench.id);
-  const resumeBlocked = useSessionStartBlocked(bench);
+  const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
-  // Approval waits while a review is open (SB-FR-034); the approve route reads
-  // the same selector, so the control and the 409 agree.
-  const approve = useApproveDelivery(bench.projectId, bench.id);
-  const approval = selectApprovalAvailability(snapshot);
   const costHealthControls = useRef<HTMLElement>(null);
   // The view of cost, health and controls: the burn meter, the jam list, the
   // drift ledger and the delivery's controls, which the header's button opens.
@@ -208,59 +199,20 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
           <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
         </section>
 
-        <p className="text-12 text-text-secondary">
-          Changing a role's tier is not available on this bench yet.
-        </p>
-
-        <section
-          data-testid="delivery-role-controls"
-          aria-label="Roles"
-          className="flex flex-wrap gap-2"
-        >
-          {roles.map(([role, value]) => (
-            <Button key={role} isDisabled>
-              {role}: {value.tier}
-            </Button>
-          ))}
+        <section data-testid="delivery-role-controls" aria-label="Roles">
+          <RoleMatrix
+            projectId={bench.projectId}
+            benchId={bench.id}
+            snapshot={snapshot}
+            disabled={classifyLifecycleState(snapshot.lifecycle.state) === "complete"}
+          />
         </section>
 
-        <section
-          data-testid="delivery-lifecycle-controls"
-          aria-label="Lifecycle"
-          className="flex flex-wrap gap-2"
-        >
-          <Button onPress={() => resume.mutate()} isDisabled={resume.isPending || resumeBlocked}>
-            Resume
-          </Button>
-          <Button isDisabled>Pause</Button>
-          <Button isDisabled>Wind down</Button>
-          <Button
-            onPress={() => approve.mutate()}
-            isDisabled={approve.isPending || !approval.available}
-            aria-describedby={approval.reason !== null ? "delivery-approve-reason" : undefined}
-          >
-            Approve
-          </Button>
-        </section>
-        {approval.reason !== null && (
-          <p
-            id="delivery-approve-reason"
-            data-testid="delivery-approve-reason"
-            className="text-12 text-text-secondary"
-          >
-            {approval.reason}
-          </p>
-        )}
-        {resume.isError && (
-          <Callout role="alert" title="The delivery session did not start">
-            {resume.error.message}
-          </Callout>
-        )}
-        {approve.isError && (
-          <Callout role="alert" title="The approval was not sent">
-            {approve.error.message}
-          </Callout>
-        )}
+        <LifecycleControls
+          bench={bench}
+          snapshot={snapshot}
+          sessionStartBlocked={sessionStartBlocked}
+        />
       </section>
     </div>
   );
