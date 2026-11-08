@@ -71,10 +71,7 @@ import {
   type DeliveryControlReadReply,
   type DeliveryControlStatus,
 } from "@roubo/shared/delivery-control-contract";
-import type {
-  DeliveryEvent,
-  DeliveryRecord,
-} from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import type { Author } from "@roubo/shared/testbench-contracts";
 import * as stateService from "./state.js";
 
@@ -446,7 +443,8 @@ export function pruneDeliveryControls(
     (control) => control.kind === "mode_switch" && control.delivery_id === record.delivery_id,
   );
   const lastSwitch = ownSwitches.reduce<DeliveryOutboxControl | undefined>(
-    (last, control) => (last === undefined || control.control_seq > last.control_seq ? control : last),
+    (last, control) =>
+      last === undefined || control.control_seq > last.control_seq ? control : last,
     undefined,
   );
   const pending = record.mode.pending ?? null;
