@@ -240,10 +240,7 @@ function appendSpill(spillPath: string, events: readonly DeliveryEvent[]): void 
   // A torn last line is closed first, so the first event appended now is a
   // line of its own and not the tail of the torn one.
   const lead = endsMidLine(spillPath) ? "\n" : "";
-  fs.appendFileSync(
-    spillPath,
-    lead + events.map((event) => `${JSON.stringify(event)}\n`).join(""),
-  );
+  fs.appendFileSync(spillPath, lead + events.map((event) => `${JSON.stringify(event)}\n`).join(""));
 }
 
 // The events of the spill file that belong to the delivery and sit above
