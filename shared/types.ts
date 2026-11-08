@@ -3,6 +3,8 @@
 import type {
   RouboConfig,
   ComponentConfig,
+  PortConfig,
+  BenchesConfig,
   ConfigFieldError,
   LoginConfig,
   ToolConfig,
@@ -1820,6 +1822,24 @@ export interface DeliveryFixUnitBlocker {
  */
 export type DeliveryOutboxControl = DeliveryControl & { author: Author; reviewAction?: true };
 
+/**
+ * The component definitions a bench was set up with (HR-FR-003): the
+ * `components`, `ports` and `benches.setup`/`benches.shell` sections of
+ * roubo.yaml, frozen when the bench is set up. A running bench keeps reading
+ * these until 'Restart with new config' takes a new snapshot, so a roubo.yaml
+ * save never changes the definitions under a bench that is already running.
+ * `configHash` is the hash of the three sections at that moment (the same hash
+ * the live config is compared with to derive `Bench.stale`), and `takenAt` is
+ * when the snapshot was taken (ISO-8601).
+ */
+export interface ComponentSnapshot {
+  components: Record<string, ComponentConfig>;
+  ports: Record<string, PortConfig>;
+  benches: Pick<BenchesConfig, "setup" | "shell">;
+  configHash: string;
+  takenAt: string;
+}
+
 export interface Bench {
   id: number;
   projectId: string;
@@ -1952,6 +1972,19 @@ export interface Bench {
    * the old flow, which always ran setup).
    */
   benchSetupComplete?: boolean;
+  /**
+   * The component definitions the bench was set up with (HR-FR-003). Absent
+   * on a bench set up before snapshots existed: that bench reads the live
+   * config and is never stale.
+   */
+  componentSnapshot?: ComponentSnapshot;
+  /**
+   * Whether the project's roubo.yaml changed the component definitions since
+   * the bench was set up (HR-FR-004): the snapshot's `configHash` differs from
+   * the hash of the live config. Derived by the bench serialiser on each read
+   * and never persisted. Absent on the in-memory bench.
+   */
+  stale?: boolean;
 }
 
 // ── Git dirty-state types ──
@@ -2326,6 +2359,8 @@ export interface PersistedBench {
    * load-time migration coerces those to `true`.
    */
   benchSetupComplete?: boolean;
+  /** Persisted mirror of Bench.componentSnapshot. Absent on a legacy record. */
+  componentSnapshot?: ComponentSnapshot;
 }
 
 /**
