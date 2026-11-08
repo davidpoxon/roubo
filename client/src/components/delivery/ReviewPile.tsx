@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button as AriaButton } from "react-aria-components";
+import { Button as AriaButton, Label, TextArea, TextField } from "react-aria-components";
 import type { DeliveryControl } from "@roubo/shared/delivery-control-contract";
 import type { DeliveryDecision } from "@roubo/shared/delivery-observation-contract";
 import type { DeliverySnapshot, DeliveryThreadMessage } from "@roubo/shared/delivery-reducer";
@@ -12,7 +12,12 @@ import {
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
-import { useReviewAction, type ReviewActionRequest } from "../../hooks/useDelivery";
+import { FIELD_LABEL_CLASS, INPUT_CLASS } from "../ui/styles";
+import {
+  useReviewAction,
+  useThreadMessage,
+  type ReviewActionRequest,
+} from "../../hooks/useDelivery";
 
 // The agent decisions on the decision pile (SB-FR-033, SB-FR-034, SB-NFR-009),
 // the Review card of DESIGN.md. Each decision the session made on its own in
@@ -20,9 +25,14 @@ import { useReviewAction, type ReviewActionRequest } from "../../hooks/useDelive
 // is the live top card under the 2px accent rule: its badge, a mono origin line
 // naming where it was decided and the units it affects, the question, the
 // choice, the rationale and its actions (SB-FR-035): Accept, Overturn with
-// another option, and Discuss, which shows the decision's thread read-only
-// while a review is open; during a run the thread is unavailable and the card
-// says why. A lower card shows only its title bar,
+// another option, and Discuss, which opens the decision's thread while a review
+// is open (SB-FR-036): the operator's messages, the session's replies on the
+// inset ground, a waiting line while a message has no reply, and a composer
+// that sends a message as a volatile thread_message control. The composer is
+// disabled, with a notice, while the bench's main session does not run; during
+// a run the thread is unavailable and the card says why. After the outcome
+// the card leaves the pile, and only its summary stays. A lower card shows
+// only its title bar,
 // and raises on click or Enter, so a pile of a hundred cards renders one body.
 // A reviewed card leaves with `drop-away` and the next oldest rises.
 //
@@ -97,20 +107,101 @@ function Badge({ decision, word }: { decision: DeliveryDecision; word: ReviewWor
   );
 }
 
-function ThreadMessage({ message }: { message: DeliveryThreadMessage }) {
-  // A read-back of the operator's own message names its control; every other
-  // message is the session's reply, on the inset ground.
-  const fromOperator = message.controlSeq !== undefined;
+// One entry of a card's thread: an operator's message or a session's reply.
+interface ThreadEntry {
+  testId: string;
+  fromOperator: boolean;
+  author: string;
+  ts: string;
+  text: string;
+  // The control_seq of an operator's message.
+  controlSeq?: number;
+  // The control_seq a session's reply answers, as its in_reply_to names it.
+  inReplyTo?: string;
+}
+
+// The thread a card shows, and whether an operator's message waits for its
+// reply. The operator's messages come from the thread_message controls the
+// bench holds in memory (never saved, so a restart drops them) and from the
+// stream's read-backs of them (a review.reply with control_seq); the session's
+// replies are the other review.reply events, and each names the message it
+// answers in in_reply_to. A held message whose read-back is in the stream shows
+// once. A held message goes before the first reply that answers it, else at the
+// end. A reply whose question the bench no longer holds shows on its own.
+function cardThread(
+  thread: readonly DeliveryThreadMessage[],
+  controls: readonly DeliveryControl[],
+  decisionId: string,
+): { entries: ThreadEntry[]; waiting: boolean } {
+  const entries: ThreadEntry[] = thread.map((message) => {
+    const fromOperator = message.controlSeq !== undefined;
+    return {
+      testId: `review-thread-message-${message.seq}`,
+      fromOperator,
+      author: fromOperator ? "you" : message.author,
+      ts: message.ts,
+      text: message.text,
+      ...(message.controlSeq !== undefined && { controlSeq: message.controlSeq }),
+      ...(!fromOperator && message.inReplyTo !== undefined && { inReplyTo: message.inReplyTo }),
+    };
+  });
+  const echoed = new Set(entries.flatMap((entry) => entry.controlSeq ?? []));
+  for (const control of controls) {
+    if (
+      control.kind !== "thread_message" ||
+      control.target_id !== decisionId ||
+      !OUTSTANDING_STATUSES.has(control.status) ||
+      echoed.has(control.control_seq)
+    ) {
+      continue;
+    }
+    const text = (control.body as { text?: unknown }).text;
+    if (typeof text !== "string") continue;
+    const entry: ThreadEntry = {
+      testId: `review-thread-control-${control.control_seq}`,
+      fromOperator: true,
+      author: "you",
+      ts: control.issued_at,
+      text,
+      controlSeq: control.control_seq,
+    };
+    const answer = entries.findIndex((e) => e.inReplyTo === String(control.control_seq));
+    if (answer < 0) entries.push(entry);
+    else entries.splice(answer, 0, entry);
+  }
+  const answered = new Set(entries.flatMap((entry) => entry.inReplyTo ?? []));
+  const waiting = entries.some(
+    (entry) => entry.controlSeq !== undefined && !answered.has(String(entry.controlSeq)),
+  );
+  return { entries, waiting };
+}
+
+// The time of a message as the clock reads it, or the stamp as it came when it
+// does not parse.
+function timeOf(ts: string): string {
+  const ms = Date.parse(ts);
+  if (Number.isNaN(ms)) return ts;
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function ThreadMessage({ entry }: { entry: ThreadEntry }) {
+  // The operator's message sits on the card ground; the session's reply on
+  // the inset ground.
   return (
     <li
-      data-testid={`review-thread-message-${message.seq}`}
-      className={`space-y-1 rounded-card p-2 ${fromOperator ? "" : "bg-bg-base"}`}
+      data-testid={entry.testId}
+      data-from={entry.fromOperator ? "operator" : "session"}
+      className={`animate-rise-in space-y-1 rounded-card p-2 ${entry.fromOperator ? "" : "bg-bg-base"}`}
     >
       <p className="flex gap-2 font-mono text-11 text-text-secondary">
-        <span>{fromOperator ? "you" : message.author}</span>
-        <span>{message.ts}</span>
+        <span data-testid="review-thread-author" className="font-medium">
+          {entry.author}
+        </span>
+        <time data-testid="review-thread-time" dateTime={entry.ts}>
+          {timeOf(entry.ts)}
+        </time>
       </p>
-      <p className="whitespace-pre-wrap break-words text-13 text-text-body">{message.text}</p>
+      <p className="whitespace-pre-wrap break-words text-13 text-text-body">{entry.text}</p>
     </li>
   );
 }
@@ -118,6 +209,62 @@ function ThreadMessage({ message }: { message: DeliveryThreadMessage }) {
 // Why the thread is unavailable during a run.
 export const REVIEW_THREAD_UNAVAILABLE =
   "The thread opens at a review: while the delivery runs, the session reads no message.";
+
+// Why the composer is disabled at a review with no live session.
+export const REVIEW_THREAD_NO_SESSION =
+  "The session is not running, so it reads no message. Discussion opens at a review, with a live session.";
+
+// The label of the waiting line while the session answers.
+export const REVIEW_THREAD_WAITING = "session is replying";
+
+function ThreadComposer({
+  decisionId,
+  sessionLive,
+  isSending,
+  onSend,
+}: {
+  decisionId: string;
+  sessionLive: boolean;
+  isSending: boolean;
+  onSend: (text: string, sent: () => void) => void;
+}) {
+  const [text, setText] = useState("");
+  const noticeId = `review-thread-${decisionId}-notice`;
+  const disabled = !sessionLive;
+  const canSend = !disabled && !isSending && text.trim().length > 0;
+  return (
+    <>
+      <form
+        data-testid="review-thread-composer"
+        data-disabled={disabled ? "true" : "false"}
+        className={`flex items-end gap-2 ${disabled ? "opacity-40" : ""}`}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canSend) onSend(text, () => setText(""));
+        }}
+      >
+        <TextField
+          value={text}
+          onChange={setText}
+          isDisabled={disabled}
+          aria-describedby={disabled ? noticeId : undefined}
+          className="flex flex-1 flex-col gap-1"
+        >
+          <Label className={FIELD_LABEL_CLASS}>Ask about this decision</Label>
+          <TextArea rows={2} className={INPUT_CLASS} />
+        </TextField>
+        <Button type="submit" isDisabled={!canSend}>
+          Send
+        </Button>
+      </form>
+      {disabled && (
+        <p id={noticeId} data-testid="review-thread-notice" className="text-12 text-text-secondary">
+          {REVIEW_THREAD_NO_SESSION}
+        </p>
+      )}
+    </>
+  );
+}
 
 function TopCard({
   decision,
@@ -128,6 +275,10 @@ function TopCard({
   isSending,
   onAction,
   thread,
+  waiting,
+  sessionLive,
+  isSendingMessage,
+  onSendMessage,
 }: {
   decision: DeliveryDecision;
   word: ReviewWord;
@@ -136,7 +287,11 @@ function TopCard({
   reviewOpen: boolean;
   isSending: boolean;
   onAction: (action: ReviewActionRequest) => void;
-  thread: readonly DeliveryThreadMessage[];
+  thread: readonly ThreadEntry[];
+  waiting: boolean;
+  sessionLive: boolean;
+  isSendingMessage: boolean;
+  onSendMessage: (text: string, sent: () => void) => void;
 }) {
   const [discussingAtReview, setDiscussing] = useState(false);
   const [overturning, setOverturning] = useState(false);
@@ -247,11 +402,30 @@ function TopCard({
             <p className="text-12 text-text-secondary">No messages on this decision yet</p>
           ) : (
             <ol aria-label={`Thread of ${decision.id}`} className="space-y-2">
-              {thread.map((message) => (
-                <ThreadMessage key={message.seq} message={message} />
+              {thread.map((entry) => (
+                <ThreadMessage key={entry.testId} entry={entry} />
               ))}
             </ol>
           )}
+          {waiting && (
+            <p
+              data-testid="review-thread-waiting"
+              role="status"
+              className="flex items-center gap-1.5 text-11 font-medium text-text-secondary"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 animate-status-pulse rounded-full bg-status-preparing"
+              />
+              {REVIEW_THREAD_WAITING}
+            </p>
+          )}
+          <ThreadComposer
+            decisionId={decision.id}
+            sessionLive={sessionLive}
+            isSending={isSendingMessage}
+            onSend={onSendMessage}
+          />
         </div>
       )}
     </article>
@@ -262,12 +436,16 @@ export default function ReviewPile({
   projectId,
   benchId,
   snapshot,
+  sessionLive = false,
 }: {
   projectId: string;
   benchId: number;
   snapshot: DeliverySnapshot;
+  // Whether the bench's main session runs: the composer sends only then.
+  sessionLive?: boolean;
 }) {
   const review = useReviewAction(projectId, benchId);
+  const threadMessage = useThreadMessage(projectId, benchId);
   const cards = selectReviewStack(snapshot).flatMap((card) =>
     card.kind === "decision" ? [card.decision] : [],
   );
@@ -302,6 +480,22 @@ export default function ReviewPile({
   const top = cards.find((decision) => decision.id === raisedId) ?? cards[0];
   const lower = cards.filter((decision) => decision !== top);
   const topQueued = top === undefined ? undefined : queuedAction(snapshot.controls, top.id);
+  const topThread =
+    top === undefined
+      ? { entries: [], waiting: false }
+      : cardThread(selectDecisionThread(snapshot, top.id), snapshot.controls, top.id);
+
+  const sendMessage = (decisionId: string, text: string, sent: () => void) => {
+    threadMessage.mutate(
+      { decisionId, text },
+      {
+        onSuccess: () => {
+          sent();
+          setAnnouncement(`Sent a message on ${decisionId}; the session reads it next.`);
+        },
+      },
+    );
+  };
 
   const act = (action: ReviewActionRequest) => {
     review.mutate(action, {
@@ -338,6 +532,11 @@ export default function ReviewPile({
           {review.error.message}
         </Callout>
       )}
+      {threadMessage.isError && (
+        <Callout role="alert" title="The message was not sent">
+          {threadMessage.error.message}
+        </Callout>
+      )}
       {top !== undefined && (
         <ul aria-label="Review pile" className="space-y-2">
           <li key={`top-${top.id}`}>
@@ -350,7 +549,11 @@ export default function ReviewPile({
               reviewOpen={reviewOpen}
               isSending={review.isPending}
               onAction={act}
-              thread={selectDecisionThread(snapshot, top.id)}
+              thread={topThread.entries}
+              waiting={topThread.waiting}
+              sessionLive={sessionLive}
+              isSendingMessage={threadMessage.isPending}
+              onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
             />
           </li>
           {lower.map((decision) => (
@@ -386,12 +589,17 @@ export default function ReviewPile({
                 {decision.id} · {decision.review?.status} · chose {decision.chosen}
               </p>
               {decision.review?.summary !== undefined && (
-                <p
-                  data-testid={`review-summary-${decision.id}`}
-                  className="whitespace-pre-wrap break-words text-13 text-text-body"
-                >
-                  {decision.review.summary}
-                </p>
+                <>
+                  <p className="font-mono text-11 font-medium text-text-secondary">
+                    discussion summary
+                  </p>
+                  <p
+                    data-testid={`review-summary-${decision.id}`}
+                    className="whitespace-pre-wrap break-words text-13 text-text-body"
+                  >
+                    {decision.review.summary}
+                  </p>
+                </>
               )}
             </li>
           ))}

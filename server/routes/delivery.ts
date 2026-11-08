@@ -185,6 +185,28 @@
 //                                                 `delivered`. A review.outcome for the
 //                                                 decision with the other outcome marks
 //                                                 the action `superseded`.
+//   POST /:projectId/benches/:id/delivery/decisions/:decisionId/thread
+//        body {text}                            -> 202 DeliveryOutboxControl: a
+//                                                    volatile thread_message control
+//                                                    of an agent decision (SB-FR-036),
+//                                                    status queued, held in memory
+//                                                    for the next controls read
+//                                                    only and never saved; the
+//                                                    session answers with a
+//                                                    review.reply whose in_reply_to
+//                                                    names its control_seq
+//                                                    400 INVALID_TEXT + field `text`:
+//                                                        not a string, blank, or longer
+//                                                        than the contract allows
+//                                                    404 DECISION_NOT_FOUND: as the answer
+//                                                    409 NOT_AGENT_DECISION: as the accept
+//                                                    409 THREAD_UNAVAILABLE + reason:
+//                                                        `no_review` when no review is
+//                                                        open or the decision is
+//                                                        reviewed already, `no_session`
+//                                                        when the bench's main session
+//                                                        does not run
+//                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/approve
 //        body {reason?}                         -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
@@ -227,6 +249,7 @@ import {
 } from "@roubo/shared/delivery-bench";
 import {
   AGENT_AUTHOR,
+  DELIVERY_TEXT_MAX_LENGTH,
   type DeliveryDecision,
   type DeliveryEvent,
   type DeliveryRecord,
@@ -250,13 +273,14 @@ import {
 import { runCommand } from "../services/exec.js";
 import { resolveGitIdentity } from "../services/git-helpers.js";
 import {
+  deliveryCardControlsOf,
   deliveryControlsOf,
   isControlOutstanding,
   isReviewControl,
   issueDeliveryControl,
 } from "../services/delivery-control-outbox.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
-import { getSessionScrollback } from "../services/terminal.js";
+import { getSession, getSessionScrollback } from "../services/terminal.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -342,7 +366,9 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
       record: loaded.record,
       events,
       ...verify,
-      controls: deliveryControlsOf(bench),
+      // The served thread messages too, so a review card keeps its question
+      // while the session answers.
+      controls: deliveryCardControlsOf(bench),
       now: Date.now(),
     }),
   );
@@ -911,6 +937,75 @@ router.post(
       return;
     }
     issueControl(res, context, "overturn", decisionId, { option });
+  },
+);
+
+// ── The discussion thread of an agent decision (SB-FR-036) ──
+
+// Whether the bench's main session, the terminal session core launched for
+// the delivery, runs.
+function isMainSessionLive(bench: Bench): boolean {
+  const sessionId = bench.deliverySessionId;
+  return sessionId !== undefined && getSession(sessionId)?.status === "live";
+}
+
+function sendThreadUnavailable(
+  res: Response,
+  reason: "no_review" | "no_session",
+  error: string,
+): void {
+  res.status(409).json({ error, code: "THREAD_UNAVAILABLE", reason });
+}
+
+router.post(
+  "/:projectId/benches/:id/delivery/decisions/:decisionId/thread",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const text: unknown = (req.body as { text?: unknown } | undefined)?.text;
+    if (
+      typeof text !== "string" ||
+      text.trim().length === 0 ||
+      text.length > DELIVERY_TEXT_MAX_LENGTH
+    ) {
+      res.status(400).json({
+        error: `text must be a non-blank string of at most ${DELIVERY_TEXT_MAX_LENGTH} characters`,
+        code: "INVALID_TEXT",
+        field: "text",
+      });
+      return;
+    }
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    const target = pathDecision(req, res, context.snapshot);
+    if (!target) return;
+    const { decisionId, decision } = target;
+    if (!isAgentDecision(decision)) {
+      res.status(409).json({
+        error: `The session asked the decision ${decisionId}: answer it instead`,
+        code: "NOT_AGENT_DECISION",
+      });
+      return;
+    }
+    if (context.snapshot.review.status !== "open") {
+      sendThreadUnavailable(res, "no_review", "The thread opens at a review, and none is open");
+      return;
+    }
+    if ((decision.review?.status ?? "unreviewed") !== "unreviewed") {
+      sendThreadUnavailable(res, "no_review", `The review of ${decisionId} is over`);
+      return;
+    }
+    if (!isMainSessionLive(bench)) {
+      sendThreadUnavailable(
+        res,
+        "no_session",
+        "The bench's main session does not run, so nothing reads the thread",
+      );
+      return;
+    }
+    // Volatile: held for the next controls read only, and never saved.
+    issueControl(res, context, "thread_message", decisionId, { text });
   },
 );
 
