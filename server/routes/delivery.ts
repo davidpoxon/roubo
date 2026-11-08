@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-034, SB-FR-035).
+// SB-FR-009, SB-FR-013, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
 //   GET  /:projectId/benches/:id/delivery         -> 200 DeliverySnapshot: the record,
@@ -207,8 +207,27 @@
 //                                                        when the bench's main session
 //                                                        does not run
 //                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/steering
+//        body {text, applies_at}                -> 202 DeliveryOutboxControl: a
+//                                                    steering-note control with
+//                                                    body {note: text, unit_ids: [],
+//                                                    applies_at} (every unit after
+//                                                    the boundary `applies_at`
+//                                                    names), issued as an answer is
+//                                                    (SB-FR-016); the session reads
+//                                                    it back with a steering.added
+//                                                    whose payload names its
+//                                                    control_seq, and only then is
+//                                                    the note applied
+//                                                    400 INVALID_BODY + field: `text`
+//                                                        is not a non-blank string,
+//                                                        `applies_at` is not a
+//                                                        non-empty string, or the
+//                                                        control fails the control
+//                                                        contract
+//                                                    404 and 409 as the snapshot read
 //   POST /:projectId/benches/:id/delivery/approve
-//        body {reason?}                         -> 202 DeliveryOutboxControl: an
+//        body {reason?}                       -> 202 DeliveryOutboxControl: an
 //                                                    approval control of the delivery,
 //                                                    with no target, issued as an answer
 //                                                    is
@@ -1006,6 +1025,41 @@ router.post(
     }
     // Volatile: held for the next controls read only, and never saved.
     issueControl(res, context, "thread_message", decisionId, { text });
+  },
+);
+
+// ── Steering notes (SB-FR-016) ──
+
+router.post(
+  "/:projectId/benches/:id/delivery/steering",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const body = req.body as { text?: unknown; applies_at?: unknown } | undefined;
+    const text = body?.text;
+    if (typeof text !== "string" || text.trim().length === 0) {
+      sendInvalidBody(res, "text", "text must be a non-blank string");
+      return;
+    }
+    const appliesAt = body?.applies_at;
+    if (typeof appliesAt !== "string" || appliesAt.length === 0) {
+      sendInvalidBody(
+        res,
+        "applies_at",
+        "applies_at must name the unit boundary the note lands at",
+      );
+      return;
+    }
+    const context = await controlContext(bench, res);
+    if (!context) return;
+    // A note for every unit after the boundary it names: no unit list, and the
+    // boundary kept as a loose key of the control body.
+    issueControl(res, context, "steering-note", undefined, {
+      note: text,
+      unit_ids: [],
+      applies_at: appliesAt,
+    });
   },
 );
 

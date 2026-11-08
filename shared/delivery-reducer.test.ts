@@ -1156,6 +1156,25 @@ describe("foldDelivery event handlers", () => {
     expect(snapshot.steeringById["steering-3"].unit_ids).toEqual([]);
   });
 
+  it("SB-TC-039 steering.added keeps the control_seq of the steering note it reads back", () => {
+    const record = fixtureRecord();
+    const events = stream(
+      ["steering.added", { steering_id: "s-read", note: "Will do.", control_seq: 4 }],
+      ["steering.added", { steering_id: "s-bad", note: "No seq.", control_seq: 0 }],
+      ["steering.added", { steering_id: "s-text", note: "No seq.", control_seq: "4" }],
+    );
+    const snapshot = foldDelivery({ record, events });
+    expect(snapshot.steeringById["s-read"]).toEqual({
+      id: "s-read",
+      note: "Will do.",
+      unit_ids: [],
+      created_at: "2026-10-16T10:00:00Z",
+      control_seq: 4,
+    });
+    expect(Object.hasOwn(snapshot.steeringById["s-bad"], "control_seq")).toBe(false);
+    expect(Object.hasOwn(snapshot.steeringById["s-text"], "control_seq")).toBe(false);
+  });
+
   it("budget.changed merges the numeric fields", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({

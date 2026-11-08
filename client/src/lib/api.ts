@@ -697,6 +697,20 @@ export function sendDeliveryThreadMessage(
   );
 }
 
+// Send a steering note for the next unit boundary (SB-FR-016): 202 with the
+// steering-note control, queued until the session reads it back.
+export function sendDeliverySteeringNote(
+  projectId: string,
+  benchId: number,
+  text: string,
+  appliesAt: string,
+): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/steering`, {
+    method: "POST",
+    body: JSON.stringify({ text, applies_at: appliesAt }),
+  });
+}
+
 // Approve the delivery (SB-FR-034): 202 with the approval control, or 409
 // REVIEW_OPEN while a review is open.
 export function approveDelivery(
