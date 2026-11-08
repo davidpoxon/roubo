@@ -83,8 +83,7 @@ export function createNotification(
       : launchFailure;
 
   const existing = bench.notifications.find(
-    (n) =>
-      n.type === type && n.sourceSessionId === sourceSessionId && n.dedupeKey === dedupeKey,
+    (n) => n.type === type && n.sourceSessionId === sourceSessionId && n.dedupeKey === dedupeKey,
   );
   if (existing) {
     // A repeat that carries a payload replaces the whole payload, so a later

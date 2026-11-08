@@ -329,8 +329,7 @@ export interface DeliveryBurn {
 
 export function selectBurn(snapshot: DeliverySnapshot): DeliveryBurn {
   const { spent_usd: spentUsd, soft_budget_usd: softBudgetUsd } = snapshot.budget;
-  const fill =
-    softBudgetUsd > 0 ? Math.min(1, spentUsd / softBudgetUsd) : spentUsd > 0 ? 1 : 0;
+  const fill = softBudgetUsd > 0 ? Math.min(1, spentUsd / softBudgetUsd) : spentUsd > 0 ? 1 : 0;
   const byUnit: BurnUnitCost[] = [];
   for (const unit of selectUnitsInStackOrder(snapshot)) {
     if (unit.cost_usd === undefined) continue;
