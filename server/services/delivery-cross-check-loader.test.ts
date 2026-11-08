@@ -349,10 +349,18 @@ describe("SB-TC-071: when the cross-check refreshes", () => {
     expect(runs()).toBe(9);
   });
 
-  it("SB-TC-071 runs one refresh for each refreshing event type, the contract's unit.changed and gate.changed included", async () => {
+  it("SB-TC-071 runs one refresh for each refreshing event type, the contract's unit.changed and gate.changed and the provisional gate.provisional and gate.confirmed included", async () => {
     await readDeliveryCrossCheck(bench);
     expect(runs()).toBe(1);
-    const types = ["unit.boundary", "pr.submitted", "gate.reached", "unit.changed", "gate.changed"];
+    const types = [
+      "unit.boundary",
+      "pr.submitted",
+      "gate.reached",
+      "unit.changed",
+      "gate.changed",
+      "gate.provisional",
+      "gate.confirmed",
+    ];
     expect([...DELIVERY_CROSS_CHECK_EVENT_TYPES].sort()).toEqual([...types].sort());
     let seq = 8;
     for (const type of types) {
