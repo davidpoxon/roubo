@@ -31,14 +31,28 @@
 // a review control targets (`accepted` for a `review_accept`, `overturned` for
 // an `overturn`), marks the control `applied`. A `review.outcome` with the
 // other outcome settles the review all the same: it marks an outstanding review
-// action on that decision `superseded`, so no later read serves it. A control
-// stays `pending` until then, but for a review action (a control issued with `reviewAction`: a
-// `review_accept`, or an `overturn` of an agent decision): the read that serves
-// it marks it `delivered`, so the bench knows the tooling has it.
+// action on that decision `superseded`, so no later read serves it. The read
+// that serves a pending durable control marks it `delivered`, so the bench knows
+// the tooling has it; it stays `delivered` until the read-back or the record
+// shows its effect.
 //
 // A control issued with `supersedes` marks each pending control it names
 // `superseded` in the same write (an operator's second review action on a card
 // before the tooling read the first). A read never serves a superseded control.
+//
+// The record loader prunes the queue against the record on every load
+// (`pruneDeliveryControlQueue`, SB-FR-037): a queued control leaves the queue
+// only when the record shows its effect, never on delivery alone. A review
+// action leaves it once the record shows its decision reviewed with the outcome
+// it asked for (`accepted` for a `review_accept`, `overturned` for an
+// `overturn`), and a `mode_switch` once the record states its mode with no
+// other switch on its way (see `pruneDeliveryControls` for a switch that a later
+// one overtook). A review action whose decision the record shows
+// reviewed with the other outcome is marked `superseded` instead, as the event
+// read-back marks it, so no read serves it again. So a `delivered` control
+// that the record does not show applied stays queued, and a read with
+// `after=0` after a restart serves it again; the tooling applies an accept or
+// an overturn for the same decision and option once only.
 //
 // A read with a `wait` and nothing to serve (`hasServableDeliveryControl`: a
 // superseded control above its cursor counts as nothing) waits here for the
@@ -57,7 +71,7 @@ import {
   type DeliveryControlReadReply,
   type DeliveryControlStatus,
 } from "@roubo/shared/delivery-control-contract";
-import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import type { Author } from "@roubo/shared/testbench-contracts";
 import * as stateService from "./state.js";
 
@@ -84,8 +98,8 @@ function benchKey(projectId: string, benchId: number): string {
 // The statuses of a control the tooling has not acted on yet.
 const OUTSTANDING: ReadonlySet<DeliveryControlStatus> = new Set(["pending", "queued", "delivered"]);
 
-// An operator's review action on an agent decision's card: the read that serves
-// one marks it `delivered`.
+// An operator's review action on an agent decision's card. Once a read has
+// served one, nothing replaces it (409 REVIEW_ACTION_DELIVERED).
 export function isReviewControl(control: DeliveryOutboxControl): boolean {
   return control.reviewAction === true;
 }
@@ -278,20 +292,14 @@ export function hasServableDeliveryControl(bench: Bench, after: number): boolean
  * The read reply of the outbox: the controls above `after` in control_seq
  * order, and the latest control_seq. A superseded control is never served. A
  * volatile control is served once: the read that returns it drops it from
- * memory. A pending review action the read serves is marked `delivered`, and
- * the reply carries it so.
+ * memory. Each pending durable control the read serves is marked `delivered`
+ * and persisted, and the reply carries it so.
  */
 export function readDeliveryControls(bench: Bench, after: number): DeliveryControlReadReply {
   const key = benchKey(bench.projectId, bench.id);
   const delivered = new Set(
     deliveryControlsOf(bench)
-      .filter(
-        (c) =>
-          c.control_seq > after &&
-          c.durability === "durable" &&
-          c.status === "pending" &&
-          isReviewControl(c),
-      )
+      .filter((c) => c.control_seq > after && c.durability === "durable" && c.status === "pending")
       .map((c) => c.control_seq),
   );
   if (delivered.size > 0) {
@@ -391,6 +399,116 @@ export function applyDeliveryControlReadBacks(
     persist(bench);
   }
   return applied;
+}
+
+/** What the record states that a prune of the queue reads. */
+export type DeliveryControlPruneRecord = Pick<DeliveryRecord, "delivery_id" | "decisions" | "mode">;
+
+// The review outcome a review action asks for.
+function reviewOutcomeOf(control: DeliveryOutboxControl): "accepted" | "overturned" | undefined {
+  if (!isReviewControl(control)) return undefined;
+  if (control.kind === "review_accept") return "accepted";
+  if (control.kind === "overturn") return "overturned";
+  return undefined;
+}
+
+function switchedMode(control: DeliveryOutboxControl): unknown {
+  return (control.body as { mode?: unknown } | undefined)?.mode;
+}
+
+/**
+ * The queue as the record leaves it: each control whose effect the record
+ * shows is gone, and each review action whose decision the record shows
+ * reviewed with the other outcome reads `superseded`. A control of another
+ * delivery is left as it is. Returns the queue itself when nothing changes.
+ *
+ * A `mode_switch` is judged against the last one in the queue: when the record
+ * states that one's mode and no switch is pending, a switch to that mode goes,
+ * and so does an earlier switch to another mode that no read has served (or
+ * that the tooling has applied): the last one overtook it. An earlier switch to
+ * another mode that a read served (`delivered`) stays, because the record does
+ * not show its effect and the tooling may still apply it; the last switch then
+ * stays too, so a replay ends at the operator's last mode.
+ */
+export function pruneDeliveryControls(
+  queue: readonly DeliveryOutboxControl[],
+  record: DeliveryControlPruneRecord,
+): readonly DeliveryOutboxControl[] {
+  const reviews = new Map<string, string>();
+  for (const decision of record.decisions) {
+    const status = decision.review?.status;
+    if (status === "accepted" || status === "overturned") reviews.set(decision.id, status);
+  }
+  const ownSwitches = queue.filter(
+    (control) => control.kind === "mode_switch" && control.delivery_id === record.delivery_id,
+  );
+  const lastSwitch = ownSwitches.reduce<DeliveryOutboxControl | undefined>(
+    (last, control) =>
+      last === undefined || control.control_seq > last.control_seq ? control : last,
+    undefined,
+  );
+  const pending = record.mode.pending ?? null;
+  const modeShown =
+    lastSwitch !== undefined &&
+    switchedMode(lastSwitch) === record.mode.value &&
+    (pending === null || pending === record.mode.value);
+  // An earlier switch to another mode that the tooling has read but the record
+  // does not show applied.
+  const servedOther = (control: DeliveryOutboxControl): boolean =>
+    control !== lastSwitch &&
+    control.status === "delivered" &&
+    switchedMode(control) !== record.mode.value;
+  const keepLast = ownSwitches.some(servedOther);
+
+  let changed = false;
+  const next: DeliveryOutboxControl[] = [];
+  for (const control of queue) {
+    if (control.delivery_id !== record.delivery_id) {
+      next.push(control);
+      continue;
+    }
+    if (control.kind === "mode_switch" && modeShown) {
+      const stays = control === lastSwitch ? keepLast : servedOther(control);
+      if (!stays) {
+        changed = true;
+        continue;
+      }
+    }
+    const asked = reviewOutcomeOf(control);
+    const shown = control.target_id === undefined ? undefined : reviews.get(control.target_id);
+    if (asked !== undefined && shown !== undefined) {
+      if (shown === asked) {
+        changed = true;
+        continue;
+      }
+      if (isControlOutstanding(control)) {
+        changed = true;
+        next.push({ ...control, status: "superseded" });
+        continue;
+      }
+    }
+    next.push(control);
+  }
+  return changed ? next : queue;
+}
+
+/**
+ * Prunes the bench's queue against the record it loaded (SB-FR-037), and
+ * persists the bench when the queue changed. The record loader calls it on
+ * every load of a bench's record. Returns the control_seqs it cleared.
+ */
+export function pruneDeliveryControlQueue(
+  bench: Bench,
+  record: DeliveryControlPruneRecord,
+): number[] {
+  const queue = bench.deliveryControlQueue;
+  if (queue === undefined || queue.length === 0) return [];
+  const next = pruneDeliveryControls(queue, record);
+  if (next === queue) return [];
+  const kept = new Set(next.map((control) => control.control_seq));
+  bench.deliveryControlQueue = [...next];
+  persist(bench);
+  return queue.filter((control) => !kept.has(control.control_seq)).map((c) => c.control_seq);
 }
 
 // Drops the thread messages, held or served, of each decision that a
