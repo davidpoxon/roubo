@@ -74,6 +74,20 @@ export interface DeliveryStreamFrame {
   seq: number;
 }
 
+// ── Spec summary (SB-FR-001) ──
+//
+// The body of GET /api/projects/:projectId/specbench/specs/:slug/summary: what
+// the Set up Spec Bench dialog shows of a spec before the bench is created.
+// `units` counts the spec's work units that deliver code (every kind but
+// `verify`), and `gates` counts its verify gates, both from the spec's
+// `work-units.json` in the project checkout. A spec with no `work-units.json`
+// answers 0 and 0.
+export interface SpecBenchSpecSummary {
+  slug: string;
+  units: number;
+  gates: number;
+}
+
 // ── Events read ──
 //
 // The body of GET <base>/events?after=<seq>&unit=<id>. `events` are the
