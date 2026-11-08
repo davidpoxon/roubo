@@ -428,7 +428,11 @@ describe("delivery selectors", () => {
       });
       expect(applied.steeringById["s-2"]?.control_seq).toBe(1);
       expect(selectSteeringNotes(applied)).toEqual([
-        expect.objectContaining({ controlSeq: 1, state: "applied", readBack: "Will do from C on." }),
+        expect.objectContaining({
+          controlSeq: 1,
+          state: "applied",
+          readBack: "Will do from C on.",
+        }),
       ]);
     });
 

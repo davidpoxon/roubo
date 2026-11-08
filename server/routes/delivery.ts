@@ -1044,7 +1044,11 @@ router.post(
     }
     const appliesAt = body?.applies_at;
     if (typeof appliesAt !== "string" || appliesAt.length === 0) {
-      sendInvalidBody(res, "applies_at", "applies_at must name the unit boundary the note lands at");
+      sendInvalidBody(
+        res,
+        "applies_at",
+        "applies_at must name the unit boundary the note lands at",
+      );
       return;
     }
     const context = await controlContext(bench, res);
