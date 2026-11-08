@@ -111,10 +111,7 @@ import {
   type DeliveryLaunchRequest,
 } from "./delivery-session-launcher.js";
 import { forgetDeliveryEventLog } from "./delivery-event-log.js";
-import {
-  forgetDeliveryControlMemory,
-  issueDeliveryControl,
-} from "./delivery-control-outbox.js";
+import { forgetDeliveryControlMemory, issueDeliveryControl } from "./delivery-control-outbox.js";
 import { resolveGitIdentity } from "./git-helpers.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -265,11 +262,13 @@ afterEach(() => {
 
 // A launch-mode Spec Bench whose session has written the record, and its token.
 async function benchWithRecord(): Promise<{ bench: Bench; token: string }> {
-  const res = await request(app).post("/demo/benches").send({
-    variant: "specbench",
-    focusedSpecPath: ".specifications/fixture-spec",
-    delivery: { mode: "launch" },
-  });
+  const res = await request(app)
+    .post("/demo/benches")
+    .send({
+      variant: "specbench",
+      focusedSpecPath: ".specifications/fixture-spec",
+      delivery: { mode: "launch" },
+    });
   expect(res.status).toBe(201);
   const created = res.body as Bench;
   await benchManager.whenWorkspaceProvisioned("demo", created.id);
