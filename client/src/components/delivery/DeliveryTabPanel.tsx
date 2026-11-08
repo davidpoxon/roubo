@@ -6,6 +6,7 @@ import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { classifyLifecycleState } from "@roubo/shared/delivery-selectors";
 import { useDelivery, useDeliverySessionLive, useLaunchDelivery } from "../../hooks/useDelivery";
+import { useDeliveryCrossCheck } from "../../hooks/useDeliveryCrossCheck";
 import { deliveryReadErrorOf } from "../../lib/api";
 import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
@@ -21,8 +22,9 @@ import RoleMatrix from "./RoleMatrix";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
-// health rail (SB-FR-019, SB-NFR-006) with the mode in effect named in a mono
-// label beside the health chip (SB-FR-032), its progress in cases met and
+// health rail (SB-FR-019, SB-NFR-006) with the cross-check's disagreements and
+// source error on it (SB-FR-030) and the mode in effect named in a mono label
+// beside the health chip (SB-FR-032), its progress in cases met and
 // requirements covered (SB-FR-011), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
@@ -172,6 +174,9 @@ function DeliverySnapshotView({
 }) {
   const sessionStartBlocked = useSessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
+  // The cross-check is a read of its own: a failed read leaves the rail as it
+  // is, and the snapshot shows whatever it does.
+  const crossCheck = useDeliveryCrossCheck(bench.projectId, bench.id);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
   const focusedPileKey = useRef<string | undefined>(undefined);
@@ -207,6 +212,7 @@ function DeliverySnapshotView({
           <DeliveryRail
             snapshot={snapshot}
             attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
+            crossCheck={crossCheck.data}
           />
           <span
             data-testid="delivery-mode-label"

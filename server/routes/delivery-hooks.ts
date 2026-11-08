@@ -86,6 +86,9 @@
 // An accepted mode.changed sets the bench's decision mode to the mode it
 // applied, and when that mode changed a bench-decision-mode event goes out on
 // GET /api/notifications/stream, so the bench card names it (SB-FR-032).
+// An accepted unit.boundary, pr.submitted, gate.reached, unit.changed or
+// gate.changed runs one refresh of the bench's delivery cross-check, once a read has armed it (SB-FR-030, see
+// services/delivery-cross-check-loader.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.
@@ -116,6 +119,7 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { deliveryEventsAfterRecord, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
+import { refreshDeliveryCrossCheckOnEvents } from "../services/delivery-cross-check-loader.js";
 import { broadcastBenchDecisionMode, broadcastDeliveryFrame } from "../services/sse.js";
 
 const router = Router();
@@ -290,6 +294,10 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // of the folded record, so a mode.changed that the record carries, and that
   // this batch therefore skips, has moved it too.
   const mode = applyDeliveryModeReadBack(bench, result.events);
+  // A unit.boundary, pr.submitted, gate.reached, unit.changed or gate.changed
+  // runs one cross-check refresh of a bench whose cross-check is armed (SB-FR-030); the answer does not
+  // wait for it.
+  void refreshDeliveryCrossCheckOnEvents(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
   if (mode !== undefined) broadcastBenchDecisionMode(bench.projectId, bench.id, mode);
   res.status(202).json({ acceptedSeq: result.acceptedSeq });

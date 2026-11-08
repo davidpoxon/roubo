@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench } from "@roubo/shared";
 import {
@@ -18,12 +18,19 @@ vi.mock("../../lib/api", async (importOriginal) => {
   return {
     ...actual,
     fetchDelivery: vi.fn(),
+    fetchDeliveryCrossCheck: vi.fn(),
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
     fetchTerminals: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
+import {
+  DELIVERY_CROSS_CHECK_REFETCH_MS,
+  DELIVERY_CROSS_CHECK_RETRIES,
+  DELIVERY_CROSS_CHECK_RETRY_MS,
+  shouldRetryDeliveryCrossCheck,
+} from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
 
 const bench = {
@@ -103,6 +110,12 @@ beforeEach(() => {
   vi.mocked(api.resumeDelivery).mockReset();
   vi.mocked(api.launchDelivery).mockReset();
   vi.mocked(api.fetchTerminals).mockReset();
+  vi.mocked(api.fetchDeliveryCrossCheck).mockReset();
+  vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+    disagreements: [],
+    refreshedAt: null,
+    sourceError: null,
+  });
 });
 
 describe("DeliveryTabPanel", () => {
@@ -419,5 +432,151 @@ describe("DeliveryTabPanel", () => {
     ]);
     await act(() => queryClient.invalidateQueries({ queryKey: ["terminals"] }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
+  });
+
+  it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const classes = [
+      "branch-missing",
+      "head-commit-differs",
+      "layer-order-differs",
+      "pr-state-differs",
+      "base-branch-differs",
+      "gate-state-differs",
+      "case-status-differs",
+      "plan-hash-mismatch",
+      "record-stale",
+    ];
+    vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+      disagreements: classes.map((cls) => ({
+        class: cls,
+        blocking: false,
+        unitId: "A",
+        claimed: "claimed",
+        observed: "observed",
+        source: "git",
+      })),
+      refreshedAt: "2026-10-16T10:00:05Z",
+      sourceError: { source: "github", message: "fetch failed" },
+    });
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const rail = await screen.findByRole("group", { name: "Delivery health" });
+    await waitFor(() =>
+      expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
+    );
+    expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledWith("demo", 3);
+    expect(within(rail).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
+      "GitHub could not be read",
+    );
+  });
+
+  it("SB-TC-074 reads the cross-check again after exactly 5 seconds, so the rail lists what a restart reconciled within 5 seconds", async () => {
+    expect(DELIVERY_CROSS_CHECK_REFETCH_MS).toBe(5_000);
+    // Only the query's interval runs on the test's clock; every other timer is
+    // real, so reads resolve and render on their own.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+      const nine = [
+        "branch-missing",
+        "head-commit-differs",
+        "layer-order-differs",
+        "pr-state-differs",
+        "base-branch-differs",
+        "gate-state-differs",
+        "case-status-differs",
+        "plan-hash-mismatch",
+        "record-stale",
+      ].map((cls) => ({
+        class: cls,
+        blocking: false,
+        unitId: "A",
+        claimed: "claimed",
+        observed: "observed",
+        source: "git" as const,
+      }));
+      // The first read lists nothing yet; every read after it lists the nine.
+      vi.mocked(api.fetchDeliveryCrossCheck)
+        .mockResolvedValueOnce({ disagreements: [], refreshedAt: null, sourceError: null })
+        .mockResolvedValue({
+          disagreements: nine,
+          refreshedAt: "2026-10-16T10:00:05Z",
+          sourceError: null,
+        });
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+      const rail = await screen.findByRole("group", { name: "Delivery health" });
+      await waitFor(() => expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+
+      // Not before the interval.
+      await act(() => vi.advanceTimersByTimeAsync(4_999));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1);
+      expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+
+      // At the interval, the second read lists all nine.
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+      await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9));
+      expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("SB-TC-074 reads the cross-check again 1 second after a read the restarting server could not answer, well within 5 seconds", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const nine = [
+      "branch-missing",
+      "head-commit-differs",
+      "layer-order-differs",
+      "pr-state-differs",
+      "base-branch-differs",
+      "gate-state-differs",
+      "case-status-differs",
+      "plan-hash-mismatch",
+      "record-stale",
+    ].map((cls) => ({
+      class: cls,
+      blocking: false,
+      unitId: "A",
+      claimed: "claimed",
+      observed: "observed",
+      source: "git" as const,
+    }));
+    // The server is down for the first read, and back for the next.
+    vi.mocked(api.fetchDeliveryCrossCheck)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({
+        disagreements: nine,
+        refreshedAt: "2026-10-16T10:00:05Z",
+        sourceError: null,
+      });
+    const started = Date.now();
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9), {
+      timeout: 4_000,
+    });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it("SB-TC-074 retries a cross-check read only when the server could not answer it", () => {
+    expect(DELIVERY_CROSS_CHECK_RETRY_MS).toBe(1_000);
+    expect(shouldRetryDeliveryCrossCheck(0, new TypeError("Failed to fetch"))).toBe(true);
+    expect(shouldRetryDeliveryCrossCheck(0, new api.ApiError("Bad Gateway", 502))).toBe(true);
+    expect(
+      shouldRetryDeliveryCrossCheck(
+        0,
+        readError({
+          code: "DELIVERY_RECORD_MISSING",
+          error: "No delivery record",
+        } as DeliveryReadError),
+      ),
+    ).toBe(false);
+    expect(
+      shouldRetryDeliveryCrossCheck(DELIVERY_CROSS_CHECK_RETRIES, new TypeError("Failed to fetch")),
+    ).toBe(false);
   });
 });

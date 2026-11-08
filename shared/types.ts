@@ -10,6 +10,7 @@ import type {
 } from "./config-schema.js";
 import type { AgentPosture } from "./agent-launch-descriptor-schema.js";
 import type { DeliveryControl } from "./delivery-control-contract.js";
+import type { DeliveryCrossCheckDisagreement } from "./delivery-bench.js";
 import type { Author } from "./testbench-contracts.js";
 import type {
   AgentCliStep,
@@ -1709,6 +1710,19 @@ export interface BenchGatePin {
   createdAt: string;
 }
 
+/**
+ * What a Spec Bench's delivery cross-check keeps across a server restart: the
+ * blocking classes its last refresh found, so a restart raises no notification
+ * again for one of them even when the operator dismissed it, and the
+ * disagreements that GitHub settles from its last refresh, so the first read
+ * after a restart lists them before GitHub answers, and a refresh that cannot
+ * read GitHub, or reads a full pull-request page, keeps them per unit.
+ */
+export interface DeliveryCrossCheckMemory {
+  seen: string[];
+  github: DeliveryCrossCheckDisagreement[];
+}
+
 /** The gate sitting a Spec Bench has open, and the session that runs it. */
 export interface BenchDeliverySitting {
   gateId: string;
@@ -1823,8 +1837,23 @@ export interface Bench {
   deliverySitting?: BenchDeliverySitting;
   /** Spec Bench only: the last delivery event `seq` the operator viewed. */
   deliveryLastViewedSeq?: number;
-  /** Spec Bench only: when the delivery was first seen blocking (ISO-8601). */
+  /**
+   * Spec Bench only: when the delivery was first seen blocking (ISO-8601): the
+   * time of the cross-check refresh that first found a blocking disagreement
+   * while none was there before (SB-FR-030). Cleared when a refresh finds no
+   * blocking disagreement left.
+   */
   deliveryFirstSeenBlocking?: string;
+  /**
+   * Spec Bench only: the blocking cross-check class that refresh found first,
+   * set and cleared with `deliveryFirstSeenBlocking`.
+   */
+  deliveryFirstSeenBlockingClass?: string;
+  /**
+   * Spec Bench only: what the delivery cross-check keeps across a restart
+   * (SB-FR-030, SB-NFR-005). Absent while it keeps nothing.
+   */
+  deliveryCrossCheckMemory?: DeliveryCrossCheckMemory;
   /**
    * Whether the bench-level setup command (`benches.setup`) has already run to
    * completion for this bench. `benches.setup` is documented as running once
@@ -1883,7 +1912,11 @@ export type NotificationType =
   // per decision: its dedupe key is the decision id. A review call
   // (`review.opened`, SB-FR-034) raises one too, keyed by the delivery, the
   // trigger and the oldest unreviewed decision, with only a count in metadata.
-  | "delivery-decision";
+  | "delivery-decision"
+  // The cross-check of a Spec Bench's delivery found a blocking class that the
+  // refresh before it did not (SB-FR-030). One per class: its dedupe key is the
+  // class, and it goes when a refresh no longer finds the class.
+  | "delivery-crosscheck";
 
 export type NotificationPriority = "info" | "action-needed";
 
@@ -2174,6 +2207,10 @@ export interface PersistedBench {
   deliveryLastViewedSeq?: number;
   /** Persisted mirror of Bench.deliveryFirstSeenBlocking. Spec Bench only. */
   deliveryFirstSeenBlocking?: string;
+  /** Persisted mirror of Bench.deliveryFirstSeenBlockingClass. Spec Bench only. */
+  deliveryFirstSeenBlockingClass?: string;
+  /** Persisted mirror of Bench.deliveryCrossCheckMemory. Spec Bench only. */
+  deliveryCrossCheckMemory?: DeliveryCrossCheckMemory;
   /**
    * Persisted mirror of `bench.components[name].setupComplete`, keyed by
    * component name. Components themselves are runtime-only; only this flag

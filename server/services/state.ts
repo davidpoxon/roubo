@@ -292,6 +292,12 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ...(bench.deliveryFirstSeenBlocking !== undefined && {
       deliveryFirstSeenBlocking: bench.deliveryFirstSeenBlocking,
     }),
+    ...(bench.deliveryFirstSeenBlockingClass !== undefined && {
+      deliveryFirstSeenBlockingClass: bench.deliveryFirstSeenBlockingClass,
+    }),
+    ...(bench.deliveryCrossCheckMemory !== undefined && {
+      deliveryCrossCheckMemory: bench.deliveryCrossCheckMemory,
+    }),
   };
 }
 

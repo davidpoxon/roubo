@@ -1,8 +1,10 @@
 import { useId, useState } from "react";
+import type { DeliveryCrossCheckResponse } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectHealth, type DeliveryHealthView } from "@roubo/shared/delivery-selectors";
 import { useNow } from "../../hooks/useNow";
 import { focusRing } from "../ui/focus-ring";
+import DeliveryCrossCheck from "./DeliveryCrossCheck";
 import { STATUS_DOT_CLASSES } from "../ui/styles";
 import {
   DELIVERY_HEALTH_TICK_MS,
@@ -16,6 +18,8 @@ import {
 // is stale, the age of the record. The chip reads the shared health selector
 // against the view's own clock, so the delivery turns stale 2 minutes after its
 // last event even when no new snapshot arrives, and the next event clears it.
+// Given the bench's last cross-check, the rail also lists its disagreements and
+// names a source it could not read (SB-FR-030).
 
 // DESIGN.md Health chip: one word, a dot that names the state, and a press that
 // opens the reason.
@@ -64,9 +68,16 @@ export interface DeliveryRailProps {
   // True for an attached bench that holds no session (SB-FR-003): the chip
   // reads attached until the first event arrives.
   attached?: boolean;
+  // The bench's last cross-check (SB-FR-030), when the view has read it.
+  crossCheck?: DeliveryCrossCheckResponse | undefined;
 }
 
-export default function DeliveryRail({ snapshot, disconnected, attached }: DeliveryRailProps) {
+export default function DeliveryRail({
+  snapshot,
+  disconnected,
+  attached,
+  crossCheck,
+}: DeliveryRailProps) {
   const now = useNow(DELIVERY_HEALTH_TICK_MS);
   const health = selectHealth(snapshot, now, { disconnected, attached });
   const { stale, ageMs } = health.staleness;
@@ -86,6 +97,7 @@ export default function DeliveryRail({ snapshot, disconnected, attached }: Deliv
           record {formatAge(ageMs)} old
         </span>
       )}
+      {crossCheck !== undefined && <DeliveryCrossCheck crossCheck={crossCheck} />}
     </div>
   );
 }
