@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
@@ -14,15 +15,17 @@ import { deliveryReadErrorOf } from "../../lib/api";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
 import DeliveryRail from "./DeliveryHealth";
+import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
 // health rail (SB-FR-019, SB-NFR-006), its progress in cases met and
-// requirements covered (SB-FR-011), its burn meter (SB-FR-018), its map, its
-// drift ledger (SB-FR-020) and its controls when the record conforms, or the
-// named error when it does not. No
+// requirements covered (SB-FR-011), its map, and its view of cost, health and
+// controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
+// ledger (SB-FR-020) and the controls, when the record conforms, or the named
+// error when it does not. No
 // decision, steering, role or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -132,24 +135,24 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
   const roles = Object.entries(snapshot.roles);
   const resume = useResumeDelivery(bench.projectId, bench.id);
   const resumeBlocked = useSessionStartBlocked(bench);
+  const costHealthControls = useRef<HTMLElement>(null);
+  // The view of cost, health and controls: the burn meter, the jam list, the
+  // drift ledger and the delivery's controls, which the header's button opens.
+  const openCostHealthControls = () => {
+    const view = costHealthControls.current;
+    if (view === null) return;
+    view.scrollIntoView?.({ block: "start" });
+    view.focus();
+  };
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
-      <DeliveryRail snapshot={snapshot} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <DeliveryRail snapshot={snapshot} />
+        <Button onPress={openCostHealthControls}>Cost, health and controls</Button>
+      </div>
       <DeliveryProgressStats snapshot={snapshot} />
       <DeliveryMetCases snapshot={snapshot} />
-      <DeliveryBurn snapshot={snapshot} />
-
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-13">
-        <dt className="text-text-secondary">Lifecycle</dt>
-        <dd className="text-text-primary" data-testid="delivery-lifecycle">
-          {snapshot.lifecycle.state}
-        </dd>
-        <dt className="text-text-secondary">Budget</dt>
-        <dd className="text-text-primary" data-testid="delivery-budget">
-          ${snapshot.budget.spent_usd.toFixed(2)} of ${snapshot.budget.soft_budget_usd.toFixed(2)}
-        </dd>
-      </dl>
 
       <DeliveryMap
         projectId={bench.projectId}
@@ -160,64 +163,88 @@ function DeliverySnapshotView({ bench, snapshot }: { bench: Bench; snapshot: Del
         })}
       />
 
-      <DeliveryDriftLedger snapshot={snapshot} />
-
-      <p className="text-12 text-text-secondary">
-        Sending answers, steering notes and tier changes is not available on this bench yet.
-      </p>
-
       <section
-        data-testid="delivery-decision-controls"
-        aria-label="Decisions"
-        className="space-y-2"
+        ref={costHealthControls}
+        tabIndex={-1}
+        data-testid="delivery-cost-health-controls"
+        aria-label="Cost, health and controls"
+        className="space-y-4 focus:outline-none"
       >
-        {decisions.length === 0 && <p className="text-13 text-text-secondary">No open decisions</p>}
-        {decisions.map((decision) => (
-          <div key={decision.id} className="space-y-1">
-            <p className="text-13 text-text-body">{decision.question}</p>
-            <div className="flex flex-wrap gap-2">
-              {decision.options.map((option) => (
-                <Button key={option} isDisabled>
-                  {option}
-                </Button>
-              ))}
+        <DeliveryBurn snapshot={snapshot} />
+        <DeliveryJams snapshot={snapshot} />
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-13">
+          <dt className="text-text-secondary">Lifecycle</dt>
+          <dd className="text-text-primary" data-testid="delivery-lifecycle">
+            {snapshot.lifecycle.state}
+          </dd>
+          <dt className="text-text-secondary">Budget</dt>
+          <dd className="text-text-primary" data-testid="delivery-budget">
+            ${snapshot.budget.spent_usd.toFixed(2)} of ${snapshot.budget.soft_budget_usd.toFixed(2)}
+          </dd>
+        </dl>
+
+        <DeliveryDriftLedger snapshot={snapshot} />
+
+        <p className="text-12 text-text-secondary">
+          Sending answers, steering notes and tier changes is not available on this bench yet.
+        </p>
+
+        <section
+          data-testid="delivery-decision-controls"
+          aria-label="Decisions"
+          className="space-y-2"
+        >
+          {decisions.length === 0 && (
+            <p className="text-13 text-text-secondary">No open decisions</p>
+          )}
+          {decisions.map((decision) => (
+            <div key={decision.id} className="space-y-1">
+              <p className="text-13 text-text-body">{decision.question}</p>
+              <div className="flex flex-wrap gap-2">
+                {decision.options.map((option) => (
+                  <Button key={option} isDisabled>
+                    {option}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </section>
+          ))}
+        </section>
 
-      <section data-testid="delivery-steering-controls" aria-label="Steering">
-        <Button isDisabled>Add steering note</Button>
-      </section>
+        <section data-testid="delivery-steering-controls" aria-label="Steering">
+          <Button isDisabled>Add steering note</Button>
+        </section>
 
-      <section
-        data-testid="delivery-role-controls"
-        aria-label="Roles"
-        className="flex flex-wrap gap-2"
-      >
-        {roles.map(([role, value]) => (
-          <Button key={role} isDisabled>
-            {role}: {value.tier}
+        <section
+          data-testid="delivery-role-controls"
+          aria-label="Roles"
+          className="flex flex-wrap gap-2"
+        >
+          {roles.map(([role, value]) => (
+            <Button key={role} isDisabled>
+              {role}: {value.tier}
+            </Button>
+          ))}
+        </section>
+
+        <section
+          data-testid="delivery-lifecycle-controls"
+          aria-label="Lifecycle"
+          className="flex flex-wrap gap-2"
+        >
+          <Button onPress={() => resume.mutate()} isDisabled={resume.isPending || resumeBlocked}>
+            Resume
           </Button>
-        ))}
+          <Button isDisabled>Pause</Button>
+          <Button isDisabled>Wind down</Button>
+        </section>
+        {resume.isError && (
+          <Callout role="alert" title="The delivery session did not start">
+            {resume.error.message}
+          </Callout>
+        )}
       </section>
-
-      <section
-        data-testid="delivery-lifecycle-controls"
-        aria-label="Lifecycle"
-        className="flex flex-wrap gap-2"
-      >
-        <Button onPress={() => resume.mutate()} isDisabled={resume.isPending || resumeBlocked}>
-          Resume
-        </Button>
-        <Button isDisabled>Pause</Button>
-        <Button isDisabled>Wind down</Button>
-      </section>
-      {resume.isError && (
-        <Callout role="alert" title="The delivery session did not start">
-          {resume.error.message}
-        </Callout>
-      )}
     </div>
   );
 }
