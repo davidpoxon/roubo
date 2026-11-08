@@ -32,7 +32,8 @@ export const SSE_RECONNECT_MS = 2_000;
 // it holds is already at that seq. A frame that jumps past the held seq (a
 // sequence gap: frames were missed, or the batch held several events) gets the
 // same refetch, and the server's snapshot folds every accepted event, so none is
-// missing from the timeline.
+// missing from the timeline. The invalidation matches the key as a prefix, so
+// the bench's event lists (useDeliveryFeed) are read again with it.
 function applyDeliveryFrame(queryClient: QueryClient, frame: DeliveryStreamFrame): void {
   const key = deliveryQueryKey(frame.projectId, frame.benchId);
   const held = queryClient.getQueryData<DeliverySnapshot>(key);
