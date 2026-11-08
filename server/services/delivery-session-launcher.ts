@@ -66,11 +66,16 @@ export class DeliveryLaunchError extends Error {
   }
 }
 
-// The env keys the default executor hands the session the descriptor in.
+// The env keys the default executor hands the session the descriptor in. The
+// event URL, the controls URL and the token use the names the delivery kernel
+// reads its bench endpoint from (#1601); under any other name it posts nothing.
+// The resume and decision mode keys keep their names: only the session reads
+// them. The prompt carries the resume id in its text and names the decision
+// mode key.
 export const DELIVERY_ENV_KEYS = {
-  eventUrl: "ROUBO_DELIVERY_EVENT_URL",
-  controlsUrl: "ROUBO_DELIVERY_CONTROLS_URL",
-  token: "ROUBO_DELIVERY_TOKEN",
+  eventUrl: "DELIVERY_BENCH_EVENT_URL",
+  controlsUrl: "DELIVERY_BENCH_CONTROLS_URL",
+  token: "DELIVERY_BENCH_TOKEN",
   resume: "ROUBO_DELIVERY_RESUME",
   decisionMode: "ROUBO_DELIVERY_DECISION_MODE",
 } as const;
