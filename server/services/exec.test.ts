@@ -183,6 +183,23 @@ describe("runCommand", () => {
       expect((await promise).code).toBe(143);
     });
 
+    it("flags a command stopped by its timeout, and only that command", async () => {
+      const slow = createMockChild(4321);
+      vi.mocked(spawn).mockReturnValue(slow);
+      const timedOut = runCommand("slow", [], "/tmp", undefined, 1000);
+      vi.advanceTimersByTime(1000);
+      slow.emit("close", null);
+      expect((await timedOut).timedOut).toBe(true);
+
+      const quick = createMockChild(4322);
+      vi.mocked(spawn).mockReturnValue(quick);
+      const inTime = runCommand("quick", [], "/tmp", undefined, 1000);
+      quick.emit("close", 1);
+      const result = await inTime;
+      expect(result.code).toBe(1);
+      expect(result.timedOut).toBeUndefined();
+    });
+
     it("sends no SIGKILL when a timed-out command exits within the grace period", async () => {
       const proc = createMockChild(4321);
       vi.mocked(spawn).mockReturnValue(proc);

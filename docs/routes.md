@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 184 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 185 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -105,6 +105,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/lifecycle`                   | `server/routes/testbench.ts`            |
 | POST   | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/notes`                       | `server/routes/testbench.ts`            |
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/observations/:observationId` | `server/routes/testbench.ts`            |
+| POST   | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/stage`                       | `server/routes/testbench.ts`            |
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/cases/:caseId/status`                      | `server/routes/testbench.ts`            |
 | PUT    | `/api/projects/:projectId/benches/:id/testbench/focus`                                     | `server/routes/testbench.ts`            |
 | GET    | `/api/projects/:projectId/benches/:id/testbench/plan`                                      | `server/routes/testbench.ts`            |
