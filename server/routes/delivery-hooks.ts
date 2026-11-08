@@ -54,10 +54,14 @@
 //            status, and the highest control_seq the bench has issued (0
 //            before any). A volatile control is served by one read only. A
 //            control stays `pending` until an event reads it back (see POST
-//            above). With no control above `after` and a `wait` above 0
-//            (absent: 0), the read is held until a control is issued, then
-//            answers with it, or until the wait ends, then answers with an
-//            empty list (SB-FR-041). A server shutdown answers a held read
+//            above), but for a review action on an agent decision (a
+//            `review_accept`, or an `overturn` of an agent decision, which
+//            carries `reviewAction: true`): the read that serves it marks it
+//            `delivered`. A `superseded` control is never served. With no
+//            control to serve above `after` (none, or only superseded ones)
+//            and a `wait` above 0 (absent: 0), the read is held until a
+//            control is issued, then answers with it, or until the wait ends,
+//            then answers with an empty list (SB-FR-041). A server shutdown answers a held read
 //            with an empty list too
 //        200 DeliveryControlReadSuperseded {controls: [], superseded: true}: a
 //            second held read for the same bench ended this one. A bench holds
@@ -73,9 +77,12 @@
 //
 // An accepted event that reads a control back (one whose payload names the
 // control's control_seq, a decision.answered for the decision an answer
-// control targets, or a decision.overturned for the decision an overturn
-// control targets) marks that control `applied` in the outbox before the 202
-// (see services/delivery-control-outbox.ts).
+// control targets, a decision.overturned for the decision an overturn
+// control targets, or a review.outcome for the decision a review_accept
+// (`accepted`) or an overturn (`overturned`) targets) marks that control
+// `applied` in the outbox before the 202. A review.outcome with the other
+// outcome marks an outstanding review action on that decision `superseded`
+// instead, so no later read serves it (see services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.
@@ -97,7 +104,7 @@ import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import {
   applyDeliveryControlReadBacks,
   deliveryControlLatestSeq,
-  deliveryControlsOf,
+  hasServableDeliveryControl,
   readDeliveryControls,
   waitForDeliveryControl,
 } from "../services/delivery-control-outbox.js";
@@ -322,8 +329,9 @@ router.get("/delivery-controls", deliveryControlsRateLimiter, (req, res) => {
     }
   }
 
-  // A control above `after` is there, or the read does not wait: answer now.
-  if (wait === 0 || deliveryControlsOf(bench).some((c) => c.control_seq > after)) {
+  // A control to serve is above `after`, or the read does not wait: answer
+  // now. A superseded control is never served, so it does not end the wait.
+  if (wait === 0 || hasServableDeliveryControl(bench, after)) {
     res.json(readDeliveryControls(bench, after));
     return;
   }

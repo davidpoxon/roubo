@@ -22,11 +22,22 @@
 // events the tooling posts (`applyDeliveryControlReadBacks`): an event whose
 // payload names the control's `control_seq`, a `decision.answered` for the
 // decision an answer control targets, or a `decision.overturned` for the
-// decision an overturn control targets, marks the control `applied`. A control
-// stays `pending` until then.
+// decision an overturn control targets, or a `review.outcome` for the decision
+// a review control targets (`accepted` for a `review_accept`, `overturned` for
+// an `overturn`), marks the control `applied`. A `review.outcome` with the
+// other outcome settles the review all the same: it marks an outstanding review
+// action on that decision `superseded`, so no later read serves it. A control
+// stays `pending` until then, but for a review action (a control issued with `reviewAction`: a
+// `review_accept`, or an `overturn` of an agent decision): the read that serves
+// it marks it `delivered`, so the bench knows the tooling has it.
 //
-// A read with a `wait` and nothing to return waits here for the next issued
-// control (SB-FR-041): `waitForDeliveryControl` keeps one waiter per bench in
+// A control issued with `supersedes` marks each pending control it names
+// `superseded` in the same write (an operator's second review action on a card
+// before the tooling read the first). A read never serves a superseded control.
+//
+// A read with a `wait` and nothing to serve (`hasServableDeliveryControl`: a
+// superseded control above its cursor counts as nothing) waits here for the
+// next issued control (SB-FR-041): `waitForDeliveryControl` keeps one waiter per bench in
 // memory, and `issueDeliveryControl` wakes it. A second waiter for the same
 // bench ends the first as superseded. A token revoke or a new token ends it as
 // revoked (see delivery-token-registry.ts), and a server shutdown ends every
@@ -65,6 +76,12 @@ function benchKey(projectId: string, benchId: number): string {
 // The statuses of a control the tooling has not acted on yet.
 const OUTSTANDING: ReadonlySet<DeliveryControlStatus> = new Set(["pending", "queued", "delivered"]);
 
+// An operator's review action on an agent decision's card: the read that serves
+// one marks it `delivered`.
+export function isReviewControl(control: DeliveryOutboxControl): boolean {
+  return control.reviewAction === true;
+}
+
 export function isControlOutstanding(control: DeliveryOutboxControl): boolean {
   return OUTSTANDING.has(control.status);
 }
@@ -101,6 +118,11 @@ export interface DeliveryControlRequest {
   author: Author;
   // The issue time; the clock by default.
   issuedAt?: string;
+  // The control_seqs of the pending durable controls this one replaces: each
+  // reads `superseded` once this control is kept.
+  supersedes?: readonly number[];
+  // A review action on an agent decision's card (see DeliveryOutboxControl).
+  reviewAction?: boolean;
 }
 
 export type IssueDeliveryControlResult =
@@ -131,14 +153,25 @@ export function issueDeliveryControl(
   };
   const validated = validateDeliveryControl(raw);
   if (!validated.ok) return { ok: false, errors: validated.errors };
-  const control: DeliveryOutboxControl = { ...validated.data, author: { ...request.author } };
+  const control: DeliveryOutboxControl = {
+    ...validated.data,
+    author: { ...request.author },
+    ...(request.reviewAction === true && { reviewAction: true as const }),
+  };
 
   const key = benchKey(bench.projectId, bench.id);
   latestSeqs.set(key, controlSeq);
   bench.deliveryControlSeq = controlSeq;
+  const supersedes = new Set(request.supersedes ?? []);
+  const queue = (bench.deliveryControlQueue ?? []).map((kept) =>
+    supersedes.has(kept.control_seq) && kept.status === "pending"
+      ? { ...kept, status: "superseded" as const }
+      : kept,
+  );
   if (durability === "durable") {
-    bench.deliveryControlQueue = [...(bench.deliveryControlQueue ?? []), control];
+    bench.deliveryControlQueue = [...queue, control];
   } else {
+    if (supersedes.size > 0) bench.deliveryControlQueue = queue;
     volatileControls.set(key, [...(volatileControls.get(key) ?? []), control]);
   }
   persist(bench);
@@ -210,13 +243,48 @@ export function releaseDeliveryControlWaiters(): void {
 }
 
 /**
+ * Whether a read with the cursor `after` serves the control: it lies above
+ * `after` and is not `superseded`. The read and its hold gate share this test,
+ * so a read is held whenever it would serve nothing.
+ */
+export function isServableDeliveryControl(control: DeliveryOutboxControl, after: number): boolean {
+  return control.control_seq > after && control.status !== "superseded";
+}
+
+/** Whether a read of the bench with the cursor `after` serves any control. */
+export function hasServableDeliveryControl(bench: Bench, after: number): boolean {
+  return deliveryControlsOf(bench).some((control) => isServableDeliveryControl(control, after));
+}
+
+/**
  * The read reply of the outbox: the controls above `after` in control_seq
- * order, and the latest control_seq. A volatile control is served once: the
- * read that returns it drops it from memory.
+ * order, and the latest control_seq. A superseded control is never served. A
+ * volatile control is served once: the read that returns it drops it from
+ * memory. A pending review action the read serves is marked `delivered`, and
+ * the reply carries it so.
  */
 export function readDeliveryControls(bench: Bench, after: number): DeliveryControlReadReply {
   const key = benchKey(bench.projectId, bench.id);
-  const controls = deliveryControlsOf(bench).filter((control) => control.control_seq > after);
+  const delivered = new Set(
+    deliveryControlsOf(bench)
+      .filter(
+        (c) =>
+          c.control_seq > after &&
+          c.durability === "durable" &&
+          c.status === "pending" &&
+          isReviewControl(c),
+      )
+      .map((c) => c.control_seq),
+  );
+  if (delivered.size > 0) {
+    bench.deliveryControlQueue = (bench.deliveryControlQueue ?? []).map((c) =>
+      delivered.has(c.control_seq) ? { ...c, status: "delivered" as const } : c,
+    );
+    persist(bench);
+  }
+  const controls = deliveryControlsOf(bench).filter((control) =>
+    isServableDeliveryControl(control, after),
+  );
   const served = new Set(
     controls.filter((c) => c.durability === "volatile").map((c) => c.control_seq),
   );
@@ -241,17 +309,34 @@ function readsBack(event: DeliveryEvent, control: DeliveryOutboxControl): boolea
   const decisionRead =
     (event.type === "decision.answered" && control.kind === "decision-answer") ||
     (event.type === "decision.overturned" && control.kind === "overturn");
-  if (decisionRead) {
+  const reviewRead =
+    event.type === "review.outcome" &&
+    ((payload.status === "accepted" && control.kind === "review_accept") ||
+      (payload.status === "overturned" && control.kind === "overturn"));
+  if (decisionRead || reviewRead) {
     const decisionId = payloadString(payload, "decision_id") ?? payloadString(payload, "id");
     return decisionId !== undefined && decisionId === control.target_id;
   }
   return false;
 }
 
+// Whether an accepted event settles the review of the decision a review
+// action targets, whatever outcome it states.
+function settlesReview(event: DeliveryEvent, control: DeliveryOutboxControl): boolean {
+  if (event.type !== "review.outcome" || !isReviewControl(control)) return false;
+  if (event.delivery_id !== control.delivery_id) return false;
+  const payload = event.payload as Record<string, unknown>;
+  const decisionId = payloadString(payload, "decision_id") ?? payloadString(payload, "id");
+  return decisionId !== undefined && decisionId === control.target_id;
+}
+
 /**
  * Marks `applied` each outstanding durable control that one of the accepted
- * events reads back, and persists the queue when one changed. Returns the
- * control_seqs it marked.
+ * events reads back, and persists the queue when one changed. A review action
+ * whose decision a `review.outcome` settles with the other outcome (an accept
+ * the session overturned, or an overturn it accepted) is marked `superseded`
+ * instead, so no read serves it again. Returns the control_seqs it marked
+ * `applied`.
  */
 export function applyDeliveryControlReadBacks(
   bench: Bench,
@@ -260,13 +345,21 @@ export function applyDeliveryControlReadBacks(
   const queue = bench.deliveryControlQueue;
   if (queue === undefined || queue.length === 0 || events.length === 0) return [];
   const applied: number[] = [];
+  let changed = false;
   const next = queue.map((control) => {
     if (!isControlOutstanding(control)) return control;
-    if (!events.some((event) => readsBack(event, control))) return control;
-    applied.push(control.control_seq);
-    return { ...control, status: "applied" as const };
+    if (events.some((event) => readsBack(event, control))) {
+      applied.push(control.control_seq);
+      changed = true;
+      return { ...control, status: "applied" as const };
+    }
+    if (events.some((event) => settlesReview(event, control))) {
+      changed = true;
+      return { ...control, status: "superseded" as const };
+    }
+    return control;
   });
-  if (applied.length > 0) {
+  if (changed) {
     bench.deliveryControlQueue = next;
     persist(bench);
   }
