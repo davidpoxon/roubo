@@ -289,6 +289,9 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ...(bench.deliveryLastViewedSeq !== undefined && {
       deliveryLastViewedSeq: bench.deliveryLastViewedSeq,
     }),
+    ...(bench.deliveryLastViewedDeliveryId !== undefined && {
+      deliveryLastViewedDeliveryId: bench.deliveryLastViewedDeliveryId,
+    }),
     ...(bench.deliveryFirstSeenBlocking !== undefined && {
       deliveryFirstSeenBlocking: bench.deliveryFirstSeenBlocking,
     }),

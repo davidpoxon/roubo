@@ -34,7 +34,8 @@
     "./lifecycle-resolver": "./lifecycle-resolver.ts",
     "./gate-evaluator": "./gate-evaluator.ts",
     "./delivery-reducer": "./delivery-reducer.ts",
-    "./delivery-selectors": "./delivery-selectors.ts"
+    "./delivery-selectors": "./delivery-selectors.ts",
+    "./delivery-digest": "./delivery-digest.ts"
   },
   "files": [
     "*.ts",

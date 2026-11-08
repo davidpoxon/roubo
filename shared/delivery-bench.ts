@@ -28,6 +28,10 @@ import type { BenchDeliverySitting, SpecBenchDecisionMode } from "./types";
 //   GET  <base>          the folded snapshot, or a named read error
 //   GET  <base>/events   the accepted events above a seq, for one unit or all
 //                        (DeliveryEventsResponse), or the same named read error
+//   GET  <base>/digest   the since-you-left digest above the bench's last viewed
+//                        seq (DeliveryDigest, see delivery-digest.ts)
+//   POST <base>/digest/seen
+//                        mark the delivery viewed up to its current seq
 //   POST <base>/launch   launch a launch-mode bench's session again while it has no record
 //   POST <base>/resume   launch the session again with the record's resume argument
 //   POST <base>/decisions/<id>/answer

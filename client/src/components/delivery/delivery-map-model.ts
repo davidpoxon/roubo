@@ -303,9 +303,11 @@ export function crossCheckMapKeys(
 
 // A request to focus one map target: the keys to try in order, and a count
 // that makes each request new, so the same target can be asked for twice.
+// `open` also opens that target's drill-in, which then takes the focus.
 export interface MapFocusRequest {
   keys: string[];
   nonce: number;
+  open?: MapTarget;
 }
 
 export function layoutDeliveryMap(

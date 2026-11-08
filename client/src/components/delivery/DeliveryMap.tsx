@@ -48,7 +48,8 @@ export interface DeliveryMapProps {
   deliverySessionId?: string;
   // A request to focus a unit or gate, such as Enter on a cross-check entry of
   // the rail (SB-FR-029): the first key that the view in effect draws takes
-  // the focus, which selects it.
+  // the focus, which selects it. A request with `open`, such as a link of the
+  // since-you-left digest (SB-FR-012), opens that unit's or gate's drill-in.
   focusRequest?: MapFocusRequest | null;
   // The gate sitting the bench prepares or has open (SB-FR-023), which the
   // gate's drill-in names.
@@ -83,10 +84,19 @@ export default function DeliveryMap({
   const [selected, setSelected] = useState<MapTarget | null>(null);
   const [opened, setOpened] = useState<MapTarget | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
+  // A request that also opens its target (a since-you-left digest link) opens
+  // the drill-in once per request; the drill-in's heading then takes the focus.
+  const [openedFor, setOpenedFor] = useState<MapFocusRequest | null>(null);
+  if (focusRequest?.open !== undefined && focusRequest !== openedFor) {
+    setOpenedFor(focusRequest);
+    setSelected(focusRequest.open);
+    setOpened(focusRequest.open);
+  }
 
   // Each new request moves the focus once; a later snapshot does not.
   useEffect(() => {
     if (focusRequest === undefined || focusRequest === null) return;
+    if (focusRequest.open !== undefined) return;
     const root = sectionRef.current;
     if (root === null) return;
     const item = mapItemOf(root, focusRequest.keys);

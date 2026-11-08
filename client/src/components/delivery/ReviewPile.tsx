@@ -556,6 +556,7 @@ export default function ReviewPile({
   snapshot,
   sessionLive = false,
   onSittingOpened,
+  raiseRequest,
 }: {
   projectId: string;
   benchId: number;
@@ -565,6 +566,10 @@ export default function ReviewPile({
   // Called once a gate card's Open sitting opened the gate's sitting, so the
   // bench can show it.
   onSittingOpened?: ((gateId: string) => void) | undefined;
+  // A request to raise an agent decision's review card to the top, such as a
+  // link of the since-you-left digest (SB-FR-012); each new request raises
+  // once, and only a decision on the review stack.
+  raiseRequest?: { decisionId: string; nonce: number } | null | undefined;
 }) {
   const review = useReviewAction(projectId, benchId);
   const threadMessage = useThreadMessage(projectId, benchId);
@@ -574,6 +579,14 @@ export default function ReviewPile({
   const reviewed = selectReviewedAgentDecisions(snapshot);
   const reviewOpen = snapshot.review.status === "open";
   const [raisedId, setRaisedId] = useState<string | undefined>(undefined);
+  const [raisedFor, setRaisedFor] = useState<typeof raiseRequest>(null);
+  if (raiseRequest !== undefined && raiseRequest !== null && raiseRequest !== raisedFor) {
+    setRaisedFor(raiseRequest);
+    const card = stack.find(
+      (entry) => entry.kind === "decision" && entry.id === raiseRequest.decisionId,
+    );
+    if (card !== undefined) setRaisedId(cardKey(card));
+  }
   const [announcement, setAnnouncement] = useState("");
   const [leaving, setLeaving] = useState<DeliveryDecision[]>([]);
   const [seen, setSeen] = useState({ cards, byId: snapshot.decisionsById });

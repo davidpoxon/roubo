@@ -11,8 +11,9 @@
 //     commits (SB-TC-009). git runs as a child process that reconcile awaits,
 //     so the check never blocks the event loop.
 //   - beforeTeardown: Clear bench removes the pin first, then stops the sitting's
-//     session, then revokes the delivery token and drops the events and the
-//     control outbox held for the bench, and stops its cross-check's watch and
+//     session, then revokes the delivery token, drops the events, the
+//     control outbox and the operator's last view of the delivery held for the
+//     bench, and stops its cross-check's watch and
 //     timers; the bench manager removes the
 //     workspace after that (SB-TC-005).
 //
@@ -138,11 +139,15 @@ export const specbenchVariantHost: VariantHost = {
     }
     bench.deliverySitting = undefined;
     // 3. The delivery token (SB-FR-003), the events and the control outbox
-    // held for the bench. The bench manager persists the bench right after
-    // this step, so the revoked hash and the empty outbox are written down
-    // before the workspace goes.
+    // held for the bench, and the operator's last view of the delivery
+    // (SB-FR-012), whose record goes with the workspace. The bench manager
+    // persists the bench right after this step, so the revoked hash, the empty
+    // outbox and the cleared last view are written down before the workspace
+    // goes.
     revokeDeliveryToken(bench);
     forgetDeliveryEventLog(bench.projectId, bench.id);
+    bench.deliveryLastViewedSeq = undefined;
+    bench.deliveryLastViewedDeliveryId = undefined;
     forgetDeliveryControls(bench);
     // 4. The cross-check's watch of the workspace and its timers.
     forgetDeliveryCrossCheck(bench.projectId, bench.id);
