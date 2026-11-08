@@ -77,16 +77,24 @@ export function formatNotification(notification: BenchNotification): {
   title: string;
   body: string;
 } {
-  // A blocking cross-check class names the class (SB-FR-030).
+  // A blocking cross-check class names the class (SB-FR-030), and the units it
+  // is found on when the notification carries them.
   const crossCheckClass = notification.metadata?.class;
   if (
     notification.type === "delivery-crosscheck" &&
     typeof crossCheckClass === "string" &&
     crossCheckClass.length > 0
   ) {
+    const unitIds = notification.metadata?.unitIds;
+    const units = Array.isArray(unitIds)
+      ? unitIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+      : [];
     return {
       title: notificationMessages["delivery-crosscheck"].title,
-      body: `The delivery record disagrees with its source: ${crossCheckClass}`,
+      body:
+        units.length > 0
+          ? `The delivery record disagrees with its source: ${crossCheckClass} for ${units.join(", ")}`
+          : `The delivery record disagrees with its source: ${crossCheckClass}`,
     };
   }
   const unitId = notification.metadata?.unitId;
