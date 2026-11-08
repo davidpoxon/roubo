@@ -298,4 +298,35 @@ describe("Delivery map", () => {
     expect(edge("unit:B", "unit:C")).toHaveClass("stroke-accent");
     expect(edge("gate:gate-after-c", "unit:C")).toHaveClass("stroke-status-error");
   });
+
+  it("SB-TC-047 marks a jammed unit on the map and on the health chip, and clears both when the unit resumes", async () => {
+    const record = fourUnitRecord();
+    const jam = unitChanged(8, "B", "held");
+    vi.mocked(api.fetchDelivery).mockResolvedValue(foldDelivery({ record, events: [jam] }));
+    renderWithProviders(<Harness />);
+
+    // Step 1: the unit.changed that jams B.
+    const node = await screen.findByTestId("unit-node-B");
+    expect(node).toHaveAttribute("data-jammed", "true");
+    expect(node).toHaveAccessibleName(expect.stringContaining("jammed"));
+    expect(screen.getByTestId("unit-jam-mark-B")).toHaveTextContent("jammed");
+    expect(screen.queryByTestId("unit-jam-mark-A")).not.toBeInTheDocument();
+    const chip = screen.getByTestId("delivery-health-chip");
+    expect(chip).toHaveAttribute("data-health", "blocked");
+    expect(chip).toHaveTextContent("blocked · B jammed");
+
+    // Step 2: the unit.changed that resumes B.
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      foldDelivery({ record, events: [jam, unitChanged(9, "B", "running")] }),
+    );
+    act(() => postFrame(9));
+    await waitFor(() =>
+      expect(screen.getByTestId("unit-node-B")).not.toHaveAttribute("data-jammed"),
+    );
+    expect(screen.queryByTestId("unit-jam-mark-B")).not.toBeInTheDocument();
+    expect(screen.getByTestId("delivery-health-chip")).not.toHaveAttribute(
+      "data-health",
+      "blocked",
+    );
+  });
 });

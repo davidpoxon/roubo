@@ -59,11 +59,22 @@ const notificationMessages: Record<NotificationType, { title: string; body: stri
     title: "Agent changed",
     body: "The configured default agent was unavailable, so a different one was used",
   },
+  "delivery-jam": {
+    title: "Delivery unit jammed",
+    body: "A unit of a Spec Bench delivery is stuck and waits for you",
+  },
 };
 
 export function formatNotification(notification: BenchNotification): {
   title: string;
   body: string;
 } {
+  const unitId = notification.metadata?.unitId;
+  if (notification.type === "delivery-jam" && typeof unitId === "string" && unitId.length > 0) {
+    return {
+      title: notificationMessages["delivery-jam"].title,
+      body: `Unit ${unitId} of the delivery is jammed and waits for you`,
+    };
+  }
   return notificationMessages[notification.type] ?? { title: "Notification", body: "" };
 }

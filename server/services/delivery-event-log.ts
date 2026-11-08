@@ -230,7 +230,15 @@ function syncLog(k: string, record: DeliveryRecord | undefined, spillPath: strin
 }
 
 export type DeliveryIngestResult =
-  | { ok: true; acceptedSeq: number; accepted: number; dropped: number }
+  | {
+      ok: true;
+      acceptedSeq: number;
+      accepted: number;
+      dropped: number;
+      // The events of the batch the log took, in seq order: the ones above
+      // the accepted seq it had.
+      events: DeliveryEvent[];
+    }
   | { ok: false; status: number; error: DeliveryIngestError };
 
 /**
@@ -346,6 +354,7 @@ export function ingestDeliveryEvents(
     acceptedSeq: last,
     accepted: fresh.length,
     dropped: batch.length - fresh.length,
+    events: fresh,
   };
 }
 

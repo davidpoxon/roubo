@@ -187,12 +187,27 @@ export interface DeliveryProgress {
   caseList: DeliveryCaseProgress[];
 }
 
+// A delivery is stale when neither the record nor the stream has moved for
+// this long (SB-NFR-006): 2 minutes.
+export const DELIVERY_STALE_AFTER_MS = 2 * 60_000;
+
 export interface DeliveryStaleness {
   // The record's `updated_at`, verbatim.
   updatedAt: string;
-  // Milliseconds between `updated_at` and the caller's `now`, floored at zero.
-  // Null when the caller passed no `now`, or `updated_at` does not parse.
+  // The `ts` of the last event the fold applied, verbatim, or null when it
+  // applied none.
+  lastEventAt: string | null;
+  // Milliseconds between `updated_at` and the caller's `now`, floored at zero:
+  // the record's age. Null when the caller passed no `now`, or `updated_at`
+  // does not parse.
   ageMs: number | null;
+  // Milliseconds between the later of `updated_at` and `lastEventAt` and the
+  // caller's `now`, floored at zero: how long the delivery has been quiet. Null
+  // when the caller passed no `now`, or neither time parses.
+  quietMs: number | null;
+  // True when `quietMs` is at least DELIVERY_STALE_AFTER_MS. False without a
+  // `now`: the fold never reads a clock, so it cannot call a record stale.
+  stale: boolean;
 }
 
 export interface DeliverySnapshot {
@@ -451,6 +466,9 @@ export interface GateConfirmedPayload extends ReadBackPayload {
 
 interface FoldState {
   seq: number;
+  // The `ts` of the last event the fold applied, of any type, or null when it
+  // applied none. The staleness reads it (see `computeStaleness`).
+  lastEventAt: string | null;
   gap?: DeliveryGap;
   mode: DeliveryMode;
   review: DeliveryReview;
@@ -593,7 +611,7 @@ const onDeliveryPlanned: EventHandler = (state, event) => {
     next.review = settleReview(next, next.review);
   }
   if (isRecord(payload.budget)) {
-    next = { ...next, budget: merge(next.budget, pickBudget(payload.budget)) };
+    next = { ...next, budget: merge(next.budget, pickBudget(payload.budget, next.budget)) };
   }
   if (isRecord(payload.roles)) {
     const roles: Record<string, DeliveryRole> = { ...next.roles };
@@ -726,16 +744,36 @@ const onSteeringAdded: EventHandler = (state, event) => {
   return { ...state, steeringById: { ...state.steeringById, [id]: steering } };
 };
 
-function pickBudget(payload: Record<string, unknown>): Partial<DeliveryBudget> {
+function isCost(value: unknown): value is number {
+  return isNumber(value) && value >= 0;
+}
+
+// The budget keys a payload carries. `by_role` is merged role by role over the
+// one `current` holds, so an event that names one role's spend keeps the
+// others (SB-FR-018); a role whose value is not a cost is ignored.
+function pickBudget(
+  payload: Record<string, unknown>,
+  current: DeliveryBudget,
+): Partial<DeliveryBudget> {
   const patch: Partial<DeliveryBudget> = {};
   if (isNumber(payload.estimate_usd)) patch.estimate_usd = payload.estimate_usd;
   if (isNumber(payload.soft_budget_usd)) patch.soft_budget_usd = payload.soft_budget_usd;
   if (isNumber(payload.spent_usd)) patch.spent_usd = payload.spent_usd;
+  if (isRecord(payload.by_role)) {
+    const byRole: Record<string, number> = { ...(current.by_role ?? {}) };
+    let changed = false;
+    for (const [role, cost] of Object.entries(payload.by_role)) {
+      if (!isCost(cost)) continue;
+      setOwnValue(byRole, role, cost);
+      changed = true;
+    }
+    if (changed) patch.by_role = byRole;
+  }
   return patch;
 }
 
 const onBudgetChanged: EventHandler = (state, event) => {
-  const patch = pickBudget(event.payload);
+  const patch = pickBudget(event.payload, state.budget);
   if (Object.keys(patch).length === 0) return state;
   return { ...state, budget: merge(state.budget, patch) };
 };
@@ -756,15 +794,24 @@ const onHealthChanged: EventHandler = (state, event) => {
   return { ...state, health };
 };
 
+// A `drift.detected` adds one row to the drift ledger (SB-FR-020). A spec edit
+// carries the file, the summary, the minted ids and the spec-layer pull
+// request; a payload with a summary and no detail takes the summary as its
+// detail, so the entry still has the detail the record requires.
 const onDriftDetected: EventHandler = (state, event) => {
   const payload = event.payload as DriftDetectedPayload;
-  if (!isString(payload.kind) || !isString(payload.detail)) return state;
+  const detail = isString(payload.detail) ? payload.detail : payload.summary;
+  if (!isString(payload.kind) || !isString(detail)) return state;
   const unitId = isString(payload.unit_id) ? payload.unit_id : event.unit_id;
   const drift: DeliveryDrift = {
     kind: payload.kind,
-    detail: payload.detail,
+    detail,
     detected_at: isString(payload.detected_at) ? payload.detected_at : event.ts,
     ...(isString(unitId) ? { unit_id: unitId } : {}),
+    ...(isString(payload.file) ? { file: payload.file } : {}),
+    ...(isString(payload.summary) ? { summary: payload.summary } : {}),
+    ...(isStringArray(payload.ids) ? { ids: [...payload.ids] } : {}),
+    ...(typeof payload.pr_url === "string" ? { pr_url: payload.pr_url } : {}),
   };
   return { ...state, drift: [...state.drift, drift] };
 };
@@ -1073,6 +1120,7 @@ function stateFromRecord(record: DeliveryRecord): FoldState {
   }
   const state: FoldState = {
     seq: record.last_event_seq,
+    lastEventAt: null,
     mode: record.mode,
     review: record.review,
     unitsById: indexById(record.units),
@@ -1114,8 +1162,9 @@ function applyEvents(state: FoldState, events: readonly DeliveryEvent[]): FoldSt
     }
     const handler = ownValue(EVENT_HANDLERS, event.type);
     // Copy before stamping the seq: `next` may still be the caller's (or the
-    // memo's) state when the handler changed nothing.
-    next = { ...(handler ? handler(next, event) : next), seq: event.seq };
+    // memo's) state when the handler changed nothing. An event of a type the
+    // fold skips still says the tooling is alive, so it moves `lastEventAt`.
+    next = { ...(handler ? handler(next, event) : next), seq: event.seq, lastEventAt: event.ts };
   }
   return next;
 }
@@ -1267,15 +1316,25 @@ function unitThatMet(gates: readonly DeliveryGate[], caseId: string): string | n
   return gate.after[gate.after.length - 1];
 }
 
-export function computeStaleness(updatedAt: string, now: number | undefined): DeliveryStaleness {
+// The staleness of a delivery at `now` (SB-NFR-006), from the record's
+// `updated_at` and the `ts` of the last event the fold applied: the delivery is
+// quiet since the later of the two, and stale once it has been quiet for
+// DELIVERY_STALE_AFTER_MS. The next event moves `lastEventAt`, which clears it.
+export function computeStaleness(
+  updatedAt: string,
+  lastEventAt: string | null,
+  now: number | undefined,
+): DeliveryStaleness {
+  const base = { updatedAt, lastEventAt };
   if (now === undefined) {
-    return { updatedAt, ageMs: null };
+    return { ...base, ageMs: null, quietMs: null, stale: false };
   }
   const updated = Date.parse(updatedAt);
-  if (Number.isNaN(updated)) {
-    return { updatedAt, ageMs: null };
-  }
-  return { updatedAt, ageMs: Math.max(0, now - updated) };
+  const lastEvent = lastEventAt === null ? Number.NaN : Date.parse(lastEventAt);
+  const times = [updated, lastEvent].filter((time) => !Number.isNaN(time));
+  const ageMs = Number.isNaN(updated) ? null : Math.max(0, now - updated);
+  const quietMs = times.length === 0 ? null : Math.max(0, now - Math.max(...times));
+  return { ...base, ageMs, quietMs, stale: quietMs !== null && quietMs >= DELIVERY_STALE_AFTER_MS };
 }
 
 function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliverySnapshot {
@@ -1318,7 +1377,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     lifecycle: state.lifecycle,
     seams: state.seams,
     progress: computeProgress(record, state, gatesById, plan, results, lifecycle),
-    staleness: computeStaleness(record.updated_at, now),
+    staleness: computeStaleness(record.updated_at, state.lastEventAt, now),
   };
   if (state.gap !== undefined) {
     snapshot.gap = state.gap;
