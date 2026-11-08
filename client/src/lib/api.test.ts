@@ -15,6 +15,7 @@ import {
   createBench,
   teardownBench,
   cleanupAndRetryBench,
+  restartBenchWithConfig,
   startBench,
   stopBench,
   startComponent,
@@ -630,6 +631,17 @@ describe("cleanupAndRetryBench", () => {
     await cleanupAndRetryBench("p1", 1);
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/projects/p1/benches/1/cleanup-and-retry",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+});
+
+describe("restartBenchWithConfig", () => {
+  it("sends POST to /api/projects/:id/benches/:id/restart-with-config", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ id: 1 }));
+    await restartBenchWithConfig("p1", 1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/projects/p1/benches/1/restart-with-config",
       expect.objectContaining({ method: "POST" }),
     );
   });

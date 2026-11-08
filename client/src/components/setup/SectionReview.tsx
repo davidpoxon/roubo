@@ -385,7 +385,9 @@ export default function SectionReview({
       {saveError && <p className="text-13 text-danger-text">{saveError}</p>}
       {saveSuccess && (
         <p className="text-13 text-success-text">
-          {isEditMode ? "Config saved. Restart components to apply changes." : "Config saved."}
+          {isEditMode
+            ? "Config saved. New benches use it. A running bench keeps the definitions it was set up with until you choose Restart with new config on it."
+            : "Config saved."}
         </p>
       )}
     </div>
