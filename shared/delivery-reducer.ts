@@ -11,8 +11,10 @@
 // untouched, and the snapshot a memoised fold remembers cannot be changed by a
 // later fold either.
 //
-// Event vocabulary. The contract leaves `type` and `payload` open, so this module
-// is the typed view over them (see the `*Payload` types below). The handlers sit
+// Event vocabulary. The contract types the payload of each event type this
+// module applies (DELIVERY_EVENT_PAYLOADS) and sends any other type to its
+// catch-all, which leaves `type` and `payload` open; this module is the typed
+// view over them (see the `*Payload` types below). The handlers sit
 // in a table keyed by type (`EVENT_HANDLERS`), not in a closed switch, so a later
 // minor version adds a type by adding a row. An event whose type has no row is
 // skipped and still advances the accepted seq: unknown is never an error. A
@@ -397,8 +399,9 @@ function isProvisionalMark(value: unknown): value is ProvisionalMark {
 
 // ── Event payload views ──
 //
-// Typed views over the open payload, one per event type the fold applies. Every
-// key is optional: the handlers read what is present and ignore the rest.
+// Typed views over the payload, one per event type the fold applies, each the
+// shape of its `*PayloadSchema` in delivery-observation-contract.ts. Every key
+// is optional: the handlers read what is present and ignore the rest.
 
 export interface DeliveryPlannedPayload {
   units?: DeliveryUnit[];

@@ -375,10 +375,28 @@ function valueSchema(schema: JsonSchema, key: string): JsonSchema {
   return typeof schema.additionalProperties === "object" ? schema.additionalProperties : {};
 }
 
+// A union branch that pins a const on a key the author wrote to another value
+// (the event schema's `type`) cannot describe the authored document.
+function contradicts(branch: JsonSchema, authored: Json): boolean {
+  if (!isObject(authored)) return false;
+  return Object.entries(branch.properties ?? {}).some(
+    ([key, child]) => child.const !== undefined && key in authored && authored[key] !== child.const,
+  );
+}
+
 // The smallest value a schema accepts, or the author's value with every
-// required field the author left out filled in.
+// required field the author left out filled in. Under a union, the author's
+// value is filled from the first branch it does not contradict and then meets.
 function fromSchema(schema: JsonSchema, authored?: Json): Json {
   if (authored !== undefined) {
+    if (schema.anyOf !== undefined) {
+      for (const branch of schema.anyOf) {
+        if (contradicts(branch, authored)) continue;
+        const filled = fromSchema(branch, authored);
+        if (violations(branch, filled).length === 0) return filled;
+      }
+      return authored;
+    }
     if (isObject(authored) && (schema.type === "object" || schema.properties)) {
       const filled: { [key: string]: Json } = {};
       for (const key of schema.required ?? []) {
