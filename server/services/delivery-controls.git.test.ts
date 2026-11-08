@@ -541,8 +541,11 @@ describe("Overturning a default", () => {
 
     // The session goes on with the default.
     expect(
-      (await postEvents(bench, token, [decisionEvent(8, "decision.defaulted", { decision_id: OPEN_DECISION })]))
-        .status,
+      (
+        await postEvents(bench, token, [
+          decisionEvent(8, "decision.defaulted", { decision_id: OPEN_DECISION }),
+        ])
+      ).status,
     ).toBe(202);
     const defaulted = (await snapshotOf(bench)).decisionsById[OPEN_DECISION];
     expect(defaulted).toMatchObject({ status: "defaulted", chosen: OPTION });

@@ -21,9 +21,7 @@ export const DELIVERY_DECISION_SETTLED_TYPES: ReadonlySet<string> = new Set([
   "decision.overturned",
 ]);
 
-type DecisionNotice =
-  | { kind: "raised"; question: string; unitId?: string }
-  | { kind: "settled" };
+type DecisionNotice = { kind: "raised"; question: string; unitId?: string } | { kind: "settled" };
 
 function payloadString(payload: Record<string, unknown>, key: string): string | undefined {
   const value = payload[key];

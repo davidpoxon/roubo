@@ -42,7 +42,13 @@ function snapshot() {
     record: fourUnitRecord(),
     events: [
       raised(8, "decision-a", "2026-10-16T10:00:00Z"),
-      unitEvent(9, "B", "decision.defaulted", { decision_id: "decision-a" }, "2026-10-16T10:01:00Z"),
+      unitEvent(
+        9,
+        "B",
+        "decision.defaulted",
+        { decision_id: "decision-a" },
+        "2026-10-16T10:01:00Z",
+      ),
       raised(10, "decision-b", "2026-10-16T10:05:00Z"),
     ],
   });
@@ -63,7 +69,11 @@ describe("Decision pile accessibility", () => {
       .getAllByRole("button")
       .filter((button) => button.closest("[role=group]") !== null)
       .map((button) => button.textContent);
-    expect(names).toEqual(["one file per unit (default)", "one file per stack", "one file per repo"]);
+    expect(names).toEqual([
+      "one file per unit (default)",
+      "one file per stack",
+      "one file per repo",
+    ]);
     expectNoAxeFindings(await axe(container));
 
     // The lower card raises by keyboard, and its overturn options are reachable.

@@ -234,8 +234,8 @@ function TopCard({
 
       {state.kind === "overturned" && (
         <p data-testid="decision-applied" className="text-12 text-text-body">
-          Applied: <span className="text-text-primary">{state.applied}</span>, overturned from
-          the default {decision.default}.
+          Applied: <span className="text-text-primary">{state.applied}</span>, overturned from the
+          default {decision.default}.
         </p>
       )}
     </article>
