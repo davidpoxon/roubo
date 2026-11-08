@@ -2,7 +2,10 @@ import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "roubo-bench-view-state";
 
-export type BenchTabId = "components" | "terminal" | "info" | "testbench";
+// `delivery` is the Spec Bench's tab: BenchDetail offers it only on a bench whose
+// variant is `specbench`, so a persisted `delivery` on any other bench falls back
+// to that bench's default tab.
+export type BenchTabId = "components" | "terminal" | "info" | "testbench" | "delivery";
 
 type BenchViewEntry = {
   activeTab?: BenchTabId;

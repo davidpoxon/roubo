@@ -271,6 +271,18 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ),
     componentUrls: toComponentUrls(bench.components),
     benchSetupComplete: bench.benchSetupComplete,
+    // The Spec Bench fields are written only when set, so a record of any other
+    // bench carries no delivery key at all, not even an undefined one (SB-TC-008).
+    ...(bench.deliveryBindMode !== undefined && { deliveryBindMode: bench.deliveryBindMode }),
+    ...(bench.gatePin !== undefined && { gatePin: bench.gatePin }),
+    ...(bench.deliveryTokenHash !== undefined && { deliveryTokenHash: bench.deliveryTokenHash }),
+    ...(bench.deliverySitting !== undefined && { deliverySitting: bench.deliverySitting }),
+    ...(bench.deliveryLastViewedSeq !== undefined && {
+      deliveryLastViewedSeq: bench.deliveryLastViewedSeq,
+    }),
+    ...(bench.deliveryFirstSeenBlocking !== undefined && {
+      deliveryFirstSeenBlocking: bench.deliveryFirstSeenBlocking,
+    }),
   };
 }
 

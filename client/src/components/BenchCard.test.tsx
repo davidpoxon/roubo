@@ -115,6 +115,24 @@ describe("BenchCard", () => {
       expect(screen.getByText("feat/new-login")).toBeInTheDocument();
     });
 
+    it("SB-TC-001: shows the Spec Bench variant badge in the card head", () => {
+      makeDefaultMutations();
+      renderCard(makeBench({ variant: "specbench", deliveryBindMode: "launch" }));
+      const badge = screen.getByTestId("bench-variant-badge");
+      expect(badge).toHaveTextContent("Spec Bench");
+      expect(badge.className).toContain("bg-accent-muted");
+      expect(badge.className).toContain("text-accent-text");
+    });
+
+    it("SB-TC-008: shows no variant badge on a plain bench or a TestBench", () => {
+      makeDefaultMutations();
+      const { unmount } = renderCard(makeBench());
+      expect(screen.queryByTestId("bench-variant-badge")).toBeNull();
+      unmount();
+      renderCard(makeBench({ variant: "testbench" }));
+      expect(screen.queryByTestId("bench-variant-badge")).toBeNull();
+    });
+
     it("renders project name when provided", () => {
       makeDefaultMutations();
       renderCard(makeBench(), "My Project");
