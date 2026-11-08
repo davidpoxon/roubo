@@ -668,6 +668,19 @@ export function overturnDeliveryDecision(
   );
 }
 
+// Approve the delivery (SB-FR-034): 202 with the approval control, or 409
+// REVIEW_OPEN while a review is open.
+export function approveDelivery(
+  projectId: string,
+  benchId: number,
+  reason?: string,
+): Promise<DeliveryOutboxControl> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/approve`, {
+    method: "POST",
+    body: JSON.stringify(reason === undefined ? {} : { reason }),
+  });
+}
+
 /** The named read error of a delivery record, when an error carries one. */
 export function deliveryReadErrorOf(err: unknown): DeliveryReadError | undefined {
   if (!(err instanceof ApiError)) return undefined;

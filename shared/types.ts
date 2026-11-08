@@ -1873,7 +1873,9 @@ export type NotificationType =
   // unit: its dedupe key is the unit id.
   | "delivery-jam"
   // The delivery session of a Spec Bench raised a decision (SB-FR-014). One
-  // per decision: its dedupe key is the decision id.
+  // per decision: its dedupe key is the decision id. A review call
+  // (`review.opened`, SB-FR-034) raises one too, keyed by the delivery, the
+  // trigger and the oldest unreviewed decision, with only a count in metadata.
   | "delivery-decision";
 
 export type NotificationPriority = "info" | "action-needed";

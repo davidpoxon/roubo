@@ -123,6 +123,19 @@ export function useDecisionControl(projectId: string, benchId: number) {
 }
 
 /**
+ * Approves the delivery (SB-FR-034). The server refuses it with 409
+ * REVIEW_OPEN while a review is open.
+ */
+export function useApproveDelivery(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.approveDelivery(projectId, benchId),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
+/**
  * Whether the main delivery session that the bench launched still runs. It
  * reads the bench's terminal sessions only when the bench has recorded one.
  */
