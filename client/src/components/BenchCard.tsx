@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitBranch, Play, Square, Trash2, X, RotateCcw } from "lucide-react";
+import { GitBranch, Play, Square, Trash2, X, RotateCcw, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { Bench, DirtyReason } from "@roubo/shared";
 import ComponentStatusDot from "./ComponentStatusDot";
@@ -12,12 +12,14 @@ import {
   useStopBench,
   useTeardownBench,
   useCleanupAndRetryBench,
+  useRestartBenchWithConfig,
 } from "../hooks/useBenches";
 import { useTeardownTracker } from "../hooks/useClearingTracker";
 import { displayIssueRef } from "../lib/issue-id";
 import { stepIcon, stepTextColor } from "../lib/provisioning";
 import { isDirtyBenchError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
+import StaleBenchMarker from "./StaleBenchMarker";
 import { useToast } from "../hooks/useToast";
 import Button from "./ui/Button";
 import IconButton from "./ui/IconButton";
@@ -66,6 +68,7 @@ export default function BenchCard({
   const stopBench = useStopBench();
   const teardown = useTeardownBench();
   const cleanupAndRetry = useCleanupAndRetryBench();
+  const restartWithConfig = useRestartBenchWithConfig();
   const { register: registerTeardown } = useTeardownTracker();
   const { addToast } = useToast();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -147,13 +150,18 @@ export default function BenchCard({
                 />
                 <NotificationIndicator notifications={bench.notifications} className="shrink-0" />
                 {isSpecbench && <BranchLine branch={bench.branch} className="ml-auto min-w-0" />}
-                <StatusIndicator
-                  tone={statusTone}
-                  label={bench.status}
-                  pulse={bench.status === "preparing" || bench.status === "clearing"}
-                  className={isSpecbench ? "shrink-0" : "ml-auto"}
-                  data-testid="bench-card-status"
-                />
+                <div
+                  className={`flex items-center gap-2 ${isSpecbench ? "shrink-0" : "ml-auto min-w-0"}`}
+                >
+                  {bench.stale === true && <StaleBenchMarker />}
+                  <StatusIndicator
+                    tone={statusTone}
+                    label={bench.status}
+                    pulse={bench.status === "preparing" || bench.status === "clearing"}
+                    className="shrink-0"
+                    data-testid="bench-card-status"
+                  />
+                </div>
               </div>
             </div>
 
@@ -241,6 +249,33 @@ export default function BenchCard({
                     className={cleanupAndRetry.isPending ? "animate-spin" : ""}
                   />
                   {cleanupAndRetry.isPending ? "Cleaning up..." : "Cleanup & Retry"}
+                </Button>
+              </div>
+            )}
+
+            {bench.stale === true && !bench.error && (
+              <div onClick={(e) => e.stopPropagation()} className="mt-2 shrink-0">
+                <Button
+                  isDisabled={isBusy || restartWithConfig.isPending}
+                  onPress={() =>
+                    restartWithConfig.mutate(
+                      { projectId: bench.projectId, benchId: bench.id },
+                      {
+                        onError: (err) =>
+                          addToast(
+                            err instanceof Error && err.message ? err.message : "Restart failed",
+                            { duration: 8000 },
+                          ),
+                      },
+                    )
+                  }
+                  className="w-full outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                >
+                  <RefreshCw
+                    size={12}
+                    className={restartWithConfig.isPending ? "animate-spin" : ""}
+                  />
+                  {restartWithConfig.isPending ? "Restarting..." : "Restart with new config"}
                 </Button>
               </div>
             )}

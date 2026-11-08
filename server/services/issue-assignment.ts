@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 import fs from "node:fs";
 import path from "node:path";
 import type {
@@ -177,7 +178,11 @@ async function buildAndStartAgentSession(
     jigSource = resolved.source;
     const jigDef = jigManager.getJig(projectId, jigId);
     jigAgentPluginId = jigDef?.agentPluginId;
-    const templateCtx = buildTemplateContext(config, benchId, bench.workspacePath);
+    const templateCtx = buildTemplateContext(
+      benchConfig(bench, config),
+      benchId,
+      bench.workspacePath,
+    );
     jig = jigManager.resolveJigContent(jigDef?.content ?? "", {
       ...templateCtx,
       benchBranch: bench.branch,

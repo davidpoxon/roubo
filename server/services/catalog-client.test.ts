@@ -9,7 +9,8 @@ import type {
   SignedKeyRing,
   SignedMarketplaceCatalog,
 } from "@roubo/shared";
-import { canonicalize, fingerprintKeyId } from "./marketplace-integrity.js";
+import { canonicalize } from "../lib/canonical-json.js";
+import { fingerprintKeyId } from "./marketplace-integrity.js";
 import { createCatalogClient } from "./catalog-client.js";
 
 // Catalog-client degrade-chain tests (CPHM-FR-001 / FR-009 / NFR-003, issue

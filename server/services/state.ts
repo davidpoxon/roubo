@@ -243,7 +243,8 @@ function toComponentUrls(components: Bench["components"]): Record<string, string
 
 /**
  * Extracts the persisted subset of a Bench, stripping runtime-only fields
- * (status, components, error, provisioningSteps, teardownSteps).
+ * (status, components, error, provisioningSteps, teardownSteps, and the derived
+ * `stale`).
  *
  * NFR-004 audit: `bench.assignedIssue.raw` is the one place a plugin-supplied
  * `raw` may live in state.json. It rides through this function with
@@ -275,6 +276,9 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ),
     componentUrls: toComponentUrls(bench.components),
     benchSetupComplete: bench.benchSetupComplete,
+    // Written only when set, so a legacy bench gains no snapshot key until it
+    // takes one (HR-TC-006). `stale` is derived on each read and never written.
+    ...(bench.componentSnapshot !== undefined && { componentSnapshot: bench.componentSnapshot }),
     // The Spec Bench fields are written only when set, so a record of any other
     // bench carries no delivery key at all, not even an undefined one (SB-TC-008).
     ...(bench.deliveryBindMode !== undefined && { deliveryBindMode: bench.deliveryBindMode }),

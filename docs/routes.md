@@ -100,6 +100,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/api/projects/:projectId/benches/:id/delivery/wind-down`                                  | `server/routes/delivery.ts`             |
 | DELETE | `/api/projects/:projectId/benches/:id/notifications`                                       | `server/routes/benches.ts`              |
 | DELETE | `/api/projects/:projectId/benches/:id/notifications/:notificationId`                       | `server/routes/benches.ts`              |
+| POST   | `/api/projects/:projectId/benches/:id/restart-with-config`                                 | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:id/start`                                               | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:id/stop`                                                | `server/routes/benches.ts`              |
 | GET    | `/api/projects/:projectId/benches/:id/terminals`                                           | `server/routes/terminal.ts`             |
