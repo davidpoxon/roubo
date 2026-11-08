@@ -465,6 +465,138 @@ describe("Answering a decision", () => {
     // No refusal took a control_seq.
     expect((await readControls(bench, token, "0")).body.latestSeq).toBe(1);
   });
+
+  it("SB-TC-042 an answer outside the options is 400 naming option with no control appended, an unknown decision 404 and an applied one 409", async () => {
+    const { bench, token } = await benchWithRecord();
+
+    const foreign = await answer(bench, OPEN_DECISION, { option: "one file per repo" });
+    expect(foreign.status).toBe(400);
+    expect(foreign.body).toMatchObject({ code: "INVALID_BODY", field: "option" });
+    expect(await readControls(bench, token, "0")).toMatchObject({
+      body: { controls: [], latestSeq: 0 },
+    });
+
+    const unknown = await answer(bench, "decision-9");
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.code).toBe("DECISION_NOT_FOUND");
+
+    // A decision whose answer was read back, and one whose default was applied.
+    expect((await answer(bench, OPEN_DECISION)).status).toBe(202);
+    await postEvents(bench, token, [answered(8, OPEN_DECISION)]);
+    const applied = await answer(bench, OPEN_DECISION);
+    expect(applied.status).toBe(409);
+    expect(applied.body).toMatchObject({ code: "DECISION_NOT_OPEN", status: "answered" });
+
+    await postEvents(bench, token, [
+      raised(9, "decision-3"),
+      decisionEvent(10, "decision.defaulted", { decision_id: "decision-3" }),
+    ]);
+    const defaulted = await answer(bench, "decision-3", { option: "two" });
+    expect(defaulted.status).toBe(409);
+    expect(defaulted.body).toMatchObject({ code: "DECISION_NOT_OPEN", status: "defaulted" });
+
+    expect((await readControls(bench, token, "0")).body.latestSeq).toBe(1);
+  });
+});
+
+function decisionEvent(
+  seq: number,
+  type: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    $schema: DELIVERY_EVENT_SCHEMA_ID,
+    schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+    delivery_id: DELIVERY_ID,
+    type,
+    seq,
+    ts: "2026-10-16T09:40:00Z",
+    payload,
+  };
+}
+
+function raised(seq: number, decisionId: string): Record<string, unknown> {
+  return decisionEvent(seq, "decision.raised", {
+    decision_id: decisionId,
+    question: "One or two?",
+    options: ["one", "two"],
+    default: "one",
+  });
+}
+
+function overturn(bench: Bench, decisionId: string, body: unknown) {
+  return request(app)
+    .post(`/demo/benches/${bench.id}/delivery/decisions/${decisionId}/overturn`)
+    .send(body as object);
+}
+
+describe("Overturning a default", () => {
+  it("SB-TC-038 a defaulted decision shows its default applied, takes an overturn control that the controls endpoint lists, and shows the new option on its read-back", async () => {
+    const { bench, token } = await benchWithRecord();
+
+    // An open decision has no default applied to overturn.
+    const open = await overturn(bench, OPEN_DECISION, { option: "one file per stack" });
+    expect(open.status).toBe(409);
+    expect(open.body).toMatchObject({ code: "DECISION_NOT_DEFAULTED", status: "open" });
+
+    // The session goes on with the default.
+    expect(
+      (
+        await postEvents(bench, token, [
+          decisionEvent(8, "decision.defaulted", { decision_id: OPEN_DECISION }),
+        ])
+      ).status,
+    ).toBe(202);
+    const defaulted = (await snapshotOf(bench)).decisionsById[OPEN_DECISION];
+    expect(defaulted).toMatchObject({ status: "defaulted", chosen: OPTION });
+
+    // The applied option and one the decision does not offer are refused.
+    const same = await overturn(bench, OPEN_DECISION, { option: OPTION });
+    expect(same.status).toBe(400);
+    expect(same.body).toMatchObject({ code: "INVALID_BODY", field: "option" });
+    const foreign = await overturn(bench, OPEN_DECISION, { option: "one file per repo" });
+    expect(foreign.status).toBe(400);
+    expect(foreign.body).toMatchObject({ code: "INVALID_BODY", field: "option" });
+    expect((await overturn(bench, "decision-9", { option: "one" })).status).toBe(404);
+
+    // The overturn is a control on the controls endpoint.
+    const posted = await overturn(bench, OPEN_DECISION, { option: "one file per stack" });
+    expect(posted.status).toBe(202);
+    expect(validateDeliveryControl(posted.body).ok).toBe(true);
+    expect(posted.body).toMatchObject({
+      control_seq: 1,
+      kind: "overturn",
+      target_id: OPEN_DECISION,
+      body: { option: "one file per stack" },
+      status: "pending",
+    });
+    expect(sse.broadcastDeliveryFrame).toHaveBeenCalledWith("demo", bench.id, 8, "controls");
+    expect((await readControls(bench, token, "0")).body).toEqual({
+      controls: [posted.body],
+      latestSeq: 1,
+    });
+
+    const again = await overturn(bench, OPEN_DECISION, { option: "one file per stack" });
+    expect(again.status).toBe(409);
+    expect(again.body).toMatchObject({ code: "DECISION_OVERTURN_PENDING", control_seq: 1 });
+
+    // The read-back applies the control and the new option.
+    await postEvents(bench, token, [
+      decisionEvent(9, "decision.overturned", {
+        decision_id: OPEN_DECISION,
+        option: "one file per stack",
+      }),
+    ]);
+    const applied = await snapshotOf(bench);
+    expect(applied.controls).toEqual([{ ...posted.body, status: "applied" }]);
+    expect(applied.decisionsById[OPEN_DECISION]).toMatchObject({
+      status: "overturned",
+      chosen: "one file per stack",
+    });
+    const settled = await overturn(bench, OPEN_DECISION, { option: OPTION });
+    expect(settled.status).toBe(409);
+    expect(settled.body.code).toBe("DECISION_NOT_DEFAULTED");
+  });
 });
 
 describe("The controls endpoint", () => {

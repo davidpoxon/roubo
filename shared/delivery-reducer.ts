@@ -297,11 +297,19 @@ export function classifyUnitStatus(status: string): UnitStatusKind {
   return ownValue(UNIT_STATUS_KINDS, status.toLowerCase()) ?? "other";
 }
 
+// The status a `decision.defaulted` gives a decision: the session went on with
+// its default, which stands until the operator overturns it (SB-FR-015).
+export const DECISION_DEFAULTED_STATUS = "defaulted";
+// The status a `decision.overturned` gives a decision: the operator's overturn
+// of a default landed, and `chosen` holds the option that replaced it.
+export const DECISION_OVERTURNED_STATUS = "overturned";
+
 const CLOSED_DECISION_STATUSES: ReadonlySet<string> = new Set([
   "answered",
   "decided",
   "accepted",
-  "overturned",
+  DECISION_DEFAULTED_STATUS,
+  DECISION_OVERTURNED_STATUS,
   "closed",
   "resolved",
   "declined",
@@ -312,9 +320,17 @@ const CLOSED_DECISION_STATUSES: ReadonlySet<string> = new Set([
 // A decision is open unless its status word says it was settled. An unknown word
 // reads as open, so a decision never silently leaves the queue. A decision the
 // session decided on its own (`decided`) is settled: it waits on the review
-// stack, not in the open queue (see `isUnreviewedAgentDecision`).
+// stack, not in the open queue (see `isUnreviewedAgentDecision`). A defaulted
+// decision is settled too: its default is applied, so it takes no answer, only
+// an overturn (see `isDecisionDefaulted`).
 export function isDecisionOpen(decision: DeliveryDecision): boolean {
   return !CLOSED_DECISION_STATUSES.has(decision.status.toLowerCase());
+}
+
+// A decision whose default the session applied and that the operator can still
+// overturn: its status is `defaulted`.
+export function isDecisionDefaulted(decision: DeliveryDecision): boolean {
+  return decision.status.toLowerCase() === DECISION_DEFAULTED_STATUS;
 }
 
 // A decision the session decided on its own that the operator has not reviewed:
@@ -388,6 +404,27 @@ export interface DecisionAnsweredPayload {
   status?: string;
   answer?: string;
   answered_at?: string;
+}
+
+// The session went on with a decision's default (SB-FR-015). `chosen` names
+// the applied option when it is not the default.
+export interface DecisionDefaultedPayload {
+  decision_id?: string;
+  id?: string;
+  status?: string;
+  chosen?: string;
+  defaulted_at?: string;
+}
+
+// The operator's overturn of a default landed: `chosen` (or `option`) names
+// the option that replaced it, and `control_seq` the overturn control.
+export interface DecisionOverturnedPayload extends ReadBackPayload {
+  decision_id?: string;
+  id?: string;
+  status?: string;
+  chosen?: string;
+  option?: string;
+  overturned_at?: string;
 }
 
 export interface SteeringAddedPayload extends Partial<Omit<DeliverySteering, "id">> {
@@ -737,6 +774,55 @@ const onDecisionAnswered: EventHandler = (state, event) => {
   patch.answered_at = isString(payload.answered_at) ? payload.answered_at : event.ts;
   const decision = merge(current, patch as Partial<DeliveryDecision>);
   return { ...state, decisionsById: { ...state.decisionsById, [id]: decision } };
+};
+
+// A `decision.defaulted` marks a raised decision `defaulted` (or the payload's
+// status) and its default as the applied choice, unless the payload names
+// another of its options in `chosen`. The decision stays in the snapshot, so a
+// view can offer the overturn. A decision the stream never raised is skipped.
+const onDecisionDefaulted: EventHandler = (state, event) => {
+  const payload = event.payload as DecisionDefaultedPayload;
+  const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
+  if (!isString(id)) return state;
+  const current = ownValue(state.decisionsById, id);
+  if (current === undefined) return state;
+  const chosen =
+    isString(payload.chosen) && current.options.includes(payload.chosen)
+      ? payload.chosen
+      : current.default;
+  const patch: Record<string, unknown> = {
+    status: isString(payload.status) ? payload.status : DECISION_DEFAULTED_STATUS,
+    chosen,
+    defaulted_at: isString(payload.defaulted_at) ? payload.defaulted_at : event.ts,
+  };
+  const decision = merge(current, patch as Partial<DeliveryDecision>);
+  const decisionsById = { ...state.decisionsById };
+  setOwnValue(decisionsById, id, decision);
+  return { ...state, decisionsById };
+};
+
+// A `decision.overturned` marks a decision `overturned` (or the payload's
+// status) with the option that replaced its default as `chosen`. The option is
+// read from `chosen`, as `decision.decided` and `review.outcome` carry it, or
+// from `option`, as the overturn control's body names it. An option the
+// decision does not offer, or a decision the stream never raised, is skipped.
+const onDecisionOverturned: EventHandler = (state, event) => {
+  const payload = event.payload as DecisionOverturnedPayload;
+  const id = isString(payload.decision_id) ? payload.decision_id : payload.id;
+  if (!isString(id)) return state;
+  const current = ownValue(state.decisionsById, id);
+  if (current === undefined) return state;
+  const chosen = isString(payload.chosen) ? payload.chosen : payload.option;
+  if (!isString(chosen) || !current.options.includes(chosen)) return state;
+  const patch: Record<string, unknown> = {
+    status: isString(payload.status) ? payload.status : DECISION_OVERTURNED_STATUS,
+    chosen,
+    overturned_at: isString(payload.overturned_at) ? payload.overturned_at : event.ts,
+  };
+  const decision = merge(current, patch as Partial<DeliveryDecision>);
+  const decisionsById = { ...state.decisionsById };
+  setOwnValue(decisionsById, id, decision);
+  return { ...state, decisionsById };
 };
 
 const onSteeringAdded: EventHandler = (state, event) => {
@@ -1101,6 +1187,8 @@ export const EVENT_HANDLERS: Readonly<Record<string, EventHandler>> = {
   "gate.changed": onGateChanged,
   "decision.raised": onDecisionRaised,
   "decision.answered": onDecisionAnswered,
+  "decision.defaulted": onDecisionDefaulted,
+  "decision.overturned": onDecisionOverturned,
   "steering.added": onSteeringAdded,
   "budget.changed": onBudgetChanged,
   "health.changed": onHealthChanged,

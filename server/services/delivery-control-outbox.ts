@@ -20,8 +20,9 @@
 // The delivery tooling reads the outbox with `readDeliveryControls` (GET
 // /api/hooks/delivery-controls), and the bench reads a control back from the
 // events the tooling posts (`applyDeliveryControlReadBacks`): an event whose
-// payload names the control's `control_seq`, or a `decision.answered` for the
-// decision an answer control targets, marks the control `applied`. A control
+// payload names the control's `control_seq`, a `decision.answered` for the
+// decision an answer control targets, or a `decision.overturned` for the
+// decision an overturn control targets, marks the control `applied`. A control
 // stays `pending` until then.
 //
 // A read with a `wait` and nothing to return waits here for the next issued
@@ -237,7 +238,10 @@ function readsBack(event: DeliveryEvent, control: DeliveryOutboxControl): boolea
   if (event.delivery_id !== control.delivery_id) return false;
   const payload = event.payload as Record<string, unknown>;
   if (payload.control_seq === control.control_seq) return true;
-  if (event.type === "decision.answered" && control.kind === "decision-answer") {
+  const decisionRead =
+    (event.type === "decision.answered" && control.kind === "decision-answer") ||
+    (event.type === "decision.overturned" && control.kind === "overturn");
+  if (decisionRead) {
     const decisionId = payloadString(payload, "decision_id") ?? payloadString(payload, "id");
     return decisionId !== undefined && decisionId === control.target_id;
   }

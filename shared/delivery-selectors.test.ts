@@ -10,6 +10,7 @@ import {
 import { foldDelivery } from "./delivery-reducer.js";
 import { resolvePlan } from "./lifecycle-resolver.js";
 import {
+  selectDecisionPile,
   selectDecisionThread,
   selectDependencyEdges,
   selectDependencyOrder,
@@ -359,6 +360,37 @@ describe("delivery selectors", () => {
     expect(selectOpenDecisions(snapshot, "B")).toEqual([]);
     expect(selectSteeringFor(snapshot, "A")).toEqual([]);
     expect(selectSteeringFor(snapshot, "C").map((note) => note.id)).toEqual(["steering-1"]);
+  });
+
+  it("SB-TC-036: selectDecisionPile puts the newest decision on top and keeps defaulted and overturned ones", () => {
+    const raised = (seq: number, id: string) =>
+      event(seq, "decision.raised", {
+        decision_id: id,
+        question: `Question ${id}?`,
+        options: ["one", "two"],
+        default: "one",
+      });
+    const snapshot = foldDelivery({
+      record: fixtureRecord(),
+      events: [
+        raised(8, "decision-3"),
+        raised(9, "decision-4"),
+        raised(10, "decision-5"),
+        event(11, "decision.defaulted", { decision_id: "decision-3" }),
+        event(12, "decision.answered", { decision_id: "decision-5", answer: "two" }),
+        raised(13, "decision-6"),
+        event(14, "decision.defaulted", { decision_id: "decision-6" }),
+        event(15, "decision.overturned", { decision_id: "decision-6", option: "two" }),
+      ],
+    });
+    // decision-3, decision-4 and decision-6 share a raised_at, so the id breaks
+    // the tie; decision-2 was decided by the agent and decision-5 was answered.
+    expect(selectDecisionPile(snapshot).map((decision) => decision.id)).toEqual([
+      "decision-6",
+      "decision-4",
+      "decision-3",
+      "decision-1",
+    ]);
   });
 
   it("selectStalenessAge reads the age the fold computed", () => {

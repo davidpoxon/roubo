@@ -25,6 +25,8 @@ import type {
   ProvisionalCase,
 } from "./delivery-observation-contract";
 import {
+  DECISION_DEFAULTED_STATUS,
+  DECISION_OVERTURNED_STATUS,
   classifyUnitStatus,
   computeStaleness,
   isDecisionOpen,
@@ -44,6 +46,7 @@ import {
 
 export {
   classifyUnitStatus,
+  isDecisionDefaulted,
   isDecisionOpen,
   isProvisionalGate,
   isUnconfirmedProvisionalGate,
@@ -259,6 +262,29 @@ export function selectOpenDecisions(
   return Object.values(snapshot.decisionsById).filter(
     (decision) => isDecisionOpen(decision) && (unitId === undefined || decision.unit_id === unitId),
   );
+}
+
+// The decision pile of the Delivery tab (SB-FR-014, SB-FR-015): every decision
+// the session asked that is still open, defaulted (its default applied and open
+// to an overturn) or overturned (the option that replaced its default applied),
+// newest first by `raised_at`, then by id for a tie. An answered decision has
+// left the pile, and a decision the agent decided on its own waits on the
+// review stack instead.
+export function selectDecisionPile(snapshot: DeliverySnapshot): DeliveryDecision[] {
+  return Object.values(snapshot.decisionsById)
+    .filter((decision) => {
+      const status = decision.status.toLowerCase();
+      return (
+        isDecisionOpen(decision) ||
+        status === DECISION_DEFAULTED_STATUS ||
+        status === DECISION_OVERTURNED_STATUS
+      );
+    })
+    .sort((a, b) => {
+      const byTime = Date.parse(b.raised_at) - Date.parse(a.raised_at);
+      if (!Number.isNaN(byTime) && byTime !== 0) return byTime;
+      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    });
 }
 
 // The steering notes that reach a unit: those naming it, and those naming no

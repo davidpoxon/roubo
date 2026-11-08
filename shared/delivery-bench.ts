@@ -31,6 +31,8 @@ import type { SpecBenchDecisionMode } from "./types";
 //   POST <base>/resume   launch the session again with the record's resume argument
 //   POST <base>/decisions/<id>/answer
 //                        answer a decision with a control in the bench's outbox
+//   POST <base>/decisions/<id>/overturn
+//                        overturn a defaulted decision's default the same way
 //
 // The delivery session's own routes sit beside the other hook endpoints, under
 // /api/hooks, and name the bench in their query (`projectId`, `benchId`); the
