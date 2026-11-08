@@ -63,6 +63,13 @@ export interface WatchInputOptions {
   surface: string;
   /** The trailing settle window for each input, in milliseconds. */
   settleMs: number;
+  /**
+   * Whether the target is one file or a directory of inputs. Without it, an
+   * existing target is taken as what it is, and a missing one as a directory.
+   * Pass `file` to watch a file that may not exist yet: it is watched through
+   * its parent directory and handled when it appears.
+   */
+  kind?: "file" | "directory";
   /** How deep below the watched directory to watch. Forced to 0 for a file watch. */
   depth?: number;
   /** A predicate on an absolute path; true drops the path. */
@@ -238,9 +245,10 @@ function hashUnit(
 type RunMode = "event" | "quiet" | "seed";
 
 /**
- * Watch one input. `target` is an existing file, or a directory whose entries
- * (filtered by `allow` and `ignored`) are the inputs. Throws `WatchRootError`
- * before any watcher is created when the target is outside every allowed root.
+ * Watch one input. `target` is a file, or a directory whose entries (filtered
+ * by `allow` and `ignored`) are the inputs; `options.kind` says which when the
+ * target does not exist yet. Throws `WatchRootError` before any watcher is
+ * created when the target is outside every allowed root.
  */
 export function watchInput(
   target: string,
@@ -249,17 +257,23 @@ export function watchInput(
 ): Disposable {
   const resolved = resolveAllowedPath(target);
 
+  let isFile = options.kind === "file";
+  if (options.kind === undefined) {
+    try {
+      isFile = fs.statSync(resolved).isFile();
+    } catch {
+      // A missing target without a kind is a directory, armed when it appears.
+    }
+  }
   let dir = resolved;
   let allow = options.allow ? new Set(options.allow) : null;
   let depth = options.depth;
-  try {
-    if (fs.statSync(resolved).isFile()) {
-      dir = path.dirname(resolved);
-      allow = new Set([path.basename(resolved)]);
-      depth = 0;
-    }
-  } catch {
-    // A missing target is watched as a directory, armed when it appears.
+  if (isFile) {
+    // A file, present or not, is watched through its parent directory, so a
+    // missing file is handled when it appears.
+    dir = path.dirname(resolved);
+    allow = new Set([path.basename(resolved)]);
+    depth = 0;
   }
 
   const { surface, settleMs } = options;
@@ -275,6 +289,9 @@ export function watchInput(
   let checking = false;
   let armRefused = false;
   let poll: NodeJS.Timeout | null = null;
+  // Settles the ready promise of the current arm. Closing a watcher before
+  // chokidar emits `ready` means `ready` never comes, so disarm settles it.
+  let settleArm: (() => void) | null = null;
 
   function unitOf(absPath: string): string | null {
     const rel = path.relative(dir, absPath);
@@ -456,9 +473,14 @@ export function watchInput(
     watchLost = false;
     watcherReady = false;
     const ready = new Promise<void>((resolve) => {
+      const settle = () => {
+        if (settleArm === settle) settleArm = null;
+        resolve();
+      };
+      settleArm = settle;
       w.once("ready", () => {
         if (watcher === w) watcherReady = true;
-        resolve();
+        settle();
       });
     });
     w.on("all", (event, p) => {
@@ -486,6 +508,9 @@ export function watchInput(
     armedIno = null;
     watchLost = false;
     watcherReady = false;
+    const settle = settleArm;
+    settleArm = null;
+    settle?.();
     if (w) await w.close();
   }
 
@@ -519,7 +544,7 @@ export function watchInput(
         const ready = arm();
         if (!ready) return;
         await ready;
-        if (disposed) return;
+        if (disposed || !watcher) return;
         // A lifecycle line, not an ApplyLogLine: it carries no outcome.
         if (everArmed) console.info(`${LOG_PREFIX} re-armed path=${dir}`);
         everArmed = true;
@@ -534,6 +559,7 @@ export function watchInput(
     const armed = arm();
     if (armed) {
       await armed;
+      if (disposed) return;
       everArmed = true;
       await scan(true);
     }
