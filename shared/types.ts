@@ -1705,8 +1705,25 @@ export interface BenchGatePin {
   gateId: string;
   /** Absolute path of the pin worktree. Vetted by the safe-path allowlist on load. */
   workspacePath: string;
-  /** The commit the pin checks out, when known. */
+  /**
+   * The full commit the pin checks out. The gate pin service always records
+   * it; reconcile compares the pin's checked-out commit with it.
+   */
   commit?: string;
+  /**
+   * In a meta-repo, the path relative to the pin of the submodule that checks
+   * out `commit`, when the gate commit is a commit of that submodule rather than
+   * of the superproject. The superproject is then at the commit the workspace
+   * had checked out when the pin opened. Absent when `commit` is the pin's own.
+   */
+  submodulePath?: string;
+  /**
+   * The components whose one-time setup had run in the bench workspace when
+   * the pin opened. The pin runs every component's setup again in its own
+   * checkout; closing the sitting restores the flags from this list, so the
+   * workspace does not run them again.
+   */
+  workspaceSetupDone?: string[];
   createdAt: string;
 }
 
@@ -1729,6 +1746,17 @@ export interface BenchDeliverySitting {
   /** The terminal session of the sitting, stopped by Clear bench after the pin. */
   sessionId?: string;
   openedAt: string;
+  /** The full gate commit the sitting's pin checks out. */
+  commit?: string;
+  /** Where the sitting stands: `open` from the moment its pin serves the build. */
+  state?: "open";
+  /**
+   * The absolute path of the spec folder that holds test-results.json during
+   * the sitting: the bench workspace's own `.specifications/<slug>/`, beside
+   * the delivery record, never the pin's, so the marks outlive the sitting's
+   * close.
+   */
+  resultsSpecPath?: string;
 }
 
 /**

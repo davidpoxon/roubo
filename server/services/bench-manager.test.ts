@@ -8634,6 +8634,138 @@ describe("startAllComponents (Start endpoint setup gating)", () => {
   });
 });
 
+describe("startComponentsAndWait", () => {
+  const fourComponents = (backendSetup?: string) =>
+    makeConfig({
+      benches: { max: 5, setup: "npm ci" },
+      components: {
+        frontend: { type: "process", command: "npm run dev", dependsOn: ["backend"] },
+        backend: {
+          type: "process",
+          command: "npm start",
+          dependsOn: ["db"],
+          ...(backendSetup === undefined ? {} : { setup: backendSetup }),
+        },
+        db: { type: "process", command: "run-db" },
+        worker: { type: "process", command: "npm run worker" },
+      },
+      ports: {
+        frontend: { base: 3000 },
+        backend: { base: 5000 },
+        db: { base: 5432 },
+        worker: { base: 6000 },
+      },
+    });
+  const fourPorts = { frontend: 3000, backend: 5000, db: 5432, worker: 6000 };
+
+  function recordLaunchOrder(): string[] {
+    const order: string[] = [];
+    vi.mocked(processManager.startProcess).mockImplementation((...args) => {
+      order.push((args[0] as string).split(":").pop() ?? "");
+      return { pid: 123 };
+    });
+    return order;
+  }
+
+  it("launches only the named components, in dependency order, and skips an unknown name", async () => {
+    setupBenchWithSetupState(fourComponents(), {}, fourPorts);
+    setupProcessMocks();
+    const order = recordLaunchOrder();
+
+    const bench = await benchManager.startComponentsAndWait("test-project", 1, [
+      "frontend",
+      "ghost",
+      "backend",
+    ]);
+
+    expect(order).toEqual(["backend", "frontend"]);
+    expect(bench.components.backend.status).toBe("running");
+    expect(bench.components.frontend.status).toBe("running");
+    expect(bench.components.db.status).toBe("stopped");
+    expect(bench.components.worker.status).toBe("stopped");
+    expect(bench.components).not.toHaveProperty("ghost");
+    expect(bench.provisioningSteps.map((s) => [s.id, s.status])).toEqual([
+      [`${COMPONENT_STEP_PREFIX}backend`, "done"],
+      [`${COMPONENT_STEP_PREFIX}frontend`, "done"],
+    ]);
+    // A subset leaves the rest stopped, so the bench settles to idle.
+    expect(bench.status).toBe("idle");
+    expect(bench.error).toBeUndefined();
+  });
+
+  it("never runs the bench-level setup command, even when it has not run yet", async () => {
+    setupBenchWithSetupState(fourComponents(), {}, fourPorts, false);
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    const bench = await benchManager.startComponentsAndWait("test-project", 1, ["db"]);
+
+    expect(execModule.runCommand).not.toHaveBeenCalled();
+    expect(bench.provisioningSteps.find((s) => s.id === "bench-setup")).toBeUndefined();
+    expect(bench.benchSetupComplete).not.toBe(true);
+    expect(processManager.startProcess).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles the bench to active when every component it names runs", async () => {
+    setupBenchWithSetupState(fourComponents(), {}, fourPorts);
+    setupProcessMocks();
+    const order = recordLaunchOrder();
+
+    const bench = await benchManager.startComponentsAndWait("test-project", 1, [
+      "worker",
+      "frontend",
+      "backend",
+      "db",
+    ]);
+
+    expect(order.indexOf("db")).toBeLessThan(order.indexOf("backend"));
+    expect(order.indexOf("backend")).toBeLessThan(order.indexOf("frontend"));
+    expect(order).toHaveLength(4);
+    expect(bench.status).toBe("active");
+  });
+
+  it("resolves with the bench in error when a component fails to start, and launches nothing after it", async () => {
+    setupBenchWithSetupState(
+      fourComponents("npm ci"),
+      { backend: false, frontend: true, db: true, worker: true },
+      fourPorts,
+    );
+    setupProcessMocks();
+    const order = recordLaunchOrder();
+    // The backend's one-time setup exits non-zero, so its lifecycle reports error.
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 1, timedOut: false });
+
+    const bench = await benchManager.startComponentsAndWait("test-project", 1, [
+      "db",
+      "backend",
+      "frontend",
+    ]);
+
+    expect(order).toEqual(["db"]);
+    expect(bench.status).toBe("error");
+    expect(bench.error).toContain("backend");
+    expect(bench.components.backend.status).toBe("error");
+    expect(bench.components.frontend.status).toBe("stopped");
+    expect(
+      bench.provisioningSteps.find((s) => s.id === `${COMPONENT_STEP_PREFIX}backend`)?.status,
+    ).toBe("error");
+  });
+
+  it("leaves the bench untouched when none of the names is configured", async () => {
+    setupBenchWithSetupState(fourComponents(), {}, fourPorts);
+    setupProcessMocks();
+    const before = benchManager.getBench("test-project", 1);
+    const statusBefore = before?.status;
+    const stepsBefore = before?.provisioningSteps;
+
+    const bench = await benchManager.startComponentsAndWait("test-project", 1, ["ghost"]);
+
+    expect(bench.status).toBe(statusBefore);
+    expect(bench.provisioningSteps).toBe(stepsBefore);
+    expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+});
+
 describe("startComponent (per-component Start setup gating)", () => {
   it("first per-component Start runs setup then launches and persists setupComplete", async () => {
     const config = makeConfig({
