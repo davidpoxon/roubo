@@ -10,6 +10,7 @@ import {
   classifyGateMarker,
   dependencyLine,
   gateAccessibleName,
+  gateHoverLine,
   isJammedMapUnit,
   isLiveUnit,
   JAM_MARK_LABEL,
@@ -92,6 +93,8 @@ export default function DeliveryGraph({
               <GateMarker
                 key={item.key}
                 item={item}
+                detailId={`${idPrefix}-gate-${index}`}
+                shown={activeKey === item.key}
                 selected={selectedKey === item.key}
                 onActive={setActiveKey}
                 onSelect={onSelect}
@@ -185,19 +188,41 @@ function UnitNode({
   );
 }
 
-function GateMarker({ item, selected, onActive, onSelect, onOpen }: ItemProps<PlacedGate>) {
+// A gate marker. Under the pointer or keyboard focus it shows its state and
+// the count of the cases it gates; the same line describes it for the screen
+// reader at all times.
+function GateMarker({
+  item,
+  detailId,
+  shown,
+  selected,
+  onActive,
+  onSelect,
+  onOpen,
+}: ItemProps<PlacedGate> & { detailId: string; shown: boolean }) {
   const { gate } = item.view;
   const target: MapTarget = { kind: "gate", id: gate.id };
   const kind = classifyGateMarker(gate);
   const marker = GATE_MARKERS[kind];
   return (
     <li>
+      <span
+        id={detailId}
+        role="tooltip"
+        data-testid={`gate-hover-${gate.id}`}
+        hidden={!shown}
+        style={{ left: item.x, top: item.y + GATE_HEIGHT + 4 }}
+        className="absolute z-10 whitespace-nowrap rounded-control border border-border-strong bg-bg-surface px-2 py-1 font-mono text-11 text-text-body"
+      >
+        {gateHoverLine(item.view)}
+      </span>
       <button
         type="button"
         data-testid={`gate-marker-${gate.id}`}
         data-key={item.key}
         data-gate-kind={kind}
         aria-label={gateAccessibleName(gate)}
+        aria-describedby={detailId}
         aria-current={selected ? "true" : undefined}
         onClick={() => {
           onSelect(target);

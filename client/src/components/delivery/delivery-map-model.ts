@@ -117,6 +117,15 @@ export function gateAccessibleName(gate: DeliveryGate): string {
   return `Gate ${gate.id}, ${GATE_MARKERS[classifyGateMarker(gate)].label}, after ${gate.after.join(", ")}`;
 }
 
+// What a gate marker shows under the pointer or keyboard focus (SB-FR-010,
+// SB-TC-026): its state and the count of the cases it gates, read from the
+// gate's narrowed gating set, the same set the progress counts.
+export function gateHoverLine(view: DeliveryGateView): string {
+  const count = view.state.gatingCaseIds.length;
+  const label = GATE_MARKERS[classifyGateMarker(view.gate)].label;
+  return `${label} · ${count} ${count === 1 ? "case" : "cases"} gated`;
+}
+
 export function dependencyLine(dependencies: readonly string[]): string {
   return dependencies.length === 0 ? "no dependencies" : `after ${dependencies.join(", ")}`;
 }
