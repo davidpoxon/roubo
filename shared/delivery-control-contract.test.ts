@@ -262,9 +262,7 @@ describe("delivery control contract: validation", () => {
   it("rejects a body that misses a required field of its kind, at body.<field>", () => {
     for (const kind of DELIVERY_CONTROL_KINDS) {
       for (const field of requiredBodyFields[kind]) {
-        const body = Object.fromEntries(
-          Object.entries(bodies[kind]).filter(([k]) => k !== field),
-        );
+        const body = Object.fromEntries(Object.entries(bodies[kind]).filter(([k]) => k !== field));
         const result = validateDeliveryControl({ ...controlOf(kind), body });
         expect(result.ok, `${kind} without ${field}`).toBe(false);
         if (!result.ok) {
