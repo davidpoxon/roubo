@@ -6,8 +6,9 @@
 // does not extend the one it folded (see `createDeliveryReducer`). A route that
 // serves a snapshot reads the record and the events, calls `foldDeliverySnapshot`
 // (already-validated inputs) or `foldDeliveryJson` (raw JSON), and sends the
-// result. GET /delivery in routes/delivery.ts does this with the record and the
-// accepted events above its last_event_seq (services/delivery-event-log).
+// result. GET /delivery in routes/delivery.ts does this with the record, the
+// accepted events above its last_event_seq (services/delivery-event-log) and the
+// spec's plan, results and lifecycle in the bench workspace.
 
 import {
   validateDeliveryEvent,
@@ -84,7 +85,8 @@ export interface DeliverySummary {
   gates: Record<string, { status: string; evaluated: string }>;
   openDecisions: number;
   nextBoundary: { unitId: string; kind: "finish" | "start" } | null;
-  progress: DeliveryProgress;
+  // The counts only: the per-case list stays on the snapshot.
+  progress: Pick<DeliveryProgress, "cases" | "requirements">;
   ageMs: number | null;
 }
 
@@ -110,7 +112,10 @@ export function summarizeDelivery(snapshot: DeliverySnapshot): DeliverySummary {
     gates,
     openDecisions: selectOpenDecisions(snapshot).length,
     nextBoundary: boundary === null ? null : { unitId: boundary.unitId, kind: boundary.kind },
-    progress: snapshot.progress,
+    progress: {
+      cases: snapshot.progress.cases,
+      requirements: snapshot.progress.requirements,
+    },
     ageMs: snapshot.staleness.ageMs,
   };
 }
