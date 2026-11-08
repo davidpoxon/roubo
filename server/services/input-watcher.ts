@@ -80,7 +80,7 @@ export interface WatchInputOptions {
    * Without it, the hash after `ready` is taken as the loaded value.
    */
   loadedHash?: (absPath: string) => string | null | undefined;
-  /** How often to check that the watched directory still exists. Default 1000 ms. */
+  /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
 }
 
@@ -245,6 +245,8 @@ export function watchInput(
   const chains = new Map<string, Promise<void>>();
   let watcher: FSWatcher | null = null;
   let armedIno: number | null = null;
+  let watchLost = false;
+  let watcherReady = false;
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -404,11 +406,21 @@ export function watchInput(
       ignored: isIgnored,
       ...(depth === undefined ? {} : { depth }),
     });
+    watchLost = false;
+    watcherReady = false;
     const ready = new Promise<void>((resolve) => {
-      w.once("ready", () => resolve());
+      w.once("ready", () => {
+        if (watcher === w) watcherReady = true;
+        resolve();
+      });
     });
-    w.on("all", (_event, p) => {
-      const unit = unitOf(path.resolve(p));
+    w.on("all", (event, p) => {
+      const abs = path.resolve(p);
+      // A rename of the watched directory makes chokidar drop its own watch of
+      // it with an unlinkDir for the root, even when the directory is back
+      // (same inode) before the next lifecycle poll.
+      if (event === "unlinkDir" && abs === dir && watcher === w) watchLost = true;
+      const unit = unitOf(abs);
       if (unit) schedule(unit);
     });
     w.on("error", (err) => {
@@ -425,7 +437,20 @@ export function watchInput(
     const w = watcher;
     watcher = null;
     armedIno = null;
+    watchLost = false;
+    watcherReady = false;
     if (w) await w.close();
+  }
+
+  /**
+   * Whether chokidar has dropped its watch of the directory: it said so with an
+   * unlinkDir for the root, or, once ready, its watched list no longer holds
+   * the root. Only a fresh watcher clears this, so one disappearance re-arms
+   * once.
+   */
+  function isWatchLost(w: FSWatcher): boolean {
+    if (watchLost) return true;
+    return watcherReady && !Object.hasOwn(w.getWatched(), dir);
   }
 
   async function check(): Promise<void> {
@@ -439,7 +464,9 @@ export function watchInput(
       } catch {
         // Gone.
       }
-      if (watcher && (!present || present.ino !== armedIno)) await disarm();
+      if (watcher && (!present || present.ino !== armedIno || isWatchLost(watcher))) {
+        await disarm();
+      }
       if (!watcher && present && !disposed) {
         const ready = arm();
         if (!ready) return;

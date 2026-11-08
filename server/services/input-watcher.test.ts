@@ -221,6 +221,61 @@ describe("watchInput lifecycle", () => {
     expect(seen.every((c) => c.path !== path.join(plugins, "existing"))).toBe(true);
     await waitFor(() => applyLines().some((l) => l.endsWith(" action=register")));
   });
+
+  it("HR-TC-052 re-arms a directory renamed away and back within one default poll interval", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const away = path.join(stateDir, "plugins-away");
+    fs.mkdirSync(path.join(plugins, "existing"), { recursive: true });
+    fs.writeFileSync(path.join(plugins, "existing", "roubo-plugin.yaml"), "id: existing\n");
+    const seen: InputChange[] = [];
+    const handler = vi.fn(async (change: InputChange): Promise<HandlerResult> => {
+      seen.push(change);
+      return "applied";
+    });
+    // No rearmPollMs: the default one-second lifecycle poll.
+    const w = track(watchInput(plugins, { surface: "plugin", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.renameSync(plugins, away);
+    await sleep(150);
+    fs.renameSync(away, plugins);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+
+    const added = path.join(plugins, "fresh");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: fresh\n");
+    await waitFor(() => seen.some((c) => c.path === added), 2_000);
+    // Two more polls: a re-arm must not repeat once the watch is healthy.
+    await sleep(2_100);
+
+    expect(lines.filter((l) => l.includes("re-armed"))).toEqual([
+      `[input-watcher] re-armed path=${plugins}`,
+    ]);
+    expect(lines.filter((l) => l.includes("error"))).toEqual([]);
+  });
+
+  it("HR-TC-052 re-arms a file watch whose parent directory is renamed away and back within one poll", async () => {
+    const dir = path.join(projectDir, "conf");
+    const away = path.join(projectDir, "conf-away");
+    fs.mkdirSync(dir);
+    const file = path.join(dir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.renameSync(dir, away);
+    await sleep(150);
+    fs.renameSync(away, dir);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1, 2_000);
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
+    expect(lines.filter((l) => l.includes("re-armed"))).toEqual([
+      `[input-watcher] re-armed path=${dir}`,
+    ]);
+  });
 });
 
 describe("watchInput logging", () => {
