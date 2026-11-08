@@ -5,7 +5,13 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  # Only a pull request into main runs the checks. In a stack, each merge
+  # rebases every layer above it, and only the layer that now targets main can
+  # merge next, so checks on the others would be thrown away. A layer that
+  # starts targeting main without a new push gets its checks from
+  # `gh workflow run pr-check.yml --ref <branch>`.
   pull_request:
+    branches: [main]
     types: [opened, synchronize, reopened]
   push:
     branches: [main]
