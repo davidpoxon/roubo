@@ -26,6 +26,7 @@ import filesystemRouter from "./routes/filesystem.js";
 import terminalRouter from "./routes/terminal.js";
 import testbenchRouter from "./routes/testbench.js";
 import gatesRouter from "./routes/gates.js";
+import deliveryRouter from "./routes/delivery.js";
 import issuesRouter from "./routes/issues.js";
 import settingsRouter from "./routes/settings.js";
 import systemRouter from "./routes/system.js";
@@ -117,6 +118,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   app.use("/api/projects", terminalRouter);
   app.use("/api/projects", testbenchRouter);
   app.use("/api/projects", gatesRouter);
+  app.use("/api/projects", deliveryRouter);
   app.use("/api/projects", issuesRouter);
   app.use("/api/projects", jigsRouter);
   app.use("/api/projects", permissionsRouter);
