@@ -9,7 +9,8 @@
 // Scope (#449): this drives the real authored TestBench contracts
 // (schema/test-cases.schema.json, schema/test-results.schema.json) plus the
 // retained #431 spike artifact, and every contract added to `artifacts` since
-// (work units, gate overrides, spec lifecycle, delivery record and event).
+// (work units, gate overrides, spec lifecycle, delivery record and event,
+// delivery control and state recipe).
 // Retrofitting generation onto the roubo-config/roubo-plugin schemas is out of
 // scope.
 //
@@ -29,6 +30,8 @@ import {
   DeliveryEventSchema,
   DeliveryRecordSchema,
 } from "../shared/delivery-observation-contract.ts";
+import { DeliveryControlSchema } from "../shared/delivery-control-contract.ts";
+import { StateRecipeSchema } from "../shared/state-recipe-contract.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(here, "..");
@@ -67,6 +70,14 @@ export const artifacts = [
   {
     schema: DeliveryEventSchema,
     outPath: resolve(repoRoot, "schema", "delivery-event.schema.json"),
+  },
+  {
+    schema: DeliveryControlSchema,
+    outPath: resolve(repoRoot, "schema", "delivery-control.schema.json"),
+  },
+  {
+    schema: StateRecipeSchema,
+    outPath: resolve(repoRoot, "schema", "state-recipe.schema.json"),
   },
 ] as const;
 

@@ -9,6 +9,8 @@ import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_ID,
 } from "../shared/delivery-observation-contract.js";
+import { DELIVERY_CONTROL_SCHEMA_ID } from "../shared/delivery-control-contract.js";
+import { STATE_RECIPE_SCHEMA_ID } from "../shared/state-recipe-contract.js";
 import { artifacts, renderSchema, generate } from "./generate-schema.js";
 
 // The generated artifacts and their expected versioned $id. Each entry's
@@ -22,6 +24,8 @@ const expected = [
   { name: "spec-lifecycle.schema.json", id: SPEC_LIFECYCLE_SCHEMA_ID },
   { name: "delivery-record.schema.json", id: DELIVERY_RECORD_SCHEMA_ID },
   { name: "delivery-event.schema.json", id: DELIVERY_EVENT_SCHEMA_ID },
+  { name: "delivery-control.schema.json", id: DELIVERY_CONTROL_SCHEMA_ID },
+  { name: "state-recipe.schema.json", id: STATE_RECIPE_SCHEMA_ID },
 ];
 
 describe("generate-schema artifacts list", () => {

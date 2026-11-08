@@ -128,6 +128,235 @@ describe("classifySchemaChange", () => {
     );
   });
 
+  // A schema with a `steps[]` union of options discriminated by `kind`.
+  function withUnion(options: JsonSchema[]): JsonSchema {
+    const out = clone(base);
+    (out.properties as Record<string, JsonSchema>).steps = {
+      type: "array",
+      items: { anyOf: options },
+    };
+    return out;
+  }
+  function unionOptions(schema: JsonSchema): JsonSchema[] {
+    const items = (schema.properties as Record<string, JsonSchema>).steps.items as JsonSchema;
+    return items.anyOf as JsonSchema[];
+  }
+  const kindOption = (kind: string, field: string): JsonSchema => ({
+    type: "object",
+    properties: { kind: { type: "string", const: kind }, [field]: { type: "string" } },
+    required: ["kind", field],
+    additionalProperties: {},
+  });
+  const twoKinds = withUnion([kindOption("command", "command"), kindOption("open-url", "url")]);
+
+  it("compares a union option by option: a new option or a field on one is additive, a lost option breaking", () => {
+    expect(classifySchemaChange(twoKinds, clone(twoKinds))).toEqual({
+      change: "none",
+      reasons: [],
+    });
+
+    const grown = clone(twoKinds);
+    const options = unionOptions(grown);
+    (options[0].properties as JsonSchema).timeout_ms = { type: "integer" };
+    options.push({
+      type: "object",
+      properties: { kind: { type: "string", const: "wait" } },
+      required: ["kind"],
+      additionalProperties: {},
+    });
+    expect(classifySchemaChange(twoKinds, grown)).toEqual({
+      change: "additive",
+      reasons: [
+        "steps[].anyOf.command.timeout_ms: new optional property",
+        'steps[]: anyOf gained the option kind="wait"',
+      ],
+    });
+
+    const lost = clone(twoKinds);
+    unionOptions(lost).pop();
+    expect(classifySchemaChange(twoKinds, lost)).toEqual({
+      change: "breaking",
+      reasons: ['steps[]: anyOf lost the option kind="open-url"'],
+    });
+
+    const retyped = clone(twoKinds);
+    (unionOptions(retyped)[1].properties as Record<string, JsonSchema>).url.type = "integer";
+    expect(classifySchemaChange(twoKinds, retyped)).toEqual({
+      change: "breaking",
+      reasons: ['steps[].anyOf.open-url.url: type changed from "string" to "integer"'],
+    });
+  });
+
+  it("matches union options by their discriminator const, not by position", () => {
+    // An option inserted in the middle shifts the one after it: by position
+    // that read as two changed options, by discriminator it is one new option.
+    const inserted = clone(twoKinds);
+    unionOptions(inserted).splice(1, 0, kindOption("copy-file", "from"));
+    expect(classifySchemaChange(twoKinds, inserted)).toEqual({
+      change: "additive",
+      reasons: ['steps[]: anyOf gained the option kind="copy-file"'],
+    });
+
+    // Removing the first option leaves the second in place.
+    const removed = clone(twoKinds);
+    unionOptions(removed).shift();
+    expect(classifySchemaChange(twoKinds, removed)).toEqual({
+      change: "breaking",
+      reasons: ['steps[]: anyOf lost the option kind="command"'],
+    });
+
+    // A renamed kind is a lost option and a gained one, so it is breaking.
+    const renamed = clone(twoKinds);
+    (unionOptions(renamed)[1].properties as Record<string, JsonSchema>).kind.const = "browse";
+    expect(classifySchemaChange(twoKinds, renamed)).toEqual({
+      change: "breaking",
+      reasons: [
+        'steps[]: anyOf lost the option kind="open-url"',
+        'steps[]: anyOf gained the option kind="browse"',
+      ],
+    });
+
+    // Reordering the options is not a change.
+    const reordered = clone(twoKinds);
+    unionOptions(reordered).reverse();
+    expect(classifySchemaChange(twoKinds, reordered)).toEqual({ change: "none", reasons: [] });
+  });
+
+  it("prefers type, then kind, when more than one property could discriminate", () => {
+    const typed = (type: string, kind: string): JsonSchema => ({
+      type: "object",
+      properties: {
+        type: { type: "string", const: type },
+        kind: { type: "string", const: kind },
+        tag: { type: "string", const: `${type}/${kind}` },
+      },
+      required: ["type", "kind", "tag"],
+      additionalProperties: {},
+    });
+    const both = withUnion([typed("a", "x"), typed("b", "y")]);
+    const grown = clone(both);
+    unionOptions(grown).splice(1, 0, typed("c", "z"));
+    expect(classifySchemaChange(both, grown).reasons).toEqual([
+      'steps[]: anyOf gained the option type="c"',
+    ]);
+
+    const kinded = withUnion([
+      { type: "object", properties: { kind: { const: "x" }, tag: { const: 1 } } },
+      { type: "object", properties: { kind: { const: "y" }, tag: { const: 2 } } },
+    ]);
+    const grownKind = clone(kinded);
+    unionOptions(grownKind).unshift({
+      type: "object",
+      properties: { kind: { const: "w" }, tag: { const: 0 } },
+    });
+    expect(classifySchemaChange(kinded, grownKind).reasons).toEqual([
+      'steps[]: anyOf gained the option kind="w"',
+    ]);
+  });
+
+  it("falls back to comparing options in order when no property discriminates the union", () => {
+    // Neither option pins a const, so there is nothing to match on.
+    const scalars = withUnion([{ type: "string" }, { type: "integer" }]);
+    expect(classifySchemaChange(scalars, clone(scalars))).toEqual({ change: "none", reasons: [] });
+
+    const grown = clone(scalars);
+    unionOptions(grown).push({ type: "boolean" });
+    expect(classifySchemaChange(scalars, grown)).toEqual({
+      change: "additive",
+      reasons: ["steps[]: anyOf gained an option"],
+    });
+
+    const lost = clone(scalars);
+    unionOptions(lost).pop();
+    expect(classifySchemaChange(scalars, lost)).toEqual({
+      change: "breaking",
+      reasons: ["steps[]: anyOf lost an option"],
+    });
+
+    const retyped = clone(scalars);
+    unionOptions(retyped)[1] = { type: "number" };
+    expect(classifySchemaChange(scalars, retyped)).toEqual({
+      change: "breaking",
+      reasons: ['steps[].anyOf.1: type changed from "integer" to "number"'],
+    });
+
+    // A property every option pins to the same value tells none of them apart,
+    // so it is no discriminator either.
+    const sameConst = withUnion([
+      { type: "object", properties: { v: { const: 1 }, a: { type: "string" } } },
+      { type: "object", properties: { v: { const: 1 }, b: { type: "string" } } },
+    ]);
+    const sameConstGrown = clone(sameConst);
+    unionOptions(sameConstGrown).push({ type: "object", properties: { v: { const: 1 } } });
+    expect(classifySchemaChange(sameConst, sameConstGrown)).toEqual({
+      change: "additive",
+      reasons: ["steps[]: anyOf gained an option"],
+    });
+  });
+
+  it("compares a root union the same way, and reads the version constants out of each root option", () => {
+    const option = (kind: string, body: JsonSchema): JsonSchema => ({
+      type: "object",
+      properties: {
+        $schema: { type: "string", const: "https://roubo.dev/schema/demo/v1.2.3.json" },
+        schemaVersion: { type: "string", const: "1.2.3" },
+        kind: { type: "string", const: kind },
+        body,
+      },
+      required: ["$schema", "schemaVersion", "kind", "body"],
+      additionalProperties: {},
+    });
+    const rootUnion: JsonSchema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "https://roubo.dev/schema/demo/v1.2.3.json",
+      oneOf: [
+        option("pause", { type: "object", properties: {}, additionalProperties: {} }),
+        option("resume", { type: "object", properties: {}, additionalProperties: {} }),
+      ],
+    };
+    expect(classifySchemaChange(rootUnion, clone(rootUnion))).toEqual({
+      change: "none",
+      reasons: [],
+    });
+
+    // A version bump rewrites the `$schema` / `schemaVersion` const in every
+    // option: that is the version, not a change.
+    const rebumped = clone(rootUnion);
+    rebumped.$id = "https://roubo.dev/schema/demo/v1.3.0.json";
+    for (const o of rebumped.oneOf as JsonSchema[]) {
+      const props = o.properties as Record<string, JsonSchema>;
+      props.$schema.const = rebumped.$id;
+      props.schemaVersion.const = "1.3.0";
+    }
+    expect(classifySchemaChange(rootUnion, rebumped)).toEqual({ change: "none", reasons: [] });
+    expect(checkContractCompatibility(rootUnion, rebumped).ok).toBe(false);
+
+    const grown = clone(rootUnion);
+    (grown.oneOf as JsonSchema[]).push(
+      option("approval", { type: "object", properties: {}, additionalProperties: {} }),
+    );
+    expect(classifySchemaChange(rootUnion, grown)).toEqual({
+      change: "additive",
+      reasons: ['<root>: oneOf gained the option kind="approval"'],
+    });
+
+    const lost = clone(rootUnion);
+    lost.oneOf = (lost.oneOf as JsonSchema[]).slice(0, 1);
+    expect(classifySchemaChange(rootUnion, lost)).toEqual({
+      change: "breaking",
+      reasons: ['<root>: oneOf lost the option kind="resume"'],
+    });
+
+    const grownBody = clone(rootUnion);
+    const body = ((grownBody.oneOf as JsonSchema[])[1].properties as Record<string, JsonSchema>)
+      .body as JsonSchema;
+    (body.properties as JsonSchema).reason = { type: "string" };
+    expect(classifySchemaChange(rootUnion, grownBody)).toEqual({
+      change: "additive",
+      reasons: ["<root>.oneOf.resume.body.reason: new optional property"],
+    });
+  });
+
   it("ranks breaking above additive when both are present", () => {
     const live = clone(base);
     const props = live.properties as Record<string, JsonSchema>;
