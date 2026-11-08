@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { Bench, BenchNotification, BenchStatus } from "@roubo/shared";
+import type { Bench, BenchNotification, BenchStatus, SpecBenchDecisionMode } from "@roubo/shared";
 import type { DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { formatNotification } from "../lib/notifications";
@@ -20,7 +20,16 @@ interface BenchStatusEvent {
   status: BenchStatus;
 }
 
-type SseEvent = NotificationsEvent | BenchStatusEvent | DeliveryStreamFrame;
+// A Spec Bench's decision mode in effect changed (SB-FR-032).
+interface BenchDecisionModeEvent {
+  type: "bench-decision-mode";
+  projectId: string;
+  benchId: number;
+  decisionMode: SpecBenchDecisionMode;
+}
+
+type SseEvent =
+  NotificationsEvent | BenchStatusEvent | BenchDecisionModeEvent | DeliveryStreamFrame;
 
 // How long the hook waits before it opens the stream again when the browser
 // gave the connection up (readyState CLOSED). A connection that only dropped is
@@ -51,6 +60,23 @@ function applyDeliveryFrame(queryClient: QueryClient, frame: DeliveryStreamFrame
   void queryClient.invalidateQueries({ queryKey: key });
 }
 
+// Patches one bench in the bench caches in place, with no refetch.
+function patchBench(
+  queryClient: QueryClient,
+  projectId: string,
+  benchId: number,
+  patch: Partial<Bench>,
+): void {
+  queryClient.setQueryData<Bench>(["bench", projectId, benchId], (prev) =>
+    prev ? { ...prev, ...patch } : prev,
+  );
+  queryClient.setQueriesData<Bench[]>({ queryKey: ["benches"] }, (prev) =>
+    Array.isArray(prev)
+      ? prev.map((b) => (b.projectId === projectId && b.id === benchId ? { ...b, ...patch } : b))
+      : prev,
+  );
+}
+
 export function useNotificationStream(): void {
   const queryClient = useQueryClient();
   // Tracks notification IDs for which a native OS notification has already been shown.
@@ -77,20 +103,19 @@ export function useNotificationStream(): void {
         return;
       }
 
+      if (data.type === "bench-decision-mode") {
+        // The session applied another mode: the bench card's variant badge
+        // names it at once, as a status change patches the card.
+        patchBench(queryClient, data.projectId, data.benchId, {
+          deliveryDecisionMode: data.decisionMode,
+        });
+        return;
+      }
+
       if (data.type === "bench-status") {
-        const { status } = data;
         // Patch caches in place so the bench card transitions in a single render
         // frame, with no refetch round-trip and no flicker.
-        queryClient.setQueryData<Bench>(["bench", data.projectId, data.benchId], (prev) =>
-          prev ? { ...prev, status } : prev,
-        );
-        queryClient.setQueriesData<Bench[]>({ queryKey: ["benches"] }, (prev) =>
-          Array.isArray(prev)
-            ? prev.map((b) =>
-                b.projectId === data.projectId && b.id === data.benchId ? { ...b, status } : b,
-              )
-            : prev,
-        );
+        patchBench(queryClient, data.projectId, data.benchId, { status: data.status });
         return;
       }
 

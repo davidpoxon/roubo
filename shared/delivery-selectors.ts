@@ -20,6 +20,7 @@ import {
   type DeliveryDrift,
   type DeliveryGate,
   type DeliveryMode,
+  type DeliveryModeValue,
   type DeliveryReview,
   type DeliverySteering,
   type DeliveryUnit,
@@ -32,6 +33,7 @@ import {
   classifyUnitStatus,
   computeStaleness,
   isDecisionOpen,
+  isModeValue,
   isProvisionalGate,
   isUnconfirmedProvisionalGate,
   isUnreviewedAgentDecision,
@@ -695,6 +697,37 @@ export function selectHealth(
 
 export function selectMode(snapshot: DeliverySnapshot): DeliveryMode {
   return snapshot.mode;
+}
+
+// The Mode switch of the delivery's controls (SB-FR-032): the mode in effect,
+// and the mode a switch asked for while it waits for the session (null when
+// none waits). A switch waits while its `mode_switch` control is outstanding:
+// the session's `mode.changed` that names its control_seq reads it back, and
+// only then does the mode in effect change. With no switch in the outbox, the
+// record's own pending mode stands. `pendingControlSeq` names the last
+// outstanding switch, or null.
+export interface ModeSwitchView {
+  value: DeliveryModeValue;
+  pending: DeliveryModeValue | null;
+  pendingControlSeq: number | null;
+}
+
+export function selectModeSwitch(snapshot: DeliverySnapshot): ModeSwitchView {
+  let waiting: { mode: DeliveryModeValue; controlSeq: number } | undefined;
+  for (const control of snapshot.controls) {
+    if (control.kind !== "mode_switch" || !isOutstandingControl(control)) continue;
+    const mode = (control.body as { mode?: unknown }).mode;
+    if (!isModeValue(mode)) continue;
+    if (waiting === undefined || control.control_seq > waiting.controlSeq) {
+      waiting = { mode, controlSeq: control.control_seq };
+    }
+  }
+  const recordPending = snapshot.mode.pending;
+  return {
+    value: snapshot.mode.value,
+    pending: waiting?.mode ?? (isModeValue(recordPending) ? recordPending : null),
+    pendingControlSeq: waiting?.controlSeq ?? null,
+  };
 }
 
 export function selectReview(snapshot: DeliverySnapshot): DeliveryReview {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Bench } from "@roubo/shared";
+import type { Bench, SpecBenchDecisionMode } from "@roubo/shared";
 import * as api from "../lib/api";
 import { useTerminalSessions } from "./useTerminal";
 
@@ -233,6 +233,21 @@ export function useRoleChange(projectId: string, benchId: number) {
   return useMutation({
     mutationFn: ({ role, tier }: RoleChangeRequest) =>
       api.changeDeliveryRole(projectId, benchId, role, tier),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+  });
+}
+
+/**
+ * Switches the delivery's decision mode (SB-FR-032). The mode_switch control
+ * lands in the bench's outbox, so the snapshot, which lists the outbox, is read
+ * again once the request settles, and the switch shows pending until the
+ * session's `mode.changed` reads the control back.
+ */
+export function useModeSwitch(projectId: string, benchId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mode: SpecBenchDecisionMode) => api.switchDeliveryMode(projectId, benchId, mode),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
   });

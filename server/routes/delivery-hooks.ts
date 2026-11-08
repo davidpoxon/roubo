@@ -83,6 +83,9 @@
 // `applied` in the outbox before the 202. A review.outcome with the other
 // outcome marks an outstanding review action on that decision `superseded`
 // instead, so no later read serves it (see services/delivery-control-outbox.ts).
+// An accepted mode.changed sets the bench's decision mode to the mode it
+// applied, and when that mode changed a bench-decision-mode event goes out on
+// GET /api/notifications/stream, so the bench card names it (SB-FR-032).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.
@@ -103,6 +106,7 @@ import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
 import {
   applyDeliveryControlReadBacks,
+  applyDeliveryModeReadBack,
   deliveryControlLatestSeq,
   hasServableDeliveryControl,
   readDeliveryControls,
@@ -112,7 +116,7 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { deliveryEventsAfterRecord, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
-import { broadcastDeliveryFrame } from "../services/sse.js";
+import { broadcastBenchDecisionMode, broadcastDeliveryFrame } from "../services/sse.js";
 
 const router = Router();
 
@@ -281,7 +285,13 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   });
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
+  // A mode.changed moves the bench's mode in effect, which the bench card
+  // names (SB-FR-032). The record load above has already moved it to the mode
+  // of the folded record, so a mode.changed that the record carries, and that
+  // this batch therefore skips, has moved it too.
+  const mode = applyDeliveryModeReadBack(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
+  if (mode !== undefined) broadcastBenchDecisionMode(bench.projectId, bench.id, mode);
   res.status(202).json({ acceptedSeq: result.acceptedSeq });
 });
 

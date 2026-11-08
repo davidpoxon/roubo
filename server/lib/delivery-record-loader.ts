@@ -14,7 +14,9 @@
 // record schema, so a record edited on disk, or read again after a restart, is
 // validated again before any view sees it. A record that fails gives one named
 // error (see checkDeliveryRecord in @roubo/shared/delivery-bench). Each load
-// of a bench's record prunes the bench's control queue against it (SB-FR-037).
+// of a bench's record prunes the bench's control queue against it (SB-FR-037),
+// and moves the bench's mode in effect to the mode of the folded record
+// (SB-FR-032).
 import fs from "node:fs";
 import path from "node:path";
 import type { Bench } from "@roubo/shared";
@@ -24,8 +26,14 @@ import {
   checkDeliveryRecord,
   type DeliveryRecordCheck,
 } from "@roubo/shared/delivery-bench";
+import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import type { DeliveryFoldInputs } from "@roubo/shared/delivery-reducer";
-import { pruneDeliveryControlQueue } from "../services/delivery-control-outbox.js";
+import {
+  pruneDeliveryControlQueue,
+  reconcileDeliveryDecisionMode,
+} from "../services/delivery-control-outbox.js";
+import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
+import { broadcastBenchDecisionMode } from "../services/sse.js";
 import { MissingPlanError, readPlanAndResults } from "./testbench-store.js";
 import { buildPlanLifecycle } from "./plan-lifecycle.js";
 import {
@@ -72,7 +80,11 @@ function unsafePath(err: UnsafePathError): DeliveryRecordCheck {
  * itself, every load that gives a conformant record also prunes the bench's
  * control queue against it (SB-FR-037, see pruneDeliveryControlQueue): each
  * queued control whose effect the record shows leaves the queue, and the bench
- * is saved when the queue changed. Delivery alone never clears a control.
+ * is saved when the queue changed. Delivery alone never clears a control. The
+ * load also sets the bench's `deliveryDecisionMode` to the mode of the record
+ * folded with the accepted events above it, saves the bench and broadcasts
+ * `bench-decision-mode` when that mode differs (see
+ * reconcileDeliveryDecisionMode).
  */
 export function loadBenchDeliveryRecord(
   bench: Pick<Bench, "workspacePath" | "focusedSpecPath"> | Bench,
@@ -85,8 +97,32 @@ export function loadBenchDeliveryRecord(
     throw err;
   }
   const loaded = loadDeliveryRecord(folder);
-  if (loaded.ok && isWholeBench(bench)) pruneDeliveryControlQueue(bench, loaded.record);
+  if (loaded.ok && isWholeBench(bench)) {
+    pruneDeliveryControlQueue(bench, loaded.record);
+    reconcileBenchDecisionMode(bench, loaded.record);
+  }
   return loaded;
+}
+
+// Moves the bench's mode in effect, which the bench card names, to the mode of
+// the folded record (SB-FR-032), and tells the clients when it moved.
+// A spill file that cannot be read, or whose path leaves the workspace, leaves
+// the mode where it is: the load itself does not fail for it, and the route that
+// reads the events reports the fault.
+function reconcileBenchDecisionMode(bench: Bench, record: DeliveryRecord): void {
+  let events: DeliveryEvent[];
+  try {
+    events = deliveryEventsAfterRecord(
+      bench.projectId,
+      bench.id,
+      record,
+      benchDeliveryEventSpillPath(bench),
+    );
+  } catch {
+    return;
+  }
+  const mode = reconcileDeliveryDecisionMode(bench, record, events);
+  if (mode !== undefined) broadcastBenchDecisionMode(bench.projectId, bench.id, mode);
 }
 
 // Whether the loader was given the bench itself, whose control queue it
