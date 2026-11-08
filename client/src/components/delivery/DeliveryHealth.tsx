@@ -70,6 +70,9 @@ export interface DeliveryRailProps {
   attached?: boolean;
   // The bench's last cross-check (SB-FR-030), when the view has read it.
   crossCheck?: DeliveryCrossCheckResponse | undefined;
+  // Asks the map to focus the unit or gate of a cross-check entry (SB-FR-029),
+  // with the map keys to try in order.
+  onFocusMapTarget?: ((keys: string[]) => void) | undefined;
 }
 
 export default function DeliveryRail({
@@ -77,6 +80,7 @@ export default function DeliveryRail({
   disconnected,
   attached,
   crossCheck,
+  onFocusMapTarget,
 }: DeliveryRailProps) {
   const now = useNow(DELIVERY_HEALTH_TICK_MS);
   const health = selectHealth(snapshot, now, { disconnected, attached });
@@ -97,7 +101,13 @@ export default function DeliveryRail({
           record {formatAge(ageMs)} old
         </span>
       )}
-      {crossCheck !== undefined && <DeliveryCrossCheck crossCheck={crossCheck} />}
+      {crossCheck !== undefined && (
+        <DeliveryCrossCheck
+          crossCheck={crossCheck}
+          snapshot={snapshot}
+          onFocusMapTarget={onFocusMapTarget}
+        />
+      )}
     </div>
   );
 }

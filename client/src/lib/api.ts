@@ -769,9 +769,11 @@ export function windDownDelivery(
   });
 }
 
-// Approve the delivery (SB-FR-022, SB-FR-034): 202 with the approval control,
-// or 409 WRONG_LIFECYCLE_STATE once it is complete, REVIEW_OPEN while a review
-// is open, or GATING_UNMET while a gating case is unmet.
+// Approve the delivery (SB-FR-022, SB-FR-029, SB-FR-034): 202 with the
+// approval control, or 409 WRONG_LIFECYCLE_STATE once it is complete,
+// CROSSCHECK_BLOCKED while the last cross-check holds a blocking class,
+// REVIEW_OPEN while a review is open, or GATING_UNMET while a gating case is
+// unmet.
 export function approveDelivery(
   projectId: string,
   benchId: number,
@@ -781,6 +783,16 @@ export function approveDelivery(
     method: "POST",
     body: JSON.stringify(reason === undefined ? {} : { reason }),
   });
+}
+
+/**
+ * The blocking classes a 409 CROSSCHECK_BLOCKED names (SB-FR-029), when the
+ * error is one; undefined for any other error.
+ */
+export function crossCheckBlockedClassesOf(err: unknown): string[] | undefined {
+  if (!(err instanceof ApiError) || err.code !== "CROSSCHECK_BLOCKED") return undefined;
+  const classes = (err.details as { classes?: unknown } | undefined)?.classes;
+  return Array.isArray(classes) ? classes.filter((c): c is string => typeof c === "string") : [];
 }
 
 /** The named read error of a delivery record, when an error carries one. */

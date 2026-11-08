@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
@@ -16,6 +16,7 @@ import DeliveryRail from "./DeliveryHealth";
 import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import DeliveryModeControl from "./DeliveryModeControl";
+import type { MapFocusRequest } from "./delivery-map-model";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 import LifecycleControls from "./LifecycleControls";
 import RoleMatrix from "./RoleMatrix";
@@ -23,7 +24,8 @@ import RoleMatrix from "./RoleMatrix";
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, its
 // health rail (SB-FR-019, SB-NFR-006) with the cross-check's disagreements and
-// source error on it (SB-FR-030) and the mode in effect named in a mono label
+// source error on it (SB-FR-030), where Enter on an entry focuses its unit or
+// gate on the map (SB-FR-029), and the mode in effect named in a mono label
 // beside the health chip (SB-FR-032), its progress in cases met and
 // requirements covered (SB-FR-011), its map, and its view of cost, health and
 // controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
@@ -32,8 +34,9 @@ import RoleMatrix from "./RoleMatrix";
 // to review on the same pile (SB-FR-033), the boundary panel with the steering
 // composer (SB-FR-016, SB-FR-017), the role matrix (SB-FR-021) with the Mode
 // switch beside it (SB-FR-032), and the lifecycle controls (SB-FR-022), among
-// them Approve, which waits while a review is open (SB-FR-034) or a gating case
-// is unmet, when the record conforms, or the named error when it does not. No
+// them Approve, which waits while a review is open (SB-FR-034), a gating case
+// is unmet or the cross-check holds a blocking class (SB-FR-029), when the
+// record conforms, or the named error when it does not. No
 // decision, steering, role, mode or lifecycle control renders until the record
 // conforms, so nothing can act on a record the bench cannot read. The one
 // exception is a launch-mode bench with no record yet: it offers to launch its
@@ -177,6 +180,12 @@ function DeliverySnapshotView({
   // The cross-check is a read of its own: a failed read leaves the rail as it
   // is, and the snapshot shows whatever it does.
   const crossCheck = useDeliveryCrossCheck(bench.projectId, bench.id);
+  // Enter on a cross-check entry of the rail focuses its unit or gate on the
+  // map (SB-FR-029).
+  const [mapFocus, setMapFocus] = useState<MapFocusRequest | null>(null);
+  const focusMapTarget = useCallback((keys: string[]) => {
+    setMapFocus((last) => ({ keys, nonce: (last?.nonce ?? 0) + 1 }));
+  }, []);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
   const focusedPileKey = useRef<string | undefined>(undefined);
@@ -213,6 +222,7 @@ function DeliverySnapshotView({
             snapshot={snapshot}
             attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
             crossCheck={crossCheck.data}
+            onFocusMapTarget={focusMapTarget}
           />
           <span
             data-testid="delivery-mode-label"
@@ -234,6 +244,7 @@ function DeliverySnapshotView({
         {...(bench.deliverySessionId !== undefined && {
           deliverySessionId: bench.deliverySessionId,
         })}
+        focusRequest={mapFocus}
       />
 
       <section
@@ -302,6 +313,7 @@ function DeliverySnapshotView({
           bench={bench}
           snapshot={snapshot}
           sessionStartBlocked={sessionStartBlocked}
+          crossCheck={crossCheck.data}
         />
       </section>
     </div>

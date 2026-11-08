@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Bench, SpecBenchDecisionMode } from "@roubo/shared";
 import * as api from "../lib/api";
+import { deliveryCrossCheckQueryKey } from "./useDeliveryCrossCheck";
 import { useTerminalSessions } from "./useTerminal";
 
 // React Query hooks for a Spec Bench's delivery read (SB-FR-009). The server
@@ -188,16 +189,24 @@ export function useSteeringNote(projectId: string, benchId: number) {
 }
 
 /**
- * Approves the delivery (SB-FR-022, SB-FR-034). The server refuses it with a
- * 409 once the delivery is complete, while a review is open, or while a
- * gating case is unmet.
+ * Approves the delivery (SB-FR-022, SB-FR-029, SB-FR-034). The server refuses
+ * it with a 409 once the delivery is complete, while the last cross-check holds
+ * a blocking class, while a review is open, or while a gating case is unmet.
  */
 export function useApproveDelivery(projectId: string, benchId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.approveDelivery(projectId, benchId),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
+    onSettled: (_data, error) => {
+      void queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) });
+      // A refusal for a blocking class the view had not read yet: read the
+      // cross-check again, so the rail lists it.
+      if (api.crossCheckBlockedClassesOf(error) !== undefined) {
+        void queryClient.invalidateQueries({
+          queryKey: deliveryCrossCheckQueryKey(projectId, benchId),
+        });
+      }
+    },
   });
 }
 

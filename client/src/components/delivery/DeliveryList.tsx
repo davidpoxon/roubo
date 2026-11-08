@@ -68,6 +68,7 @@ function UnitRow({
       <button
         type="button"
         data-testid={`unit-row-${unit.id}`}
+        data-key={unitKey(unit.id)}
         data-status={unit.status}
         data-jammed={isJammedMapUnit(unit) ? "true" : undefined}
         aria-label={rowAccessibleName(unit, gates)}

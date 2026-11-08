@@ -1,5 +1,5 @@
 // REST surface of a Spec Bench's delivery (SB-FR-002, SB-FR-003, SB-FR-008,
-// SB-FR-009, SB-FR-013, SB-FR-030, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
+// SB-FR-009, SB-FR-013, SB-FR-029, SB-FR-030, SB-FR-014, SB-FR-015, SB-FR-016, SB-FR-021, SB-FR-022,
 // SB-FR-032, SB-FR-034, SB-FR-035).
 //
 // Endpoints (mounted under /api/projects):
@@ -315,6 +315,15 @@
 //                                                    409 WRONG_LIFECYCLE_STATE + state:
 //                                                        the delivery is complete, or in a
 //                                                        state the bench does not know
+//                                                    409 CROSSCHECK_BLOCKED + classes: the
+//                                                        bench's last cross-check holds a
+//                                                        disagreement of a blocking class
+//                                                        (branch-missing,
+//                                                        head-commit-differs,
+//                                                        pr-state-differs,
+//                                                        gate-state-differs or
+//                                                        plan-hash-mismatch); `classes`
+//                                                        names each one present
 //                                                    409 REVIEW_OPEN: the folded record's
 //                                                        review status is `open`
 //                                                        (`unreviewed` lists the decisions
@@ -325,6 +334,33 @@
 //                                                        in the workspace as the snapshot
 //                                                        reads them (`gates` lists them)
 //                                                    404 and 409 as the snapshot read
+//   POST /:projectId/benches/:id/delivery/sittings
+//        body {gateId}                        -> 202 BenchDeliverySitting {gateId,
+//                                                    openedAt}: the gate sitting the
+//                                                    bench now has open, kept on the
+//                                                    bench (deliverySitting); the same
+//                                                    gate again answers 202 with the
+//                                                    sitting already open
+//                                                    400 INVALID_BODY + field `gateId`:
+//                                                        not a non-empty string
+//                                                    404 GATE_NOT_FOUND: the folded
+//                                                        delivery has no such gate
+//                                                 409 the first refusal of the checks, in
+//                                                 this order (selectSittingRefusal):
+//                                                    409 WRONG_LIFECYCLE_STATE + state:
+//                                                        as the approve
+//                                                    409 CROSSCHECK_BLOCKED + classes:
+//                                                        as the approve
+//                                                    409 SITTING_OPEN + gateId: a sitting
+//                                                        of another gate is open
+//                                                    404 and 409 as the snapshot read
+//
+// The cross-check's blocking classes (SB-FR-029) refuse a gate sitting and the
+// approval only. The four other classes (layer-order-differs,
+// base-branch-differs, case-status-differs and record-stale) are shown on the
+// rail and block nothing. Decision answers, steering notes, pause, wind-down,
+// resume and the mode switch never read the cross-check, so they answer as
+// above under every class.
 //
 // The session posts its events to POST /api/hooks/delivery-event (see
 // delivery-hooks.ts), which checks the delivery token. Launch, resume and the
@@ -338,7 +374,7 @@
 // longer conforms.
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
-import type { Bench } from "@roubo/shared";
+import type { Bench, BenchDeliverySitting } from "@roubo/shared";
 import {
   benchDeliveryEventSpillPath,
   loadBenchDeliveryRecord,
@@ -346,6 +382,7 @@ import {
 } from "../lib/delivery-record-loader.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import * as benchManager from "../services/bench-manager.js";
+import * as stateService from "../services/state.js";
 import {
   DELIVERY_DIFF_MAX_BYTES,
   type DeliveryCrossCheckResponse,
@@ -374,6 +411,7 @@ import {
 import {
   selectApprovalRefusal,
   selectLifecycleAction,
+  selectSittingRefusal,
   type DeliveryLifecycleAction,
 } from "@roubo/shared/delivery-selectors";
 import {
@@ -771,6 +809,9 @@ interface ControlContext {
   record: DeliveryRecord;
   snapshot: DeliverySnapshot;
   author: Author;
+  // The disagreements of the bench's last cross-check, read only for a control
+  // the cross-check can block (`crossCheck`); empty otherwise.
+  disagreements: DeliveryCrossCheckResponse["disagreements"];
 }
 
 interface DecisionControlContext extends ControlContext {
@@ -782,16 +823,24 @@ interface DecisionControlContext extends ControlContext {
 // The operator's identity and the folded delivery of the bench; or the answer
 // already sent when the record cannot be read. With `verify`, the fold also
 // reads the spec's plan, results and lifecycle in the workspace, as the
-// snapshot read does, so the gates carry their evaluated state.
+// snapshot read does, so the gates carry their evaluated state. With
+// `crossCheck`, it also reads the bench's last cross-check (SB-FR-029), which a
+// gate sitting and the approval consult at control time.
 async function controlContext(
   bench: Bench,
   res: Response,
-  options: { verify?: boolean } = {},
+  options: { verify?: boolean; crossCheck?: boolean } = {},
 ): Promise<ControlContext | undefined> {
   // The operator Roubo knows: the git identity of the bench workspace, in the
   // results writer's Author shape. Resolved before the checks, so nothing
   // awaits between the checks and the issue.
   const identity = await resolveGitIdentity(bench.workspacePath);
+  // The last cross-check, read before the checks for the same reason. Only a
+  // record that loads arms the bench's cross-check, as the crosscheck read.
+  let disagreements: DeliveryCrossCheckResponse["disagreements"] = [];
+  if (options.crossCheck === true && loadBenchDeliveryRecord(bench).ok) {
+    disagreements = (await readDeliveryCrossCheck(bench)).disagreements;
+  }
   const loaded = loadBenchDeliveryRecord(bench);
   if (!loaded.ok) {
     res.status(409).json(loaded.error);
@@ -816,6 +865,7 @@ async function controlContext(
       identity.isSentinel === true
         ? { name: identity.name, email: identity.email, isSentinel: true }
         : { name: identity.name, email: identity.email },
+    disagreements,
   };
 }
 
@@ -1201,19 +1251,76 @@ router.post(
     const reason = optionalBodyText(req, res, "reason");
     if (!reason.ok) return;
     // The gates' evaluated state decides the gating check, so the fold reads
-    // the plan and the results as the snapshot read does.
-    const context = await controlContext(bench, res, { verify: true });
+    // the plan and the results as the snapshot read does; and the last
+    // cross-check decides the blocking check.
+    const context = await controlContext(bench, res, { verify: true, crossCheck: true });
     if (!context) return;
-    // The folded record decides, as the Approve control does: nothing is
-    // approved in a state an approval is not open in, while a review is open
-    // (SB-FR-034), or while a gating case is unmet (SB-FR-022).
-    const refusal = selectApprovalRefusal(context.snapshot);
+    // The folded record and the last cross-check decide, as the Approve
+    // control does: nothing is approved in a state an approval is not open in,
+    // while a blocking class of the cross-check is present (SB-FR-029), while a
+    // review is open (SB-FR-034), or while a gating case is unmet (SB-FR-022).
+    const refusal = selectApprovalRefusal(context.snapshot, context.disagreements);
     if (refusal !== null) {
       const { reason: error, ...rest } = refusal;
       res.status(409).json({ error, ...rest });
       return;
     }
     issueControl(res, context, "approval", undefined, reasonBody(reason.value));
+  },
+);
+
+// ── Gate sittings (SB-FR-029) ──
+//
+// A minimal sitting: the route applies the lifecycle and cross-check refusals
+// and records which gate the bench sits. Pinning a worktree and starting the
+// sitting's session come on top of it.
+
+function persistBench(bench: Bench): void {
+  if (!benchManager.isBenchLive(bench.projectId, bench.id)) return;
+  stateService.updateBench(stateService.toPersistedBench(bench));
+}
+
+router.post(
+  "/:projectId/benches/:id/delivery/sittings",
+  deliveryControlRateLimiter,
+  async (req, res) => {
+    const bench = specBenchOf(req, res);
+    if (!bench) return;
+    const gateId: unknown = (req.body as { gateId?: unknown } | undefined)?.gateId;
+    if (typeof gateId !== "string" || gateId.length === 0) {
+      sendInvalidBody(res, "gateId", "gateId must name a gate of the delivery");
+      return;
+    }
+    const context = await controlContext(bench, res, { crossCheck: true });
+    if (!context) return;
+    if (ownValue(context.snapshot.gatesById, gateId) === undefined) {
+      res.status(404).json({ error: `The delivery has no gate ${gateId}`, code: "GATE_NOT_FOUND" });
+      return;
+    }
+    const refusal = selectSittingRefusal(context.snapshot, context.disagreements);
+    if (refusal !== null) {
+      const { reason: error, ...rest } = refusal;
+      res.status(409).json({ error, ...rest });
+      return;
+    }
+    const open = bench.deliverySitting;
+    if (open !== undefined) {
+      if (open.gateId === gateId) {
+        // The same sitting again: it is open already.
+        res.status(202).json(open);
+        return;
+      }
+      res.status(409).json({
+        error: `A sitting of gate ${open.gateId} is open already`,
+        code: "SITTING_OPEN",
+        gateId: open.gateId,
+      });
+      return;
+    }
+    const sitting: BenchDeliverySitting = { gateId, openedAt: new Date().toISOString() };
+    bench.deliverySitting = sitting;
+    persistBench(bench);
+    res.status(202).json(sitting);
   },
 );
 
