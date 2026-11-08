@@ -7,9 +7,9 @@
 // of delivery events, and the named errors the event ingest gives (SB-FR-007).
 //
 // Agent-agnostic by construction (SB-NFR-001). The descriptor is data: two URLs,
-// a token and an optional resume argument. It names no agent, no model and no
-// command line; the agent launch executor decides how the data reaches the
-// session it starts.
+// a token, an optional resume argument and an optional decision mode. It names
+// no agent, no model and no command line; the agent launch executor decides how
+// the data reaches the session it starts.
 
 import {
   DELIVERY_RECORD_SCHEMA_ID,
@@ -18,6 +18,7 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract";
+import type { SpecBenchDecisionMode } from "./types";
 
 // ── Routes ──
 //
@@ -194,12 +195,15 @@ export interface DeliveryIngestError {
 //
 // The data the main delivery session starts with. `resume` is present only when
 // the session continues a delivery the bench already holds a record for: it is
-// the record's `delivery_id`.
+// the record's `delivery_id`. `decisionMode` is present only on a fresh launch
+// of a launch-mode bench: the decision mode chosen at set-up (SB-FR-031). A
+// resume carries none, because the record holds the mode.
 export interface DeliveryLaunchDescriptor {
   eventUrl: string;
   controlsUrl: string;
   token: string;
   resume?: string;
+  decisionMode?: SpecBenchDecisionMode;
 }
 
 export interface DeliveryLaunchInput {
@@ -210,6 +214,7 @@ export interface DeliveryLaunchInput {
   // The plain token, minted for this launch. Only its hash is stored.
   token: string;
   resume?: string;
+  decisionMode?: SpecBenchDecisionMode;
 }
 
 // Builds the descriptor. Each optional field is copied only when the input
@@ -225,6 +230,7 @@ export function buildDeliveryLaunchDescriptor(
     controlsUrl: `${origin}${paths.controls}`,
     token: input.token,
     ...(input.resume !== undefined && { resume: input.resume }),
+    ...(input.decisionMode !== undefined && { decisionMode: input.decisionMode }),
   };
 }
 

@@ -88,6 +88,7 @@ import { unregisterVariantHost } from "./variant-host-registry.js";
 
 const DELIVERY_FIELDS = [
   "deliveryBindMode",
+  "deliveryDecisionMode",
   "gatePin",
   "deliveryTokenHash",
   "deliverySitting",

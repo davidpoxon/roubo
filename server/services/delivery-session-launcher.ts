@@ -23,7 +23,8 @@
 // The executor is a port. The default one starts an AI coding agent session
 // through the terminal service with the descriptor in its environment; a test,
 // or a later launch path, swaps it with setDeliveryLaunchExecutor.
-import type { Bench } from "@roubo/shared";
+import type { Bench, SpecBenchDecisionMode } from "@roubo/shared";
+import { DEFAULT_SPEC_BENCH_DECISION_MODE } from "@roubo/shared";
 import {
   buildDeliveryLaunchDescriptor,
   type DeliveryLaunchDescriptor,
@@ -71,6 +72,7 @@ export const DELIVERY_ENV_KEYS = {
   controlsUrl: "ROUBO_DELIVERY_CONTROLS_URL",
   token: "ROUBO_DELIVERY_TOKEN",
   resume: "ROUBO_DELIVERY_RESUME",
+  decisionMode: "ROUBO_DELIVERY_DECISION_MODE",
 } as const;
 
 export function deliveryLaunchEnv(descriptor: DeliveryLaunchDescriptor): Record<string, string> {
@@ -79,6 +81,9 @@ export function deliveryLaunchEnv(descriptor: DeliveryLaunchDescriptor): Record<
     [DELIVERY_ENV_KEYS.controlsUrl]: descriptor.controlsUrl,
     [DELIVERY_ENV_KEYS.token]: descriptor.token,
     ...(descriptor.resume !== undefined && { [DELIVERY_ENV_KEYS.resume]: descriptor.resume }),
+    ...(descriptor.decisionMode !== undefined && {
+      [DELIVERY_ENV_KEYS.decisionMode]: descriptor.decisionMode,
+    }),
   };
 }
 
@@ -91,6 +96,9 @@ export function deliveryLaunchPrompt(request: DeliveryLaunchRequest): string {
       : `Resume the delivery ${request.descriptor.resume} of the spec ${request.specSlug}.`,
     `Post each delivery event to $${DELIVERY_ENV_KEYS.eventUrl} with $${DELIVERY_ENV_KEYS.token} as the bearer token, and read the operator's controls from $${DELIVERY_ENV_KEYS.controlsUrl}.`,
   ];
+  if (request.descriptor.decisionMode !== undefined) {
+    lines.push(`Start the delivery in the decision mode $${DELIVERY_ENV_KEYS.decisionMode}.`);
+  }
   return lines.join(" ");
 }
 
@@ -182,14 +190,30 @@ export class DeliveryLaunchBlockedError extends Error {
   }
 }
 
-function descriptorFor(bench: Bench, token: string, resume?: string): DeliveryLaunchDescriptor {
+function descriptorFor(
+  bench: Bench,
+  token: string,
+  options: { resume?: string; decisionMode?: SpecBenchDecisionMode } = {},
+): DeliveryLaunchDescriptor {
   return buildDeliveryLaunchDescriptor({
     origin: deliveryOrigin(),
     projectId: bench.projectId,
     benchId: bench.id,
     token,
-    ...(resume !== undefined && { resume }),
+    ...(options.resume !== undefined && { resume: options.resume }),
+    ...(options.decisionMode !== undefined && { decisionMode: options.decisionMode }),
   });
+}
+
+// The decision mode a launch hands the session (SB-FR-031): the one chosen at
+// set-up, for a fresh launch of a launch-mode bench. A resume passes none,
+// because the record holds the mode, and so does an attached bench.
+function launchDecisionMode(
+  bench: Bench,
+  resume: string | undefined,
+): SpecBenchDecisionMode | undefined {
+  if (resume !== undefined || bench.deliveryBindMode !== "launch") return undefined;
+  return bench.deliveryDecisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE;
 }
 
 /**
@@ -214,7 +238,10 @@ export async function launchDeliverySession(
       benchId: bench.id,
       workspacePath: bench.workspacePath,
       specSlug: specSlugOf(bench),
-      descriptor: descriptorFor(bench, token, options.resume),
+      descriptor: descriptorFor(bench, token, {
+        resume: options.resume,
+        decisionMode: launchDecisionMode(bench, options.resume),
+      }),
     });
     bench.deliverySessionId = result.sessionId;
     return result;

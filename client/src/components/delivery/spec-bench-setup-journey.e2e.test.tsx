@@ -39,7 +39,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Bench, RegisteredProject } from "@roubo/shared";
-import { SPEC_BENCH_BIND_MODES } from "@roubo/shared";
+import { SPEC_BENCH_BIND_MODES, SPEC_BENCH_DECISION_MODES } from "@roubo/shared";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
@@ -207,6 +207,7 @@ interface LaunchDescriptor {
   eventUrl: string;
   controlsUrl: string;
   token: string;
+  decisionMode?: string;
 }
 
 interface StandInResponse {
@@ -328,7 +329,7 @@ class RouboServerStandIn {
     const request = (body ?? {}) as {
       variant?: unknown;
       focusedSpecPath?: unknown;
-      delivery?: { mode?: unknown } | null;
+      delivery?: { mode?: unknown; decisionMode?: unknown } | null;
     };
     if (request.variant !== "specbench") {
       return respond(400, { error: "The journey sets up a specbench variant", code: "INVALID" });
@@ -344,6 +345,20 @@ class RouboServerStandIn {
       return respond(400, {
         error: `delivery.mode must be one of ${SPEC_BENCH_BIND_MODES.join(", ")} for a specbench variant`,
         code: "INVALID_DELIVERY",
+      });
+    }
+    // In launch mode, the decision mode: attended unless the request names
+    // auto, and an unknown value refused before any bench is created. Attach
+    // ignores it.
+    const decisionMode = mode === "launch" ? (request.delivery?.decisionMode ?? "attended") : null;
+    if (
+      decisionMode !== null &&
+      (typeof decisionMode !== "string" ||
+        !(SPEC_BENCH_DECISION_MODES as readonly string[]).includes(decisionMode))
+    ) {
+      return respond(400, {
+        error: `delivery.decisionMode must be one of ${SPEC_BENCH_DECISION_MODES.join(", ")}`,
+        code: "INVALID_DECISION_MODE",
       });
     }
     const folder = request.focusedSpecPath.replace(/\/+$/, "");
@@ -369,6 +384,9 @@ class RouboServerStandIn {
       variant: "specbench",
       focusedSpecPath: `${REPO_PATH}/${SPEC_FOLDER}`,
       deliveryBindMode: mode as Bench["deliveryBindMode"],
+      ...(decisionMode !== null && {
+        deliveryDecisionMode: decisionMode as Bench["deliveryDecisionMode"],
+      }),
     };
     this.benches.push(bench);
     if (mode === "launch") {
@@ -380,6 +398,7 @@ class RouboServerStandIn {
         eventUrl: `http://localhost:4000${DELIVERY_EVENT_HOOK_PATH}?${query.toString()}`,
         controlsUrl: `http://localhost:4000${DELIVERY_CONTROLS_HOOK_PATH}?${query.toString()}`,
         token,
+        ...(decisionMode !== null && { decisionMode }),
       };
       this.launches.push(descriptor);
       this.onLaunch?.(descriptor);
@@ -796,5 +815,83 @@ describe("Spec Bench setup journey", () => {
       `${OWNERS.deliveryTab}, ${OWNERS.launch}`,
       () => openBenchAndExpectDelivery(user, benchId),
     );
+  });
+
+  it("SB-TC-079: The set-up dialog offers attended and auto mode, with attended as the default", async () => {
+    const user = userEvent.setup();
+    const tooling = new FakeDeliveryTooling(server);
+    server.setLaunchExecutor((descriptor) => tooling.launched(descriptor));
+    renderRoubo();
+
+    await user.click(await findSetUpSpecBench(user));
+    await waitFor(() => setupDialog());
+
+    // Step 1: the Decisions control has two segments, Attended selected, and a
+    // note that states what attended mode does.
+    const decisions = within(setupDialog()).getByRole("radiogroup", { name: "Decisions" });
+    const segments = within(decisions).getAllByRole("radio");
+    expect(segments.map((segment) => segment.textContent)).toEqual(["Attended", "Auto"]);
+    expect(within(decisions).getByRole("radio", { name: "Attended" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(within(decisions).getByRole("radio", { name: "Auto" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    const note = within(setupDialog()).getByTestId("decision-mode-note");
+    expect(note).toHaveTextContent(/^You decide\./);
+
+    // Step 2: select Auto, which updates the note, and set up in launch mode.
+    await user.click(within(decisions).getByRole("radio", { name: "Auto" }));
+    expect(within(decisions).getByRole("radio", { name: "Auto" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(note).toHaveTextContent(/^The agent decides\./);
+    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await user.click(choice(setupDialog(), /^launch/i));
+    await waitFor(() =>
+      expect(within(setupDialog()).getByTestId("specbench-setup-summary")).toHaveTextContent(
+        /\b4 units\b/,
+      ),
+    );
+    const summaryDecisions = within(setupDialog()).getByTestId("specbench-setup-summary-decisions");
+    expect(summaryDecisions).toHaveTextContent("Auto");
+    await user.click(choice(setupDialog(), /confirm|set up/i));
+    await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
+    expect(server.createRequests.at(-1)).toMatchObject({
+      delivery: { mode: "launch", decisionMode: "auto" },
+    });
+    expect(server.launches).toHaveLength(1);
+    expect(tooling.descriptor?.decisionMode).toBe("auto");
+    await waitFor(() =>
+      expect(screen.getByTestId("bench-variant-badge")).toHaveTextContent("Spec Bench · auto"),
+    );
+  });
+
+  it("SB-TC-079: a set-up left on the default launches in attended mode, with no mode on the badge", async () => {
+    const user = userEvent.setup();
+    const tooling = new FakeDeliveryTooling(server);
+    server.setLaunchExecutor((descriptor) => tooling.launched(descriptor));
+    renderRoubo();
+
+    await user.click(await findSetUpSpecBench(user));
+    await waitFor(() => setupDialog());
+    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await user.click(choice(setupDialog(), /^launch/i));
+    await waitFor(() =>
+      expect(within(setupDialog()).getByTestId("specbench-setup-summary")).toHaveTextContent(
+        /\b4 units\b/,
+      ),
+    );
+    await user.click(choice(setupDialog(), /confirm|set up/i));
+    await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
+    expect(server.createRequests.at(-1)).toMatchObject({
+      delivery: { mode: "launch", decisionMode: "attended" },
+    });
+    expect(tooling.descriptor?.decisionMode).toBe("attended");
+    const badge = await screen.findByTestId("bench-variant-badge");
+    expect(badge).toHaveTextContent(/^Spec Bench$/);
   });
 });

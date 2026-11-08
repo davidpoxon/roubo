@@ -2,20 +2,24 @@ import type { Bench } from "@roubo/shared";
 
 // DESIGN.md Bench card, head > variant: a Spec Bench names itself with a badge,
 // `accent-text` on `accent-muted`. A normal bench carries none, so this renders
-// nothing for it.
+// nothing for it. A Spec Bench in auto mode adds the mode, as in
+// `Spec Bench · auto` (SB-FR-031).
 const LABELS: Partial<Record<NonNullable<Bench["variant"]>, string>> = {
   specbench: "Spec Bench",
 };
 
 export default function VariantBadge({
   variant,
+  decisionMode,
   className = "",
 }: {
   variant: Bench["variant"];
+  decisionMode?: Bench["deliveryDecisionMode"];
   className?: string;
 }) {
-  const label = variant === undefined ? undefined : LABELS[variant];
-  if (label === undefined) return null;
+  const base = variant === undefined ? undefined : LABELS[variant];
+  if (base === undefined) return null;
+  const label = variant === "specbench" && decisionMode === "auto" ? `${base} · auto` : base;
   return (
     <span
       data-testid="bench-variant-badge"
