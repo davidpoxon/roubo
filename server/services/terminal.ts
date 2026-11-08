@@ -153,6 +153,13 @@ interface InternalSession {
   // Spec Bench's drill-in cuts a unit's transcript out of the scrollback by
   // these times (SB-FR-013).
   bufferTimes: CircularBuffer<number>;
+  // How many chunks were written into the PTY as input: what a viewer typed
+  // through its socket and what core wrote with writeToSession. Only the count
+  // is kept, never the input itself, because typed input can hold a secret that
+  // the terminal never echoed. A test can read it to show that no input was
+  // typed into a session (SB-FR-022). It is kept in memory only, so a session
+  // restored after a restart has null: its input count is not known.
+  inputCount: number | null;
   exitCode: number | null;
   quiescenceTimer: ReturnType<typeof setTimeout> | null;
   // Timestamps used to gate quiescence-driven notifications: we only re-notify
@@ -266,6 +273,13 @@ function generateLabel(
     return `${displayName} ${index} - ${projectName} #${benchId}`;
   }
   return `Terminal ${index} - ${projectName} #${benchId}`;
+}
+
+/** Write one chunk of input into a live session's PTY, and count it. */
+function writeInput(internal: InternalSession, data: string): void {
+  if (!internal.pty) return;
+  internal.pty.write(data);
+  if (internal.inputCount !== null) internal.inputCount += 1;
 }
 
 /** Append one chunk to the scrollback with the time it was written. */
@@ -636,6 +650,7 @@ function registerSession(
     viewers: new Map(),
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
     bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
+    inputCount: 0,
     exitCode: null,
     quiescenceTimer: null,
     lastOutputAt: null,
@@ -1116,6 +1131,17 @@ export function getSessionScrollback(
   });
 }
 
+/**
+ * How many input chunks were written into a session's PTY: what a viewer
+ * typed through its socket and what core wrote with writeToSession. The input
+ * itself is never kept. Undefined when no such session exists, or when the
+ * count is not known because the session was restored after a restart: the
+ * count is kept in memory only.
+ */
+export function getSessionInputCount(sessionId: string): number | undefined {
+  return sessions.get(sessionId)?.inputCount ?? undefined;
+}
+
 export function getSessions(projectId: string, benchId: number): TerminalSession[] {
   const key = benchKey(projectId, benchId);
   return Array.from(sessions.values())
@@ -1276,6 +1302,8 @@ export function loadPersistedSessions(): void {
         viewers: new Map(),
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
         bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
+        // The input count is never written to disk, so it is not known here.
+        inputCount: null,
         exitCode: persisted.session.exitCode ?? null,
         quiescenceTimer: null,
         lastOutputAt: null,
@@ -1398,7 +1426,7 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     try {
       const msg = JSON.parse(rawData.toString());
       if (msg.type === "input" && typeof msg.data === "string") {
-        internal.pty?.write(msg.data);
+        writeInput(internal, msg.data);
         // Cancel the quiescence timer so active typing doesn't trigger a notification
         cancelQuiescenceCheck(internal);
         // User has engaged: reset the notify-gate so the next idle window can
@@ -1458,6 +1486,6 @@ export function hasSession(sessionId: string): boolean {
 export function writeToSession(sessionId: string, data: string): boolean {
   const internal = sessions.get(sessionId);
   if (!internal?.pty) return false;
-  internal.pty.write(data);
+  writeInput(internal, data);
   return true;
 }
