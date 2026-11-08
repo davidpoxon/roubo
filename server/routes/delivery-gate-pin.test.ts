@@ -23,7 +23,10 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bench, ComponentStatus, RegisteredProject, RouboConfig } from "@roubo/shared";
+import { DELIVERY_EVENT_HOOK_PATH } from "@roubo/shared/delivery-bench";
 import {
+  DELIVERY_EVENT_SCHEMA_ID,
+  DELIVERY_EVENT_SCHEMA_VERSION,
   DELIVERY_RECORD_SCHEMA_ID,
   DELIVERY_RECORD_SCHEMA_VERSION,
 } from "@roubo/shared/delivery-observation-contract";
@@ -89,7 +92,19 @@ import {
 } from "../services/delivery-cross-check-loader.js";
 import { specbenchVariantHost } from "../lib/specbench-variant-host.js";
 import { computePlanHash } from "../lib/testbench-store.js";
+import { hashDeliveryToken } from "../services/delivery-token-registry.js";
+import { broadcastDeliveryFrame } from "../services/sse.js";
+import {
+  forgetGateSittingWatches,
+  recheckGateSitting,
+  resumeGateSittingWatches,
+  SMOKE_RECHECK_MS,
+  whenGateSittingPrepared,
+} from "../services/gate-pin.js";
+import deliveryHooksRouter, { deliveryEventBodyParser } from "./delivery-hooks.js";
 import router from "./delivery.js";
+
+const TOKEN = "delivery-token-for-the-gate-pin";
 
 const UPDATED_AT = "2026-10-16T09:30:00Z";
 const BEFORE_UPDATE = "2026-10-16T09:00:00Z";
@@ -336,6 +351,7 @@ beforeEach(async () => {
     workspacePath: workspace,
     deliveryDecisionMode: "auto",
     deliveryBindMode: "launch",
+    deliveryTokenHash: hashDeliveryToken(TOKEN),
     status: "active",
     ports: { web: 5173 },
     components: {
@@ -417,12 +433,17 @@ beforeEach(async () => {
   forgetDeliveryCrossCheck();
   forgetDeliveryEventLog();
   forgetDeliveryControlMemory();
+  forgetGateSittingWatches();
   app = express();
+  app.use(DELIVERY_EVENT_HOOK_PATH, deliveryEventBodyParser);
   app.use(express.json());
+  app.use("/api/hooks", deliveryHooksRouter);
   app.use("/api/projects", router);
 });
 
 afterEach(async () => {
+  await whenGateSittingPrepared(bench);
+  forgetGateSittingWatches();
   forgetDeliveryCrossCheck();
   setDeliveryCrossCheckDeps();
   forgetDeliveryEventLog();
@@ -463,6 +484,7 @@ describe("the gate pin of a sitting", () => {
       openedAt: expect.any(String) as unknown as string,
       commit: commits[1],
       state: "open",
+      smokeCheck: { passed: true, checkedAt: expect.any(String) as unknown as string },
       resultsSpecPath: specFolder,
     });
     expect(componentCalls).toEqual([`stop ${workspace}`, `start ${pin}`]);
@@ -798,6 +820,18 @@ describe("the gate pin of a sitting", () => {
     expect(fs.existsSync(pin)).toBe(false);
   });
 
+  it("SB-TC-058 records the smoke check of a sitting opened with no prepared pin on deliverySitting.smokeCheck", async () => {
+    const res = await openSitting();
+    expect(res.status).toBe(201);
+    expect(bench.deliverySitting?.smokeCheck).toEqual({
+      passed: true,
+      checkedAt: expect.any(String) as unknown as string,
+    });
+    expect(Number.isNaN(Date.parse(bench.deliverySitting?.smokeCheck?.checkedAt ?? ""))).toBe(
+      false,
+    );
+  });
+
   it("SB-TC-059 keeps the components stopped across the pin when none ran, and still prepares the pin", async () => {
     bench.components.web.status = "stopped";
     expect((await openSitting()).status).toBe(201);
@@ -806,5 +840,477 @@ describe("the gate pin of a sitting", () => {
     expect(fs.existsSync(path.join(pin, SETUP_MARKER))).toBe(true);
     // The pin's own start runs the component's one-time setup there.
     expect(bench.components.web.setupComplete).toBe(false);
+  });
+});
+
+describe("the call to a gate sitting after gate.reached", () => {
+  // Posts the delivery session's gate.reached for the gate after B, and waits
+  // for the preparation it starts after the answer.
+  async function reachGate(seq = 8): Promise<request.Response> {
+    const res = await postGateReached(seq);
+    await whenGateSittingPrepared(bench);
+    return res;
+  }
+
+  // Posts the gate.reached and answers once the hook did, while the
+  // preparation it started may still run.
+  async function postGateReached(seq = 8): Promise<request.Response> {
+    const res = await request(app)
+      .post(`${DELIVERY_EVENT_HOOK_PATH}?projectId=${bench.projectId}&benchId=${bench.id}`)
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        events: [
+          {
+            $schema: DELIVERY_EVENT_SCHEMA_ID,
+            schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+            delivery_id: "fixture-delivery",
+            type: "gate.reached",
+            seq,
+            ts: "2026-10-16T09:40:00Z",
+            payload: { gate_id: "gate-after-b" },
+          },
+        ],
+      });
+    expect(res.status).toBe(202);
+    return res;
+  }
+
+  function sittingNotifications() {
+    return bench.notifications.filter((n) => n.type === "delivery-sitting");
+  }
+
+  // The `controls` delivery frames sent for the bench since the last clear.
+  function controlsFrames(): unknown[][] {
+    return vi.mocked(broadcastDeliveryFrame).mock.calls.filter((call) => call[3] === "controls");
+  }
+
+  // A promise and the function that settles it.
+  function gate(): { promise: Promise<void>; open: () => void } {
+    let open!: () => void;
+    const promise = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    return { promise, open };
+  }
+
+  async function snapshotSitting(): Promise<unknown> {
+    const res = await request(app).get(base);
+    expect(res.status).toBe(200);
+    return res.body.sitting;
+  }
+
+  it("SB-TC-058 shows the gate waiting for build and raises no sitting notification while the build is down", async () => {
+    serverStatus = 503;
+    await reachGate();
+
+    // The server pinned the gate commit and restarted the components from it.
+    expect(worktrees().get(pin)).toEqual({ head: commits[1], detached: true });
+    expect(componentCalls).toEqual([`stop ${workspace}`, `start ${pin}`]);
+    expect(bench.gatePin).toMatchObject({ gateId: "gate-after-b", commit: commits[1] });
+
+    // The gate waits for its build, with the failed smoke check recorded.
+    expect(bench.deliverySitting).toMatchObject({
+      gateId: "gate-after-b",
+      commit: commits[1],
+      state: "preparing",
+      resultsSpecPath: specFolder,
+    });
+    expect(bench.deliverySitting?.openedAt).toBeUndefined();
+    expect(bench.deliverySitting?.smokeCheck).toEqual({
+      passed: false,
+      checkedAt: expect.any(String) as unknown as string,
+      detail: expect.stringContaining("answered 503") as unknown as string,
+    });
+    expect(await snapshotSitting()).toEqual({
+      gateId: "gate-after-b",
+      state: "preparing",
+      commit: commits[1],
+      smokeCheck: bench.deliverySitting?.smokeCheck,
+    });
+    expect(sittingNotifications()).toEqual([]);
+    expect(stateService.updateBench).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        deliverySitting: expect.objectContaining({ state: "preparing" }) as unknown,
+      }),
+    );
+
+    // A check while the build is still down calls no one either.
+    expect((await recheckGateSitting(bench))?.state).toBe("preparing");
+    expect(sittingNotifications()).toEqual([]);
+  });
+
+  it("SB-TC-058 raises the sitting notification and shows the gate ready to sit once the build is up at the stack head and the smoke check passes", async () => {
+    serverStatus = 503;
+    await reachGate();
+    expect(bench.deliverySitting?.state).toBe("preparing");
+    expect(sittingNotifications()).toEqual([]);
+
+    // The build comes up at the stack head, and the next check passes.
+    serverStatus = 200;
+    const sitting = await recheckGateSitting(bench);
+    expect(sitting?.state).toBe("ready");
+    expect(bench.deliverySitting?.smokeCheck).toEqual({
+      passed: true,
+      checkedAt: expect.any(String) as unknown as string,
+    });
+    const served = await fetch(bench.components.web.url as string);
+    expect(await served.text()).toBe("two\n");
+    expect(sittingNotifications()).toEqual([
+      expect.objectContaining({
+        type: "delivery-sitting",
+        priority: "action-needed",
+        dedupeKey: "gate-after-b",
+        metadata: { gateId: "gate-after-b", commit: commits[1] },
+      }),
+    ]);
+    expect(await snapshotSitting()).toMatchObject({ gateId: "gate-after-b", state: "ready" });
+
+    // The operator opens the sitting on the ready pin: nothing moves again,
+    // and the call goes.
+    expect(await crossCheckClasses()).toEqual([]);
+    const opened = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(opened.status).toBe(201);
+    expect(opened.body).toMatchObject({
+      gateId: "gate-after-b",
+      commit: commits[1],
+      state: "open",
+      smokeCheck: { passed: true },
+    });
+    expect(typeof opened.body.openedAt).toBe("string");
+    expect(componentCalls).toEqual([`stop ${workspace}`, `start ${pin}`]);
+    expect(sittingNotifications()).toEqual([]);
+    expect(await snapshotSitting()).toMatchObject({ state: "open" });
+  });
+
+  it("SB-TC-058 calls the operator once a component that failed to start from the pin is brought up", async () => {
+    startOutcome = "error";
+    await reachGate();
+    expect(bench.deliverySitting?.state).toBe("preparing");
+    expect(bench.deliverySitting?.smokeCheck?.detail).toContain("component 'web' is error");
+    // The pin stays: the build is down, not the pin.
+    expect(worktrees().get(pin)?.head).toBe(commits[1]);
+    expect(sittingNotifications()).toEqual([]);
+
+    // The operator starts the component again; it runs from the pin.
+    startOutcome = "running";
+    await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+    expect(componentCalls.at(-1)).toBe(`start ${pin}`);
+    expect((await recheckGateSitting(bench))?.state).toBe("ready");
+    expect(sittingNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-058 waits for build while no component of the bench runs", async () => {
+    bench.components.web.status = "stopped";
+    await reachGate();
+    expect(bench.deliverySitting?.state).toBe("preparing");
+    expect(bench.deliverySitting?.smokeCheck?.detail).toMatch(/no component of the bench runs/);
+    expect(sittingNotifications()).toEqual([]);
+
+    await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+    expect((await recheckGateSitting(bench))?.state).toBe("ready");
+    expect(sittingNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-058 calls the operator at once when the build is up when the gate is reached", async () => {
+    await reachGate();
+    expect(bench.deliverySitting).toMatchObject({
+      state: "ready",
+      smokeCheck: { passed: true },
+    });
+    expect(sittingNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-058 refuses POST /sittings with 409 BUILD_NOT_SMOKE_CHECKED before the smoke check passes", async () => {
+    serverStatus = 503;
+    await reachGate();
+    expect(await crossCheckClasses()).toEqual([]);
+    const calls = [...componentCalls];
+
+    const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("BUILD_NOT_SMOKE_CHECKED");
+    expect(res.body.error).toMatch(/not smoke-checked/);
+    // Nothing moved: the pin waits for its build.
+    expect(componentCalls).toEqual(calls);
+    expect(bench.deliverySitting?.state).toBe("preparing");
+    expect(worktrees().get(pin)?.head).toBe(commits[1]);
+    expect(sittingNotifications()).toEqual([]);
+
+    // Another gate's sitting is refused while this one is prepared.
+    const other = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-c" });
+    expect(other.status).toBe(409);
+    expect(other.body).toMatchObject({ code: "SITTING_OPEN", gateId: "gate-after-b" });
+  });
+
+  it("SB-TC-058 a second gate.reached prepares nothing while the bench has a sitting", async () => {
+    serverStatus = 503;
+    await reachGate(8);
+    const calls = [...componentCalls];
+    await reachGate(9);
+    expect(componentCalls).toEqual(calls);
+    expect(bench.deliverySitting?.state).toBe("preparing");
+  });
+
+  it("SB-TC-058 closing a prepared sitting removes the pin and dismisses the call", async () => {
+    await reachGate();
+    expect(sittingNotifications()).toHaveLength(1);
+    const res = await request(app).delete(`${base}/sittings/current`);
+    expect(res.status).toBe(204);
+    expect(bench.deliverySitting).toBeUndefined();
+    expect(bench.gatePin).toBeUndefined();
+    expect(fs.existsSync(pin)).toBe(false);
+    expect(sittingNotifications()).toEqual([]);
+    expect(await snapshotSitting()).toBeUndefined();
+    // No check runs on once the sitting is gone.
+    expect(await recheckGateSitting(bench)).toBeUndefined();
+  });
+
+  it("SB-TC-058 shows the gate waiting for build and refuses POST /sittings with 409 BUILD_NOT_SMOKE_CHECKED while the preparation still runs", async () => {
+    // The preparation holds while it stops the components, before the pin.
+    const held = gate();
+    const entered = gate();
+    vi.mocked(benchManager.stopAllComponents).mockImplementationOnce(async () => {
+      entered.open();
+      await held.promise;
+      componentCalls.push(`stop ${specbenchVariantHost.componentRoot(bench)}`);
+      for (const status of Object.values(bench.components)) status.status = "stopped";
+    });
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    await postGateReached();
+    await entered.promise;
+
+    // The gate already waits for its build, persisted and announced.
+    expect(bench.gatePin).toBeUndefined();
+    expect(bench.deliverySitting).toMatchObject({
+      gateId: "gate-after-b",
+      state: "preparing",
+      commit: commits[1],
+      resultsSpecPath: specFolder,
+    });
+    expect(stateService.updateBench).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        deliverySitting: expect.objectContaining({ state: "preparing" }) as unknown,
+      }),
+    );
+    expect(controlsFrames()).toHaveLength(1);
+    expect(await snapshotSitting()).toEqual({
+      gateId: "gate-after-b",
+      state: "preparing",
+      commit: commits[1],
+    });
+    expect(sittingNotifications()).toEqual([]);
+
+    // Opening the sitting now is refused as not smoke-checked, not as busy.
+    expect(await crossCheckClasses()).toEqual([]);
+    const res = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("BUILD_NOT_SMOKE_CHECKED");
+    expect(res.body.error).toMatch(/not smoke-checked/);
+
+    // The preparation goes on, and the build is up, so the operator is called.
+    held.open();
+    await whenGateSittingPrepared(bench);
+    expect(bench.deliverySitting).toMatchObject({ state: "ready", smokeCheck: { passed: true } });
+    expect(sittingNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-058 clears the waiting gate when its commit cannot be pinned", async () => {
+    recordHead.B = "0123456789abcdef0123456789abcdef01234567";
+    gitHead.B = recordHead.B;
+    writeSpec();
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    await reachGate();
+    expect(bench.deliverySitting).toBeUndefined();
+    expect(bench.gatePin).toBeUndefined();
+    expect(fs.existsSync(pin)).toBe(false);
+    expect(componentCalls).toEqual([]);
+    expect(sittingNotifications()).toEqual([]);
+    // Announced once as preparing and once as gone.
+    expect(controlsFrames()).toHaveLength(2);
+    expect(await snapshotSitting()).toBeUndefined();
+  });
+
+  it("SB-TC-058 sends a controls delivery frame when the sitting is preparing, ready, open and closed", async () => {
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    serverStatus = 503;
+    await reachGate();
+    // Preparing, then its first failed smoke check.
+    expect(controlsFrames()).toHaveLength(2);
+    for (const call of controlsFrames()) {
+      expect(call).toEqual([bench.projectId, bench.id, expect.any(Number), "controls"]);
+    }
+
+    serverStatus = 200;
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    expect((await recheckGateSitting(bench))?.state).toBe("ready");
+    expect(controlsFrames()).toHaveLength(1);
+
+    expect(await crossCheckClasses()).toEqual([]);
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    const opened = await request(app).post(`${base}/sittings`).send({ gateId: "gate-after-b" });
+    expect(opened.status).toBe(201);
+    expect(controlsFrames()).toHaveLength(1);
+
+    vi.mocked(broadcastDeliveryFrame).mockClear();
+    expect((await request(app).delete(`${base}/sittings/current`)).status).toBe(204);
+    expect(controlsFrames()).toHaveLength(1);
+  });
+
+  describe("the recheck timer", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("SB-TC-058 checks the build again every SMOKE_RECHECK_MS and calls the operator once it is up", async () => {
+      bench.components.web.status = "stopped";
+      await reachGate();
+      expect(bench.deliverySitting?.state).toBe("preparing");
+
+      // The operator brings the build up; nothing checks it before the timer.
+      await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+      vi.mocked(broadcastDeliveryFrame).mockClear();
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS - 1);
+      expect(bench.deliverySitting?.state).toBe("preparing");
+      expect(sittingNotifications()).toEqual([]);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.waitFor(() => expect(bench.deliverySitting?.state).toBe("ready"));
+      expect(sittingNotifications()).toHaveLength(1);
+      expect(controlsFrames()).toHaveLength(1);
+
+      // Once it passed, no check calls the operator again.
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS * 2);
+      expect(sittingNotifications()).toHaveLength(1);
+      expect(controlsFrames()).toHaveLength(1);
+    });
+
+    it("SB-TC-058 keeps the recheck going when it fires while another operation holds the bench", async () => {
+      // The preparation holds once the pin is recorded, while it restarts the
+      // components from it.
+      const held = gate();
+      const entered = gate();
+      holdStart = held.promise;
+      startEntered = entered.open;
+      await postGateReached();
+      await entered.promise;
+      expect(bench.gatePin).toBeDefined();
+      expect(bench.deliverySitting?.state).toBe("preparing");
+
+      const before = vi.getTimerCount();
+      expect(await recheckGateSitting(bench)).toBe(bench.deliverySitting);
+      expect(vi.getTimerCount()).toBe(before + 1);
+      // The timer fires while the bench is still held: it schedules the next.
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS);
+      expect(vi.getTimerCount()).toBe(before + 1);
+      expect(bench.deliverySitting?.state).toBe("preparing");
+
+      held.open();
+      await whenGateSittingPrepared(bench);
+      expect(bench.deliverySitting?.state).toBe("ready");
+      expect(sittingNotifications()).toHaveLength(1);
+    });
+
+    it("SB-TC-058 keeps checking the build when the restart after the pin record throws", async () => {
+      // The restart from the pin throws out of its own error handling: the
+      // error it logs cannot be read.
+      const unreadable = Object.defineProperty(new Error(), "message", {
+        get() {
+          throw new Error("the restart error cannot be read");
+        },
+      });
+      vi.mocked(benchManager.startComponentsAndWait).mockImplementationOnce(async () => {
+        throw unreadable;
+      });
+      await reachGate();
+
+      // The pin stands, so the gate waits for its build, not yet checked.
+      expect(bench.gatePin).toMatchObject({ gateId: "gate-after-b", commit: commits[1] });
+      expect(bench.deliverySitting).toMatchObject({ gateId: "gate-after-b", state: "preparing" });
+      expect(bench.deliverySitting?.smokeCheck).toBeUndefined();
+      expect(sittingNotifications()).toEqual([]);
+
+      // The operator brings the build up; the next check calls the operator.
+      await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+      expect(componentCalls.at(-1)).toBe(`start ${pin}`);
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS);
+      await vi.waitFor(() => expect(bench.deliverySitting?.state).toBe("ready"));
+      expect(bench.deliverySitting?.smokeCheck).toMatchObject({ passed: true });
+      expect(sittingNotifications()).toHaveLength(1);
+    });
+
+    it("SB-TC-058 checks a waiting gate again after a server restart and calls the operator once the build is up", async () => {
+      bench.components.web.status = "stopped";
+      await reachGate();
+      expect(bench.deliverySitting?.state).toBe("preparing");
+
+      // A restart forgets the timers; the persisted sitting still waits.
+      forgetGateSittingWatches();
+      await benchManager.startComponentsAndWait(bench.projectId, bench.id, ["web"]);
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS * 2);
+      expect(bench.deliverySitting?.state).toBe("preparing");
+      expect(sittingNotifications()).toEqual([]);
+
+      resumeGateSittingWatches([bench]);
+      await vi.advanceTimersByTimeAsync(SMOKE_RECHECK_MS);
+      await vi.waitFor(() => expect(bench.deliverySitting?.state).toBe("ready"));
+      expect(sittingNotifications()).toHaveLength(1);
+    });
+  });
+
+  it("SB-TC-058 prepares a waiting gate again after a server restart cut its preparation short before the pin", async () => {
+    bench.deliverySitting = {
+      gateId: "gate-after-b",
+      state: "preparing",
+      preparedAt: BEFORE_UPDATE,
+      commit: commits[1],
+      resultsSpecPath: specFolder,
+    };
+    resumeGateSittingWatches([bench]);
+    expect(bench.deliverySitting).toMatchObject({ gateId: "gate-after-b", state: "preparing" });
+    await whenGateSittingPrepared(bench);
+    expect(worktrees().get(pin)).toEqual({ head: commits[1], detached: true });
+    expect(bench.deliverySitting).toMatchObject({ state: "ready", commit: commits[1] });
+    expect(sittingNotifications()).toHaveLength(1);
+  });
+
+  it("SB-TC-058 leaves the waiting gate of a bench in error after a server restart", async () => {
+    bench.status = "error";
+    bench.deliverySitting = {
+      gateId: "gate-after-b",
+      state: "preparing",
+      commit: commits[1],
+      resultsSpecPath: specFolder,
+    };
+    resumeGateSittingWatches([bench]);
+    await whenGateSittingPrepared(bench);
+    expect(bench.gatePin).toBeUndefined();
+    expect(componentCalls).toEqual([]);
+    expect(bench.deliverySitting?.state).toBe("preparing");
+  });
+
+  it("SB-TC-058 a gate.reached that names no gate prepares nothing", async () => {
+    const res = await request(app)
+      .post(`${DELIVERY_EVENT_HOOK_PATH}?projectId=${bench.projectId}&benchId=${bench.id}`)
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        events: [
+          {
+            $schema: DELIVERY_EVENT_SCHEMA_ID,
+            schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+            delivery_id: "fixture-delivery",
+            type: "gate.reached",
+            seq: 8,
+            ts: "2026-10-16T09:40:00Z",
+            payload: {},
+          },
+        ],
+      });
+    expect(res.status).toBe(202);
+    await whenGateSittingPrepared(bench);
+    expect(bench.deliverySitting).toBeUndefined();
+    expect(componentCalls).toEqual([]);
   });
 });

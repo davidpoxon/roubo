@@ -18,7 +18,13 @@
 //            delivery, the event's trigger and the oldest of those cards by
 //            decided_at. The event's own list is not read. The metadata
 //            carries the count and no session text (see
-//            services/delivery-decision.ts)
+//            services/delivery-decision.ts). A gate.reached whose payload
+//            names its gate (`gate_id`) starts the preparation of that gate's
+//            sitting after the answer: the server pins the gate commit,
+//            restarts the components from the pin and smoke-checks the build,
+//            and raises the bench's delivery-sitting notification for the
+//            gate only once the smoke check passes (see
+//            services/delivery-sitting.ts and services/gate-pin.ts)
 //        401 UNAUTHORIZED: no bearer token, or not the current token of the
 //            bench the query names (another bench's token included). Also when
 //            the query names no Spec Bench, so a caller without a token learns
@@ -119,6 +125,7 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { deliveryEventsAfterRecord, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
+import { applyDeliverySittingPreparation } from "../services/delivery-sitting.js";
 import { refreshDeliveryCrossCheckOnEvents } from "../services/delivery-cross-check-loader.js";
 import { broadcastBenchDecisionMode, broadcastDeliveryFrame } from "../services/sse.js";
 
@@ -277,7 +284,7 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // A review.opened raises one for the review call (SB-FR-034), counted and
   // keyed from the folded delivery after this batch.
   const record = loaded.ok ? loaded.record : undefined;
-  applyDeliveryDecisionNotifications(bench, result.events, () => {
+  const foldAfterBatch = () => {
     if (record === undefined) return undefined;
     const accepted = deliveryEventsAfterRecord(
       bench.projectId,
@@ -286,7 +293,12 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
       benchDeliveryEventSpillPath(bench),
     );
     return foldDelivery({ record, events: accepted });
-  });
+  };
+  applyDeliveryDecisionNotifications(bench, result.events, foldAfterBatch);
+  // A gate.reached starts the preparation of its gate's sitting (SB-FR-023):
+  // the pin at the gate commit, the components from it and the smoke check,
+  // after the answer. Only a passed smoke check calls the operator.
+  void applyDeliverySittingPreparation(bench, result.events, foldAfterBatch);
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
   // A mode.changed moves the bench's mode in effect, which the bench card

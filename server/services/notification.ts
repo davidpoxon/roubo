@@ -42,6 +42,7 @@ function derivePriority(type: NotificationType): NotificationPriority {
     case "delivery-jam":
     case "delivery-decision":
     case "delivery-crosscheck":
+    case "delivery-sitting":
       return "action-needed";
     case "bench-ready":
     case "agent-fallback":
