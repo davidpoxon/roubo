@@ -339,9 +339,40 @@ describe("useNotificationStream", () => {
       return { deliveryId: "d1", seq } as DeliverySnapshot;
     }
 
-    function frame(seq: number) {
-      return { type: "delivery", projectId: "p1", benchId: 1, change: "snapshot", seq };
+    function frame(seq: number, change: "snapshot" | "controls" = "snapshot") {
+      return { type: "delivery", projectId: "p1", benchId: 1, change, seq };
     }
+
+    it("SB-TC-037 a held snapshot is read again after a decision answer at the same seq", async () => {
+      const queryClient = makeQueryClient();
+      const fetchDelivery = vi.mocked(api.fetchDelivery);
+      fetchDelivery.mockResolvedValue({ ...snapshot(7), controls: [] } as DeliverySnapshot);
+      const { result } = renderHookWithProviders(
+        () => {
+          useNotificationStream();
+          return useDelivery("p1", 1);
+        },
+        { queryClient },
+      );
+      await waitFor(() => expect(result.current.data?.seq).toBe(7));
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+      // The answer adds no event, so the server's frame carries the seq the
+      // client holds; a snapshot frame at that seq is skipped...
+      act(() => mockSource._fire(frame(7)));
+      expect(invalidateSpy).not.toHaveBeenCalled();
+
+      // ...but the controls frame is not: the client reads the snapshot again
+      // and shows the answer pending.
+      const pending = { control_seq: 1, kind: "decision-answer", status: "pending" };
+      fetchDelivery.mockResolvedValue({
+        ...snapshot(7),
+        controls: [pending],
+      } as unknown as DeliverySnapshot);
+      act(() => mockSource._fire(frame(7, "controls")));
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: deliveryQueryKey("p1", 1) });
+      await waitFor(() => expect(result.current.data?.controls).toEqual([pending]));
+    });
 
     it("refetches the delivery snapshot for a frame past the held seq, and skips one it holds", () => {
       const queryClient = makeQueryClient();

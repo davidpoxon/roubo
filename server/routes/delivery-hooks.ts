@@ -36,7 +36,22 @@
 // DELIVERY_EVENT_LOG_MAX events is larger than 210 KB, so under the global
 // limit it would never reach the route.
 //
-// GET /delivery-controls lands on this router with the control outbox.
+//   GET /delivery-controls?projectId=<id>&benchId=<n>&after=<control_seq>
+//     -> 200 DeliveryControlReadReply {controls, latestSeq}: the controls of
+//            the bench's outbox above `after` (absent: 0), durable and
+//            volatile, in control_seq order, each with its status, and the
+//            highest control_seq the bench has issued (0 before any). A
+//            volatile control is served by one read only. A control stays
+//            `pending` until an event reads it back (see POST above)
+//        401 UNAUTHORIZED: as POST /delivery-event, checked before the query
+//        400 INVALID_QUERY + field: `after` is not a non-negative integer
+//     The query is open to more keys: a key this route does not know is
+//     ignored, so a later long-poll `wait` joins it without breaking a reader.
+//
+// An accepted event that reads a control back (one whose payload names the
+// control's control_seq, or a decision.answered for the decision an answer
+// control targets) marks that control `applied` in the outbox before the 202
+// (see services/delivery-control-outbox.ts).
 //
 // Nothing here is agent-specific: the session is whatever the launch executor
 // started, and it presents the token its launch descriptor carried.
@@ -54,6 +69,10 @@ import {
 } from "../lib/delivery-record-loader.js";
 import * as benchManager from "../services/bench-manager.js";
 import { verifyDeliveryToken } from "../services/delivery-token-registry.js";
+import {
+  applyDeliveryControlReadBacks,
+  readDeliveryControls,
+} from "../services/delivery-control-outbox.js";
 import { ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
@@ -208,8 +227,43 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // A unit.changed that jams a unit raises its delivery-jam notification, and
   // one that moves it on dismisses it (SB-FR-019).
   applyDeliveryJamNotifications(bench, result.events);
+  // An event that reads a control back marks it applied (SB-FR-014).
+  applyDeliveryControlReadBacks(bench, result.events);
   broadcastDeliveryFrame(bench.projectId, bench.id, result.acceptedSeq);
   res.status(202).json({ acceptedSeq: result.acceptedSeq });
+});
+
+// The tooling reads the outbox after each step, so the limit is as wide as the
+// event route's.
+const deliveryControlsRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 1200,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.get("/delivery-controls", deliveryControlsRateLimiter, (req, res) => {
+  const bench = queriedSpecBench(req);
+  // The token is checked before the query, so a caller without it learns
+  // nothing about the outbox.
+  if (bench === undefined || !verifyDeliveryToken(bench, bearerToken(req))) {
+    res.status(401).json({ error: "A valid delivery token is required", code: "UNAUTHORIZED" });
+    return;
+  }
+  const rawAfter = req.query.after;
+  let after = 0;
+  if (rawAfter !== undefined) {
+    after = typeof rawAfter === "string" && /^\d+$/.test(rawAfter) ? Number(rawAfter) : Number.NaN;
+    if (!Number.isSafeInteger(after)) {
+      res.status(400).json({
+        error: "after must be a non-negative integer control_seq",
+        code: "INVALID_QUERY",
+        field: "after",
+      });
+      return;
+    }
+  }
+  res.json(readDeliveryControls(bench, after));
 });
 
 export default router;

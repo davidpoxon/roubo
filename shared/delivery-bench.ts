@@ -29,14 +29,16 @@ import type { SpecBenchDecisionMode } from "./types";
 //                        (DeliveryEventsResponse), or the same named read error
 //   POST <base>/launch   launch a launch-mode bench's session again while it has no record
 //   POST <base>/resume   launch the session again with the record's resume argument
+//   POST <base>/decisions/<id>/answer
+//                        answer a decision with a control in the bench's outbox
 //
 // The delivery session's own routes sit beside the other hook endpoints, under
 // /api/hooks, and name the bench in their query (`projectId`, `benchId`); the
 // session presents its delivery token as a bearer token on each:
 //
 //   POST <events>        one event envelope or a batch of them (SB-FR-007)
-//   <controls>           the control outbox the session reads; its route comes
-//                        with the control outbox, the descriptor names it now
+//   GET <controls>       the control outbox the session reads, above `after`
+//                        (SB-FR-014)
 export const DELIVERY_EVENT_HOOK_PATH = "/api/hooks/delivery-event";
 export const DELIVERY_CONTROLS_HOOK_PATH = "/api/hooks/delivery-controls";
 
@@ -67,11 +69,18 @@ export function deliveryRoutePaths(projectId: string, benchId: number): Delivery
 // batch. The frame carries no event: `change: "snapshot"` tells the client to
 // read the snapshot again, and a frame whose seq the client already holds is
 // one it can skip.
+//
+// `change: "controls"` is sent when the bench's control outbox changed with no
+// new event, such as after a decision answer (SB-FR-014). Its seq is the
+// current accepted seq, which the client may already hold, so the client never
+// skips it and always reads the snapshot again.
+export type DeliveryStreamChange = "snapshot" | "controls";
+
 export interface DeliveryStreamFrame {
   type: "delivery";
   projectId: string;
   benchId: number;
-  change: "snapshot";
+  change: DeliveryStreamChange;
   seq: number;
 }
 
