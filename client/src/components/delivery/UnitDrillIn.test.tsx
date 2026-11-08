@@ -457,6 +457,53 @@ describe("Unit drill-in", () => {
     expect(within(drillIn).queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("chooses a failed unit's event by keyboard and says when its transcript holds no matching output", async () => {
+    const user = userEvent.setup();
+    record = withStatus(fourUnitRecord(), { B: "failed" });
+    log = [
+      unitEvent(8, "B", "unit.changed", { status: "running" }, at(40)),
+      unitEvent(9, "B", "note", { text: "Ran the suite" }, at(41)),
+      unitEvent(10, "B", "unit.changed", { status: "failed", summary: "Review failed" }, at(42)),
+    ];
+    vi.mocked(api.fetchDeliveryUnitTranscript).mockResolvedValue({
+      unit: "B",
+      sessionId: "session-1",
+      from: at(40),
+      to: at(42),
+      lines: ["Ran the suite\r\n", "Review failed\r\n"],
+    });
+    renderWithProviders(<Harness />);
+    const drillIn = await openUnit("B");
+    await waitFor(() => expect(timelineOrder()).toEqual(["event:10", "event:9", "event:8"]));
+    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit B" });
+    // A failed unit replays its recorded span, not the live session.
+    expect(
+      await within(terminal).findByRole("region", {
+        name: "Recorded transcript of unit B, read-only",
+      }),
+    ).toHaveTextContent("Ran the suite Review failed");
+    expect(within(terminal).queryByTestId("unit-terminal-live")).not.toBeInTheDocument();
+
+    // The list is one Tab stop; the arrow keys move between its events.
+    const list = screen.getByRole("list", { name: "Events of unit B, newest first" });
+    list.focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    const second = within(screen.getByTestId("timeline-event-9")).getByRole("button");
+    expect(second).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(second).toHaveAttribute("aria-pressed", "true");
+    expect(within(terminal).getByTestId("unit-transcript-match")).toHaveTextContent(
+      "Ran the suite",
+    );
+
+    // An event whose words the transcript does not hold says so.
+    await user.click(within(screen.getByTestId("timeline-event-8")).getByRole("button"));
+    expect(within(terminal).queryByTestId("unit-transcript-match")).not.toBeInTheDocument();
+    expect(within(terminal).getByTestId("unit-transcript-chosen")).toHaveTextContent(
+      "No output in the transcript of unit B matches event 8.",
+    );
+  });
+
   it("names a pending unit's terminal as waiting for output", async () => {
     renderWithProviders(<Harness />);
     const drillIn = await openUnit("C");
