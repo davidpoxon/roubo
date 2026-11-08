@@ -450,6 +450,23 @@ describe("classifySchemaChange", () => {
         reasons: ['event.anyOf.a.changed.schemaVersion: const changed from "1.2.3" to "9.9.9"'],
       });
     });
+
+    it("keys the options by a fully pinned property over a `type` with an open option", () => {
+      const option = (kind: string, type: string | null): JsonSchema => ({
+        type: "object",
+        properties: {
+          kind: { type: "string", const: kind },
+          type: type === null ? { type: "string", minLength: 1 } : { type: "string", const: type },
+        },
+        required: ["kind", "type"],
+      });
+      const before = events("1.2.3", [option("x", "a"), option("y", null)]);
+      const after = events("1.2.3", [option("x", "a"), option("y", null), option("z", "b")]);
+      expect(classifySchemaChange(before, after)).toEqual({
+        change: "additive",
+        reasons: ['<root>: anyOf gained the option kind="z"'],
+      });
+    });
   });
 
   it("ranks breaking above additive when both are present", () => {
