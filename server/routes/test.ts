@@ -13,7 +13,7 @@ import {
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as benchManager from "../services/bench-manager.js";
-import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
+import { resolveTestbenchHost } from "../services/testbench-host-resolver.js";
 import {
   computePlanHash,
   MissingPlanError,
@@ -1684,22 +1684,14 @@ function resolveBenchSpecDir(
   if (!bench) {
     return { status: 404, error: "Bench not found" };
   }
-  if (bench.variant !== "testbench" || bench.focusedSpecPath === undefined) {
-    return { status: 400, error: "Bench is not a testbench or has no focused spec" };
+  // The same TestbenchHostResolver the live route calls, so a bench whose variant
+  // hosts no TestBench, an error-state bench with a blank workspacePath, and a
+  // malformed focused path all get the live route's 400 (#494).
+  const resolved = resolveTestbenchHost(bench, "read", project.repoPath);
+  if (!resolved.ok) {
+    return { status: resolved.status, error: resolved.error };
   }
-  // An error-state bench with a blank workspacePath must fail cleanly rather than
-  // resolve to a bogus root, matching the live route's 400 (#494).
-  const rootPath = bench.workspacePath;
-  if (typeof rootPath !== "string" || rootPath.trim().length === 0) {
-    return { status: 400, error: "Bench has no workspace path" };
-  }
-  let slug: string;
-  try {
-    slug = resolveFocusedSpec(project.repoPath, bench.focusedSpecPath).slug;
-  } catch (err) {
-    return { status: 400, error: `Invalid focusedSpecPath: ${(err as Error).message}` };
-  }
-  return { rootPath, slug };
+  return { rootPath: resolved.host.rootPath, slug: resolved.host.slug };
 }
 
 // Parse + validate the { projectId, benchId } pair shared by the two TestBench
