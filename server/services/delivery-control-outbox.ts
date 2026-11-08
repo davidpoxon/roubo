@@ -247,10 +247,7 @@ export function releaseDeliveryControlWaiters(): void {
  * `after` and is not `superseded`. The read and its hold gate share this test,
  * so a read is held whenever it would serve nothing.
  */
-export function isServableDeliveryControl(
-  control: DeliveryOutboxControl,
-  after: number,
-): boolean {
+export function isServableDeliveryControl(control: DeliveryOutboxControl, after: number): boolean {
   return control.control_seq > after && control.status !== "superseded";
 }
 

@@ -628,9 +628,7 @@ function accept(bench: Bench, decisionId: string, body: unknown = {}) {
 }
 
 function reviewCardIds(snapshot: DeliverySnapshot): string[] {
-  return selectReviewStack(snapshot).flatMap((card) =>
-    card.kind === "decision" ? [card.id] : [],
-  );
+  return selectReviewStack(snapshot).flatMap((card) => (card.kind === "decision" ? [card.id] : []));
 }
 
 // A bench whose record states an open review of the fixture's agent decision

@@ -804,9 +804,7 @@ function issueReviewAction(
 ): void {
   const actions = deliveryControlsOf(context.bench).filter(
     (control) =>
-      isReviewControl(control) &&
-      control.target_id === decisionId &&
-      isControlOutstanding(control),
+      isReviewControl(control) && control.target_id === decisionId && isControlOutstanding(control),
   );
   const delivered = actions.find((control) => control.status !== "pending");
   if (delivered !== undefined) {
