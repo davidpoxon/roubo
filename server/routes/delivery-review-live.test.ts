@@ -314,7 +314,9 @@ function Harness() {
 
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)));
+  return render(
+    createElement(QueryClientProvider, { client: queryClient }, createElement(Harness)),
+  );
 }
 
 async function snapshotShown(): Promise<void> {
@@ -449,9 +451,9 @@ describe("Agent decisions and the review call over the live path", () => {
     );
     await waitFor(
       () =>
-        expect(within(reviewCard("D-1") as HTMLElement).getByTestId("review-badge")).toHaveTextContent(
-          "D-1 · to review",
-        ),
+        expect(
+          within(reviewCard("D-1") as HTMLElement).getByTestId("review-badge"),
+        ).toHaveTextContent("D-1 · to review"),
       { timeout: 3000 },
     );
 

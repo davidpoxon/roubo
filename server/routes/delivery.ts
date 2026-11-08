@@ -565,10 +565,7 @@ interface DecisionControlContext extends ControlContext {
 
 // The operator's identity and the folded delivery of the bench; or the answer
 // already sent when the record cannot be read.
-async function controlContext(
-  bench: Bench,
-  res: Response,
-): Promise<ControlContext | undefined> {
+async function controlContext(bench: Bench, res: Response): Promise<ControlContext | undefined> {
   // The operator Roubo knows: the git identity of the bench workspace, in the
   // results writer's Author shape. Resolved before the checks, so nothing
   // awaits between the checks and the issue.
