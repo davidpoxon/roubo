@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Button as AriaButton, Label, TextArea, TextField } from "react-aria-components";
 import type { DeliveryControl } from "@roubo/shared/delivery-control-contract";
-import type { DeliveryDecision } from "@roubo/shared/delivery-observation-contract";
+import type { DeliveryDecision, DeliveryGate } from "@roubo/shared/delivery-observation-contract";
 import type { DeliverySnapshot, DeliveryThreadMessage } from "@roubo/shared/delivery-reducer";
 import {
   selectDecisionThread,
   selectNextBoundary,
   selectReviewStack,
   selectReviewedAgentDecisions,
+  type ReviewCard,
 } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
@@ -15,9 +16,13 @@ import { focusRing } from "../ui/focus-ring";
 import { FIELD_LABEL_CLASS, INPUT_CLASS } from "../ui/styles";
 import {
   useReviewAction,
+  useSittingStage,
   useThreadMessage,
   type ReviewActionRequest,
 } from "../../hooks/useDelivery";
+import { gateUnconfirmedCount, toConfirmText } from "./delivery-map-model";
+import ProvisionalMarkCard from "./ProvisionalMark";
+import { recordedProvisionalMark } from "./provisional-mark-model";
 
 // The agent decisions on the decision pile (SB-FR-033, SB-FR-034, SB-NFR-009),
 // the Review card of DESIGN.md. Each decision the session made on its own in
@@ -44,6 +49,13 @@ import {
 // until the session has read it. Every text the
 // session wrote (the question, the choice, the rationale, a reply, a summary)
 // renders as a React text node: never as markup, and never as a link.
+//
+// A provisional gate the operator has not confirmed is a card on the same pile
+// (SB-FR-038, SB-US-014). It lists the gate's provisional marks, each with its
+// evidence, in place of the choice and the rationale, and its one action is
+// Open sitting: it opens the gate's sitting, with the build pinned at the gate
+// commit, where each mark is confirmed or changed. The card leaves the pile once
+// every mark is confirmed.
 
 // How long a leaving card stays for its drop-away: motion.duration.fast.
 export const REVIEW_DROP_AWAY_MS = 150;
@@ -432,23 +444,100 @@ function TopCard({
   );
 }
 
+// The badge of a provisional gate's card: the gate and the count still to
+// confirm.
+function GateBadge({ gate }: { gate: DeliveryGate }) {
+  return (
+    <span
+      data-testid="review-badge"
+      className="rounded-chip bg-accent-muted px-1.5 py-0.5 text-11 font-medium text-accent-text"
+    >
+      {gate.id} · {toConfirmText(gateUnconfirmedCount(gate))}
+    </span>
+  );
+}
+
+// Where the agent marked the gate.
+function gateOriginText(gate: DeliveryGate): string {
+  return `agent marked gate after ${gate.after.join(", ")} · provisional`;
+}
+
+function GateTopCard({
+  gate,
+  isOpening,
+  openError,
+  onOpenSitting,
+}: {
+  gate: DeliveryGate;
+  isOpening: boolean;
+  openError: string | undefined;
+  onOpenSitting: () => void;
+}) {
+  const marks = gate.provisionalCases ?? [];
+  return (
+    <article
+      data-testid={`review-card-${gate.id}`}
+      data-position="top"
+      data-kind="gate"
+      aria-label={`Provisional gate ${gate.id}`}
+      className="animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <GateBadge gate={gate} />
+        <span data-testid="review-origin" className="font-mono text-12 text-text-secondary">
+          {gateOriginText(gate)}
+        </span>
+      </div>
+      <ul
+        data-testid="review-provisional-marks"
+        aria-label={`Provisional marks of gate ${gate.id}`}
+        className="space-y-2"
+      >
+        {marks.map((entry) => (
+          <li key={entry.case}>
+            <ProvisionalMarkCard entry={entry} reading={recordedProvisionalMark(entry)} />
+          </li>
+        ))}
+      </ul>
+      <div data-testid="review-actions" className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" isDisabled={isOpening} onPress={onOpenSitting}>
+          Open sitting
+        </Button>
+      </div>
+      {openError !== undefined && (
+        <p role="alert" className="text-12 text-danger-text">
+          {openError}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function cardKey(card: ReviewCard): string {
+  return `${card.kind}:${card.id}`;
+}
+
 export default function ReviewPile({
   projectId,
   benchId,
   snapshot,
   sessionLive = false,
+  onSittingOpened,
 }: {
   projectId: string;
   benchId: number;
   snapshot: DeliverySnapshot;
   // Whether the bench's main session runs: the composer sends only then.
   sessionLive?: boolean;
+  // Called once a gate card's Open sitting opened the gate's sitting, so the
+  // bench can show it.
+  onSittingOpened?: ((gateId: string) => void) | undefined;
 }) {
   const review = useReviewAction(projectId, benchId);
   const threadMessage = useThreadMessage(projectId, benchId);
-  const cards = selectReviewStack(snapshot).flatMap((card) =>
-    card.kind === "decision" ? [card.decision] : [],
-  );
+  const sittingStage = useSittingStage(projectId, benchId);
+  const stack = selectReviewStack(snapshot);
+  const cards = stack.flatMap((card) => (card.kind === "decision" ? [card.decision] : []));
   const reviewed = selectReviewedAgentDecisions(snapshot);
   const reviewOpen = snapshot.review.status === "open";
   const [raisedId, setRaisedId] = useState<string | undefined>(undefined);
@@ -475,15 +564,29 @@ export default function ReviewPile({
     return () => clearTimeout(timer);
   }, [leaving]);
 
-  if (cards.length === 0 && reviewed.length === 0 && leaving.length === 0) return null;
+  if (stack.length === 0 && reviewed.length === 0 && leaving.length === 0) return null;
 
-  const top = cards.find((decision) => decision.id === raisedId) ?? cards[0];
-  const lower = cards.filter((decision) => decision !== top);
+  const topCard = stack.find((card) => cardKey(card) === raisedId) ?? stack[0];
+  const lower = stack.filter((card) => card !== topCard);
+  const top = topCard?.kind === "decision" ? topCard.decision : undefined;
+  const topGate = topCard?.kind === "gate" ? topCard.gate : undefined;
   const topQueued = top === undefined ? undefined : queuedAction(snapshot.controls, top.id);
   const topThread =
     top === undefined
       ? { entries: [], waiting: false }
       : cardThread(selectDecisionThread(snapshot, top.id), snapshot.controls, top.id);
+
+  const openSitting = (gateId: string) => {
+    sittingStage.mutate(
+      { action: "open", gateId },
+      {
+        onSuccess: () => {
+          setAnnouncement(`Opened the sitting of gate ${gateId}.`);
+          onSittingOpened?.(gateId);
+        },
+      },
+    );
+  };
 
   const sendMessage = (decisionId: string, text: string, sent: () => void) => {
     threadMessage.mutate(
@@ -537,41 +640,64 @@ export default function ReviewPile({
           {threadMessage.error.message}
         </Callout>
       )}
-      {top !== undefined && (
+      {topCard !== undefined && (
         <ul aria-label="Review pile" className="space-y-2">
-          <li key={`top-${top.id}`}>
-            <TopCard
-              key={top.id}
-              decision={top}
-              word={reviewWord(reviewOpen, topQueued)}
-              queued={topQueued}
-              readsAtText={readsAt(snapshot)}
-              reviewOpen={reviewOpen}
-              isSending={review.isPending}
-              onAction={act}
-              thread={topThread.entries}
-              waiting={topThread.waiting}
-              sessionLive={sessionLive}
-              isSendingMessage={threadMessage.isPending}
-              onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
-            />
+          <li key={`top-${cardKey(topCard)}`}>
+            {top !== undefined && (
+              <TopCard
+                key={top.id}
+                decision={top}
+                word={reviewWord(reviewOpen, topQueued)}
+                queued={topQueued}
+                readsAtText={readsAt(snapshot)}
+                reviewOpen={reviewOpen}
+                isSending={review.isPending}
+                onAction={act}
+                thread={topThread.entries}
+                waiting={topThread.waiting}
+                sessionLive={sessionLive}
+                isSendingMessage={threadMessage.isPending}
+                onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
+              />
+            )}
+            {topGate !== undefined && (
+              <GateTopCard
+                key={topGate.id}
+                gate={topGate}
+                isOpening={sittingStage.isPending}
+                openError={sittingStage.isError ? sittingStage.error.message : undefined}
+                onOpenSitting={() => openSitting(topGate.id)}
+              />
+            )}
           </li>
-          {lower.map((decision) => (
-            <li key={decision.id} className="animate-slide-under">
+          {lower.map((card) => (
+            <li key={cardKey(card)} className="animate-slide-under">
               <AriaButton
-                data-testid={`review-card-${decision.id}`}
+                data-testid={`review-card-${card.id}`}
                 data-position="lower"
-                onPress={() => setRaisedId(decision.id)}
+                data-kind={card.kind}
+                onPress={() => setRaisedId(cardKey(card))}
                 className={`flex w-full flex-wrap items-center gap-2 rounded-card border border-border bg-bg-surface px-3 py-2 text-left transition-colors data-[hovered]:bg-bg-hover data-[pressed]:bg-bg-pressed ${focusRing}`}
               >
                 <span className="sr-only">Raise this review card </span>
-                <Badge
-                  decision={decision}
-                  word={reviewWord(reviewOpen, queuedAction(snapshot.controls, decision.id))}
-                />
-                <span className="font-mono text-12 text-text-secondary">
-                  {originText(decision)}
-                </span>
+                {card.kind === "decision" ? (
+                  <>
+                    <Badge
+                      decision={card.decision}
+                      word={reviewWord(reviewOpen, queuedAction(snapshot.controls, card.id))}
+                    />
+                    <span className="font-mono text-12 text-text-secondary">
+                      {originText(card.decision)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <GateBadge gate={card.gate} />
+                    <span className="font-mono text-12 text-text-secondary">
+                      {gateOriginText(card.gate)}
+                    </span>
+                  </>
+                )}
               </AriaButton>
             </li>
           ))}

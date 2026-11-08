@@ -23,7 +23,9 @@ import {
   classifyGateMarker,
   cycleMessage,
   dependencyLine,
+  gateMarkerLabel,
   layoutDeliveryMap,
+  selectHeldUnitIds,
   targetKey,
   unitStatusTone,
   type DeliveryMapView,
@@ -98,12 +100,17 @@ export default function DeliveryMap({
     () => (order.kind === "ordered" ? layoutDeliveryMap(snapshot, order.units) : null),
     [snapshot, order],
   );
+  const held = useMemo(() => selectHeldUnitIds(snapshot), [snapshot]);
   const rows = useMemo(
     () =>
       order.kind === "ordered"
-        ? order.units.map((unit) => ({ unit, gates: selectGatesAfterUnit(snapshot, unit.id) }))
+        ? order.units.map((unit) => ({
+            unit,
+            gates: selectGatesAfterUnit(snapshot, unit.id),
+            held: held.has(unit.id),
+          }))
         : [],
-    [snapshot, order],
+    [snapshot, order, held],
   );
 
   if (order.kind === "cycle") {
@@ -277,9 +284,7 @@ function UnitDetail({ snapshot, unitId }: { snapshot: DeliverySnapshot; unitId: 
       <dd className="font-mono text-text-body">
         {gates.length === 0
           ? "none"
-          : gates
-              .map((view) => `${view.gate.id} ${GATE_MARKERS[classifyGateMarker(view.gate)].label}`)
-              .join(", ")}
+          : gates.map((view) => `${view.gate.id} ${gateMarkerLabel(view.gate)}`).join(", ")}
       </dd>
     </dl>
   );
@@ -303,7 +308,7 @@ function GateDetail({
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-13">
       <dt className="text-text-secondary">Status</dt>
       <dd>
-        <StatusIndicator tone={marker.tone} label={marker.label} />
+        <StatusIndicator tone={marker.tone} label={gateMarkerLabel(view.gate)} />
       </dd>
       {sitting !== undefined && sitting.gateId === gateId && (
         <>
