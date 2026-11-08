@@ -5,7 +5,9 @@
  * A surface arms a watch with one `watchInput` call and gets, for free:
  *
  * - the allowlist: only a path inside the Roubo state dir or a registered
- *   project root can be watched, symlinks resolved, else `WatchRootError`;
+ *   project root can be watched, symlinks resolved, else `WatchRootError`; the
+ *   directory is checked again before every arm, symlinked entries are not
+ *   followed, and an input that resolves out of every root is refused unread;
  * - a trailing settle window for each input (`settleMs`);
  * - an optional completeness gate (`settled`) before a directory is hashed;
  * - hash dedupe against the last applied content;
@@ -61,7 +63,7 @@ export interface WatchInputOptions {
   surface: string;
   /** The trailing settle window for each input, in milliseconds. */
   settleMs: number;
-  /** How deep below the watched directory to watch. Ignored for a file watch. */
+  /** How deep below the watched directory to watch. Forced to 0 for a file watch. */
   depth?: number;
   /** A predicate on an absolute path; true drops the path. */
   ignored?: (absPath: string) => boolean;
@@ -169,6 +171,20 @@ export function resolveAllowedPath(target: string): string {
   return resolved;
 }
 
+/**
+ * Whether the real path of an existing `p` is inside an allowed root. A missing
+ * path counts as inside: it holds nothing to read.
+ */
+function realpathAllowed(p: string, roots: readonly string[]): boolean {
+  let real: string;
+  try {
+    real = fs.realpathSync(p);
+  } catch {
+    return true;
+  }
+  return roots.some((root) => isWithin(real, root));
+}
+
 function walkFiles(dir: string, prefix = ""): string[] {
   let entries: fs.Dirent[];
   try {
@@ -185,7 +201,11 @@ function walkFiles(dir: string, prefix = ""): string[] {
   return out.sort();
 }
 
-function hashUnit(unit: string, files: readonly string[] | null): string | null {
+function hashUnit(
+  unit: string,
+  files: readonly string[] | null,
+  roots: readonly string[],
+): string | null {
   let stat: fs.Stats;
   try {
     stat = fs.statSync(unit);
@@ -202,8 +222,11 @@ function hashUnit(unit: string, files: readonly string[] | null): string | null 
     .filter((rel) => isWithin(path.join(unit, rel), unit));
   const lines = rels.map((rel) => {
     let digest = "missing";
+    const abs = path.join(unit, rel);
+    // A listed entry that is a symlink out of every root is never read.
+    if (!realpathAllowed(abs, roots)) return `${rel}\0outside\n`;
     try {
-      digest = hashContent(fs.readFileSync(path.join(unit, rel)));
+      digest = hashContent(fs.readFileSync(abs));
     } catch {
       // A missing listed file still changes the hash.
     }
@@ -233,11 +256,11 @@ export function watchInput(
     if (fs.statSync(resolved).isFile()) {
       dir = path.dirname(resolved);
       allow = new Set([path.basename(resolved)]);
+      depth = 0;
     }
   } catch {
     // A missing target is watched as a directory, armed when it appears.
   }
-  if (allow) depth = 0;
 
   const { surface, settleMs } = options;
   const lastApplied = new Map<string, string | null>();
@@ -250,6 +273,7 @@ export function watchInput(
   let everArmed = false;
   let disposed = false;
   let checking = false;
+  let armRefused = false;
   let poll: NodeJS.Timeout | null = null;
 
   function unitOf(absPath: string): string | null {
@@ -321,6 +345,14 @@ export function watchInput(
       });
     };
 
+    // The input can have become a symlink out of every root since the watch
+    // was armed: it is refused unread, and the handler does not run.
+    const roots = getWatchRoots();
+    if (!realpathAllowed(unit, roots)) {
+      if (mode !== "seed") emit("refused", null);
+      return;
+    }
+
     let files: readonly string[] | null = null;
     let isDir = false;
     try {
@@ -343,7 +375,7 @@ export function watchInput(
       if (Array.isArray(complete)) files = complete;
     }
 
-    const hash = hashUnit(unit, files);
+    const hash = hashUnit(unit, files, roots);
     if (mode === "seed") {
       lastApplied.set(unit, hash);
       return;
@@ -370,7 +402,8 @@ export function watchInput(
       // The error message can quote the input, so it is not logged.
       outcome = "rejected";
     }
-    if (disposed) return;
+    // The handler ran, so its outcome is recorded and logged even when the
+    // watch was disposed while it was awaited.
     if (outcome === "applied") lastApplied.set(unit, hash);
     emit(outcome, hash, action);
   }
@@ -399,10 +432,24 @@ export function watchInput(
       return null;
     }
     if (!stat.isDirectory()) return null;
+    // The directory was checked against the roots when the watch was asked
+    // for, but it can since have appeared or been replaced as a symlink out of
+    // every root. Re-check it before every arm and refuse to watch it then.
+    if (!realpathAllowed(dir, getWatchRoots())) {
+      if (!armRefused) {
+        // A lifecycle line, not an ApplyLogLine: it carries no outcome.
+        console.warn(`${LOG_PREFIX} arm refused path=${dir} reason=outside-roots`);
+        armRefused = true;
+      }
+      return null;
+    }
+    armRefused = false;
     armedIno = stat.ino;
     const w = watch(dir, {
       ignoreInitial: true,
       persistent: true,
+      // An entry that is a symlink is watched as a link, never followed out.
+      followSymlinks: false,
       ignored: isIgnored,
       ...(depth === undefined ? {} : { depth }),
     });
@@ -462,7 +509,8 @@ export function watchInput(
         const stat = fs.statSync(dir);
         if (stat.isDirectory()) present = stat;
       } catch {
-        // Gone.
+        // Gone: a later refusal to arm is logged again.
+        armRefused = false;
       }
       if (watcher && (!present || present.ino !== armedIno || isWatchLost(watcher))) {
         await disarm();
