@@ -22,7 +22,20 @@ import { deliveryQueryKey, useDelivery } from "./useDelivery";
 // The event list lives under the snapshot's query key, so every invalidation of
 // the bench's delivery (a frame, a reconnect of the stream) reads it too. Each
 // read after the first asks only for the events above the accepted seq it
-// holds, and appends them.
+// holds, and appends them. The list keeps the most recent
+// DELIVERY_FEED_MAX_EVENTS events only (SB-NFR-003), so a long delivery cannot
+// grow the client without bound; the older ones stay on the server. A unit's
+// list also holds `folded`, the count of its events that the record already
+// carries, so a view can tell a unit whose events are all in the record from
+// one with no event.
+
+export const DELIVERY_FEED_MAX_EVENTS = 1_000;
+
+function mostRecent(response: DeliveryEventsResponse): DeliveryEventsResponse {
+  return response.events.length > DELIVERY_FEED_MAX_EVENTS
+    ? { ...response, events: response.events.slice(-DELIVERY_FEED_MAX_EVENTS) }
+    : response;
+}
 
 export function deliveryEventsQueryKey(projectId: string, benchId: number, unit?: string) {
   return [...deliveryQueryKey(projectId, benchId), "events", unit ?? null] as const;
@@ -41,7 +54,8 @@ async function readEvents(
 ): Promise<DeliveryEventsResponse> {
   const key = deliveryEventsQueryKey(projectId, benchId, unit);
   const held = queryClient.getQueryData<DeliveryEventsResponse>(key);
-  if (held === undefined) return api.fetchDeliveryEvents(projectId, benchId, { unit });
+  if (held === undefined)
+    return mostRecent(await api.fetchDeliveryEvents(projectId, benchId, { unit }));
   const next = await api.fetchDeliveryEvents(projectId, benchId, {
     after: held.acceptedSeq,
     unit,
@@ -54,13 +68,15 @@ async function readEvents(
     next.acceptedSeq < held.acceptedSeq ||
     (heldDelivery !== undefined && nextDelivery !== undefined && heldDelivery !== nextDelivery)
   ) {
-    return api.fetchDeliveryEvents(projectId, benchId, { unit });
+    return mostRecent(await api.fetchDeliveryEvents(projectId, benchId, { unit }));
   }
   const last = held.events.at(-1)?.seq ?? held.acceptedSeq;
-  return {
+  return mostRecent({
     events: [...held.events, ...next.events.filter((event) => event.seq > last)],
     acceptedSeq: next.acceptedSeq,
-  };
+    // The count of the unit's events the record carries is the latest read's.
+    ...(next.folded !== undefined && { folded: next.folded }),
+  });
 }
 
 export function useDeliveryFeed(

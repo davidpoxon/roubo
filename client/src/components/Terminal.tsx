@@ -227,16 +227,6 @@ export default function Terminal({
     };
   }, [sessionId]);
 
-  // Re-fit when tab becomes active
-  useEffect(() => {
-    if (active && safeFitRef.current) {
-      const safeFit = safeFitRef.current;
-      requestAnimationFrame(() => {
-        safeFit();
-      });
-    }
-  }, [active]);
-
   // The failure is replayed, not just pushed live, so reattaching to an already
   // dead session still shows the panel rather than a bare exit code.
   const onReplay = useCallback(
@@ -343,6 +333,49 @@ export default function Terminal({
       ws.send(JSON.stringify({ type: "resize", cols: dims.cols, rows: dims.rows }));
     }
   }, [state, wsRef]);
+
+  // A session can have several viewers (the Terminal tab and a delivery unit's
+  // drill-in), all sharing one PTY, and the server applies the last size any of
+  // them sent. term.onResize fires only when this xterm's own size changes, so
+  // a viewer that comes back into view at the size it already had would leave
+  // the PTY at another viewer's size. Each viewer therefore re-sends its current
+  // size whenever it becomes active, is shown again, or takes focus.
+  const announceSize = useCallback(() => {
+    const term = termRef.current;
+    const ws = wsRef.current;
+    if (!term || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!safeFitRef.current?.()) return;
+    ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+  }, [wsRef]);
+
+  // Re-fit and re-send the size when the tab becomes active.
+  useEffect(() => {
+    if (!active) return;
+    const frame = requestAnimationFrame(() => {
+      announceSize();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, announceSize]);
+
+  // Re-send the size when the container is shown again after being hidden (a
+  // force-mounted tab panel coming back into view keeps `active` unchanged) and
+  // when focus moves into the terminal.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let shown = el.offsetWidth > 0 && el.offsetHeight > 0;
+    const observer = new ResizeObserver(() => {
+      const nowShown = el.offsetWidth > 0 && el.offsetHeight > 0;
+      if (nowShown && !shown) announceSize();
+      shown = nowShown;
+    });
+    observer.observe(el);
+    el.addEventListener("focusin", announceSize);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("focusin", announceSize);
+    };
+  }, [sessionId, announceSize]);
 
   const showBanner = state === "reconnecting" || state === "ended";
   // Both strips are absolutely positioned at the top of the pane, so the

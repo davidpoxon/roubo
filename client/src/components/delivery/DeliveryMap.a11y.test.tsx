@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { expectNoAxeFindings } from "../../test/axe";
 import { THEMES, renderInTheme, resetTheme } from "../../test/themes";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
+import { renderWithProviders } from "../../test/renderWithProviders";
+
+// A unit's drill-in reads its events, diff and transcript.
+vi.mock("../../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api")>();
+  return {
+    ...actual,
+    fetchDelivery: vi.fn(),
+    fetchDeliveryEvents: vi.fn(),
+    fetchDeliveryUnitDiff: vi.fn(),
+    fetchDeliveryUnitTranscript: vi.fn(),
+  };
+});
+import * as api from "../../lib/api";
 import DeliveryMap from "./DeliveryMap";
 
 function snapshot() {
@@ -15,7 +29,25 @@ function snapshot() {
 
 const FOCUS_RING = ["focus-visible:ring-2", "focus-visible:ring-focus-ring"];
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+  vi.mocked(api.fetchDeliveryEvents).mockResolvedValue({ events: [], acceptedSeq: 7 });
+  vi.mocked(api.fetchDeliveryUnitDiff).mockImplementation(async (_p, _b, unit) => ({
+    unit,
+    base: null,
+    head: null,
+    diff: "",
+    truncated: false,
+  }));
+  vi.mocked(api.fetchDeliveryUnitTranscript).mockImplementation(async (_p, _b, unit) => ({
+    unit,
+    sessionId: null,
+    from: null,
+    to: null,
+    lines: [],
+  }));
+});
 
 afterEach(() => {
   cleanup();
@@ -25,7 +57,7 @@ afterEach(() => {
 describe("Delivery map accessibility", () => {
   it("SB-TC-025 is fully operable by keyboard and screen reader in both views", async () => {
     const user = userEvent.setup();
-    const { container } = render(
+    const { container } = renderWithProviders(
       <DeliveryMap projectId="demo" benchId={3} snapshot={snapshot()} />,
     );
 

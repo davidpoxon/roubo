@@ -131,14 +131,29 @@ const PONG_TIMEOUT_MS = 10_000;
 const MAX_CLI_PROMPT_LENGTH = 100_000;
 const SESSIONS_DIR = path.join(getRouboDir(), "terminal-sessions");
 
+// One socket attached to a session, with its own heartbeat. A session takes
+// several viewers at once: the bench's Terminal tab and a Spec Bench unit's
+// drill-in can both show the delivery session (SB-FR-013).
+interface Viewer {
+  pingTimer: ReturnType<typeof setInterval> | null;
+  pongDeadline: ReturnType<typeof setTimeout> | null;
+}
+
 interface InternalSession {
   session: TerminalSession;
   pty: pty.IPty | null;
-  ws: WebSocket | null;
+  // Every socket attached to the session. Each gets the replay and the live
+  // output, and any of them can send input; one closing leaves the others and
+  // the session as they are.
+  viewers: Map<WebSocket, Viewer>;
   buffer: CircularBuffer<string>;
+  // The epoch milliseconds at which each chunk of `buffer` was written, in step
+  // with it: entry i is the time of chunk i. NaN marks a chunk whose time is not
+  // known (one restored from a file written before the times were kept). A
+  // Spec Bench's drill-in cuts a unit's transcript out of the scrollback by
+  // these times (SB-FR-013).
+  bufferTimes: CircularBuffer<number>;
   exitCode: number | null;
-  pingTimer: ReturnType<typeof setInterval> | null;
-  pongDeadline: ReturnType<typeof setTimeout> | null;
   quiescenceTimer: ReturnType<typeof setTimeout> | null;
   // Timestamps used to gate quiescence-driven notifications: we only re-notify
   // for an idle window when fresh PTY output has arrived since the last
@@ -253,6 +268,26 @@ function generateLabel(
   return `Terminal ${index} - ${projectName} #${benchId}`;
 }
 
+/** Append one chunk to the scrollback with the time it was written. */
+function pushChunk(internal: InternalSession, chunk: string): void {
+  internal.buffer.push(chunk);
+  internal.bufferTimes.push(Date.now());
+}
+
+/**
+ * The chunk times of a persisted session, in step with its buffer. A file
+ * written before the times were kept, or one whose times do not match its
+ * buffer, gives NaN for every chunk: their times are not known. A null entry
+ * (how JSON writes NaN) is NaN again.
+ */
+function restoredBufferTimes(persisted: PersistedTerminalSession): number[] {
+  const times = persisted.bufferTimes;
+  if (!Array.isArray(times) || times.length !== persisted.buffer.length) {
+    return persisted.buffer.map(() => Number.NaN);
+  }
+  return times.map((time) => (typeof time === "number" ? time : Number.NaN));
+}
+
 function persistSession(id: string): void {
   const internal = sessions.get(id);
   if (!internal) return;
@@ -261,6 +296,7 @@ function persistSession(id: string): void {
   const data: PersistedTerminalSession = {
     session: internal.session,
     buffer: internal.buffer.toArray(),
+    bufferTimes: internal.bufferTimes.toArray(),
     persistedAt: new Date().toISOString(),
     ...(internal.launchFailure !== undefined && { launchFailure: internal.launchFailure }),
   };
@@ -415,16 +451,32 @@ function cancelQuiescenceCheck(internal: InternalSession): void {
   }
 }
 
+function clearViewerTimers(viewer: Viewer): void {
+  if (viewer.pingTimer) {
+    clearInterval(viewer.pingTimer);
+    viewer.pingTimer = null;
+  }
+  if (viewer.pongDeadline) {
+    clearTimeout(viewer.pongDeadline);
+    viewer.pongDeadline = null;
+  }
+}
+
 function clearTimers(internal: InternalSession): void {
-  if (internal.pingTimer) {
-    clearInterval(internal.pingTimer);
-    internal.pingTimer = null;
-  }
-  if (internal.pongDeadline) {
-    clearTimeout(internal.pongDeadline);
-    internal.pongDeadline = null;
-  }
+  for (const viewer of internal.viewers.values()) clearViewerTimers(viewer);
   cancelQuiescenceCheck(internal);
+}
+
+// Closes every socket attached to the session.
+function closeViewers(internal: InternalSession): void {
+  for (const ws of internal.viewers.keys()) {
+    try {
+      ws.close();
+    } catch {
+      // WebSocket may be already closed
+    }
+  }
+  internal.viewers.clear();
 }
 
 /**
@@ -581,11 +633,10 @@ function registerSession(
   const internal: InternalSession = {
     session,
     pty: ptyProcess,
-    ws: null,
+    viewers: new Map(),
     buffer: new CircularBuffer(MAX_BUFFER_CHUNKS),
+    bufferTimes: new CircularBuffer(MAX_BUFFER_CHUNKS),
     exitCode: null,
-    pingTimer: null,
-    pongDeadline: null,
     quiescenceTimer: null,
     lastOutputAt: null,
     lastNotifiedAt: null,
@@ -601,7 +652,7 @@ function registerSession(
   // The notice is pushed BEFORE any PTY output so it reads as a preamble to the
   // session rather than as something the agent said (AP-TC-072, AP-TC-074).
   if (opts.notice) {
-    internal.buffer.push(`\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
+    pushChunk(internal, `\x1b[33m${opts.notice}\x1b[0m\r\n\r\n`);
   }
 
   // The child's OWN bytes, accumulated separately from `internal.buffer` because
@@ -618,7 +669,7 @@ function registerSession(
 
   // Buffer all PTY output (WS forwarding happens in handleWebSocket)
   ptyProcess.onData((data) => {
-    internal.buffer.push(data);
+    pushChunk(internal, data);
     if (ptyOutput.length < PTY_CAPTURE_LIMIT) ptyOutput += data;
     internal.lastOutputAt = Date.now();
     // Debounced flush: coalesces rapid output, also catches idle sessions
@@ -1045,6 +1096,26 @@ export function getSession(sessionId: string): TerminalSession | undefined {
   return sessions.get(sessionId)?.session;
 }
 
+/**
+ * The scrollback chunks of a session written between `fromMs` and `toMs` (epoch
+ * milliseconds, both inclusive), in the order they were written. A chunk whose
+ * time is not known falls in no span. Undefined when no such session exists.
+ */
+export function getSessionScrollback(
+  sessionId: string,
+  fromMs: number,
+  toMs: number,
+): string[] | undefined {
+  const internal = sessions.get(sessionId);
+  if (!internal) return undefined;
+  const chunks = internal.buffer.toArray();
+  const times = internal.bufferTimes.toArray();
+  return chunks.filter((_, index) => {
+    const time = times[index];
+    return time !== undefined && time >= fromMs && time <= toMs;
+  });
+}
+
 export function getSessions(projectId: string, benchId: number): TerminalSession[] {
   const key = benchKey(projectId, benchId);
   return Array.from(sessions.values())
@@ -1128,13 +1199,7 @@ export function destroySession(sessionId: string): boolean {
     }
   }
 
-  if (internal.ws) {
-    try {
-      internal.ws.close();
-    } catch {
-      // WebSocket may be already closed
-    }
-  }
+  closeViewers(internal);
 
   forgetNotifierToken(internal);
   sessions.delete(sessionId);
@@ -1156,13 +1221,7 @@ export function destroyBenchSessions(projectId: string, benchId: number): void {
           /* ignore */
         }
       }
-      if (internal.ws) {
-        try {
-          internal.ws.close();
-        } catch {
-          /* ignore */
-        }
-      }
+      closeViewers(internal);
       forgetNotifierToken(internal);
       sessions.delete(id);
       deletePersistedSession(id);
@@ -1187,13 +1246,7 @@ export function destroyAllSessions(): void {
         /* ignore */
       }
     }
-    if (internal.ws) {
-      try {
-        internal.ws.close();
-      } catch {
-        /* ignore */
-      }
-    }
+    closeViewers(internal);
   }
   sessions.clear();
   notifierTokens.clear();
@@ -1220,11 +1273,10 @@ export function loadPersistedSessions(): void {
       const internal: InternalSession = {
         session: persisted.session,
         pty: null,
-        ws: null,
+        viewers: new Map(),
         buffer: CircularBuffer.from(persisted.buffer, MAX_BUFFER_CHUNKS),
+        bufferTimes: CircularBuffer.from(restoredBufferTimes(persisted), MAX_BUFFER_CHUNKS),
         exitCode: persisted.session.exitCode ?? null,
-        pingTimer: null,
-        pongDeadline: null,
         quiescenceTimer: null,
         lastOutputAt: null,
         lastNotifiedAt: null,
@@ -1254,16 +1306,13 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     return;
   }
 
-  // Close any previously connected WebSocket and clean up its timers
-  clearTimers(internal);
-  if (internal.ws) {
-    try {
-      internal.ws.close();
-    } catch {
-      /* ignore */
-    }
-  }
-  internal.ws = ws;
+  // A live session takes the socket as one more viewer; a viewer already
+  // attached stays open, keeps its own heartbeat and keeps its output. The
+  // session's pending quiescence check is cancelled here, and the arm below
+  // re-arms it for the session when the session is live and its waiting state
+  // is not hook-driven.
+  cancelQuiescenceCheck(internal);
+  const viewer: Viewer = { pingTimer: null, pongDeadline: null };
 
   // Send buffered output replay
   ws.send(
@@ -1283,22 +1332,24 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   // Ghost session: replay then close
   if (!internal.pty) {
     ws.close(4410, "Session ended");
-    internal.ws = null;
     return;
   }
+  internal.viewers.set(ws, viewer);
 
-  // Arm (or re-arm on reconnect) the quiescence timer for sessions whose
-  // waiting state is not hook-driven. clearTimers above cancelled any pending
-  // timer. On reconnect, if the shell is already idle at a prompt no new PTY
-  // output will arrive so the onData handler won't reschedule: we do it here to
-  // ensure a waiting terminal still notifies. A hook-wired agent is skipped
-  // because its hook, not the reconnect, is what says it is waiting.
+  // Arm (or re-arm when a viewer attaches) the session's quiescence timer for
+  // sessions whose waiting state is not hook-driven. The pending quiescence
+  // check was cancelled above when this viewer attached; the session keeps one
+  // timer, shared by all its viewers, so this re-arms it for the session. If
+  // the shell is already idle at a prompt no new PTY output will arrive, so
+  // the onData handler won't reschedule: we do it here to ensure a waiting
+  // terminal still notifies. A hook-wired agent is skipped because its hook,
+  // not the attach, is what says it is waiting.
   //
   // Skip the rearm when we have already notified for the current idle window
-  // (no fresh output since lastNotifiedAt). Without this, a reconnect after a
-  // user dismissal would repeatedly fire fresh notifications for the same
-  // unchanged idle state. scheduleQuiescenceCheck applies the same guard
-  // inside the timer callback as a second line of defence.
+  // (no fresh output since lastNotifiedAt). Without this, each attach after a
+  // user dismissal would fire a fresh notification for the same unchanged idle
+  // state. scheduleQuiescenceCheck applies the same guard inside the timer
+  // callback as a second line of defence.
   if (
     !internal.hookNotification &&
     (internal.lastNotifiedAt === null || (internal.lastOutputAt ?? 0) > internal.lastNotifiedAt)
@@ -1327,11 +1378,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
   });
 
   // Ping/pong heartbeat
-  internal.pingTimer = setInterval(() => {
+  viewer.pingTimer = setInterval(() => {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify({ type: "ping" }));
-      if (internal.pongDeadline) clearTimeout(internal.pongDeadline);
-      internal.pongDeadline = setTimeout(() => {
+      if (viewer.pongDeadline) clearTimeout(viewer.pongDeadline);
+      viewer.pongDeadline = setTimeout(() => {
         // No pong received: close to trigger client reconnect
         try {
           ws.close();
@@ -1372,11 +1423,14 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
         typeof msg.cols === "number" &&
         typeof msg.rows === "number"
       ) {
+        // The PTY has one size, so with several viewers the last size sent
+        // wins. Each client re-sends its own size when its terminal becomes
+        // active, is shown again or takes focus, so the viewer in use holds it.
         internal.pty?.resize(msg.cols, msg.rows);
       } else if (msg.type === "pong") {
-        if (internal.pongDeadline) {
-          clearTimeout(internal.pongDeadline);
-          internal.pongDeadline = null;
+        if (viewer.pongDeadline) {
+          clearTimeout(viewer.pongDeadline);
+          viewer.pongDeadline = null;
         }
       }
     } catch {
@@ -1384,11 +1438,16 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
     }
   });
 
+  // A viewer leaving ends neither the session nor another viewer. The
+  // quiescence check is cancelled only when the last viewer leaves, as it was
+  // when a session had one socket.
   ws.on("close", () => {
     dataHandler.dispose();
     exitHandler.dispose();
-    clearTimers(internal);
-    internal.ws = null;
+    clearViewerTimers(viewer);
+    if (internal.viewers.get(ws) !== viewer) return;
+    internal.viewers.delete(ws);
+    if (internal.viewers.size === 0) cancelQuiescenceCheck(internal);
   });
 }
 

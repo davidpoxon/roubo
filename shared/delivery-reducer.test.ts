@@ -1146,6 +1146,38 @@ describe("foldDelivery event handlers", () => {
     });
     expect(snapshot.seams.plan).toBe(record.seams.plan);
   });
+
+  it("seam.ran records the unit the seam ran inside, from the payload or the envelope", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream(
+        ["seam.ran", { seam: "compaction-b", status: "ok" }, "B"],
+        ["seam.ran", { seam: "plan", status: "ok", unit_id: "C" }, "B"],
+        ["seam.ran", { seam: "results-merge", status: "ok" }],
+      ),
+    });
+    expect(snapshot.seams["compaction-b"].unit_id).toBe("B");
+    expect(snapshot.seams.plan.unit_id).toBe("C");
+    expect(snapshot.seams["results-merge"].unit_id).toBeUndefined();
+  });
+
+  it("SB-TC-030 seam.ran that names no unit after a run inside a unit marks no unit", () => {
+    const record = fixtureRecord();
+    nextSeq = 8;
+    const snapshot = foldDelivery({
+      record,
+      events: [
+        event("seam.ran", { seam: "plan", status: "ok" }, { unit_id: "A" }),
+        {
+          ...event("seam.ran", { seam: "plan", status: "ok" }),
+          ts: "2026-10-16T10:05:00Z",
+        },
+      ],
+    });
+    expect(snapshot.seams.plan).toEqual({ status: "ok", last_run_at: "2026-10-16T10:05:00Z" });
+    expect(snapshot.seams.plan.unit_id).toBeUndefined();
+  });
 });
 
 describe("foldDelivery gate state and progress (SB-FR-011)", () => {

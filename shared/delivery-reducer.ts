@@ -782,6 +782,15 @@ const onSeamRan: EventHandler = (state, event) => {
   } else {
     delete seam.detail;
   }
+  // The unit the seam ran inside (SB-FR-013): the payload's, else the
+  // envelope's. A run that names neither marks no unit, so it drops the unit
+  // that an earlier run of the seam named.
+  const unitId = isString(payload.unit_id) ? payload.unit_id : event.unit_id;
+  if (isString(unitId)) {
+    seam.unit_id = unitId;
+  } else {
+    delete seam.unit_id;
+  }
   return { ...state, seams: { ...state.seams, [payload.seam]: seam } };
 };
 

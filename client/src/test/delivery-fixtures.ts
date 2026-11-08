@@ -117,6 +117,26 @@ export function fiftyUnitRecord(): DeliveryRecord {
   return baseRecord(units, stacks, gates);
 }
 
+/** An event of one unit, of any type, at a given time. */
+export function unitEvent(
+  seq: number,
+  unitId: string,
+  type: string,
+  payload: Record<string, unknown>,
+  ts: string,
+): DeliveryEvent {
+  return {
+    $schema: DELIVERY_EVENT_SCHEMA_ID,
+    schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+    delivery_id: "demo-delivery-1",
+    type,
+    seq,
+    ts,
+    unit_id: unitId,
+    payload,
+  };
+}
+
 /** A `unit.changed` event that sets a unit's status. */
 export function unitChanged(seq: number, unitId: string, status: string): DeliveryEvent {
   return {
