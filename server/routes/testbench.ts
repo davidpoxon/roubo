@@ -21,7 +21,7 @@
 // The TestBench create endpoint (POST /:projectId/benches { variant }) lives in
 // benches.ts: it is the normal bench-manager create path.
 
-import { Router, type Request, type Response } from "express";
+import express, { Router, type Request, type RequestHandler, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import * as benchManager from "../services/bench-manager.js";
@@ -40,7 +40,20 @@ import {
   discoverSpecs,
   validateManualPath,
 } from "../lib/testbench-spec-discovery.js";
-import { resolveTestbenchHost } from "../services/testbench-host-resolver.js";
+import {
+  getTestbenchHostProvider,
+  resolveTestbenchHost,
+  resolveTestbenchMarkHost,
+  type TestbenchHostRefusal,
+} from "../services/testbench-host-resolver.js";
+import {
+  CASE_STATUS_BODY_LIMIT,
+  InvalidEvidenceError,
+  caseEvidenceNoteText,
+  decodeCaseScreenshot,
+  writeCaseScreenshot,
+  type CaseScreenshot,
+} from "../lib/case-evidence.js";
 import {
   ManifestUnreadableError,
   SpecFolderNotFoundError,
@@ -83,7 +96,16 @@ const ValidatePathBodySchema = z.object({ path: z.string() }).strict();
 const MarkObservationBodySchema = z
   .object({ result: z.enum(["pass", "fail"]).nullable() })
   .strict();
-const SetStatusBodySchema = z.object({ override: CaseStatusSchema.nullable() }).strict();
+// The optional evidence of a mark (SB-FR-027): a note, a screenshot as a base64
+// image data URL, or both. The screenshot is written under the spec folder's
+// `evidence/<caseId>/`, and the note, with the screenshot's path, is appended to
+// the case's notes.
+const MarkEvidenceSchema = z
+  .object({ note: z.string().optional(), screenshot: z.string().optional() })
+  .strict();
+const SetStatusBodySchema = z
+  .object({ override: CaseStatusSchema.nullable(), evidence: MarkEvidenceSchema.optional() })
+  .strict();
 // The lifecycle record to write, or null to restore (#1167). The record is
 // wrapped in a `{ lifecycle }` envelope rather than sent bare: express.json runs
 // in body-parser's default strict mode, which accepts only objects and arrays, so
@@ -120,6 +142,40 @@ function resolveRepoPath(projectId: string): string {
   return project.repoPath;
 }
 
+// The path of the case status route, under the server's /api/projects mount.
+export const TESTBENCH_CASE_STATUS_PATH =
+  "/api/projects/:projectId/benches/:id/testbench/cases/:caseId/status";
+
+const caseStatusJson = express.json({ limit: CASE_STATUS_BODY_LIMIT });
+
+// The JSON parser of the case status route, whose body can carry a screenshot
+// over the global limit. The server mounts it on that path before its global
+// parser, which then finds the body read and skips it.
+export const testbenchCaseStatusBodyParser: RequestHandler = (req, res, next) => {
+  void caseStatusJson(req, res, (error?: unknown) => {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      (error as { type?: unknown }).type === "entity.too.large"
+    ) {
+      res.status(413).json({
+        error: `A case status body holds at most ${CASE_STATUS_BODY_LIMIT}`,
+        code: "PAYLOAD_TOO_LARGE",
+      });
+      return;
+    }
+    next(error);
+  });
+};
+
+// A refusal of the TestbenchHostResolver, sent with its status, code and
+// blocking classes.
+class HostRefusalError extends Error {
+  constructor(readonly refusal: TestbenchHostRefusal) {
+    super(refusal.error);
+  }
+}
+
 // Resolve a TestBench and derive the (rootPath, slug) tuple the store needs,
 // through the TestbenchHostResolver port. For the TestBench variant `rootPath` is
 // the bench's own worktree (#494): the plan and the results sidecar are both read
@@ -134,7 +190,7 @@ function resolveRepoPath(projectId: string): string {
 function resolveTestbench(
   projectId: string,
   benchId: number,
-  purpose: "read" | "mark",
+  purpose: "read",
 ): { rootPath: string; slug: string } {
   const repoPath = resolveRepoPath(projectId);
   const bench = benchManager.getBench(projectId, benchId);
@@ -143,9 +199,28 @@ function resolveTestbench(
   }
   const resolved = resolveTestbenchHost(bench, purpose, repoPath);
   if (!resolved.ok) {
-    throw new RouteError(resolved.status, resolved.error);
+    throw new HostRefusalError(resolved);
   }
   return { rootPath: resolved.host.rootPath, slug: resolved.host.slug };
+}
+
+// Resolve a TestBench for a write: as resolveTestbench, then the mark check of
+// the bench variant's provider, which can refuse with a 400 or a 409 (a Spec
+// Bench with no sitting open, or under a blocking cross-check class).
+async function resolveTestbenchForMark(
+  projectId: string,
+  benchId: number,
+): Promise<{ bench: import("@roubo/shared").Bench; rootPath: string; slug: string }> {
+  const repoPath = resolveRepoPath(projectId);
+  const bench = benchManager.getBench(projectId, benchId);
+  if (!bench) {
+    throw new RouteError(404, "Bench not found");
+  }
+  const resolved = await resolveTestbenchMarkHost(bench, repoPath);
+  if (!resolved.ok) {
+    throw new HostRefusalError(resolved);
+  }
+  return { bench, rootPath: resolved.host.rootPath, slug: resolved.host.slug };
 }
 
 // Map any thrown error to an HTTP response: RouteError /
@@ -154,6 +229,19 @@ function resolveTestbench(
 function handleError(res: import("express").Response, err: unknown): void {
   if (err instanceof RouteError) {
     res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+  if (err instanceof HostRefusalError) {
+    const { status, error, code, classes } = err.refusal;
+    res.status(status).json({
+      error,
+      ...(code !== undefined && { code }),
+      ...(classes !== undefined && { classes }),
+    });
+    return;
+  }
+  if (err instanceof InvalidEvidenceError) {
+    res.status(400).json({ error: err.message, code: "INVALID_EVIDENCE" });
     return;
   }
   if (err instanceof BenchError) {
@@ -543,7 +631,7 @@ router.put(
   async (req, res) => {
     try {
       const benchId = parseIntParam(req.params.id, "bench id");
-      const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId, "mark");
+      const { rootPath, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
       const parsed = MarkObservationBodySchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: "result must be 'pass', 'fail', or null" });
@@ -564,22 +652,56 @@ router.put(
 );
 
 // 6. Set/clear a status override (PUT) -> 200 CaseResult (null clears).
+//
+// Body: { override, evidence?: { note?, screenshot? } } (SB-FR-027). The
+// screenshot is a base64 PNG, JPEG or WebP data URL; it is written under
+// `.specifications/<slug>/evidence/<caseId>/`, and the note, with the
+// screenshot's path relative to the spec folder, is appended to the case's
+// notes after the override is written. Malformed evidence is a 400 before any
+// write. The bench variant's provider can add keys to the answer beside the
+// CaseResult: a Spec Bench answers a Not met mark with the fix unit it filed
+// (`fixUnit`), or why it filed none (`fixUnitError`).
 router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId, "mark");
+    const { bench, rootPath, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
     const parsed = SetStatusBodySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "override must be a valid CaseStatus or null" });
       return;
     }
-    const caseResult = await testbenchStore.setStatusOverride(
-      rootPath,
-      slug,
-      req.params.caseId,
-      parsed.data.override,
-    );
-    res.json(caseResult);
+    const { override, evidence } = parsed.data;
+    const caseId = req.params.caseId;
+    let screenshot: CaseScreenshot | undefined;
+    if (evidence?.screenshot !== undefined) {
+      screenshot = decodeCaseScreenshot(evidence.screenshot);
+    }
+    let caseResult = await testbenchStore.setStatusOverride(rootPath, slug, caseId, override);
+    const screenshotPath =
+      screenshot === undefined
+        ? undefined
+        : writeCaseScreenshot(rootPath, slug, caseId, screenshot);
+    const noteText = caseEvidenceNoteText(evidence?.note, screenshotPath);
+    if (noteText.length > 0) {
+      const note = await testbenchStore.appendNote(rootPath, slug, caseId, noteText);
+      caseResult = { ...caseResult, notes: [...caseResult.notes, note] };
+    }
+    const provider = getTestbenchHostProvider(bench.variant);
+    const extra =
+      provider?.afterStatusMark === undefined
+        ? {}
+        : await provider.afterStatusMark(bench, {
+            rootPath,
+            slug,
+            caseId,
+            override,
+            ...(evidence?.note !== undefined && { note: evidence.note }),
+          });
+    res.json({
+      ...caseResult,
+      ...extra,
+      ...(screenshotPath !== undefined && { evidence: { screenshot: screenshotPath } }),
+    });
   } catch (err) {
     handleError(res, err);
   }
@@ -599,10 +721,10 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/status", async (req,
 // across a lifecycle edit; without the fingerprint a write from a stale view
 // would silently overwrite an edit made outside the app (SATCA-TC-056). A
 // mismatch is a 409 via handleError.
-router.put("/:projectId/benches/:id/testbench/cases/:caseId/lifecycle", (req, res) => {
+router.put("/:projectId/benches/:id/testbench/cases/:caseId/lifecycle", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId, "mark");
+    const { rootPath, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
     const ifMatch = req.get("if-match");
     if (typeof ifMatch !== "string" || ifMatch.length === 0) {
       res.status(400).json({
@@ -635,7 +757,7 @@ router.put("/:projectId/benches/:id/testbench/cases/:caseId/lifecycle", (req, re
 router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId, "mark");
+    const { rootPath, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
     const parsed = AppendNoteBodySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "text must be a string" });
@@ -662,7 +784,7 @@ router.post("/:projectId/benches/:id/testbench/cases/:caseId/notes", async (req,
 router.post("/:projectId/benches/:id/testbench/reconcile", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
-    const { rootPath, slug } = resolveTestbench(req.params.projectId, benchId, "mark");
+    const { rootPath, slug } = await resolveTestbenchForMark(req.params.projectId, benchId);
     const parsed = ReconcileBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "confirm and purgeOrphans must be booleans" });

@@ -126,6 +126,7 @@ import { deliveryEventsAfterRecord, ingestDeliveryEvents } from "../services/del
 import { applyDeliveryDecisionNotifications } from "../services/delivery-decision.js";
 import { applyDeliveryJamNotifications } from "../services/delivery-jam.js";
 import { applyDeliverySittingPreparation } from "../services/delivery-sitting.js";
+import { applyFixUnitBlockerClearing } from "../lib/specbench-testbench-adapter.js";
 import { refreshDeliveryCrossCheckOnEvents } from "../services/delivery-cross-check-loader.js";
 import { broadcastBenchDecisionMode, broadcastDeliveryFrame } from "../services/sse.js";
 
@@ -299,6 +300,9 @@ router.post("/delivery-event", deliveryEventRateLimiter, (req, res) => {
   // the pin at the gate commit, the components from it and the smoke check,
   // after the answer. Only a passed smoke check calls the operator.
   void applyDeliverySittingPreparation(bench, result.events, foldAfterBatch);
+  // A unit.changed that moves a fix unit to done clears the blocker it held on
+  // the sitting's gate, once its case reads passed (SB-FR-027).
+  applyFixUnitBlockerClearing(bench, result.events, foldAfterBatch);
   // An event that reads a control back marks it applied (SB-FR-014).
   applyDeliveryControlReadBacks(bench, result.events);
   // A mode.changed moves the bench's mode in effect, which the bench card

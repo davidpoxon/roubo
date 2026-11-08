@@ -84,6 +84,7 @@ import IssueAssignControl from "./IssueAssignControl";
 import { securityCategoryFor, shortIssueRef } from "../lib/chip-mapping";
 import { displayIssueRef } from "../lib/issue-id";
 import TestBenchPanel from "./testbench/TestBenchPanel";
+import SpecBenchTestBench from "./delivery/SpecBenchTestBench";
 import DeliveryTabPanel from "./delivery/DeliveryTabPanel";
 import { DECISION_PILE_HASH } from "../hooks/useDeepLink";
 import VariantBadge from "./VariantBadge";
@@ -633,8 +634,9 @@ export default function BenchDetail() {
   // via TestBenchPanel.
   const availableTabIds: BenchTabId[] = [
     ...(isTestbench ? (["testbench"] as BenchTabId[]) : []),
-    // A Spec Bench opens on its Delivery tab. No other bench offers it.
-    ...(isSpecbench ? (["delivery"] as BenchTabId[]) : []),
+    // A Spec Bench opens on its Delivery tab. No other bench offers it. Its
+    // Test bench tab holds the gate sitting's cases (SB-FR-026).
+    ...(isSpecbench ? (["delivery", "testbench"] as BenchTabId[]) : []),
     "components",
     "terminal",
     "info",
@@ -928,6 +930,11 @@ export default function BenchDetail() {
                 Delivery
               </Tab>
             )}
+            {isSpecbench && (
+              <Tab id="testbench" className={tabClassName}>
+                Test bench
+              </Tab>
+            )}
             <Tab id="components" className={tabClassName}>
               Components
             </Tab>
@@ -960,6 +967,12 @@ export default function BenchDetail() {
                 decisionPileFocusKey={pendingDecisionPileKey}
                 onDecisionPileFocused={setFocusedDecisionPileKey}
               />
+            </TabPanel>
+          )}
+
+          {isSpecbench && (
+            <TabPanel id="testbench" className="outline-none overflow-auto flex-1">
+              <SpecBenchTestBench bench={bench} />
             </TabPanel>
           )}
 

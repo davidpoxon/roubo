@@ -11,9 +11,13 @@
 //                                                    the workspace for gate state and
 //                                                    progress; with `sitting`
 //                                                    {gateId, state, commit?,
-//                                                    smokeCheck?} while the bench
+//                                                    smokeCheck?, fixUnitBlockers?,
+//                                                    blocked?} while the bench
 //                                                    prepares or has a gate sitting
-//                                                    (DeliverySnapshotResponse)
+//                                                    (DeliverySnapshotResponse);
+//                                                    `blocked` is true while a fix
+//                                                    unit filed for a Not met case
+//                                                    blocks the gate
 //                                                    404 not a Spec Bench
 //                                                    409 DeliveryReadError: the record is
 //                                                        missing, at an unknown major,
@@ -672,6 +676,13 @@ router.get("/:projectId/benches/:id/delivery", deliveryReadRateLimiter, (req, re
             state: sitting.state ?? "open",
             ...(sitting.commit !== undefined && { commit: sitting.commit }),
             ...(sitting.smokeCheck !== undefined && { smokeCheck: sitting.smokeCheck }),
+            // The fix units filed for cases marked Not met keep the gate
+            // blocked until each clears (SB-FR-027).
+            ...(sitting.fixUnitBlockers !== undefined &&
+              sitting.fixUnitBlockers.length > 0 && {
+                fixUnitBlockers: sitting.fixUnitBlockers,
+                blocked: true,
+              }),
           },
         };
   res.json(body);

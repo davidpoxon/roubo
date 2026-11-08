@@ -140,9 +140,14 @@ export interface SpecBenchSpecSummary {
 // is `preparing` while the gate waits for its build, `ready` once the pinned
 // build passed its smoke check and the operator is called, and `open` once the
 // sitting opened; `sitting.smokeCheck` is the last check's verdict. The key is
-// absent while the bench has no sitting.
+// absent while the bench has no sitting. `sitting.fixUnitBlockers` lists the
+// fix units filed for cases marked Not met (SB-FR-027), and `sitting.blocked`
+// is true while any is listed: the gate reads blocked until each clears.
 export type DeliverySnapshotResponse = DeliverySnapshot & {
-  sitting?: Pick<BenchDeliverySitting, "gateId" | "state" | "commit" | "smokeCheck">;
+  sitting?: Pick<
+    BenchDeliverySitting,
+    "gateId" | "state" | "commit" | "smokeCheck" | "fixUnitBlockers"
+  > & { blocked?: boolean };
 };
 
 // ── Events read ──

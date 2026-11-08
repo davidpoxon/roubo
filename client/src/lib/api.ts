@@ -1,6 +1,8 @@
 import type {
   RegisteredProject,
   Bench,
+  BenchDeliverySitting,
+  DeliveryFixUnitBlocker,
   DeliveryOutboxControl,
   CreateBenchRequest,
   BrowseDirectoryResponse,
@@ -777,6 +779,26 @@ export function windDownDelivery(
 // CROSSCHECK_BLOCKED while the last cross-check holds a blocking class,
 // REVIEW_OPEN while a review is open, or GATING_UNMET while a gating case is
 // unmet.
+// Opens the sitting of a gate (SB-FR-023): 201 with the sitting, or 202 when it
+// is open already; a 409 names why it cannot open.
+export function openDeliverySitting(
+  projectId: string,
+  benchId: number,
+  gateId: string,
+): Promise<BenchDeliverySitting> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/sittings`, {
+    method: "POST",
+    body: JSON.stringify({ gateId }),
+  });
+}
+
+// Closes the bench's sitting, in any state.
+export function closeDeliverySitting(projectId: string, benchId: number): Promise<void> {
+  return requestVoid(`/projects/${projectId}/benches/${benchId}/delivery/sittings/current`, {
+    method: "DELETE",
+  });
+}
+
 export function approveDelivery(
   projectId: string,
   benchId: number,
@@ -2125,17 +2147,34 @@ export function setCaseLifecycle(
 // the five CaseStatus values) or clears it (override: null). Returns the updated
 // CaseResult with statusOverride set or absent. The override is recorded
 // distinctly from derivedStatus and takes precedence over later marks.
+// The evidence of a mark (SB-FR-027): a note, a screenshot as a base64 PNG,
+// JPEG or WebP data URL, or both.
+export interface CaseMarkEvidence {
+  note?: string;
+  screenshot?: string;
+}
+
+// The answer of the case status route: the CaseResult, and what the bench
+// variant adds beside it. A Spec Bench answers a Not met mark with the fix unit
+// it filed below the gate, or why it filed none.
+export type CaseStatusMarkResponse = CaseResult & {
+  fixUnit?: DeliveryFixUnitBlocker & { linkStatus?: string; alreadyFiled?: true };
+  fixUnitError?: { error: string; code?: string };
+  evidence?: { screenshot: string };
+};
+
 export function setStatusOverride(
   projectId: string,
   benchId: number,
   caseId: string,
   override: CaseStatus | null,
-): Promise<CaseResult> {
+  evidence?: CaseMarkEvidence,
+): Promise<CaseStatusMarkResponse> {
   return request(
     `/projects/${projectId}/benches/${benchId}/testbench/cases/${encodeURIComponent(caseId)}/status`,
     {
       method: "PUT",
-      body: JSON.stringify({ override }),
+      body: JSON.stringify(evidence === undefined ? { override } : { override, evidence }),
     },
   );
 }
