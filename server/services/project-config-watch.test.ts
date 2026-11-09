@@ -242,6 +242,84 @@ describe("roubo.yaml watch", () => {
     expect(applied).not.toHaveProperty("path");
   });
 
+  it("HR-TC-005: an app write of valid content after a rejected hand save sends one applied event that clears the notice, and the next app write sends none", async () => {
+    fs.writeFileSync(configFile, "project: [\n");
+    await waitFor(() => inputEvents().length === 1);
+    expect(inputEvents()[0]).toMatchObject({ outcome: "rejected", projectId: "lantern" });
+
+    // The app writes roubo.yaml through atomicWrite, then reloads it itself.
+    atomicWrite(configFile, roubo("lantern", { webBase: 4700 }));
+    registry.reloadConfig("lantern");
+
+    expect(registry.getProject("lantern")?.config?.ports.web.base).toBe(4700);
+    expect(inputEvents()).toHaveLength(2);
+    expect(inputEvents()[1]).toEqual({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "applied",
+      projectId: "lantern",
+      summary: "Project lantern: roubo.yaml applied.",
+    });
+    expect(configLines("applied")).toHaveLength(1);
+    await waitFor(() => configLines("self-write").length === 1);
+
+    // An ordinary applied app write sends nothing (HR-TC-041).
+    atomicWrite(configFile, roubo("lantern", { webBase: 4800 }));
+    registry.reloadConfig("lantern");
+    await waitFor(() => configLines("self-write").length === 2);
+    await sleep(300);
+    expect(registry.getProject("lantern")?.config?.ports.web.base).toBe(4800);
+    expect(inputEvents()).toHaveLength(2);
+    expect(configLines("applied")).toHaveLength(1);
+  });
+
+  it("HR-TC-001: a save made after the registry parsed roubo.yaml and before the watch armed still applies", async () => {
+    await registry.unwatchProjectConfigs();
+    registry.__test.reset();
+    registry.initialize();
+    // At boot the plugin manager initializes between the parse and the arm.
+    fs.writeFileSync(configFile, roubo("lantern", { webBase: 4200 }));
+    const harborDir = makeProjectDir("harbor", roubo("harbor", { webBase: 4900 }));
+    registry.registerProject(harborDir);
+    fs.writeFileSync(
+      path.join(harborDir, ".roubo", "roubo.yaml"),
+      roubo("harbor", { webBase: 5000 }),
+    );
+    expect(registry.getProject("lantern")?.config?.ports.web.base).toBe(4100);
+
+    registry.watchProjectConfigs();
+    await armed("lantern");
+    await armed("harbor");
+
+    expect(registry.getProject("lantern")?.config?.ports.web.base).toBe(4200);
+    expect(registry.getProject("harbor")?.config?.ports.web.base).toBe(5000);
+    expect(
+      inputEvents()
+        .map((e) => [e.projectId, e.outcome])
+        .sort(),
+    ).toEqual([
+      ["harbor", "applied"],
+      ["lantern", "applied"],
+    ]);
+
+    // A later save of the same content is deduped, and sends nothing more.
+    fs.writeFileSync(configFile, roubo("lantern", { webBase: 4200 }));
+    await waitFor(() => configLines("deduped").length === 1);
+    expect(inputEvents()).toHaveLength(2);
+  });
+
+  it("HR-TC-041: a watch armed over an unchanged roubo.yaml runs nothing", async () => {
+    await registry.unwatchProjectConfigs();
+    registry.__test.reset();
+    registry.initialize();
+    registry.watchProjectConfigs();
+    await armed("lantern");
+    await sleep(200);
+
+    expect(configLines("applied")).toHaveLength(0);
+    expect(inputEvents()).toHaveLength(0);
+  });
+
   it("HR-TC-010: an atomic-rename save (write to temp, rename) is detected", async () => {
     const tmp = path.join(lanternDir, ".roubo", ".roubo.yaml.swp");
     fs.writeFileSync(tmp, roubo("lantern", { webBase: 4400 }));
