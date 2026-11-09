@@ -15,6 +15,7 @@ import { deliveryReadErrorOf } from "../../lib/api";
 import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
 import DeliveryCostView from "./DeliveryCostView";
+import { readErrorTitle } from "./delivery-read-error";
 import DeliveryCrossCheck, { DeliveryCrossCheckChip } from "./DeliveryCrossCheck";
 import DeliveryRail from "./DeliveryHealth";
 import DeliveryMap from "./DeliveryMap";
@@ -154,21 +155,6 @@ export default function DeliveryTabPanel({
       )}
     </div>
   );
-}
-
-function readErrorTitle(error: DeliveryReadError): string {
-  switch (error.code) {
-    case "DELIVERY_NONCONFORMANT":
-      return `The delivery record is missing its ${error.section ?? "required"} section`;
-    case "DELIVERY_INVALID":
-      return error.field
-        ? `The delivery record has an invalid ${error.field} field`
-        : "The delivery record is invalid";
-    case "DELIVERY_VERSION_MISMATCH":
-      return `The delivery record is at version ${error.found ?? "unknown"}, and this bench reads ${error.supported ?? "another"}`;
-    case "DELIVERY_RECORD_MISSING":
-      return "No delivery record yet";
-  }
 }
 
 // The server refuses a new session while the bench's session runs or the bench
