@@ -8,7 +8,9 @@
  * - projects.json: the settings of each registered project.
  * - state.json: the hand-editable fields of each bench that is not live. An
  *   edit of a live bench is refused with a notice that names it, and the bench
- *   keeps what it has.
+ *   keeps what it has. A refused edit, and an edit of a field that is not
+ *   hand-editable, is undone in the file by writing the bench back from
+ *   memory, a self-write, so the next launch does not load it.
  * - auth.json: a GitHub token put there is copied into the github-com
  *   plugin's github-token credential slot, and auth.json is left in place.
  * - plugins-consent.json: each consented plugin that is not running and that
