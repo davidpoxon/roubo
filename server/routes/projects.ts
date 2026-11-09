@@ -313,9 +313,11 @@ router.post("/save-config", saveConfigRateLimiter, (req, res) => {
   }
 });
 
+// The manual reload: applies what is on disk with no hash dedupe, and logs and
+// notifies like a watched save (HR-FR-017).
 router.post("/:projectId/reload-config", (req, res) => {
   try {
-    const project = projectRegistry.reloadConfig(req.params.projectId);
+    const project = projectRegistry.reloadConfigManually(req.params.projectId);
     res.json(project);
   } catch (err) {
     if (err instanceof ProjectRegistryError) {

@@ -556,7 +556,11 @@ export function watchInput(
     }
     // The handler ran, so its outcome is recorded and logged even when the
     // watch was disposed while it was awaited.
+    // After a rejection the applied hash is forgotten, so a save that puts the
+    // last applied content back runs the handler and its applied event clears
+    // the open error notice (HR-TC-005) instead of being deduped.
     if (outcome === "applied") lastApplied.set(unit, hash);
+    else lastApplied.delete(unit);
     emit(outcome, hash, action, detail, reason);
   }
 

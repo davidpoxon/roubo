@@ -65,7 +65,7 @@ import {
 } from "./worktree-registry.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
-import { benchConfig, takeComponentSnapshot } from "../lib/bench-config.js";
+import { benchConfig, isBenchStale, takeComponentSnapshot } from "../lib/bench-config.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import { resolveTestbenchHost } from "./testbench-host-resolver.js";
 import { resolveSpecFolder } from "../lib/spec-folder.js";
@@ -1075,6 +1075,20 @@ export function getLiveBenchIds(projectId: string): number[] {
     if (bench.projectId === projectId) ids.push(bench.id);
   }
   return ids;
+}
+
+/**
+ * Bench ids of a project whose component snapshot no longer matches the live
+ * project config (HR-FR-004), sorted. A roubo.yaml apply names them in its
+ * notice, so the count reads the same as the stale markers on the bench cards.
+ */
+export function getStaleBenchIds(projectId: string): number[] {
+  const config = projectRegistry.getProject(projectId)?.config;
+  const ids: number[] = [];
+  for (const bench of benches.values()) {
+    if (bench.projectId === projectId && isBenchStale(bench, config)) ids.push(bench.id);
+  }
+  return ids.sort((a, b) => a - b);
 }
 
 /**

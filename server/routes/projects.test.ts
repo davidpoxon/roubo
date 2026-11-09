@@ -14,6 +14,7 @@ vi.mock("../services/project-registry.js", async (importOriginal) => {
     unregisterProject: vi.fn(),
     getProject: vi.fn(),
     reloadConfig: vi.fn(),
+    reloadConfigManually: vi.fn(),
     checkPortConflictsForConfig: vi.fn(),
   };
 });
@@ -508,18 +509,18 @@ describe("POST /save-config", () => {
 });
 
 describe("POST /:projectId/reload-config", () => {
-  it("returns 200 with updated project on success", async () => {
+  it("HR-TC-009: returns 200 with the project from the manual reload, which bypasses dedupe", async () => {
     const project = { id: "my-project", repoPath: "/repo", configValid: true };
-    vi.mocked(projectRegistry.reloadConfig).mockReturnValue(project as any);
+    vi.mocked(projectRegistry.reloadConfigManually).mockReturnValue(project as any);
 
     const res = await request(app).post("/my-project/reload-config");
     expect(res.status).toBe(200);
     expect(res.body).toEqual(project);
-    expect(projectRegistry.reloadConfig).toHaveBeenCalledWith("my-project");
+    expect(projectRegistry.reloadConfigManually).toHaveBeenCalledWith("my-project");
   });
 
   it("returns 404 for NOT_FOUND error", async () => {
-    vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => {
+    vi.mocked(projectRegistry.reloadConfigManually).mockImplementation(() => {
       throw new ProjectRegistryError("Project not found", "NOT_FOUND");
     });
 
@@ -529,7 +530,7 @@ describe("POST /:projectId/reload-config", () => {
   });
 
   it("returns 400 for non-NOT_FOUND ProjectRegistryError", async () => {
-    vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => {
+    vi.mocked(projectRegistry.reloadConfigManually).mockImplementation(() => {
       throw new ProjectRegistryError("Invalid config", "INVALID_CONFIG");
     });
 
@@ -539,7 +540,7 @@ describe("POST /:projectId/reload-config", () => {
   });
 
   it("returns 500 for generic errors", async () => {
-    vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => {
+    vi.mocked(projectRegistry.reloadConfigManually).mockImplementation(() => {
       throw new Error("Unexpected error");
     });
 
