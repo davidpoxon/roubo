@@ -183,6 +183,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/api/system/status`                                                                       | `server/routes/system.ts`               |
 | GET    | `/test/__connection-state-log`                                                             | `server/routes/test.ts`                 |
 | POST   | `/test/__crash-plugin`                                                                     | `server/routes/test.ts`                 |
+| GET    | `/test/__input-watcher-log`                                                                | `server/routes/test.ts`                 |
 | GET    | `/test/__inspect-bench-git`                                                                | `server/routes/test.ts`                 |
 | GET    | `/test/__inspect-marketplace-source`                                                       | `server/routes/test.ts`                 |
 | GET    | `/test/__plugin-enable-state`                                                              | `server/routes/test.ts`                 |
