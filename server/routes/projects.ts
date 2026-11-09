@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import fs from "node:fs";
+import path from "node:path";
 import * as YAML from "yaml";
 import * as projectRegistry from "../services/project-registry.js";
 import { ProjectRegistryError } from "../services/project-registry.js";
@@ -298,10 +299,18 @@ router.post("/save-config", saveConfigRateLimiter, (req, res) => {
   try {
     const configPath = writeRouboConfig(repoPath, config);
 
+    // Re-parse the project registered at the written repoPath, whatever name
+    // the saved config gives: an edit that renames project.name still writes
+    // the registered project's roubo.yaml, and the watch takes the write as
+    // the app's own, so this is the only re-parse it gets. reloadConfig sends
+    // no event for an applied write (HR-TC-041) and reports a rejected one.
     try {
-      const projectId = config.project.name;
-      if (projectRegistry.getProject(projectId)) {
-        projectRegistry.reloadConfig(projectId);
+      const written = path.resolve(repoPath);
+      const registered = projectRegistry
+        .getProjects()
+        .find((p) => path.resolve(p.repoPath) === written);
+      if (registered) {
+        projectRegistry.reloadConfig(registered.id);
       }
     } catch {
       // reload failed but save succeeded: not a fatal error
