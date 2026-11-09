@@ -37,6 +37,8 @@ const enableStateMocks = vi.hoisted(() => {
     loadEnableState: vi.fn<() => PluginEnableState | null>(() => null),
     saveEnableState: vi.fn<(s: PluginEnableState) => void>(),
     setPluginEnabled: vi.fn<(id: string, enabled: boolean) => PluginEnableState>(),
+    setPluginEnableValue:
+      vi.fn<(id: string, value: PluginEnableState["plugins"][string]) => PluginEnableState>(),
     removePlugin: vi.fn<(id: string) => void>(),
   };
 });
@@ -48,6 +50,7 @@ vi.mock("./plugin-enable-state.js", () => enableStateMocks);
 // covered by plugin-consent-state.test.ts). uninstallForUpdate must NOT call it.
 const consentStateMocks = vi.hoisted(() => ({
   removeConsent: vi.fn<(id: string) => void>(),
+  hasConsent: vi.fn<(id: string) => boolean>(() => true),
 }));
 vi.mock("./plugin-consent-state.js", () => consentStateMocks);
 
@@ -227,8 +230,14 @@ beforeEach(() => {
     installInitialized: true,
     plugins: { [id]: enabled ? "enabled" : "disabled" },
   }));
+  enableStateMocks.setPluginEnableValue.mockReset().mockImplementation((id, value) => ({
+    schemaVersion: 1,
+    installInitialized: true,
+    plugins: { [id]: value },
+  }));
   enableStateMocks.removePlugin.mockReset();
   consentStateMocks.removeConsent.mockReset();
+  consentStateMocks.hasConsent.mockReset().mockReturnValue(true);
   provenanceStateMocks.removeProvenance.mockReset();
   provenanceStateMocks.getProvenance.mockReset();
   provenanceStateMocks.getProvenance.mockReturnValue(null);
@@ -3050,6 +3059,43 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     expect(reload).toEqual({ disabled: [], enabled: [] });
     expect(findRecord(mgr.listInstalled(), "echo").pid).toBe(pid);
   });
+
+  it.each([
+    ["set to enabled", { "component-echo": "enabled" } as PluginEnableState["plugins"]],
+    ["removed", {} as PluginEnableState["plugins"]],
+  ])(
+    "reloadEnableState does not start a consent-gated plugin with no consent whose held value a hand edit %s",
+    async (_edit, edited) => {
+      consentStateMocks.hasConsent.mockReturnValue(false);
+      enableStateMocks.loadEnableState.mockReturnValueOnce({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: { "component-echo": "awaiting-consent" },
+      });
+      sandbox = await makeSandbox({ bundled: ["component-echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+
+      enableStateMocks.loadEnableState.mockReturnValueOnce({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: edited,
+      });
+      const reload = await mgr.reloadEnableState();
+
+      expect(reload).toEqual({ disabled: [], enabled: [] });
+      const rec = findRecord(mgr.listInstalled(), "component-echo");
+      expect(rec.pid).toBeNull();
+      expect(rec.status).toBe("disabled");
+      // The hold is written back, as a relaunch would keep it.
+      expect(enableStateMocks.setPluginEnableValue).toHaveBeenCalledWith(
+        "component-echo",
+        "awaiting-consent",
+      );
+      await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    },
+  );
 });
 
 describe("getConnectionStatus (IP-WU-044)", () => {
