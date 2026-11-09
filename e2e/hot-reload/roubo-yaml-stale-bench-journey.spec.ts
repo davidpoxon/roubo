@@ -38,10 +38,15 @@ const SCROLLBACK_INPUT = "printf 'hr-tc-002-%s\\n' scrollback\r";
 // The slices of this journey, named by title: they are filed in a tracker this
 // public repository does not link to (see step-runner.ts).
 const SLICE = {
-  watcher: { title: "InputWatcher module for hot reload" },
   events: { title: "input-changed events and the non-blocking notice" },
-  configWatch: { title: "Watch each project's roubo.yaml and apply saves live" },
-  benchSnapshot: { title: "A bench keeps the component definitions it was set up with" },
+  configWatch: {
+    title:
+      "Watch roubo.yaml per project: re-parse on save, keep last good, notify, mark running benches stale",
+  },
+  benchSnapshot: {
+    title:
+      "Bench keeps its component definitions: snapshot at set-up, stale marker, restart with new config",
+  },
 } as const;
 
 const STEPS: Record<string, JourneyStep> = {
@@ -53,7 +58,7 @@ const STEPS: Record<string, JourneyStep> = {
   S002: {
     id: "S002",
     instruction: "Edit lantern/.roubo/roubo.yaml to change the 'web' component command and save",
-    owners: [SLICE.configWatch, SLICE.watcher, SLICE.events, SLICE.benchSnapshot],
+    owners: [SLICE.configWatch, SLICE.events, SLICE.benchSnapshot],
   },
   S003: {
     id: "S003",
