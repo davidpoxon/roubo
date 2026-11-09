@@ -231,10 +231,27 @@ describe("DELETE /:id", () => {
     vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
   });
 
-  it("calls pluginManager.uninstall and returns 204", async () => {
+  it("calls pluginManager.uninstall and returns 200", async () => {
     const res = await request(app).delete("/github-com");
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: "github-com", removed: true });
     expect(pluginManager.uninstall).toHaveBeenCalledWith("github-com");
+  });
+
+  it("HR-TC-017 returns 409 with code plugin-in-use and the bench ids while a bench uses the plugin", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(
+      Object.assign(new Error('"Database" is in use by bench 2. Clear bench 2 to remove it.'), {
+        code: "plugin-in-use",
+        benchIds: [2],
+      }),
+    );
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: '"Database" is in use by bench 2. Clear bench 2 to remove it.',
+      code: "plugin-in-use",
+      benchIds: [2],
+    });
   });
 
   it("returns 400 when id is not kebab-case", async () => {

@@ -47,6 +47,8 @@ vi.mock("./services/bench-manager.js", () => ({
   handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
   handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
   handleComponentPluginBudgetExhausted: vi.fn(() => Promise.resolve()),
+  handleComponentPluginSwapped: vi.fn(() => Promise.resolve()),
+  findBindingsBrokenBySwap: vi.fn(() => []),
 }));
 vi.mock("./services/process-manager.js", () => ({
   stopAllProcesses: vi.fn(() => Promise.resolve()),
@@ -245,6 +247,8 @@ describe("startServer", { concurrent: false }, () => {
         handleComponentPluginPreRestart: vi.fn(() => Promise.resolve()),
         handleComponentPluginRestarted: vi.fn(() => Promise.resolve()),
         handleComponentPluginBudgetExhausted: vi.fn(() => Promise.resolve()),
+        handleComponentPluginSwapped: vi.fn(() => Promise.resolve()),
+        findBindingsBrokenBySwap: vi.fn(() => []),
       }));
       vi.doMock("./services/process-manager.js", () => ({
         stopAllProcesses: vi.fn(() => Promise.resolve()),
