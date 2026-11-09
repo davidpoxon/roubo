@@ -74,17 +74,19 @@ describe("BurnHealthPanel figures", () => {
         unit.id === "C" || unit.id === "B" ? { ...unit, status: "jammed" } : unit,
       ),
     };
-    render(
-      <BurnHealthPanel
-        snapshot={foldDelivery({ record: jammed, events: [] })}
-        onOpenCostHealthControls={() => undefined}
-      />,
-    );
+    const folded = foldDelivery({ record: jammed, events: [] });
+    // The progress comes from the verify results, which the record does not
+    // carry, so the test sets the counts the strip reads.
+    const snapshot = {
+      ...folded,
+      progress: { ...folded.progress, cases: { ...folded.progress.cases, met: 3, total: 7 } },
+    };
+    render(<BurnHealthPanel snapshot={snapshot} onOpenCostHealthControls={() => undefined} />);
     const jams = screen.getByTestId("delivery-rail-stat-jams");
     expect(jams).toHaveTextContent("2");
     expect(jams).toHaveTextContent("B, C");
     expect(screen.getByTestId("delivery-rail-stat-cases")).toHaveTextContent(
-      /^Cases\d+ \/ \d+ cases met$/,
+      "Cases3 / 7 cases met",
     );
     expect(screen.getByTestId("delivery-rail-stat-spent")).toHaveTextContent(
       "of 1.00 soft budget, over budget",

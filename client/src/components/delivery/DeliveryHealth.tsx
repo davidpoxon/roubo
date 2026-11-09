@@ -40,7 +40,7 @@ export function DeliveryHealthChip({ health }: { health: DeliveryHealthView }) {
         aria-expanded={open}
         aria-controls={reasonId}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 text-text-secondary transition-colors hover:border-border-control active:bg-bg-hover ${focusRing}`}
+        className={`inline-flex min-h-6 items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 text-text-secondary transition-colors hover:border-border-control active:bg-bg-hover ${focusRing}`}
       >
         <span
           aria-hidden="true"

@@ -461,7 +461,7 @@ describe("DeliveryTabPanel", () => {
     expect(screen.queryByTestId("delivery-header")).not.toBeInTheDocument();
   });
 
-  it("SB-TC-074 shows a source it could not read on the chip and in the rail when no disagreement was found", async () => {
+  it("SB-TC-075 shows a source it could not read on the chip and in the rail when no disagreement was found", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
       disagreements: [],
