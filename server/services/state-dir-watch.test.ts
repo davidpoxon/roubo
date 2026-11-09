@@ -325,6 +325,27 @@ describe("state dir watch", () => {
     expect(fileLines("state.json", "refused")).toHaveLength(1);
   });
 
+  it("HR-TC-029 the write-back that undoes a refused state.json edit is a self-write and is not applied again", async () => {
+    const file = path.join(dir, "state.json");
+    // The bench manager writes the live bench back from memory, as it does for
+    // a refused edit, through the real atomicWrite.
+    vi.mocked(benchManager.applyStateFileEdit).mockImplementationOnce(() => {
+      atomicWrite(file, benchFile("bench-3"));
+      return { applied: [], refused: [{ projectId: "lantern", benchId: 3, status: "active" }] };
+    });
+    fs.writeFileSync(file, benchFile("refused-by-hand"));
+
+    await waitFor(() => fileLines("state.json", "self-write").length === 1);
+    await sleep(400);
+
+    expect(benchManager.applyStateFileEdit).toHaveBeenCalledTimes(1);
+    expect(fileLines("state.json", "refused")).toHaveLength(1);
+    expect(fileLines("state.json", "applied")).toHaveLength(0);
+    expect(hoisted.events).toHaveLength(1);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "refused" });
+    expect(JSON.parse(fs.readFileSync(file, "utf-8")).benches[0].branch).toBe("bench-3");
+  });
+
   it("HR-TC-030 the app's own write of state.json logs self-write and applies and sends nothing", async () => {
     atomicWrite(path.join(dir, "state.json"), benchFile("set-up-by-roubo"));
 

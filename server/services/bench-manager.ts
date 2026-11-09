@@ -127,9 +127,12 @@ function assertNotUnregistering(projectId: string): void {
 let corruptedSettingsWarned = false;
 
 // Reads the application-wide bench cap from settings.json. Returns null (unlimited)
-// when the cap is absent, null, malformed, or unreadable. On a corrupt settings.json
-// it fails open and warns at most once per process load. Performs exactly one
-// loadSettings call (a single fs read) so it adds no extra I/O to the create path.
+// when the cap is absent, null or malformed. On a corrupt settings.json it warns at
+// most once per process load and takes the cap of the last settings that parsed in
+// this process, as every other settings read does (HR-TC-034), so a hand edit that
+// breaks the file does not lift the cap; with no last good settings it fails open
+// to unlimited. A readable file costs exactly one loadSettings call (a single fs
+// read), so the cap adds no extra I/O to the create path.
 function readGlobalBenchCap(): number | null {
   let settings;
   try {
@@ -137,11 +140,13 @@ function readGlobalBenchCap(): number | null {
   } catch {
     if (!corruptedSettingsWarned) {
       console.warn(
-        "[bench-manager] settings.json unreadable; treating global bench limit as unlimited.",
+        "[bench-manager] settings.json unreadable; using the global bench limit of the last good settings, or unlimited when there are none.",
       );
       corruptedSettingsWarned = true;
     }
-    return null;
+    // The fail-open read: the last good settings, or the built-in defaults,
+    // which set no cap, when none has parsed yet.
+    settings = stateService.loadSettings();
   }
   const max = settings.benches?.maxGlobal;
   return typeof max === "number" && Number.isInteger(max) && max >= 1 ? max : null;
@@ -4005,7 +4010,10 @@ export interface BenchStateEditRef {
 export interface BenchStateEdit {
   /** The benches that are not live whose edited fields were merged. */
   applied: BenchStateEditRef[];
-  /** The live benches whose fields the edit changed: nothing was merged into them. */
+  /**
+   * The live benches whose fields the edit changed: nothing was merged into
+   * them, and their records in the file were written back from memory.
+   */
   refused: (BenchStateEditRef & { status: BenchStatus })[];
 }
 
@@ -4024,7 +4032,15 @@ function sameValue(a: unknown, b: unknown): boolean {
  * component still running, starting or stopping, takes none, and is reported
  * refused, so it keeps its ports and stays up. A record with no bench in memory, and a bench
  * with no record, are left as they are: an edit neither creates nor clears a
- * bench. Nothing is written back: the file already holds the edit.
+ * bench.
+ *
+ * The record of each matched bench that still differs from the bench in memory
+ * afterwards is written back from memory: the refused edit of a live bench,
+ * and any edit of a field that is not hand-editable, such as the workspace
+ * path or the setup state. Otherwise the file would keep a value that memory
+ * does not hold, and the next launch, which reads its benches from the file,
+ * would load it. The write goes through `atomicWrite`, so the watch takes it
+ * as a self-write and applies nothing of it.
  */
 export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
   const result: BenchStateEdit = { applied: [], refused: [] };
@@ -4035,16 +4051,19 @@ export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
     const changed = HAND_EDITABLE_BENCH_FIELDS.filter(
       (field) => !sameValue(current[field], record[field]),
     );
-    if (changed.length === 0) continue;
-    const ref = { projectId: bench.projectId, benchId: bench.id };
-    const liveStatus = liveStatusForEdit(bench);
-    if (liveStatus !== undefined) {
-      result.refused.push({ ...ref, status: liveStatus });
-      continue;
+    if (changed.length > 0) {
+      const ref = { projectId: bench.projectId, benchId: bench.id };
+      const liveStatus = liveStatusForEdit(bench);
+      if (liveStatus !== undefined) {
+        result.refused.push({ ...ref, status: liveStatus });
+      } else {
+        const target = bench as unknown as Record<HandEditableField, unknown>;
+        for (const field of changed) target[field] = record[field];
+        result.applied.push(ref);
+      }
     }
-    const target = bench as unknown as Record<HandEditableField, unknown>;
-    for (const field of changed) target[field] = record[field];
-    result.applied.push(ref);
+    const merged = stateService.toPersistedBench(bench);
+    if (!sameValue(merged, record)) stateService.updateBench(merged);
   }
   return result;
 }
