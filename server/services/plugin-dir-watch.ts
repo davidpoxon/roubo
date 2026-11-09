@@ -268,9 +268,18 @@ function result(
   return { outcome, action, event };
 }
 
+// The plugin directories, by name, that this watch or an app write through it
+// registered and has not yet seen removed. A directory that is in neither this
+// set nor the registry held no plugin, so its removal is not one.
+const registeredDirs = new Set<string>();
+
 async function handleRemoved(dirName: string): Promise<HandlerResult> {
   const record = userRecordOf(dirName);
   if (!record) {
+    // A directory that never held a registered plugin, such as the `logs` a
+    // bundled plugin writes under the plugins root or a fresh empty directory,
+    // is not a plugin: its removal sends nothing.
+    if (!registeredDirs.delete(dirName)) return "ignored";
     return result("applied", "unregister", {
       pluginId: dirName,
       summary: removedNotice(dirName),
@@ -289,6 +298,7 @@ async function handleRemoved(dirName: string): Promise<HandlerResult> {
     }
     throw err;
   }
+  registeredDirs.delete(dirName);
   pluginSetChanged({ removed: [record.id] });
   return result("applied", "unregister", {
     pluginId: record.id,
@@ -364,6 +374,7 @@ async function handlePresent(dir: string, dirName: string): Promise<HandlerResul
     });
   }
   const registered = await pluginManager.registerInstalled(dir, { inertUntilConsent: true });
+  registeredDirs.add(dirName);
   pluginSetChanged({ added: [registered.id] });
   return result("applied", "register", {
     pluginId: registered.id,
@@ -392,7 +403,7 @@ export async function handlePluginDirChange(change: InputChange): Promise<Handle
   }
   // A running plugin writes its logs below its directory, so removing the
   // directory can leave, or bring back, one that holds only `logs`: that is
-  // still a removal.
+  // still a removal of a registered plugin, and nothing for any other.
   if (holdsOnlyLogs(change.path)) return handleRemoved(dirName);
   return handlePresent(change.path, dirName);
 }
@@ -513,6 +524,8 @@ function reportAppWrite(applied: AppPluginWriteOutcome, start: number): void {
     ...(applied.benchIds === undefined ? {} : { benchIds: [...applied.benchIds] }),
     summary: applied.summary,
   });
+  if (applied.action === "unregister") registeredDirs.delete(path.basename(dir));
+  else registeredDirs.add(path.basename(dir));
   if (applied.action === "register") pluginSetChanged({ added: [applied.pluginId] });
   else if (applied.action === "swap") pluginSetChanged({ swapped: [applied.pluginId] });
   else pluginSetChanged({ removed: [applied.pluginId] });
@@ -570,6 +583,7 @@ export async function startPluginDirWatch(
 export async function stopPluginDirWatch(): Promise<void> {
   const current = active;
   active = null;
+  registeredDirs.clear();
   if (!current) return;
   await current.watch.dispose();
   current.dropRoot();
