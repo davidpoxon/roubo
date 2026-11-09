@@ -2680,8 +2680,10 @@ export interface EnableStateReload {
  * changed is brought in line with it. A plugin the edit disables is stopped
  * as `disable()` stops it. A plugin the edit enables starts only as `enable()`
  * would let it: it needs a valid manifest and, for a consent-gated plugin, a
- * ConsentRecord. A plugin whose start fails is left stopped, with its error
- * on its record.
+ * ConsentRecord. A consent-gated plugin with no ConsentRecord is not started,
+ * and its value is written back as `"awaiting-consent"`, the hold that a
+ * relaunch would also keep. A plugin whose start fails is left stopped, with
+ * its error on its record.
  */
 export async function reloadEnableState(): Promise<EnableStateReload> {
   const before = new Map<string, boolean>();
@@ -2699,7 +2701,12 @@ export async function reloadEnableState(): Promise<EnableStateReload> {
     } else if (!was && now) {
       if (entry.process || !entry.record.manifest) continue;
       if (entry.record.status !== "disabled") continue;
-      if (needsConsentToStart(entry)) continue;
+      // Decide from consent itself: the cache already holds the edit, so a
+      // hold that the edit removed no longer shows in it.
+      if (isConsentGatedKind(entry.record.manifest.kind) && !pluginConsentState.hasConsent(id)) {
+        enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
+        continue;
+      }
       await spawnPlugin(entry);
       if (entry.process) result.enabled.push(id);
     }
