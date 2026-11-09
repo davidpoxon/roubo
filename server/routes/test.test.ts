@@ -68,6 +68,15 @@ vi.mock("../services/project-registry.js", () => ({
   },
 }));
 
+// HR-TC-001 / HR-TC-045: the apply-log tap /test/__reset empties and
+// /test/__input-watcher-log reads. Mocked to the two members the routes touch.
+vi.mock("../services/input-watcher.js", () => ({
+  __test: {
+    resetE2EApplyLogTap: vi.fn(),
+    getE2EApplyLogTap: vi.fn(() => []),
+  },
+}));
+
 vi.mock("../services/migrate.js", () => ({
   __test: {
     reset: vi.fn(),
@@ -170,6 +179,7 @@ vi.mock("../services/agent-probe-runner.js", () => ({
 import router, { isE2eRateLimitExempt } from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
+import * as inputWatcher from "../services/input-watcher.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
@@ -298,6 +308,7 @@ describe("POST /test/__reset", () => {
     expect(githubOauth.__test.reset).toHaveBeenCalledTimes(1);
     expect(pluginManager.__test.resetConnectionStatusCache).toHaveBeenCalledTimes(1);
     expect(pluginManager.__test.resetE2EConnectionStateLogTap).toHaveBeenCalledTimes(1);
+    expect(inputWatcher.__test.resetE2EApplyLogTap).toHaveBeenCalledTimes(1);
     expect(pluginManager.shutdown).toHaveBeenCalledTimes(1);
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
@@ -1985,6 +1996,29 @@ describe("GET /test/__connection-state-log", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ entries: [entry] });
+  });
+});
+
+// HR-TC-001 / HR-TC-045 e2e tap endpoint. Reads the ROUBO_E2E=1-only buffer that
+// mirrors every input-watcher apply line.
+describe("GET /test/__input-watcher-log", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__input-watcher-log");
+
+    expect(res.status).toBe(404);
+    expect(inputWatcher.__test.getE2EApplyLogTap).not.toHaveBeenCalled();
+  });
+
+  it("returns the tap lines when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    const line =
+      "[input-watcher] surface=project-config path=/p/.roubo/roubo.yaml outcome=applied hash8=0123abcd durationMs=3";
+    vi.mocked(inputWatcher.__test.getE2EApplyLogTap).mockReturnValueOnce([line]);
+
+    const res = await request(app).get("/test/__input-watcher-log");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ lines: [line] });
   });
 });
 

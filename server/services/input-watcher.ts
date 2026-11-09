@@ -180,9 +180,22 @@ export function formatApplyLogLine(line: ApplyLogLine): string {
   return line.action === undefined ? base : `${base} action=${line.action}`;
 }
 
+// The ROUBO_E2E=1-only mirror of every apply line. A Playwright spec cannot read
+// the server's stdout, so GET /test/__input-watcher-log serves this buffer and
+// /test/__reset empties it. Bounded so a long e2e run cannot grow it without end.
+const E2E_APPLY_LOG_TAP_MAX = 500;
+const e2eApplyLogTap: string[] = [];
+
 /** Write one ApplyLogLine. */
 export function logApply(line: ApplyLogLine): void {
-  console.info(formatApplyLogLine(line));
+  const text = formatApplyLogLine(line);
+  console.info(text);
+  if (process.env.ROUBO_E2E === "1") {
+    e2eApplyLogTap.push(text);
+    if (e2eApplyLogTap.length > E2E_APPLY_LOG_TAP_MAX) {
+      e2eApplyLogTap.splice(0, e2eApplyLogTap.length - E2E_APPLY_LOG_TAP_MAX);
+    }
+  }
 }
 
 const SURFACE_THINGS: Record<InputSurface, string> = {
@@ -779,3 +792,13 @@ export function watchInput(
     },
   };
 }
+
+// Test-only access to the e2e apply-log tap, for the env-gated /test routes.
+export const __test = {
+  getE2EApplyLogTap(): string[] {
+    return e2eApplyLogTap.slice();
+  },
+  resetE2EApplyLogTap(): void {
+    e2eApplyLogTap.length = 0;
+  },
+};

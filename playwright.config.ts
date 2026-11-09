@@ -114,6 +114,10 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     CURSOR_CWD_LOG_PATH under the same gate, and the e2e catalog fixture
 //     (server/services/catalog-client.ts) lists the overlay as a `cursor-cli`
 //     agent-kind entry.
+//   - hot-reload: same built-app surface, holds the HR-TC-001 / HR-TC-045
+//     save-roubo.yaml journey drift guard. It edits a fixture project's
+//     roubo.yaml on disk while the server runs, and reads the server's
+//     `[input-watcher]` apply lines through GET /test/__input-watcher-log.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
@@ -193,6 +197,11 @@ export default defineConfig({
     {
       name: "agent-plugins",
       testMatch: ["agent-plugins/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+    },
+    {
+      name: "hot-reload",
+      testMatch: ["hot-reload/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
     },
   ],
