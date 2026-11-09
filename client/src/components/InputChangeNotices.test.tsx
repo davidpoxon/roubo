@@ -118,6 +118,27 @@ describe("InputChangeNotices", () => {
     expect(screen.getByText("Project config applied to 2 benches")).toBeInTheDocument();
   });
 
+  it("HR-TC-037 a rejected notice the watcher wrote itself, with only the watch's projectId and a generic error, is cleared by the next applied change of that project", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    act(() =>
+      publishInputChanged({
+        type: "input-changed",
+        surface: "project-config",
+        outcome: "rejected",
+        projectId: "p1",
+        summary: "Project change rejected",
+        error: { path: "roubo.yaml", first: "the change could not be read or validated" },
+      }),
+    );
+    expect(notices()[0].querySelector("p")?.textContent).toBe(
+      `Project change rejected: roubo.yaml: the change could not be read or validated. ${LAST_GOOD_LINE}`,
+    );
+
+    act(() => publishInputChanged(applied()));
+    expect(screen.queryByText(/Project change rejected/)).toBeNull();
+    expect(screen.getByText("Project config applied to 2 benches")).toBeInTheDocument();
+  });
+
   it("writes each notice as one line that starts with the surface's thing", () => {
     render(<Screen onSetUp={vi.fn()} />);
     const cases: [InputChangedEvent["surface"], string][] = [
