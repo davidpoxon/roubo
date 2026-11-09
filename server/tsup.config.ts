@@ -29,6 +29,7 @@ export default defineConfig({
   noExternal: [
     "@roubo/shared",
     "ajv",
+    "chokidar",
     "cors",
     "dockerode",
     "express",
