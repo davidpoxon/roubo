@@ -21,6 +21,36 @@ import { broadcastInputChanged } from "./sse.js";
 
 const projects = new Map<string, RegisteredProject>();
 
+/**
+ * The hash of the roubo.yaml content each project record was parsed from, or
+ * null when the file was missing. The watch arms later than the parse (at boot
+ * after the plugin manager is up), so it starts from this hash rather than
+ * from what is on disk at arm time: a save made in between still runs a
+ * re-parse instead of being taken as already loaded.
+ */
+const loadedConfigHashes = new Map<string, string | null>();
+
+/**
+ * The outcome of the last roubo.yaml apply of each project. An app write that
+ * applies after a rejection uses it to send the applied event that clears the
+ * open error notice (HR-TC-005).
+ */
+const lastConfigOutcomes = new Map<string, "applied" | "rejected">();
+
+/**
+ * The hash of a project's roubo.yaml as it is on disk now, or null when it
+ * cannot be read. Read before the parse, so a write that lands between the two
+ * leaves a hash older than the parsed content, and the watch re-parses again
+ * rather than missing the write.
+ */
+function readConfigHash(repoPath: string): string | null {
+  try {
+    return hashContent(fs.readFileSync(path.join(repoPath, ".roubo", "roubo.yaml")));
+  } catch {
+    return null;
+  }
+}
+
 type ConfigLoadedListener = (project: RegisteredProject) => void;
 const configLoadedListeners: ConfigLoadedListener[] = [];
 
@@ -188,6 +218,7 @@ export function initialize() {
   const persisted = state.loadProjects();
   for (const entry of persisted.projects) {
     const settings = resolveSettings(entry);
+    const loadedHash = readConfigHash(entry.repoPath);
     const result = parseConfig(entry.repoPath);
     let project: RegisteredProject;
     if (result.valid && result.config) {
@@ -214,6 +245,7 @@ export function initialize() {
     // manifests are available yet; server/index.ts calls
     // revalidateComponentBindings() once plugins are up (#884).
     projects.set(entry.id, project);
+    loadedConfigHashes.set(entry.id, loadedHash);
     emitConfigLoaded(project);
   }
 }
@@ -234,6 +266,7 @@ export function registerProject(repoPath: string): RegisteredProject {
     throw err;
   }
 
+  const loadedHash = readConfigHash(safeRepoPath);
   const result = parseConfig(safeRepoPath);
   if (!result.valid || !result.config) {
     const isNotFound = result.errors?.some((e) => e.includes("not found"));
@@ -276,6 +309,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   applyComponentBindingValidation(project);
 
   projects.set(id, project);
+  loadedConfigHashes.set(id, loadedHash);
   state.addProject({ id, repoPath: safeRepoPath, settings: project.settings });
   // Armed after the project is persisted, so its root is an allowed watch root.
   armConfigWatch(project);
@@ -343,6 +377,8 @@ async function unregisterProjectNow(projectId: string, opts: { force?: boolean }
   }
 
   projects.delete(projectId);
+  loadedConfigHashes.delete(projectId);
+  lastConfigOutcomes.delete(projectId);
   state.removeProject(projectId);
   await disposeConfigWatch(projectId);
   // FR-004 / NFR-001: drop every persisted disk snapshot for this project once
@@ -423,6 +459,7 @@ export function applyConfig(projectId: string): ConfigApplyResult {
   const base = { id: current.id, repoPath: current.repoPath, settings: current.settings };
 
   let rejected: { first: string; record: RegisteredProject };
+  const loadedHash = readConfigHash(current.repoPath);
   const result = parseConfig(current.repoPath);
   if (!result.valid || !result.config) {
     const errors = result.errors ?? [];
@@ -457,6 +494,8 @@ export function applyConfig(projectId: string): ConfigApplyResult {
       applyComponentBindingValidation(next);
       if (next.configValid) {
         projects.set(projectId, next);
+        loadedConfigHashes.set(projectId, loadedHash);
+        lastConfigOutcomes.set(projectId, "applied");
         emitConfigLoaded(next);
         const staleBenchIds = liveBenchSource?.listStaleBenchIds?.(projectId) ?? [];
         return {
@@ -477,7 +516,11 @@ export function applyConfig(projectId: string): ConfigApplyResult {
   }
 
   const lastGoodLive = current.configValid && current.config !== undefined;
-  if (!lastGoodLive) projects.set(projectId, rejected.record);
+  if (!lastGoodLive) {
+    projects.set(projectId, rejected.record);
+    loadedConfigHashes.set(projectId, loadedHash);
+  }
+  lastConfigOutcomes.set(projectId, "rejected");
   const error = { path: PROJECT_CONFIG_PATH, first: rejected.first };
   emitConfigRejected({ projectId, error });
   return {
@@ -497,11 +540,14 @@ export function applyConfig(projectId: string): ConfigApplyResult {
  * line and one rejected input-changed event, since the watch takes the write
  * as the app's own and would otherwise tell no one; the watch also records
  * the content as rejected, so a later save of it runs the re-parse again.
+ * An applied write that follows a rejected apply of the project is reported
+ * too, once, so its applied event clears the open error notice (HR-TC-005).
  */
 export function reloadConfig(projectId: string): RegisteredProject {
   const start = performance.now();
+  const lastRejected = lastConfigOutcomes.get(projectId) === "rejected";
   const apply = applyConfig(projectId);
-  if (apply.outcome === "rejected") reportConfigApply(projectId, apply, start);
+  if (apply.outcome === "rejected" || lastRejected) reportConfigApply(projectId, apply, start);
   return apply.project;
 }
 
@@ -578,6 +624,9 @@ function armConfigWatch(project: RegisteredProject): void {
         depth: 0,
         allow: ["roubo.yaml"],
         target: { projectId },
+        // The watch starts from the content the record was parsed from, so a
+        // save made between that parse and this arm runs the re-parse.
+        loadedHash: () => loadedConfigHashes.get(projectId),
       },
       async (): Promise<HandlerResult> => {
         const apply = applyConfig(projectId);
@@ -697,6 +746,8 @@ export class ProjectRegistryError extends Error {
 export const __test = {
   reset(): void {
     projects.clear();
+    loadedConfigHashes.clear();
+    lastConfigOutcomes.clear();
     for (const watch of configWatches.values()) void watch.dispose();
     configWatches.clear();
   },
