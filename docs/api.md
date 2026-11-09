@@ -528,7 +528,34 @@ Opens a Server-Sent Events stream. Each `data:` line is a JSON object with a `ty
     { "id": "...", "type": "bench-ready", "message": "...", ... }
   ]
 }
+
+// type: "input-changed": emitted once for each applied, rejected or refused
+// change of a watched input (a project's roubo.yaml, a plugin, the app settings,
+// a bench, GitHub, an environment)
+{
+  "type": "input-changed",
+  "surface": "project-config",
+  "outcome": "rejected",
+  "projectId": "my-app",
+  "benchIds": [1, 2],
+  "summary": "Project config rejected",
+  "error": { "path": "roubo.yaml", "first": "benches.max: expected a number" }
+}
 ```
+
+`input-changed` fields:
+
+| Field       | Type                                                                               | Notes                                                            |
+| ----------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `surface`   | `project-config` \| `plugin` \| `settings` \| `bench` \| `github` \| `environment` | The input that changed                                           |
+| `outcome`   | `applied` \| `rejected` \| `refused`                                               | `rejected` keeps the last good configuration in effect           |
+| `projectId` | string, optional                                                                   | The project the change belongs to                                |
+| `pluginId`  | string, optional                                                                   | The plugin the change belongs to                                 |
+| `benchIds`  | number[], optional                                                                 | The benches the change reached                                   |
+| `summary`   | string                                                                             | One line that starts with the surface's thing, such as `Project` |
+| `error`     | `{ path, first }`, optional                                                        | On a rejection: the input path and its first validation error    |
+
+The event never carries file content. A change whose content matches what is already applied (deduped) and a write Roubo made itself (self-write) are logged on the server only and never sent.
 
 Reconnect on close; the server does not currently send `retry:` or `id:` directives.
 
