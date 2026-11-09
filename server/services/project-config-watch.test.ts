@@ -420,6 +420,63 @@ describe("roubo.yaml watch", () => {
     ]);
   });
 
+  it("HR-TC-041: after a rejected hand save, a manual reload that applies the same content makes the next unchanged save deduped with no event", async () => {
+    // A second project holds the port base the hand save asks for.
+    const harborDir = makeProjectDir("harbor", roubo("harbor", { webBase: 4900 }));
+    registry.registerProject(harborDir);
+    await armed("harbor");
+    const lanternEvents = () => inputEvents().filter((e) => e.projectId === "lantern");
+
+    const conflicting = roubo("lantern", { webBase: 4900 });
+    fs.writeFileSync(configFile, conflicting);
+    await waitFor(() => configLines("rejected").length === 1);
+    expect(lanternEvents()).toHaveLength(1);
+    expect(lanternEvents()[0].outcome).toBe("rejected");
+
+    // The cause is fixed elsewhere, then the user presses manual reload.
+    await registry.unregisterProject("harbor");
+    const project = registry.reloadConfigManually("lantern");
+    expect(project.config?.ports.web.base).toBe(4900);
+    expect(configLines("applied")).toHaveLength(1);
+    expect(lanternEvents()).toHaveLength(2);
+    expect(lanternEvents()[1].outcome).toBe("applied");
+
+    // The same content saved again is the applied content: deduped, no event.
+    fs.writeFileSync(configFile, conflicting);
+    await waitFor(() => configLines("deduped").length === 1);
+    await sleep(300);
+    expect(configLines("applied")).toHaveLength(1);
+    expect(lanternEvents()).toHaveLength(2);
+  });
+
+  it("HR-TC-041: after a rejected hand save, an app write that applies the same content makes the next unchanged save deduped with no event", async () => {
+    const harborDir = makeProjectDir("harbor", roubo("harbor", { webBase: 4900 }));
+    registry.registerProject(harborDir);
+    await armed("harbor");
+    const lanternEvents = () => inputEvents().filter((e) => e.projectId === "lantern");
+
+    const conflicting = roubo("lantern", { webBase: 4900 });
+    fs.writeFileSync(configFile, conflicting);
+    await waitFor(() => configLines("rejected").length === 1);
+    expect(lanternEvents()).toHaveLength(1);
+
+    await registry.unregisterProject("harbor");
+    // The app writes the same content through atomicWrite, then reloads it.
+    atomicWrite(configFile, conflicting);
+    registry.reloadConfig("lantern");
+    expect(registry.getProject("lantern")?.config?.ports.web.base).toBe(4900);
+    // The applied event clears the open error notice (HR-TC-005).
+    expect(lanternEvents()).toHaveLength(2);
+    expect(lanternEvents()[1].outcome).toBe("applied");
+    await waitFor(() => configLines("self-write").length === 1);
+
+    fs.writeFileSync(configFile, conflicting);
+    await waitFor(() => configLines("deduped").length === 1);
+    await sleep(300);
+    expect(configLines("applied")).toHaveLength(1);
+    expect(lanternEvents()).toHaveLength(2);
+  });
+
   it("HR-TC-045: a save reaches one log line and one event well within the 2 s budget", async () => {
     const start = Date.now();
     fs.writeFileSync(configFile, roubo("lantern", { webBase: 4600 }));

@@ -141,6 +141,14 @@ export interface InputWatch extends Disposable {
    * of this watch is ignored.
    */
   markRejected(absPath: string, hash: string | null): void;
+  /**
+   * Record that the surface applied the content `hash` of the input at
+   * `absPath` outside a watched run, such as a manual reload or an app write
+   * it applied. Any rejected record of the input is dropped, so the next save
+   * of the same content is deduped and the matching self-write leaves it
+   * applied. A path that is not an input of this watch is ignored.
+   */
+  markApplied(absPath: string, hash: string | null): void;
 }
 
 /**
@@ -554,6 +562,8 @@ export function watchInput(
     const lastRejected = typeof last === "object" && last !== null ? last : null;
     if (hash !== null && consumeSelfWrite(unit, hash)) {
       // An app write the surface rejected stays rejected (see markRejected).
+      // One it applied was recorded through markApplied, which dropped any
+      // earlier rejected record of the same content, so it stays applied.
       if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
       emit("self-write", hash);
       return;
@@ -741,15 +751,26 @@ export function watchInput(
     }
   })();
 
+  /** The input unit of a caller's path, or null when it is not one of this watch. */
+  function unitOfCallerPath(absPath: string): string | null {
+    if (disposed) return null;
+    // The watch keys its inputs by the real path of the watched directory,
+    // so the caller's path is resolved the same way.
+    const abs = path.join(realpathLoose(path.dirname(absPath)), path.basename(absPath));
+    return unitOf(abs);
+  }
+
   return {
     ready,
     markRejected(absPath, hash) {
-      // The watch keys its inputs by the real path of the watched directory,
-      // so the caller's path is resolved the same way.
-      const abs = path.join(realpathLoose(path.dirname(absPath)), path.basename(absPath));
-      const unit = unitOf(abs);
-      if (unit === null || disposed) return;
+      const unit = unitOfCallerPath(absPath);
+      if (unit === null) return;
       lastApplied.set(unit, { rejected: hash });
+    },
+    markApplied(absPath, hash) {
+      const unit = unitOfCallerPath(absPath);
+      if (unit === null) return;
+      lastApplied.set(unit, hash);
     },
     async dispose() {
       disposed = true;

@@ -548,7 +548,19 @@ export function reloadConfig(projectId: string): RegisteredProject {
   const lastRejected = lastConfigOutcomes.get(projectId) === "rejected";
   const apply = applyConfig(projectId);
   if (apply.outcome === "rejected" || lastRejected) reportConfigApply(projectId, apply, start);
+  else markConfigAppliedInWatch(projectId, apply);
   return apply.project;
+}
+
+/**
+ * Tell the project's watch that an apply outside the watch made the content
+ * it parsed the applied content, so a rejected record of that content in the
+ * watch is dropped and the next unchanged save is deduped (HR-TC-041).
+ */
+function markConfigAppliedInWatch(projectId: string, apply: ConfigApplyResult): void {
+  if (apply.outcome !== "applied") return;
+  const configPath = path.join(apply.project.repoPath, ".roubo", "roubo.yaml");
+  configWatches.get(projectId)?.markApplied(configPath, loadedConfigHashes.get(projectId) ?? null);
 }
 
 function configWatchEvent(projectId: string, apply: ConfigApplyResult) {
@@ -564,7 +576,9 @@ function configWatchEvent(projectId: string, apply: ConfigApplyResult) {
  * Log and notify one apply that ran outside the watch, as a watched save is
  * logged and notified. A rejection also marks the content as rejected in the
  * project's watch, so the watch neither dedupes a save of that content nor
- * takes the app's own write of it as applied.
+ * takes the app's own write of it as applied. An applied outcome marks the
+ * content as applied there, so a save of it that the watch last saw rejected
+ * is deduped rather than applied and notified again.
  */
 function reportConfigApply(projectId: string, apply: ConfigApplyResult, start: number): void {
   const configPath = path.join(apply.project.repoPath, ".roubo", "roubo.yaml");
@@ -575,6 +589,7 @@ function reportConfigApply(projectId: string, apply: ConfigApplyResult, start: n
     // A missing file logs no hash.
   }
   if (apply.outcome === "rejected") configWatches.get(projectId)?.markRejected(configPath, hash);
+  else markConfigAppliedInWatch(projectId, apply);
   logApply({
     surface: PROJECT_CONFIG_SURFACE,
     path: configPath,
