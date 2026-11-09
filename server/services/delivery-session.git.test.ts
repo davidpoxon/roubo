@@ -1,5 +1,6 @@
 // A Spec Bench's delivery session, its token and its record end to end against
-// a real git repository (SB-FR-002, SB-FR-003, SB-FR-009, SB-US-001, SB-US-002).
+// a real git repository (SB-FR-002, SB-FR-003, SB-FR-009, SB-FR-040, SB-US-001,
+// SB-US-002).
 // The record is read from `.specifications/<slug>/` inside the bench workspace,
 // so each test writes it there once the workspace exists, or commits it to the
 // project so the worktree checks it out. The record goes with the workspace, and
@@ -545,7 +546,7 @@ describe("Record loading", () => {
     expect(restored.body.budget.estimate_usd).toBe(3.2);
   });
 
-  it("SB-TC-016: An invalid record is rejected on load with a named error", async () => {
+  it("SB-FR-009: An invalid record is rejected on load with a named error", async () => {
     // Step 1: units as an object.
     const record = fixtureRecord();
     record.units = { A: (record.units as unknown[])[0] };
@@ -850,6 +851,59 @@ describe("Event ingest", () => {
     expect(replay.body).toMatchObject({ code: "STALE_SEQ", field: "seq", acceptedSeq: 9 });
     expect(replay.body.error).toMatch(/seq/);
     expect(await snapshotSeq(bench)).toBe(9);
+  });
+
+  it("SB-TC-099: A malformed decision-mode event is rejected with a 400 that names the field", async () => {
+    const { bench, token } = await benchWithRecord();
+    // A second bench, for a token that is valid but is not this bench's: the
+    // events route must refuse a real token of another bench, not only a
+    // made-up one.
+    const { token: otherToken } = await benchWithRecord();
+
+    // Step 1: a review.outcome with no decision id.
+    const noDecision = await postEvents(bench, token, {
+      ...event(8, "review.outcome"),
+      payload: { status: "accepted", reviewer: "Ada", summary: "Strict is right." },
+    });
+    expect(noDecision.status).toBe(400);
+    expect(noDecision.body).toMatchObject({ code: "INVALID_EVENT", field: "payload.decision_id" });
+    expect(noDecision.body.error).toMatch(/decision_id/);
+    expect(await snapshotSeq(bench)).toBe(7);
+
+    // Step 2: a gate.provisional with a mark outside met and not_met.
+    const badMark = await postEvents(bench, token, {
+      ...event(8, "gate.provisional"),
+      payload: {
+        gate_id: "gate-after-b",
+        cases: [{ case: "DEMO-TC-001", mark: "passed", evidence: "" }],
+      },
+    });
+    expect(badMark.status).toBe(400);
+    expect(badMark.body).toMatchObject({ code: "INVALID_EVENT", field: "payload.cases.0.mark" });
+    expect(badMark.body.error).toMatch(/mark/);
+    expect(await snapshotSeq(bench)).toBe(7);
+
+    // Step 3: a well-formed decision.decided with another bench's token.
+    const decided = {
+      ...event(8, "decision.decided"),
+      payload: {
+        decision_id: "decision-9",
+        chosen: "one file per unit",
+        author: "agent",
+        rationale: "The default keeps the cache small.",
+        affected_units: ["B"],
+      },
+    };
+    const wrongToken = await postEvents(bench, otherToken, decided);
+    expect(wrongToken.status).toBe(401);
+    expect(await snapshotSeq(bench)).toBe(7);
+    expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+
+    // The same event with the bench's own token is accepted, so the 401 is the
+    // token's and not the event's.
+    const ownToken = await postEvents(bench, token, decided);
+    expect(ownToken.status).toBe(202);
+    expect(await snapshotSeq(bench)).toBe(8);
   });
 
   it("SB-TC-013: A malformed event is rejected with a 400 that names the field", async () => {

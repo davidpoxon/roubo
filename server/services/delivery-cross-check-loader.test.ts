@@ -1025,8 +1025,8 @@ describe("SB-TC-073: the cost of a refresh", () => {
   });
 });
 
-describe("SB-TC-075: a GitHub failure", () => {
-  it("SB-TC-075 keeps the last list with a source error naming GitHub, and clears it on the next refresh that reads GitHub", async () => {
+describe("SB-FR-030: a GitHub failure", () => {
+  it("SB-FR-030 keeps the last list with a source error naming GitHub, and clears it on the next refresh that reads GitHub", async () => {
     prState.B = { state: "closed", merged_at: null };
     const before = await readDeliveryCrossCheck(bench);
     expect(before.sourceError).toBeNull();
@@ -1053,7 +1053,7 @@ describe("SB-TC-075: a GitHub failure", () => {
     expect(restored.disagreements).toEqual([]);
   });
 
-  it("SB-TC-075 names a GitHub error status as the source error", async () => {
+  it("SB-FR-030 names a GitHub error status as the source error", async () => {
     await readDeliveryCrossCheck(bench);
     setDeliveryCrossCheckDeps({
       readGit: async () => ({}),

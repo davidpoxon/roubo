@@ -274,7 +274,7 @@ describe("applyDeliveryDecisionNotifications: agent decisions and review calls",
     expect(JSON.stringify(metadata)).not.toMatch(/script|Question|alert/);
   });
 
-  it("SB-TC-103: a review.opened listing 100 decisions raises one notification with the count 100", () => {
+  it("SB-FR-034: a review.opened listing 100 decisions raises one notification with the count 100", () => {
     const bench = makeBench();
     const ids = Array.from({ length: 100 }, (_, index) => `D-${index + 1}`);
     applyBatch(

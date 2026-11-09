@@ -791,7 +791,7 @@ describe("Review actions on an agent decision", () => {
     expect((await snapshotOf(bench)).controls[0]?.status).toBe("superseded");
   });
 
-  it("SB-TC-087 a read with a wait whose only control above the cursor is superseded is held until the wait ends or a control is issued", async () => {
+  it("SB-FR-035 a read with a wait whose only control above the cursor is superseded is held until the wait ends or a control is issued", async () => {
     const { bench, token } = await benchWithOpenReview();
     expect((await accept(bench, DECIDED_DECISION)).status).toBe(202);
     expect(
@@ -843,7 +843,7 @@ describe("Review actions on an agent decision", () => {
     expect(read.body).toEqual({ controls: [], latestSeq: 1 });
   });
 
-  it("SB-TC-087 a delivered review action is applied by its own outcome and superseded by the other", async () => {
+  it("SB-FR-035 a delivered review action is applied by its own outcome and superseded by the other", async () => {
     const { bench, token } = await benchWithOpenReview();
     const accepted = await accept(bench, DECIDED_DECISION);
     const overturned = await overturn(bench, LATER_DECISION, { option: "keep them" });

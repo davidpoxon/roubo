@@ -15,15 +15,7 @@ import { DELIVERY_EVENT_HOOK_PATH, DELIVERY_EVENT_SPILL_FILE } from "@roubo/shar
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
-  DELIVERY_RECORD_SCHEMA_ID,
-  DELIVERY_RECORD_SCHEMA_VERSION,
 } from "@roubo/shared/delivery-observation-contract";
-import {
-  TEST_CASES_SCHEMA_ID,
-  TEST_RESULTS_SCHEMA_ID,
-  TEST_RESULTS_SCHEMA_VERSION,
-  type TestCasesPlan,
-} from "@roubo/shared/testbench-contracts";
 
 vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
@@ -64,120 +56,56 @@ import {
   whenDeliveryCrossCheckIdle,
 } from "../services/delivery-cross-check-loader.js";
 import { hashDeliveryToken } from "../services/delivery-token-registry.js";
-import { computePlanHash } from "../lib/testbench-store.js";
+import {
+  AFTER_UPDATE,
+  BEFORE_UPDATE,
+  BRANCH,
+  CASES,
+  CROSS_CHECK_PLAN_HASH,
+  HEAD,
+  UNITS,
+  writeCrossCheckSpec,
+  type UnitId,
+} from "../test/delivery-crosscheck-fixture.js";
 import deliveryHooksRouter, { deliveryEventBodyParser } from "./delivery-hooks.js";
 import router from "./delivery.js";
 
 const TOKEN = "delivery-token-for-the-cross-check";
 
-const UPDATED_AT = "2026-10-16T09:30:00Z";
-const BEFORE_UPDATE = "2026-10-16T09:00:00Z";
-const AFTER_UPDATE = "2026-10-16T10:00:00Z";
-const BRANCH = { A: "fx/0-a", B: "fx/1-b", C: "fx/2-c", D: "fx/0-d" } as const;
-const HEAD = { A: "a".repeat(40), B: "b".repeat(40), C: "c".repeat(40), D: "d".repeat(40) };
-type UnitId = keyof typeof BRANCH;
-const UNITS: UnitId[] = ["A", "B", "C", "D"];
-const CASES = ["FX-TC-001", "FX-TC-002", "FX-TC-003"];
+// The record's gates: the gate after B claims `passed` (it reads stale when
+// a case failed, gate-state-differs) and the gate after C marks FX-TC-003 met
+// (case-status-differs when it failed).
+const GATES = [
+  { id: "gate-after-b", after: ["B"], status: "passed", cases: ["FX-TC-001", "FX-TC-002"] },
+  {
+    id: "gate-after-c",
+    after: ["C"],
+    status: "provisional",
+    cases: ["FX-TC-003"],
+    provisionalCases: [
+      { case: "FX-TC-003", mark: "met", evidence: "The suite row passed.", confirmed: false },
+    ],
+  },
+];
 
-const plan: TestCasesPlan = {
-  $schema: TEST_CASES_SCHEMA_ID,
-  schemaVersion: "1.2.0",
-  specSlug: "fixture-spec",
-  cases: CASES.map((id) => ({
-    id,
-    title: id,
-    area: "fixture",
-    level: 1,
-    type: "functional",
-    steps: [],
-    tags: [],
-    linked_requirement_ids: ["FX-FR-001"],
-    linked_user_story_ids: [],
-  })),
-};
-
-// The record of four units A, B and C on one stack and D on its own, with
-// gates after B and after C. With `inject`, its plan hash is not the results'
-// own (plan-hash-mismatch), the gate after B claims `passed` (it reads stale,
-// gate-state-differs) and the gate after C marks a failed case met
-// (case-status-differs).
-function record(planHash: string): unknown {
-  const stackOf: Record<UnitId, string> = { A: "A", B: "A", C: "A", D: "D" };
-  const layerOf: Record<UnitId, number> = { A: 0, B: 1, C: 2, D: 0 };
-  return {
-    $schema: DELIVERY_RECORD_SCHEMA_ID,
-    schemaVersion: DELIVERY_RECORD_SCHEMA_VERSION,
-    delivery_id: "fixture-delivery",
-    spec_slug: "fixture-spec",
-    plan_hash: planHash,
-    mode: { value: "auto", pending: null },
-    review: { status: "none", unreviewed: [] },
-    stack: {
-      stacks: { A: ["A", "B", "C"], D: ["D"] },
-      gates: [
-        { id: "gate-after-b", after: ["B"], status: "passed", cases: ["FX-TC-001", "FX-TC-002"] },
-        {
-          id: "gate-after-c",
-          after: ["C"],
-          status: "provisional",
-          cases: ["FX-TC-003"],
-          provisionalCases: [
-            { case: "FX-TC-003", mark: "met", evidence: "The suite row passed.", confirmed: false },
-          ],
-        },
-      ],
-    },
-    units: UNITS.map((id) => ({
-      id,
-      title: `Unit ${id}`,
-      status: "running",
-      stack: stackOf[id],
-      layer: layerOf[id],
-      depends_on: [],
-      branch: BRANCH[id],
-      head: HEAD[id],
-      pr_url: `https://github.com/example/fixture/pull/${id}`,
-    })),
-    decisions: [],
-    steering: [],
-    budget: { estimate_usd: 1, soft_budget_usd: 2, spent_usd: 0 },
-    roles: {},
-    health: { status: "ok", checked_at: UPDATED_AT },
-    drift: [],
-    seams: {},
-    lifecycle: { state: "running", armed: true, started_at: BEFORE_UPDATE, ended_at: null },
-    last_event_seq: 7,
-    updated_at: UPDATED_AT,
-  };
-}
-
+// The plan, its results with the `failed` cases failed and the rest passed,
+// and the record with `recordPlanHash`; a hash that is not the plan's own
+// reads as plan-hash-mismatch.
 function writeSpec(recordPlanHash: string, failed: string[]): void {
-  const hash = computePlanHash(plan);
-  fs.writeFileSync(path.join(specFolder, "test-cases.json"), JSON.stringify(plan));
-  const caseResults = Object.fromEntries(
-    CASES.map((id) => [
-      id,
-      {
-        observationMarks: {},
-        derivedStatus: failed.includes(id) ? "failed" : "passed",
-        notes: [],
-      },
-    ]),
-  );
-  fs.writeFileSync(
-    path.join(specFolder, "test-results.json"),
-    JSON.stringify({
-      $schema: TEST_RESULTS_SCHEMA_ID,
-      schemaVersion: TEST_RESULTS_SCHEMA_VERSION,
-      planHash: hash,
-      caseResults,
-      updatedAt: UPDATED_AT,
-    }),
-  );
-  fs.writeFileSync(
-    path.join(specFolder, "delivery-observation.json"),
-    `${JSON.stringify(record(recordPlanHash), null, 2)}\n`,
-  );
+  writeCrossCheckSpec(specFolder, {
+    recordPlanHash,
+    gates: GATES,
+    caseResults: Object.fromEntries(
+      CASES.map((id) => [
+        id,
+        {
+          observationMarks: {},
+          derivedStatus: failed.includes(id) ? "failed" : "passed",
+          notes: [],
+        },
+      ]),
+    ),
+  });
 }
 
 // The sources. `nine` sets each to give one disagreement of its classes:
@@ -303,7 +231,7 @@ afterEach(() => {
 
 describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
   it("answers 200 with no disagreement, the refresh time and no source error when every source agrees", async () => {
-    writeSpec(computePlanHash(plan), []);
+    writeSpec(CROSS_CHECK_PLAN_HASH, []);
     // The gate after B claims passed over passed results.
     const res = await request(app).get(`${base}/crosscheck`);
     expect(res.status).toBe(200);
@@ -441,9 +369,9 @@ describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
     expect(all).toEqual([...DELIVERY_CROSS_CHECK_CLASSES]);
   });
 
-  it("SB-TC-075 answers the previous list with a source error naming GitHub, which clears on the next refresh", async () => {
+  it("SB-FR-030 answers the previous list with a source error naming GitHub, which clears on the next refresh", async () => {
     nine = true;
-    writeSpec(computePlanHash(plan), []);
+    writeSpec(CROSS_CHECK_PLAN_HASH, []);
     const before = await request(app).get(`${base}/crosscheck`);
     expect(before.body.sourceError).toBeNull();
     const previous = before.body.disagreements as unknown[];
@@ -519,7 +447,7 @@ describe("POST /api/hooks/delivery-event and the cross-check", () => {
   }
 
   it("SB-TC-071 runs one refresh per posted unit.boundary, pr.submitted, gate.reached, unit.changed and gate.changed, and none for another type", async () => {
-    writeSpec(computePlanHash(plan), []);
+    writeSpec(CROSS_CHECK_PLAN_HASH, []);
 
     // Before a read arms the bench, a posted event runs none.
     await post(8, "unit.boundary");
@@ -551,7 +479,7 @@ describe("POST /api/hooks/delivery-event and the cross-check", () => {
   });
 
   it("SB-TC-071 runs one refresh per refreshing event of one posted batch", async () => {
-    writeSpec(computePlanHash(plan), []);
+    writeSpec(CROSS_CHECK_PLAN_HASH, []);
     const loaded = await request(app).get(`${base}/crosscheck`);
     expect(loaded.status).toBe(200);
     expect(runs()).toBe(1);

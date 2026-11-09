@@ -869,7 +869,7 @@ describe("delivery observation contract: event envelope", () => {
     }
   });
 
-  it("SB-TC-099: a review.outcome with no decision id is rejected with an error that names payload.decision_id", () => {
+  it("SB-FR-040: a review.outcome with no decision id is rejected with an error that names payload.decision_id", () => {
     const payload = Object.fromEntries(
       Object.entries(decisionModePayloads["review.outcome"]).filter(
         ([key]) => key !== "decision_id",
@@ -882,7 +882,7 @@ describe("delivery observation contract: event envelope", () => {
     }
   });
 
-  it("SB-TC-099: a gate.provisional with a mark outside met and not_met is rejected with an error that names the field", () => {
+  it("SB-FR-040: a gate.provisional with a mark outside met and not_met is rejected with an error that names the field", () => {
     const result = validateDeliveryEvent(
       decisionModeEvent("gate.provisional", {
         gate_id: "gate-after-b",
@@ -895,7 +895,7 @@ describe("delivery observation contract: event envelope", () => {
     }
   });
 
-  it("SB-TC-099: each decision-mode event misses its required payload field with an error that names it", () => {
+  it("SB-FR-040: each decision-mode event misses its required payload field with an error that names it", () => {
     const cases: [string, Record<string, unknown>, string][] = [
       ["mode.changed", { pending: "auto" }, "payload.value:"],
       ["mode.changed", { value: "manual" }, "payload.value:"],

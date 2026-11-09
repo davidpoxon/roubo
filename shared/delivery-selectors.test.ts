@@ -826,7 +826,7 @@ describe("delivery selectors: agent decision review (SB-FR-033, SB-FR-034)", () 
     expect(selectApprovalAvailability(done)).toEqual({ available: true, reason: null });
   });
 
-  it("SB-TC-103: 100 agent decisions stack oldest first and a review call lists all of them", () => {
+  it("SB-FR-034: 100 agent decisions stack oldest first and a review call lists all of them", () => {
     const events = Array.from({ length: 100 }, (_, index) =>
       decided(8 + index, `D-${index + 1}`, 0),
     ).map((entry, index) => ({

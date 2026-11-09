@@ -181,7 +181,7 @@ describe("role matrix", () => {
 });
 
 describe("lifecycle actions", () => {
-  it("SB-TC-051 reads the four lifecycle states case-insensitively, and any other word as other", () => {
+  it("SB-FR-022 reads the four lifecycle states case-insensitively, and any other word as other", () => {
     expect(classifyLifecycleState("running")).toBe("running");
     expect(classifyLifecycleState("PAUSED")).toBe("paused");
     expect(classifyLifecycleState("Wound_Down")).toBe("wound_down");
@@ -196,7 +196,7 @@ describe("lifecycle actions", () => {
     ["wound_down", { pause: false, "wind-down": false, resume: true, approve: true }],
     ["complete", { pause: false, "wind-down": false, resume: false, approve: false }],
     ["archived", { pause: false, "wind-down": false, resume: false, approve: false }],
-  ] as const)("SB-TC-051 in the %s state the actions open are %o", (state, open) => {
+  ] as const)("SB-FR-022 in the %s state the actions open are %o", (state, open) => {
     const snapshot = foldDelivery({ record: plainRecord(state), events: [] });
     for (const action of ["pause", "wind-down", "resume", "approve"] as const) {
       const availability = selectLifecycleAction(snapshot, action);
@@ -206,7 +206,7 @@ describe("lifecycle actions", () => {
     }
   });
 
-  it("SB-TC-051 a lifecycle.changed moves the state an action reads", () => {
+  it("SB-FR-022 a lifecycle.changed moves the state an action reads", () => {
     const snapshot = foldDelivery({
       record: plainRecord(),
       events: [event(8, "lifecycle.changed", { state: "wound_down" })],
@@ -220,7 +220,7 @@ describe("lifecycle actions", () => {
 });
 
 describe("approval refusal", () => {
-  it("SB-TC-051 refuses with GATING_UNMET while a gate's cases are not all met, and approves once every gating case is met", () => {
+  it("SB-FR-022 refuses with GATING_UNMET while a gate's cases are not all met, and approves once every gating case is met", () => {
     const record = plainRecord();
     const unmet = foldDelivery({
       record,
@@ -244,12 +244,12 @@ describe("approval refusal", () => {
     expect(selectApprovalRefusal(met)).toBeNull();
   });
 
-  it("SB-TC-051 counts a gate with no plan or results as unmet", () => {
+  it("SB-FR-022 counts a gate with no plan or results as unmet", () => {
     const snapshot = foldDelivery({ record: plainRecord(), events: [] });
     expect(selectUnmetGates(snapshot)).toEqual(["gate-after-b", "gate-after-c"]);
   });
 
-  it("SB-TC-051 checks the lifecycle state first, then an open review, then the gating cases", () => {
+  it("SB-FR-022 checks the lifecycle state first, then an open review, then the gating cases", () => {
     const record = plainRecord("complete");
     const all = results(record, ["DEMO-TC-001", "DEMO-TC-002", "DEMO-TC-003"]);
     expect(
@@ -348,7 +348,7 @@ describe("the cross-check's blocking policy", () => {
     );
   });
 
-  it("SB-TC-095 passes over an entry exempt for the sitting's own gate, and blocks a sitting of another gate and the approval with it", () => {
+  it("SB-FR-039 passes over an entry exempt for the sitting's own gate, and blocks a sitting of another gate and the approval with it", () => {
     const overClaimed = [
       {
         class: "gate-state-differs",

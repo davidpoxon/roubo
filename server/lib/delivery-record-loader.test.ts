@@ -160,7 +160,7 @@ describe("loadBenchDeliveryRecord prunes the control queue", () => {
     vi.mocked(stateService.updateBench).mockClear();
   });
 
-  it("SB-TC-091 keeps a delivered accept until the record shows its decision accepted", () => {
+  it("SB-FR-037 keeps a delivered accept until the record shows its decision accepted", () => {
     writeRecord({ "D-1": "unreviewed" });
     const bench = specBench();
     const accept = issue(bench, "review_accept", "D-1", {});
@@ -238,7 +238,7 @@ describe("loadBenchDeliveryRecord prunes the control queue", () => {
     expect(bench.deliveryControlQueue).toMatchObject([{ kind: "mode_switch", control_seq: 3 }]);
   });
 
-  it("SB-TC-091 a read marks every durable control it serves delivered, and a restart serves it again", () => {
+  it("SB-FR-037 a read marks every durable control it serves delivered, and a restart serves it again", () => {
     writeRecord({});
     const bench = specBench();
     const toAttended = issue(bench, "mode_switch", undefined, { mode: "attended" });

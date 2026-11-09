@@ -193,7 +193,7 @@ describe("ReviewPile", () => {
     expect(pwned.__sbPwned).toBeUndefined();
   });
 
-  it("SB-TC-103: a pile of 100 renders one full body and 99 title bars, and Enter raises the last card", async () => {
+  it("SB-FR-034: a pile of 100 renders one full body and 99 title bars, and Enter raises the last card", async () => {
     const events = Array.from({ length: 100 }, (_, index) =>
       decided(8 + index, `D-${index + 1}`, index),
     );
@@ -305,7 +305,7 @@ describe("ReviewPile", () => {
     expect(screen.queryByTestId("review-card-D-1")).not.toBeInTheDocument();
   });
 
-  it("SB-TC-087: a queued action stays replaceable until the session reads it, then its actions are disabled", () => {
+  it("SB-FR-035: a queued action stays replaceable until the session reads it, then its actions are disabled", () => {
     const events = [
       decided(8, "D-1", 1),
       other(9, "review.opened", { trigger: "boundary", unreviewed: ["D-1"] }),

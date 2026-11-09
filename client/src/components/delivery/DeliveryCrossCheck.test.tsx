@@ -123,7 +123,7 @@ describe("The cross-check on the delivery rail", () => {
     expect(screen.queryByTestId("delivery-crosscheck-source-error")).not.toBeInTheDocument();
   });
 
-  it("SB-TC-075 shows the source error naming GitHub beside the previous list, and clears it on the next good refresh", () => {
+  it("SB-FR-030 shows the source error naming GitHub beside the previous list, and clears it on the next good refresh", () => {
     const { rerender } = renderRail(
       crossCheck({ sourceError: { source: "github", message: "fetch failed" } }),
     );

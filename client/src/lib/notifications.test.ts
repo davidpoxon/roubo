@@ -212,7 +212,7 @@ describe("formatNotification", () => {
     });
   });
 
-  it("SB-TC-103: carries the count 100 in a review call's notification", () => {
+  it("SB-FR-034: carries the count 100 in a review call's notification", () => {
     const n = {
       ...makeNotification("action-needed", "delivery-decision"),
       metadata: { review: true, count: 100 },
