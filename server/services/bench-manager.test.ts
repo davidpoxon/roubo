@@ -10828,3 +10828,69 @@ describe("restartBenchWithConfig (HR-FR-005)", () => {
     });
   });
 });
+
+describe("applyStateFileEdit (HR-FR-013)", () => {
+  function loadBenches() {
+    const project = makeProject({ config: makeConfig() });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    vi.mocked(stateService.loadState).mockReturnValue({
+      benches: [
+        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
+        makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+      ],
+    });
+    benchManager.initialize();
+    const two = benchManager.getBench("test-project", 2);
+    if (!two) throw new Error("expected bench 2");
+    two.status = "active";
+  }
+
+  it("HR-TC-029 merges an edited branch into an idle bench", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [
+        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
+        makePersistedBench({ id: 3, branch: "feature/new", ports: { backend: 5003 } }),
+      ],
+    });
+
+    expect(edit).toEqual({ applied: [{ projectId: "test-project", benchId: 3 }], refused: [] });
+    expect(benchManager.getBench("test-project", 3)?.branch).toBe("feature/new");
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+  });
+
+  it("HR-TC-029 refuses an edit of an active bench, which keeps its ports and stays active", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [
+        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 6002 } }),
+        makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+      ],
+    });
+
+    expect(edit).toEqual({
+      applied: [],
+      refused: [{ projectId: "test-project", benchId: 2, status: "active" }],
+    });
+    const two = benchManager.getBench("test-project", 2);
+    expect(two?.ports).toEqual({ backend: 5002 });
+    expect(two?.status).toBe("active");
+  });
+
+  it("leaves benches whose editable fields did not change, and records with no bench, as they are", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [
+        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
+        makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+        makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
+      ],
+    });
+
+    expect(edit).toEqual({ applied: [], refused: [] });
+    expect(benchManager.getBench("test-project", 9)).toBeUndefined();
+  });
+});

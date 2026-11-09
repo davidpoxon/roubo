@@ -90,6 +90,11 @@ vi.mock("./services/plugin-dir-watch.js", () => ({
   startPluginDirWatch: vi.fn(() => Promise.resolve()),
   stopPluginDirWatch: vi.fn(() => Promise.resolve()),
 }));
+// HR-FR-012: startServer arms the state dir watch and disposes it at shutdown.
+vi.mock("./services/state-dir-watch.js", () => ({
+  startStateDirWatch: vi.fn(() => Promise.resolve()),
+  stopStateDirWatch: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("./services/catalog-client.js", () => ({
   prefetch: vi.fn(() => Promise.resolve()),
 }));
@@ -296,6 +301,10 @@ describe("startServer", { concurrent: false }, () => {
         onPluginSetChanged: vi.fn(() => () => {}),
         startPluginDirWatch: vi.fn(() => Promise.resolve()),
         stopPluginDirWatch: vi.fn(() => Promise.resolve()),
+      }));
+      vi.doMock("./services/state-dir-watch.js", () => ({
+        startStateDirWatch: vi.fn(() => Promise.resolve()),
+        stopStateDirWatch: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/catalog-client.js", () => ({
         prefetch: vi.fn(() => Promise.resolve()),

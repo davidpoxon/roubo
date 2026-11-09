@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   AuditEntry,
   Bench,
@@ -13,6 +14,8 @@ import type {
   ComponentPhase,
   MissingPluginResolution,
   MissingPluginSourceOffer,
+  PersistedBench,
+  PersistedState,
   PluginManifest,
   ProvisioningStep,
   ProvisioningStepStatus,
@@ -3953,6 +3956,80 @@ function updateBenchStatus(bench: Bench) {
   } else {
     bench.status = "idle";
   }
+}
+
+/**
+ * The persisted fields of a bench that a hand edit of state.json can change
+ * on a bench that is not live (HR-FR-013). The rest are written by the app
+ * alone, such as the workspace path, the setup state and the delivery fields.
+ */
+const HAND_EDITABLE_BENCH_FIELDS = [
+  "branch",
+  "ports",
+  "baseBranch",
+  "baseCommit",
+  "assignedIssue",
+  "assignedContainers",
+  "focusedSpecPath",
+  "injectedJigId",
+  "injectedJigSource",
+] as const satisfies readonly (keyof PersistedBench & keyof Bench)[];
+
+type HandEditableField = (typeof HAND_EDITABLE_BENCH_FIELDS)[number];
+
+/** A bench is live while it runs or is set up or cleared: its state is not edited under it. */
+const LIVE_BENCH_STATUSES: ReadonlySet<BenchStatus> = new Set(["active", "preparing", "clearing"]);
+
+/** One bench that a state.json edit touched. */
+export interface BenchStateEditRef {
+  projectId: string;
+  benchId: number;
+}
+
+/** What one state.json edit did to the benches in memory. */
+export interface BenchStateEdit {
+  /** The benches that are not live whose edited fields were merged. */
+  applied: BenchStateEditRef[];
+  /** The live benches whose fields the edit changed: nothing was merged into them. */
+  refused: (BenchStateEditRef & { status: BenchStatus })[];
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  // A JSON round trip drops undefined keys, as state.json does.
+  const norm = (v: unknown): unknown =>
+    v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  return isDeepStrictEqual(norm(a), norm(b));
+}
+
+/**
+ * Apply a state.json edited outside the app to the benches in memory
+ * (HR-FR-013). Each persisted record is matched to its bench by project and
+ * number. A bench that is not live takes the edited value of each
+ * hand-editable field; a live bench takes none, and is reported refused, so it
+ * keeps its ports and stays up. A record with no bench in memory, and a bench
+ * with no record, are left as they are: an edit neither creates nor clears a
+ * bench. Nothing is written back: the file already holds the edit.
+ */
+export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
+  const result: BenchStateEdit = { applied: [], refused: [] };
+  for (const record of persisted.benches) {
+    const bench = benches.get(benchKey(record.projectId, record.id));
+    if (!bench) continue;
+    const current = stateService.toPersistedBench(bench);
+    const changed = HAND_EDITABLE_BENCH_FIELDS.filter(
+      (field) => !sameValue(current[field], record[field]),
+    );
+    if (changed.length === 0) continue;
+    const ref = { projectId: bench.projectId, benchId: bench.id };
+    if (LIVE_BENCH_STATUSES.has(bench.status)) {
+      result.refused.push({ ...ref, status: bench.status });
+      continue;
+    }
+    const target = bench as unknown as Record<HandEditableField, unknown>;
+    for (const field of changed) target[field] = record[field];
+    result.applied.push(ref);
+  }
+  return result;
 }
 
 export function getBench(projectId: string, benchId: number): Bench | undefined {

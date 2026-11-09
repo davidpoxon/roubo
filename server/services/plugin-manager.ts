@@ -2666,6 +2666,47 @@ export async function startAfterConsent(pluginId: string): Promise<void> {
   await spawnPlugin(entry);
 }
 
+/** What a reload of plugins-state.json changed in the running plugins. */
+export interface EnableStateReload {
+  /** Plugins the edit disabled, in registry order. Each one running was stopped. */
+  disabled: string[];
+  /** Plugins the edit enabled that were started. */
+  enabled: string[];
+}
+
+/**
+ * Apply a plugins-state.json edited outside the app (HR-FR-012): the
+ * enable-state cache is read again, and each registered plugin whose value
+ * changed is brought in line with it. A plugin the edit disables is stopped
+ * as `disable()` stops it. A plugin the edit enables starts only as `enable()`
+ * would let it: it needs a valid manifest and, for a consent-gated plugin, a
+ * ConsentRecord. A plugin whose start fails is left stopped, with its error
+ * on its record.
+ */
+export async function reloadEnableState(): Promise<EnableStateReload> {
+  const before = new Map<string, boolean>();
+  for (const id of plugins.keys()) before.set(id, isPluginEnabled(id));
+  enableStateCache = pluginEnableState.loadEnableState();
+  const result: EnableStateReload = { disabled: [], enabled: [] };
+  for (const [id, entry] of plugins) {
+    const was = before.get(id) ?? true;
+    const now = isPluginEnabled(id);
+    if (was && !now) {
+      result.disabled.push(id);
+      cutListQueryService.evictPlugin(id);
+      if (entry.process) await stopPluginProcess(entry);
+      entry.record.status = "disabled";
+    } else if (!was && now) {
+      if (entry.process || !entry.record.manifest) continue;
+      if (entry.record.status !== "disabled") continue;
+      if (needsConsentToStart(entry)) continue;
+      await spawnPlugin(entry);
+      if (entry.process) result.enabled.push(id);
+    }
+  }
+  return result;
+}
+
 /**
  * One-click remediation for a bundled plugin that cannot engage OS-level docker
  * isolation because the read-only app bundle (e.g. `/Applications/Roubo.app/.../plugins/<id>`)
