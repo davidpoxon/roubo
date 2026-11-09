@@ -4015,6 +4015,22 @@ export interface BenchStateEdit {
    * them, and their records in the file were written back from memory.
    */
   refused: (BenchStateEditRef & { status: BenchStatus })[];
+  /**
+   * The benches that are not live whose records the edit changed in a field
+   * that is not hand-editable, such as the workspace path: that change was not
+   * merged, and their records in the file were written back from memory. Each
+   * names the top-level fields that were undone.
+   */
+  reverted: (BenchStateEditRef & { fields: string[] })[];
+  /** The records in the file that match no bench in memory: nothing was made of them. */
+  unmatched: BenchStateEditRef[];
+  /**
+   * The benches in memory whose records the edit removed from the file: the
+   * bench is kept. A bench that is being set up or cleared is not one, since
+   * the app writes its record only once its setup is under way, and removes it
+   * before the bench leaves memory.
+   */
+  removed: BenchStateEditRef[];
 }
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -4030,31 +4046,45 @@ function sameValue(a: unknown, b: unknown): boolean {
  * number. A bench that is not live takes the edited value of each
  * hand-editable field; a live bench, one whose status is live or that has a
  * component still running, starting or stopping, takes none, and is reported
- * refused, so it keeps its ports and stays up. A record with no bench in memory, and a bench
- * with no record, are left as they are: an edit neither creates nor clears a
- * bench.
+ * refused, so it keeps its ports and stays up. A record with no bench in
+ * memory, and a bench whose record the edit removed, are left as they are and
+ * reported unmatched and removed: an edit neither creates nor clears a bench.
  *
  * The record of each matched bench that still differs from the bench in memory
  * afterwards is written back from memory: the refused edit of a live bench,
  * and any edit of a field that is not hand-editable, such as the workspace
- * path or the setup state. Otherwise the file would keep a value that memory
- * does not hold, and the next launch, which reads its benches from the file,
- * would load it. The write goes through `atomicWrite`, so the watch takes it
- * as a self-write and applies nothing of it.
+ * path or the setup state, which is reported reverted with the fields it
+ * undid. Otherwise the file would keep a value that memory does not hold, and
+ * the next launch, which reads its benches from the file, would load it. The
+ * write goes through `atomicWrite`, so the watch takes it as a self-write and
+ * applies nothing of it.
  */
 export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
-  const result: BenchStateEdit = { applied: [], refused: [] };
+  const result: BenchStateEdit = {
+    applied: [],
+    refused: [],
+    reverted: [],
+    unmatched: [],
+    removed: [],
+  };
+  const recorded = new Set<string>();
   for (const record of persisted.benches) {
+    recorded.add(benchKey(record.projectId, record.id));
     const bench = benches.get(benchKey(record.projectId, record.id));
-    if (!bench) continue;
+    if (!bench) {
+      result.unmatched.push({ projectId: record.projectId, benchId: record.id });
+      continue;
+    }
     const current = stateService.toPersistedBench(bench);
     const changed = HAND_EDITABLE_BENCH_FIELDS.filter(
       (field) => !sameValue(current[field], record[field]),
     );
+    const ref = { projectId: bench.projectId, benchId: bench.id };
+    let refused = false;
     if (changed.length > 0) {
-      const ref = { projectId: bench.projectId, benchId: bench.id };
       const liveStatus = liveStatusForEdit(bench);
       if (liveStatus !== undefined) {
+        refused = true;
         result.refused.push({ ...ref, status: liveStatus });
       } else {
         const target = bench as unknown as Record<HandEditableField, unknown>;
@@ -4063,7 +4093,23 @@ export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
       }
     }
     const merged = stateService.toPersistedBench(bench);
-    if (!sameValue(merged, record)) stateService.updateBench(merged);
+    if (sameValue(merged, record)) continue;
+    // A refused bench is reported refused; the rest of what is undone here is
+    // a change to a field that is not hand-editable.
+    if (!refused) {
+      const mergedFields = merged as unknown as Record<string, unknown>;
+      const recordFields = record as unknown as Record<string, unknown>;
+      const fields = [...new Set([...Object.keys(mergedFields), ...Object.keys(recordFields)])]
+        .filter((field) => !sameValue(mergedFields[field], recordFields[field]))
+        .sort();
+      if (fields.length > 0) result.reverted.push({ ...ref, fields });
+    }
+    stateService.updateBench(merged);
+  }
+  for (const bench of benches.values()) {
+    if (recorded.has(benchKey(bench.projectId, bench.id))) continue;
+    if (bench.status === "preparing" || bench.status === "clearing") continue;
+    result.removed.push({ projectId: bench.projectId, benchId: bench.id });
   }
   return result;
 }
