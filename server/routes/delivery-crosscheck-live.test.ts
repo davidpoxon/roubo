@@ -110,7 +110,7 @@ const PLAN: TestCasesPlan = {
   })),
 };
 
-// Four units A, B and C on one stack and D on its own, with a gate after B.
+// Four units A, B and C on one stack and D on its own, with gates after B and C.
 function record(): unknown {
   const stackOf: Record<UnitId, string> = { A: "A", B: "A", C: "A", D: "D" };
   const layerOf: Record<UnitId, number> = { A: 0, B: 1, C: 2, D: 0 };
@@ -126,6 +126,7 @@ function record(): unknown {
       stacks: { A: ["A", "B", "C"], D: ["D"] },
       gates: [
         { id: "gate-after-b", after: ["B"], status: "pending", cases: ["FX-TC-001", "FX-TC-002"] },
+        { id: "gate-after-c", after: ["C"], status: "pending", cases: ["FX-TC-003"] },
       ],
     },
     units: UNITS.map((id) => ({

@@ -681,8 +681,8 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     vi.mocked(deliveryLaunchBlock).mockReturnValue("session_live");
     const resume = await operator("POST", "resume");
     expect(resume.status).toBe(409);
-    const resumeBody = (await resume.json()) as { error: string; state: string };
-    expect(resumeBody.state).toBe("running");
+    const resumeBody = (await resume.json()) as { error: string; code: string; state: string };
+    expect(resumeBody).toMatchObject({ code: "DELIVERY_SESSION_LIVE", state: "running" });
     expect(resumeBody.error).toContain("running");
     expect(launchDeliverySession).not.toHaveBeenCalled();
 

@@ -881,7 +881,7 @@ describe("Event ingest", () => {
     expect(await snapshotSeq(bench)).toBe(7);
 
     // Step 3: a well-formed decision.decided with another bench's token.
-    const wrongToken = await postEvents(bench, otherToken, {
+    const decided = {
       ...event(8, "decision.decided"),
       payload: {
         decision_id: "decision-9",
@@ -890,10 +890,17 @@ describe("Event ingest", () => {
         rationale: "The default keeps the cache small.",
         affected_units: ["B"],
       },
-    });
+    };
+    const wrongToken = await postEvents(bench, otherToken, decided);
     expect(wrongToken.status).toBe(401);
     expect(await snapshotSeq(bench)).toBe(7);
     expect(sse.broadcastDeliveryFrame).not.toHaveBeenCalled();
+
+    // The same event with the bench's own token is accepted, so the 401 is the
+    // token's and not the event's.
+    const ownToken = await postEvents(bench, token, decided);
+    expect(ownToken.status).toBe(202);
+    expect(await snapshotSeq(bench)).toBe(8);
   });
 
   it("SB-TC-013: A malformed event is rejected with a 400 that names the field", async () => {

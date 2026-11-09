@@ -162,6 +162,9 @@ beforeEach(() => {
 
 afterEach(() => {
   benchManager.dropProjectBenches(PID);
+  // A module mock keeps its implementation across tests (restoreMocks does not
+  // reset it), so a test that reports a running container hands it back here.
+  vi.mocked(dockerService.getContainerStatuses).mockImplementation(async () => new Map());
   unregisterVariantHost("specbench");
   fs.rmSync(tmp, { recursive: true, force: true });
 });
