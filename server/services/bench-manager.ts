@@ -3980,6 +3980,21 @@ type HandEditableField = (typeof HAND_EDITABLE_BENCH_FIELDS)[number];
 /** A bench is live while it runs or is set up or cleared: its state is not edited under it. */
 const LIVE_BENCH_STATUSES: ReadonlySet<BenchStatus> = new Set(["active", "preparing", "clearing"]);
 
+/**
+ * The status under which a state.json edit of a bench is refused, or undefined
+ * when the bench is not live. The bench status alone does not say so: it reads
+ * 'idle' unless every component runs, and 'error' when any component errored,
+ * so a bench with one component still running, starting or stopping is live
+ * too, keeps the ports that component holds, and is reported active.
+ */
+function liveStatusForEdit(bench: Bench): BenchStatus | undefined {
+  if (LIVE_BENCH_STATUSES.has(bench.status)) return bench.status;
+  const componentLive = Object.values(bench.components).some((c) =>
+    LIVE_COMPONENT_STATUSES.has(c.status),
+  );
+  return componentLive ? "active" : undefined;
+}
+
 /** One bench that a state.json edit touched. */
 export interface BenchStateEditRef {
   projectId: string;
@@ -4005,8 +4020,9 @@ function sameValue(a: unknown, b: unknown): boolean {
  * Apply a state.json edited outside the app to the benches in memory
  * (HR-FR-013). Each persisted record is matched to its bench by project and
  * number. A bench that is not live takes the edited value of each
- * hand-editable field; a live bench takes none, and is reported refused, so it
- * keeps its ports and stays up. A record with no bench in memory, and a bench
+ * hand-editable field; a live bench, one whose status is live or that has a
+ * component still running, starting or stopping, takes none, and is reported
+ * refused, so it keeps its ports and stays up. A record with no bench in memory, and a bench
  * with no record, are left as they are: an edit neither creates nor clears a
  * bench. Nothing is written back: the file already holds the edit.
  */
@@ -4021,8 +4037,9 @@ export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
     );
     if (changed.length === 0) continue;
     const ref = { projectId: bench.projectId, benchId: bench.id };
-    if (LIVE_BENCH_STATUSES.has(bench.status)) {
-      result.refused.push({ ...ref, status: bench.status });
+    const liveStatus = liveStatusForEdit(bench);
+    if (liveStatus !== undefined) {
+      result.refused.push({ ...ref, status: liveStatus });
       continue;
     }
     const target = bench as unknown as Record<HandEditableField, unknown>;

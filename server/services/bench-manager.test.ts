@@ -11,6 +11,7 @@ import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
 import type { RunCommandResult } from "./exec.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
+import { benchRefusedNotice } from "./state-dir-watch.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
 import { hashDefinitions, takeComponentSnapshot } from "../lib/bench-config.js";
 
@@ -10878,6 +10879,40 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     expect(two?.ports).toEqual({ backend: 5002 });
     expect(two?.status).toBe("active");
   });
+
+  it.each(["idle", "error"] as const)(
+    "HR-TC-029 refuses an edit of an %s bench with one running component, which keeps its ports",
+    (status) => {
+      loadBenches();
+      const three = benchManager.getBench("test-project", 3);
+      if (!three) throw new Error("expected bench 3");
+      three.status = status;
+      three.components = {
+        web: { name: "web", status: "running", setupComplete: true },
+        worker: {
+          name: "worker",
+          status: status === "error" ? "error" : "stopped",
+          setupComplete: true,
+        },
+      };
+
+      const edit = benchManager.applyStateFileEdit({
+        benches: [
+          makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
+          makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 6003 } }),
+        ],
+      });
+
+      expect(edit).toEqual({
+        applied: [],
+        refused: [{ projectId: "test-project", benchId: 3, status: "active" }],
+      });
+      expect(benchManager.getBench("test-project", 3)?.ports).toEqual({ backend: 5003 });
+      expect(benchRefusedNotice(edit.refused).summary).toBe(
+        "Bench state not applied: bench 3 on test-project is active. Stop it first.",
+      );
+    },
+  );
 
   it("leaves benches whose editable fields did not change, and records with no bench, as they are", () => {
     loadBenches();
