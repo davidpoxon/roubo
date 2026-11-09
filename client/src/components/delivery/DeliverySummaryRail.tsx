@@ -13,8 +13,7 @@ import { focusRing } from "../ui/focus-ring";
 import { DeliveryPanel, DeliveryStatStrip } from "./DeliveryPanel";
 import { DeliveryStat } from "./DeliveryProgress";
 
-// The summary panels on the Delivery tab's rail, as the Spec Bench design
-// prototype draws them: "Burn and health" (spent, jams and cases met in one stat
+// The summary panels on the Delivery tab's rail (#1618): "Burn and health" (spent, jams and cases met in one stat
 // strip), "Decisions" (the newest open decision first, else the newest on the
 // pile, and the counts), and
 // "Next boundary" (the next unit boundary and what is queued for it). Each one
@@ -45,7 +44,7 @@ function PanelLink({
       type="button"
       aria-label={label}
       onClick={onPress}
-      className={`rounded-control text-11 font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline ${focusRing}`}
+      className={`inline-flex min-h-6 items-center rounded-control text-11 font-medium text-text-secondary underline-offset-2 hover:text-text-primary hover:underline ${focusRing}`}
     >
       {children}
     </button>
@@ -73,7 +72,7 @@ export function BurnHealthPanel({
           testId="delivery-rail-stat-spent"
           eyebrow="Spent"
           value={usd(burn.spentUsd)}
-          note={`of ${usd(burn.softBudgetUsd)} soft budget`}
+          note={`of ${usd(burn.softBudgetUsd)} soft budget${burn.overBudget ? ", over budget" : ""}`}
           fill={burn.fill}
         />
         <DeliveryStat

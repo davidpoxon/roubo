@@ -447,7 +447,37 @@ describe("DeliveryTabPanel", () => {
     expect(within(header).getByTestId("delivery-mode-label")).toBeInTheDocument();
     expect(screen.getByTestId("delivery-source")).toHaveTextContent(
       "/repos/demo/.specifications/fixture-spec",
+    ); // The intro that names the spec before the snapshot loads is gone, so the
+    // slug shows once.
+    expect(screen.queryByText(/^Delivering/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("fixture-spec")).toHaveLength(1);
+  });
+
+  it("names the spec in the intro while the snapshot is read", () => {
+    vi.mocked(api.fetchDelivery).mockReturnValue(new Promise(() => undefined));
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    expect(screen.getByText(/^Delivering/)).toBeInTheDocument();
+    expect(screen.queryByTestId("delivery-header")).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-074 shows a source it could not read on the chip and in the rail when no disagreement was found", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+      disagreements: [],
+      refreshedAt: "2026-10-16T10:00:05Z",
+      sourceError: { source: "github", message: "fetch failed" },
+    });
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const chip = await screen.findByTestId("delivery-crosscheck-chip");
+    expect(chip).toHaveTextContent("cross-check · source not read");
+    const rail = screen.getByRole("complementary", { name: "Delivery summary" });
+    const panel = within(rail).getByTestId("delivery-crosscheck");
+    expect(within(panel).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
+      "GitHub could not be read",
     );
+    expect(within(panel).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
   });
 
   it("brings the decision pile into view from the rail's Decisions panel", async () => {

@@ -33,7 +33,7 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, laid out
-// as the Spec Bench design prototype lays it out. A header row holds the spec
+// in the layout of #1618. A header row holds the spec
 // slug, the cases met with a meter, the health chip (SB-FR-019, SB-NFR-006),
 // the mode in effect in a mono label (SB-FR-032) and a chip that counts the
 // cross-check's disagreements, with how the bench is bound and the spec folder
@@ -401,7 +401,7 @@ function DeliverySnapshotView({
       )}
 
       <div className="@container">
-        <div className="grid items-start gap-4 @5xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0">
             <DeliveryMap
               projectId={bench.projectId}

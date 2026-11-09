@@ -64,6 +64,34 @@ describe("BurnHealthPanel", () => {
   });
 });
 
+describe("BurnHealthPanel figures", () => {
+  it("lists the jammed units in stack order, reads the cases met over the total, and names an overrun", () => {
+    const record = fourUnitRecord();
+    const jammed = {
+      ...record,
+      budget: { ...record.budget, soft_budget_usd: 1, spent_usd: 1.5 },
+      units: record.units.map((unit) =>
+        unit.id === "C" || unit.id === "B" ? { ...unit, status: "jammed" } : unit,
+      ),
+    };
+    render(
+      <BurnHealthPanel
+        snapshot={foldDelivery({ record: jammed, events: [] })}
+        onOpenCostHealthControls={() => undefined}
+      />,
+    );
+    const jams = screen.getByTestId("delivery-rail-stat-jams");
+    expect(jams).toHaveTextContent("2");
+    expect(jams).toHaveTextContent("B, C");
+    expect(screen.getByTestId("delivery-rail-stat-cases")).toHaveTextContent(
+      /^Cases\d+ \/ \d+ cases met$/,
+    );
+    expect(screen.getByTestId("delivery-rail-stat-spent")).toHaveTextContent(
+      "of 1.00 soft budget, over budget",
+    );
+  });
+});
+
 describe("DecisionSummaryPanel", () => {
   it("shows the open decision first with its question, the counts, and a link to the pile", async () => {
     const onOpen = vi.fn();

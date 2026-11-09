@@ -9,7 +9,7 @@ import { focusRing } from "../ui/focus-ring";
 import { crossCheckMapKeys } from "./delivery-map-model";
 import { DeliveryPanel } from "./DeliveryPanel";
 
-// The delivery cross-check, a "Cross-check" panel on the Delivery tab's rail (SB-FR-029, SB-FR-030,
+// The delivery cross-check, a "Cross-check" panel (SB-FR-029, SB-FR-030,
 // SB-US-010, SB-NFR-004): one entry per disagreement of the bench's last
 // cross-check, in the order the server lists them, each naming its class, what
 // it is about, whether it blocks, and what the record claims beside what the
@@ -25,6 +25,8 @@ import { DeliveryPanel } from "./DeliveryPanel";
 // whole delivery (plan-hash-mismatch) has no map target: it stays in the Tab
 // order and is announced, and reads as unavailable to press.
 //
+// The Delivery tab shows the panel on its rail of summary panels; DeliveryRail
+// still hosts it when it is given a cross-check, which the tab no longer does.
 // The header of the Delivery tab carries a chip that counts the disagreements
 // (DeliveryCrossCheckChip); a press on it brings this panel into view.
 
@@ -106,7 +108,7 @@ export function DeliveryCrossCheckChip({
       data-blocking={blocking}
       aria-label={`Show the cross-check: ${summary}`}
       onClick={onOpen}
-      className={`inline-flex items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 font-mono text-11 font-medium transition-colors hover:border-border-control active:bg-bg-hover ${focusRing} ${
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 font-mono text-11 font-medium transition-colors hover:border-border-control active:bg-bg-hover ${focusRing} ${
         blocking ? "text-text-primary" : "text-text-secondary"
       }`}
     >

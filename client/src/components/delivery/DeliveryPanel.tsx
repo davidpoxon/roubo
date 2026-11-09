@@ -7,8 +7,7 @@ import {
   type Ref,
 } from "react";
 
-// The frame the Spec Bench views group their content in, as the Spec Bench
-// design prototype draws it: a surface with a hairline border, a header with a
+// The frame the Spec Bench views group their content in (#1617): a surface with a hairline border, a header with a
 // mono uppercase eyebrow on the left and an optional secondary meta line on the
 // right, and a body. The panel is a labelled section, so a screen reader can
 // move between panels by landmark. `label` names the section when its title

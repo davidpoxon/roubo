@@ -164,7 +164,7 @@ export default function DeliveryMap({
                 type="button"
                 aria-pressed={pressed}
                 onClick={() => viewState.setDeliveryMapView(option.id)}
-                className={`px-2.5 py-0.5 text-12 font-medium transition-colors ${focusRing} ${
+                className={`min-h-6 px-2.5 py-0.5 text-12 font-medium transition-colors ${focusRing} ${
                   pressed
                     ? "bg-accent-muted text-accent-text"
                     : "text-text-body hover:bg-bg-hover active:bg-bg-pressed"
@@ -186,12 +186,14 @@ export default function DeliveryMap({
             onOpen={setOpened}
           />
         ) : (
-          <DeliveryList
-            rows={rows}
-            selectedKey={selectedKey}
-            onSelect={setSelected}
-            onOpen={setOpened}
-          />
+          <div data-testid="delivery-list-scroll" className="overflow-x-auto">
+            <DeliveryList
+              rows={rows}
+              selectedKey={selectedKey}
+              onSelect={setSelected}
+              onOpen={setOpened}
+            />
+          </div>
         )}
 
         {opened !== null && (
