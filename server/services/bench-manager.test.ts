@@ -65,6 +65,7 @@ vi.mock("./docker.js", () => ({
   getContainerStatusById: vi.fn(async () => "running"),
   getContainerInfoById: vi.fn(),
   listDatabaseContainers: vi.fn(),
+  isComposeProjectRunning: vi.fn(async () => true),
 }));
 
 vi.mock("./resource-ownership-ledger.js", () => ({
@@ -9659,6 +9660,140 @@ describe("handleComponentPluginRestarted", () => {
     await benchManager.handleComponentPluginRestarted("some-other-plugin");
 
     expect(processManager.startProcess).not.toHaveBeenCalled();
+  });
+});
+
+// A plugin swap (HR-FR-009) re-binds the bench resources to the new process by
+// their deterministic handles and never stops one.
+describe("handleComponentPluginSwapped", () => {
+  function setupSwappedBench() {
+    setupExistingBench();
+    setupProcessMocks();
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    bench.status = "active";
+    bench.components.backend = { name: "backend", status: "running" };
+    vi.mocked(ledgerService.getAllEntries).mockReturnValue([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["process:1:backend"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.getProcessStatus).mockReturnValue({ alive: true, exitCode: null });
+    vi.mocked(dockerService.isComposeProjectRunning).mockResolvedValue(true);
+    return bench;
+  }
+
+  function translateCalls(): unknown[] {
+    return vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter(([, method]) => method === "translate");
+  }
+
+  it("HR-TC-021 keeps the ledger, re-binds each resource by handle and translates on the new process", async () => {
+    const bench = setupSwappedBench();
+    const swapState = await import("./plugin-swap-state.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+    expect(translateCalls()).toHaveLength(1);
+    // The cached descriptor is dropped on the next swap, so the new process is
+    // asked again rather than the old process's answer reused.
+    await benchManager.handleComponentPluginSwapped("process");
+    expect(translateCalls()).toHaveLength(2);
+
+    expect(processManager.getProcessStatus).toHaveBeenCalledWith("process:1:backend");
+    expect(dockerService.isComposeProjectRunning).toHaveBeenCalledWith(
+      "roubo-test-project-bench-1",
+    );
+    expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+    expect(processManager.stopProcess).not.toHaveBeenCalled();
+    expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
+    expect(swapState.isPluginStale("process")).toBe(false);
+    expect(bench.status).toBe("active");
+    expect(bench.components.backend.status).toBe("running");
+  });
+
+  it("HR-TC-056 marks the plugin and the bench stale when a resource does not re-bind, and leaves it running", async () => {
+    const bench = setupSwappedBench();
+    vi.mocked(dockerService.isComposeProjectRunning).mockResolvedValue(false);
+    const swapState = await import("./plugin-swap-state.js");
+    const { serializeBench } = await import("./bench-serializer.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+
+    expect(swapState.isPluginStale("process")).toBe(true);
+    expect(swapState.isBenchStaleFromSwap(1)).toBe(true);
+    expect(serializeBench(bench).stale).toBe(true);
+    expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+    expect(processManager.stopProcess).not.toHaveBeenCalled();
+    expect(dockerService.composeDownByProject).not.toHaveBeenCalled();
+    expect(bench.status).toBe("active");
+  });
+
+  it("marks the bench stale when the new process does not translate a bound component", async () => {
+    setupSwappedBench();
+    vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("translate failed"));
+    const swapState = await import("./plugin-swap-state.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+
+    expect(swapState.isBenchStaleFromSwap(1)).toBe(true);
+    expect(ledgerService.clearEntry).not.toHaveBeenCalled();
+  });
+
+  it("names a bound component whose config the next manifest no longer accepts", () => {
+    setupSwappedBench();
+    const base = {
+      id: "process",
+      name: "Process",
+      version: "2.0.0",
+      description: "Runs a host process",
+      kind: "component" as const,
+      roubo: "^1.3.0",
+      entry: "index.js",
+      permissions: {
+        network: { hosts: [] },
+        credentials: { slots: [] },
+        filesystem: { paths: [] },
+        processes: true,
+      },
+    };
+
+    expect(
+      benchManager.findBindingsBrokenBySwap("process", {
+        ...base,
+        configSchema: { type: "object", required: ["image"] },
+      }),
+    ).toEqual(["component 'backend' of bench 1"]);
+    expect(
+      benchManager.findBindingsBrokenBySwap("process", {
+        ...base,
+        configSchema: { type: "object" },
+      }),
+    ).toEqual([]);
+  });
+
+  it("queues a component stop that lands in the swap gap until the gap closes", async () => {
+    setupSwappedBench();
+    const swapState = await import("./plugin-swap-state.js");
+    swapState.openSwapGap("process");
+    try {
+      let settled = false;
+      const stop = benchManager.stopComponent("test-project", 1, "backend").finally(() => {
+        settled = true;
+      });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(settled).toBe(false);
+      expect(componentRegistry.resolveBinding).not.toHaveBeenCalled();
+
+      swapState.closeSwapGap("process");
+      await stop;
+      expect(componentRegistry.resolveBinding).toHaveBeenCalled();
+    } finally {
+      swapState.closeSwapGap("process");
+    }
   });
 });
 
