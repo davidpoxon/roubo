@@ -138,6 +138,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -728,7 +729,7 @@ async function openBenchAndExpectDelivery(
   expect(chip).toHaveTextContent("fresh");
 }
 
-describe("Spec Bench setup journey", () => {
+describe("Spec Bench setup journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-006: Operator sets up a Spec Bench from a specification and sees the delivery appear", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling(server);

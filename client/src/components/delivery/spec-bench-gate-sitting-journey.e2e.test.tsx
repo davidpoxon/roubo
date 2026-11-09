@@ -355,6 +355,7 @@ import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import { useDeepLink } from "../../hooks/useDeepLink";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1380,7 +1381,7 @@ afterEach(async () => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench gate sitting journey", () => {
+describe("Spec Bench gate sitting journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-068: Operator sits an escalated gate from call to close", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

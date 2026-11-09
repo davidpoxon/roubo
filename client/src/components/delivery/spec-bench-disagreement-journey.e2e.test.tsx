@@ -261,6 +261,7 @@ vi.mock("../testbench/TestBenchPanel", () => ({ default: () => null }));
 import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1005,7 +1006,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench disagreement journey", () => {
+describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-077: Operator sees a disagreement and is blocked from the risky action only", async () => {
     // Fake timers that advance with real time, so the backstop refresh can be
     // reached without waiting a minute.

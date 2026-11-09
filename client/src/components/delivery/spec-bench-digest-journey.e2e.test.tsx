@@ -252,6 +252,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -933,7 +934,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench digest journey", () => {
+describe("Spec Bench digest journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-027: Operator catches up after time away with the digest", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

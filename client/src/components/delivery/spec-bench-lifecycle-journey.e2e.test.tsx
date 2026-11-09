@@ -285,6 +285,7 @@ vi.mock("../testbench/TestBenchPanel", () => ({ default: () => null }));
 import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -978,7 +979,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench lifecycle journey", () => {
+describe("Spec Bench lifecycle journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-057: Operator controls models and lifecycle without the terminal", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

@@ -262,6 +262,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -961,7 +962,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench auto mode journey", () => {
+describe("Spec Bench auto mode journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-104: Operator sets up an auto delivery and switches the mode from the bench", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

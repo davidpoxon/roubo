@@ -317,6 +317,7 @@ vi.mock("../testbench/TestBenchPanel", () => ({ default: () => null }));
 import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1291,7 +1292,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench review journey", () => {
+describe("Spec Bench review journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-105: Operator reviews the agent's decisions from the bench and approves the delivery", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

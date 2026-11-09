@@ -139,6 +139,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -897,7 +898,7 @@ function drillInOfB(): HTMLElement {
   return within(screen.getByRole("region", { name: "Unit B" })).getByTestId("unit-drill-in");
 }
 
-describe("Spec Bench investigate journey", () => {
+describe("Spec Bench investigate journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-034: Operator investigates a failed unit from timeline to diff", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling(server);

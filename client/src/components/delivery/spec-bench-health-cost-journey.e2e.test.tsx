@@ -137,6 +137,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -729,7 +730,7 @@ function col(row: HTMLElement, name: string): string {
   return row.querySelector(`[data-col="${name}"]`)?.textContent ?? "";
 }
 
-describe("Spec Bench health and cost journey", () => {
+describe("Spec Bench health and cost journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-056: Operator checks health and cost and reads the drift ledger", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling(server);
