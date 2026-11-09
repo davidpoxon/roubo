@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 
 // The frame the Spec Bench views group their content in, as the Spec Bench
 // design prototype draws it: a surface with a hairline border, a header with a
@@ -28,7 +28,7 @@ export function DeliveryPanel({
         <h3 className="font-mono text-11 font-medium uppercase tracking-label text-text-secondary">
           {title}
         </h3>
-        {meta !== undefined && (
+        {hasMeta(meta) && (
           <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5 text-11 font-medium text-text-secondary">
             {meta}
           </div>
@@ -39,18 +39,26 @@ export function DeliveryPanel({
   );
 }
 
+// An absent, empty or conditional-false meta renders no meta line.
+function hasMeta(meta: ReactNode): boolean {
+  return meta !== undefined && meta !== null && meta !== false && meta !== "";
+}
+
 const STRIP_COLUMNS = ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"] as const;
 
 // A row of Delivery stat cells (DESIGN.md) split by hairline dividers, the
-// stat strip of a panel. It holds one to four cells; more wrap into a new row.
+// stat strip of a panel. It holds one to four cells: the column count is the
+// number of rendered cells (a false or null child is not a cell), and the
+// dividers assume a single row, so a strip never takes more than four.
 export function DeliveryStatStrip({ testId, children }: { testId?: string; children: ReactNode }) {
-  const count = Math.min(Math.max(Children.count(children), 1), STRIP_COLUMNS.length);
+  const cells = Children.toArray(children).filter(isValidElement);
+  const count = Math.min(Math.max(cells.length, 1), STRIP_COLUMNS.length);
   return (
     <div
       data-testid={testId}
       className={`grid ${STRIP_COLUMNS[count - 1]} divide-x divide-border [&>*]:min-w-0`}
     >
-      {children}
+      {cells.slice(0, STRIP_COLUMNS.length)}
     </div>
   );
 }

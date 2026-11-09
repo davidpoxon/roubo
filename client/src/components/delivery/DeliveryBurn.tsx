@@ -4,9 +4,10 @@ import { DeliveryPanel, DeliveryStatStrip } from "./DeliveryPanel";
 import { DeliveryStat } from "./DeliveryProgress";
 
 // The burn meter (SB-FR-018, SB-US-007): a "Burn" panel whose stat strip holds
-// spend against the soft budget as a Delivery stat, then the cost per unit (each unit's `cost_usd`) and per role
-// (the budget's `by_role`). It reads the snapshot, so a `unit.changed` or a
-// `budget.changed` moves it with the next delivery frame.
+// spend against the soft budget as a Delivery stat, with the cost per unit
+// (each unit's `cost_usd`) and per role (the budget's `by_role`) below it. It
+// reads the snapshot, so a `unit.changed` or a `budget.changed` moves it with
+// the next delivery frame.
 
 function usd(value: number): string {
   return value.toFixed(2);
@@ -25,7 +26,7 @@ function Breakdown({
 }) {
   return (
     <section data-testid={testId} aria-label={label} className="space-y-1">
-      <h3 className="font-mono text-11 font-medium text-text-secondary">{label}</h3>
+      <h4 className="font-mono text-11 font-medium text-text-secondary">{label}</h4>
       {rows.length === 0 ? (
         <p className="text-12 text-text-secondary">{empty}</p>
       ) : (

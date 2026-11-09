@@ -31,6 +31,28 @@ describe("DeliveryPanel", () => {
     );
     expect(screen.getByTestId("panel").querySelector("header")?.children).toHaveLength(1);
   });
+
+  it.each([
+    ["null", null],
+    ["false", false],
+    ["empty", ""],
+  ])("renders no meta line for a %s meta", (_label, meta) => {
+    render(
+      <DeliveryPanel testId="panel" title="Health" meta={meta}>
+        <p>body</p>
+      </DeliveryPanel>,
+    );
+    expect(screen.getByTestId("panel").querySelector("header")?.children).toHaveLength(1);
+  });
+
+  it("puts its title in a third-level heading", () => {
+    render(
+      <DeliveryPanel title="Burn">
+        <p>body</p>
+      </DeliveryPanel>,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "Burn" })).toBeTruthy();
+  });
 });
 
 describe("DeliveryStatStrip", () => {
@@ -45,6 +67,50 @@ describe("DeliveryStatStrip", () => {
     const strip = screen.getByTestId("strip");
     expect(strip.className).toContain("grid-cols-3");
     expect(strip.children).toHaveLength(3);
+  });
+
+  it("gives a single cell one column", () => {
+    render(
+      <DeliveryStatStrip testId="strip">
+        <DeliveryStat testId="a" eyebrow="Spent" value="1.00" note="of 2.00" />
+      </DeliveryStatStrip>,
+    );
+    expect(screen.getByTestId("strip").className).toContain("grid-cols-1");
+  });
+
+  it("does not count a false child as a cell", () => {
+    const showJams = false;
+    render(
+      <DeliveryStatStrip testId="strip">
+        <DeliveryStat testId="a" eyebrow="Spent" value="1.00" note="of 2.00" />
+        {showJams && <DeliveryStat testId="b" eyebrow="Jams" value={0} note="none" />}
+        <DeliveryStat testId="c" eyebrow="Cases" value="1 / 3" note="met" />
+      </DeliveryStatStrip>,
+    );
+    const strip = screen.getByTestId("strip");
+    expect(strip.className).toContain("grid-cols-2");
+    expect(strip.children).toHaveLength(2);
+  });
+
+  it("holds at most four cells", () => {
+    render(
+      <DeliveryStatStrip testId="strip">
+        {["a", "b", "c", "d", "e"].map((id) => (
+          <DeliveryStat key={id} testId={id} eyebrow={id} value={1} note="n" />
+        ))}
+      </DeliveryStatStrip>,
+    );
+    const strip = screen.getByTestId("strip");
+    expect(strip.className).toContain("grid-cols-4");
+    expect(strip.children).toHaveLength(4);
+  });
+});
+
+describe("DeliveryBurn breakdowns", () => {
+  it("heads each breakdown one level below the Burn panel", () => {
+    render(<DeliveryBurn snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })} />);
+    expect(screen.getByRole("heading", { level: 4, name: "Cost per unit" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 4, name: "Cost per role" })).toBeTruthy();
   });
 });
 
