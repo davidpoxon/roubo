@@ -441,7 +441,7 @@ describe("GET /:projectId/benches/:id/delivery/crosscheck", () => {
     expect(all).toEqual([...DELIVERY_CROSS_CHECK_CLASSES]);
   });
 
-  it("SB-TC-075 answers the previous list with a source error naming GitHub, which clears on the next refresh", async () => {
+  it("SB-FR-030 answers the previous list with a source error naming GitHub, which clears on the next refresh", async () => {
     nine = true;
     writeSpec(computePlanHash(plan), []);
     const before = await request(app).get(`${base}/crosscheck`);

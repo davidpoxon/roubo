@@ -559,7 +559,7 @@ describe("crossCheckDelivery", () => {
   });
 
   it.each(["passed", "failed"])(
-    "SB-TC-095 gives a gate the record states as %s over an unconfirmed provisional mark one blocking entry exempt for its own sitting",
+    "SB-FR-039 gives a gate the record states as %s over an unconfirmed provisional mark one blocking entry exempt for its own sitting",
     (status) => {
       const inputs = withGateAfterB(status, false);
 
@@ -577,7 +577,7 @@ describe("crossCheckDelivery", () => {
     },
   );
 
-  it("SB-TC-095 compares a gate whose provisional marks are all confirmed with the evaluator, with no exemption", () => {
+  it("SB-FR-039 compares a gate whose provisional marks are all confirmed with the evaluator, with no exemption", () => {
     const confirmed = withGateAfterB("passed", true);
     expect(run(confirmed)).toEqual([]);
 

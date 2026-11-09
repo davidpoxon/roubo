@@ -2,7 +2,8 @@
 //
 // The role matrix and the lifecycle controls, through the real control, ingest
 // and stream path (SB-TC-049, SB-TC-050, SB-TC-051; SB-FR-021, SB-FR-022,
-// SB-US-008).
+// SB-US-008), and a record that does not load, from the read to the tab
+// (SB-TC-016; SB-FR-009).
 //
 // What runs for real: an HTTP server on a loopback port with the delivery
 // routes (routes/delivery.ts: the snapshot read, the roles, pause, wind-down,
@@ -397,6 +398,67 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+describe("Record loading over the live path", () => {
+  function writeRecordFile(record: unknown): void {
+    fs.writeFileSync(
+      path.join(specFolder, "delivery-observation.json"),
+      `${JSON.stringify(record, null, 2)}\n`,
+    );
+  }
+
+  async function readFailure(): Promise<Record<string, unknown>> {
+    const res = await nodeFetch(
+      `${origin}/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`,
+    );
+    expect(res.status).toBe(409);
+    return (await res.json()) as Record<string, unknown>;
+  }
+
+  async function errorShownWithNoControls(text: RegExp): Promise<void> {
+    const callout = await screen.findByTestId("delivery-read-error", {}, { timeout: 3000 });
+    expect(callout).toHaveTextContent(text);
+    for (const id of [
+      "delivery-decision-controls",
+      "delivery-steering-controls",
+      "delivery-role-controls",
+      "delivery-lifecycle-controls",
+    ]) {
+      expect(screen.queryByTestId(id)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  }
+
+  it("SB-TC-016 an invalid record is rejected on load with a named error", async () => {
+    // Step 1: units as an object instead of an array, then load the bench.
+    const record = lifecycleRecord();
+    writeRecordFile({ ...record, units: { A: record.units[0] } });
+    renderTab();
+    await waitFor(
+      () =>
+        expect(clientRequests).toContainEqual({
+          method: "GET",
+          path: `/api/projects/${PROJECT_ID}/benches/${BENCH_ID}/delivery`,
+          status: 409,
+        }),
+      { timeout: 3000 },
+    );
+    expect(await readFailure()).toMatchObject({ code: "DELIVERY_INVALID", field: "units" });
+    await errorShownWithNoControls(/invalid units field/);
+
+    // Step 2: an unknown contract major version.
+    cleanup();
+    writeRecordFile({
+      ...lifecycleRecord(),
+      $schema: "https://roubo.dev/schema/delivery-record/v2.0.0.json",
+      schemaVersion: "2.0.0",
+    });
+    renderTab();
+    const mismatch = await readFailure();
+    expect(mismatch).toMatchObject({ code: "DELIVERY_VERSION_MISMATCH", found: "2.0.0" });
+    await errorShownWithNoControls(/version 2\.0\.0/);
+  });
+});
+
 describe("Role matrix over the live path", () => {
   it("SB-TC-049 a model change PUTs the role, shows pending, is listed on the controls endpoint, and shows current after roles.applied", async () => {
     renderTab();
@@ -553,7 +615,7 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     expect(await res.json()).toMatchObject({ code: "INVALID_BODY", field: "reason" });
   });
 
-  it("SB-TC-051 resume while the delivery is active is 409 naming the lifecycle state", async () => {
+  it("SB-FR-022 resume while the delivery is active is 409 naming the lifecycle state", async () => {
     vi.mocked(deliveryLaunchBlock).mockReturnValue("session_live");
     const res = await operator("POST", "resume");
     expect(res.status).toBe(409);
@@ -563,7 +625,7 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     expect(launchDeliverySession).not.toHaveBeenCalled();
   });
 
-  it("SB-TC-051 resume of a complete delivery is 409 WRONG_LIFECYCLE_STATE", async () => {
+  it("SB-FR-022 resume of a complete delivery is 409 WRONG_LIFECYCLE_STATE", async () => {
     await post([event("lifecycle.changed", { state: "complete" })]);
     const res = await operator("POST", "resume");
     expect(res.status).toBe(409);
@@ -575,7 +637,7 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     expect(launchDeliverySession).not.toHaveBeenCalled();
   });
 
-  it("SB-TC-051 pause while wound down is 409 naming the state, and issues nothing", async () => {
+  it("SB-FR-022 pause while wound down is 409 naming the state, and issues nothing", async () => {
     await post([event("lifecycle.changed", { state: "wound_down" })]);
     const res = await operator("POST", "pause");
     expect(res.status).toBe(409);
@@ -587,14 +649,14 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     expect(bench.deliveryControlQueue ?? []).toHaveLength(0);
   });
 
-  it("SB-TC-051 wind-down of a complete delivery is 409", async () => {
+  it("SB-FR-022 wind-down of a complete delivery is 409", async () => {
     await post([event("lifecycle.changed", { state: "Complete" })]);
     const res = await operator("POST", "wind-down");
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "WRONG_LIFECYCLE_STATE", state: "Complete" });
   });
 
-  it("SB-TC-051 approve while a gating case is unmet is 409 GATING_UNMET naming the gate", async () => {
+  it("SB-FR-022 approve while a gating case is unmet is 409 GATING_UNMET naming the gate", async () => {
     const res = await operator("POST", "approve");
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "GATING_UNMET", gates: ["gate-after-c"] });
@@ -606,11 +668,38 @@ describe("POST /delivery/pause, /wind-down, /resume and /approve", () => {
     expect(await approved.json()).toMatchObject({ kind: "approval" });
   });
 
-  it("SB-TC-051 approve of a complete delivery is 409 WRONG_LIFECYCLE_STATE before any other check", async () => {
+  it("SB-FR-022 approve of a complete delivery is 409 WRONG_LIFECYCLE_STATE before any other check", async () => {
     writeResults(CASES);
     await post([event("lifecycle.changed", { state: "complete" })]);
     const res = await operator("POST", "approve");
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "WRONG_LIFECYCLE_STATE", state: "complete" });
+  });
+
+  it("SB-TC-051 a lifecycle action in the wrong state is refused with a 409", async () => {
+    // Step 1: resume while the delivery is active.
+    vi.mocked(deliveryLaunchBlock).mockReturnValue("session_live");
+    const resume = await operator("POST", "resume");
+    expect(resume.status).toBe(409);
+    const resumeBody = (await resume.json()) as { error: string; state: string };
+    expect(resumeBody.state).toBe("running");
+    expect(resumeBody.error).toContain("running");
+    expect(launchDeliverySession).not.toHaveBeenCalled();
+
+    // Step 2: pause while wound down.
+    await post([event("lifecycle.changed", { state: "wound_down" })]);
+    const pause = await operator("POST", "pause");
+    expect(pause.status).toBe(409);
+    expect(await pause.json()).toMatchObject({
+      code: "WRONG_LIFECYCLE_STATE",
+      state: "wound_down",
+    });
+
+    // Step 3: approve while a gating case is unmet. Approval is open when
+    // wound down, so the refusal is the unmet gate's.
+    const approve = await operator("POST", "approve");
+    expect(approve.status).toBe(409);
+    expect(await approve.json()).toMatchObject({ code: "GATING_UNMET", gates: ["gate-after-c"] });
+    expect(bench.deliveryControlQueue ?? []).toHaveLength(0);
   });
 });

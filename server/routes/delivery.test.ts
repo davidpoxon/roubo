@@ -341,7 +341,7 @@ describe("GET /:projectId/benches/:id/delivery/events", () => {
     expect(res.body.folded).toBe(0);
   });
 
-  it("SB-TC-035 counts the unit's events the record carries apart from no events", async () => {
+  it("SB-FR-013 counts the unit's events the record carries apart from no events", async () => {
     writeRecord(fixtureRecord());
     accept([event(8, "C"), event(9, "D"), event(10, "C", "done")]);
     writeRecord({ ...fixtureRecord(), last_event_seq: 9 });

@@ -119,7 +119,7 @@ describe("Spec Bench host: verifyVariantState", () => {
     expect(!result.ok && result.error).toMatch(/Gate pin worktree not found for gate G1/);
   });
 
-  it("SB-TC-009 reads the pin's commit without blocking: the event loop turns before the check settles", async () => {
+  it("SB-FR-024 reads the pin's commit without blocking: the event loop turns before the check settles", async () => {
     const workspace = path.join(tmp, "ws", "bench-1");
     fs.mkdirSync(workspace, { recursive: true });
     git(workspace, "init", "-q", "-b", "main");
@@ -138,7 +138,7 @@ describe("Spec Bench host: verifyVariantState", () => {
     expect(await pending).toEqual({ ok: true });
   });
 
-  it("SB-TC-009 verifies a submodule's gate commit in that submodule of the pin", async () => {
+  it("SB-FR-024 verifies a submodule's gate commit in that submodule of the pin", async () => {
     const pin = path.join(tmp, "ws", "bench-1-pin");
     const sub = path.join(pin, "app");
     fs.mkdirSync(sub, { recursive: true });
@@ -166,7 +166,7 @@ describe("Spec Bench host: verifyVariantState", () => {
     expect(!outside.ok && outside.error).toContain(`expected commit ${second}, found none`);
   });
 
-  it("SB-TC-009 a server restart with a pinned bench verifies the pin path and commit against the bench record", async () => {
+  it("SB-FR-024 verifyVariantState checks the pin path and commit against the bench record", async () => {
     const workspace = path.join(tmp, "ws", "bench-1");
     fs.mkdirSync(workspace, { recursive: true });
     git(workspace, "init", "-q", "-b", "main");
