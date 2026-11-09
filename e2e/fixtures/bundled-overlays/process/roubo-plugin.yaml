@@ -1,0 +1,58 @@
+id: process
+name: Process
+version: 0.2.0
+description: E2E overlay that takes the bundled process component plugin's slot during Playwright runs. Mirrors the real plugin's configSchema and its config-to-descriptor mapping so HR-TC-001 S004 can watch a new bench start a process component. Not for production.
+kind: component
+roubo: ^1.0.0
+entry: ./index.mjs
+contractVersion: 1
+descriptorSchemaVersion: 1
+# Mirrors e2e/fixtures/first-party-manifests/process/roubo-plugin.yaml, the
+# snapshot of the published manifest, except that the entry is this overlay's
+# own runtime. The overlay is installed but force-disabled by every
+# /test/__reset, so a spec that needs a process component to start opts in
+# (POST /api/plugins/process/enable, then POST /api/plugins/process/consent).
+configSchema:
+  type: object
+  required:
+    - command
+  properties:
+    command:
+      type: string
+      minLength: 1
+      description: The command line started in the bench workspace (or `directory`) to run the process.
+    setup:
+      type: string
+      minLength: 1
+      description: Optional one-time setup command run before the first start (e.g. `npm install`). Skipped on a Stop -> Start cycle.
+    env:
+      type: object
+      additionalProperties:
+        type: string
+      description: Environment variables injected into the spawned process. Win over `envFile` on conflict.
+    envFile:
+      type: string
+      minLength: 1
+      description: Path (relative to the workspace) to a KEY=VALUE env file merged into the process environment.
+    directory:
+      type: string
+      minLength: 1
+      description: Working directory (relative to the workspace) the command runs in. Defaults to the workspace root.
+    shell:
+      oneOf:
+        - type: boolean
+        - type: string
+          minLength: 1
+      description: Opt-in shell interpretation for `command` and `setup`. Omitted, both run as argv.
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # Declarative plugin: translate() only emits a ProvisionDescriptor, and the
+  # host LifecycleEngine starts the descriptor's command.
+  processes: false
+  ports: false
+  docker: false

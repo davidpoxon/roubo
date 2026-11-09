@@ -507,6 +507,19 @@ function disableOptInAgentFixturePlugins(): void {
   }
 }
 
+// HR-TC-001 S004: the `process` component overlay
+// (e2e/fixtures/bundled-overlays/process/) lets a new bench start a process
+// component. Every e2e fixture project binds a component to `process`, so the
+// overlay stays opt-in: forced disabled at every reset, and enabled and
+// consented by the spec that needs a process component to start. A spec that
+// does not ask keeps the component unstarted, as before the overlay existed.
+const OPT_IN_COMPONENT_FIXTURE_PLUGIN_IDS = ["process"] as const;
+function disableOptInComponentFixturePlugins(): void {
+  for (const id of OPT_IN_COMPONENT_FIXTURE_PLUGIN_IDS) {
+    pluginEnableState.setPluginEnabled(id, false);
+  }
+}
+
 // WU-066 (TC-171/TC-172): inverse of `ensureBundledPluginsEnabled`. Writes
 // every bundled plugin id as "disabled" so the project-load Enable-plugin
 // prompt fires when the next spec navigates to a project that references one
@@ -642,6 +655,7 @@ router.post("/__reset", async (req: Request, res: Response) => {
     }
     disableFailureFixturePlugins();
     disableOptInAgentFixturePlugins();
+    disableOptInComponentFixturePlugins();
     await pluginManager.initialize();
     res.status(200).json({ ok: true });
   } catch (err) {
