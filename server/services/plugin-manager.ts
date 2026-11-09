@@ -185,8 +185,15 @@ interface PluginEntry {
   // stop of the old process until the new one has started and its resources
   // are re-bound, or has failed to start. handleChildExit treats an exit seen
   // while it is set like an intentional stop, so a swap never reaches the crash
-  // path: no pre-restart teardown, no restart budget, no re-provision.
+  // path: no pre-restart teardown, no restart budget, no re-provision. An exit
+  // during the re-bind is still a failure of the swap (see swapRebinding).
   swapping: boolean;
+  // The benches of the swap whose new process has passed its start check and
+  // is being re-bound, else `null`. An exit of that process is a real failure
+  // of the swap, not its own stop: handleChildExit then marks the plugin
+  // errored and stale with these benches and closes the swap gap, still without
+  // reaching the crash path, so the ledger and the resources stay as they are.
+  swapRebinding: swapState.SwapBenchRef[] | null;
   // The swap queued last on this entry, so a second swap runs after the first
   // rather than racing it. `null` when no swap has run.
   swapChain: Promise<void> | null;
@@ -636,6 +643,7 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
     preRestartCleanups: new Set(),
     preRestartEpoch: 0,
     swapping: false,
+    swapRebinding: null,
     swapChain: null,
   };
 }
@@ -1431,7 +1439,8 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   entry.record.pid = null;
   // An exit during a swap is the swap's own stop, or the new process failing
   // to start: neither is a crash (HR-FR-009).
-  const wasIntentional = entry.intentionalStop || entry.swapping;
+  const stoppedByHost = entry.intentionalStop;
+  const wasIntentional = stoppedByHost || entry.swapping;
   entry.intentionalStop = false;
   if (entry.connection) {
     try {
@@ -1442,6 +1451,27 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
     entry.connection = null;
   }
   entry.process = null;
+
+  // The new process of a swap passed its start check, then exited while its
+  // resources were being re-bound. That is a failure of the swap, so it is
+  // recorded as one, but it stays off the crash path as the rest of the swap
+  // does: no pre-restart teardown, no restart, and the ledger is kept. Closing
+  // the swap gap lets a call that waits on it fail now rather than at the gap's
+  // timeout.
+  const rebindBenches = entry.swapRebinding;
+  if (rebindBenches && !stoppedByHost) {
+    entry.swapRebinding = null;
+    const pluginId = entry.record.id;
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "swap-process-exited",
+      message: `The new process of plugin "${pluginId}" exited (code=${exitCode}) while its bench resources were being re-bound. The bench resources it managed are still running.`,
+    };
+    swapState.markPluginStale(pluginId, rebindBenches);
+    swapState.closeSwapGap(pluginId);
+    writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
+    return;
+  }
 
   if (wasIntentional) {
     if (entry.record.status === "enabled") {
@@ -2164,7 +2194,9 @@ function exitsWithin(proc: ChildProcess, ms: number): Promise<boolean> {
  * `swapping`, so an exit at start is not read as a crash and no pre-restart
  * teardown runs. When the process does not start, the plugin and `benches`
  * are marked stale and every bench resource is left running. When it starts,
- * the host re-binds the ledger through `onComponentPluginSwapped`.
+ * the host re-binds the ledger through `onComponentPluginSwapped`; when the new
+ * process exits during that re-bind, the plugin is errored and it and
+ * `benches` are marked stale, again with every bench resource left running.
  */
 async function startSwappedProcess(
   entry: PluginEntry,
@@ -2190,7 +2222,20 @@ async function startSwappedProcess(
     return;
   }
   swapState.clearPluginStale(pluginId);
-  await rebindSwappedResources(entry, benches);
+  // From here an exit of the new process is a failure of the swap, which
+  // handleChildExit records (errored, stale, swap gap closed) without reaching
+  // the crash path.
+  entry.swapRebinding = benches;
+  try {
+    await rebindSwappedResources(entry, benches);
+  } finally {
+    entry.swapRebinding = null;
+  }
+  if (entry.process !== proc) {
+    // The new process is gone, so the re-bind did not hold: the swap does not
+    // end as a success, also for a plugin that no bench uses.
+    swapState.markPluginStale(pluginId, benches);
+  }
 }
 
 /**
@@ -2226,9 +2271,9 @@ async function rebindSwappedResources(
  * starts, each ledger entry is re-bound to it by its deterministic handle.
  *
  * The swap never reaches the crash path: no pre-restart teardown runs and the
- * ledger is never cleared, also when the new process does not start. That
- * case, and a resource that does not re-bind, marks the plugin and its benches
- * stale and leaves the resources running.
+ * ledger is never cleared, also when the new process does not start or exits
+ * during the re-bind. Those cases, and a resource that does not re-bind, mark
+ * the plugin and its benches stale and leave the resources running.
  *
  * Rejects with PluginSwapRefusedError, before the stop, for an imperative
  * plugin or a binding-breaking manifest change. A swap of a plugin that is not
