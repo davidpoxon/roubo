@@ -9,8 +9,8 @@
  * - state.json: the hand-editable fields of each bench that is not live. An
  *   edit of a live bench is refused with a notice that names it, and the bench
  *   keeps what it has.
- * - auth.json: a GitHub token put there is moved into the github-com plugin's
- *   credential slot, as the boot migration does.
+ * - auth.json: a GitHub token put there is copied into the github-com
+ *   plugin's github-token credential slot, and auth.json is left in place.
  * - plugins-consent.json: each consented plugin that is not running and that
  *   the user has not disabled starts, as a grant of consent in the app starts
  *   it, and the notice names the plugins that started.
@@ -273,7 +273,8 @@ async function handleBenchState(absPath: string): Promise<HandlerResult> {
 async function handleAuth(absPath: string): Promise<HandlerResult> {
   const read = readStateFile(absPath);
   // auth.json is a legacy file: the boot migration moves its token out and
-  // removes it, so its absence is the normal state.
+  // removes it, so its absence is the normal state. A token put there by hand
+  // is copied into the credential slot, and the file is left in place.
   if (read.kind === "missing") return "ignored";
   if (read.kind === "invalid") return rejected("auth.json", "GitHub token", read.first);
   const token = read.value.githubToken;
