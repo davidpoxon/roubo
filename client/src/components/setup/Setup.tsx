@@ -280,9 +280,12 @@ export default function Setup() {
   }, [pendingConfig, editProject?.config, benches]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
-  // Both save routes re-parse the written roubo.yaml on the server, so a save
-  // only refreshes the projects and raw-config queries. The manual reload
-  // route is not called here: it logs and broadcasts, which an app write must not.
+  // PUT config/raw re-parses the project it names, and POST save-config
+  // re-parses the project registered at the written repoPath, even when the
+  // saved project.name differs; a new project's save re-parses nothing until
+  // it is registered. So a save only refreshes the projects and raw-config
+  // queries. The manual reload route is not called here: it logs and
+  // broadcasts, which an app write must not.
   const saveConfig = useSaveConfig(projectId);
   const saveRawConfig = useSaveRawConfig(projectId);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);

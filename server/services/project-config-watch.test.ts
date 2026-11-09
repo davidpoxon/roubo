@@ -345,6 +345,30 @@ describe("roubo.yaml watch", () => {
     expect(inputEvents()).toHaveLength(0);
   });
 
+  it("HR-TC-041: a guided save that renames project.name re-parses the project registered at that repo, with no event", async () => {
+    const { default: express } = await import("express");
+    const { default: request } = await import("supertest");
+    const YAML = await import("yaml");
+    const { default: router } = await import("../routes/projects.js");
+    const app = express();
+    app.use(express.json());
+    app.use("/", router);
+
+    const config = YAML.parse(roubo("beacon", { webBase: 4900 }));
+    const res = await request(app).post("/save-config").send({ repoPath: lanternDir, config });
+    expect(res.status).toBe(200);
+
+    const live = registry.getProject("lantern");
+    expect(live?.config?.project.name).toBe("beacon");
+    expect(live?.config?.ports.web.base).toBe(4900);
+    expect(registry.getProject("beacon")).toBeUndefined();
+
+    await waitFor(() => configLines("self-write").length === 1);
+    await sleep(300);
+    expect(configLines("applied")).toHaveLength(0);
+    expect(inputEvents()).toHaveLength(0);
+  });
+
   it("HR-TC-004: a rejected app write keeps the last good config, sends one rejected event, and a hand save of the same content runs again", async () => {
     const lastGood = registry.getProject("lantern");
     const invalid = roubo("lantern").replace("max: 3", "max: many");
