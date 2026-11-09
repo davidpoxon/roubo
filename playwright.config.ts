@@ -115,13 +115,14 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     (server/services/catalog-client.ts) lists the overlay as a `cursor-cli`
 //     agent-kind entry.
 //   - hot-reload: same built-app surface, holds the HR-TC-001 / HR-TC-045
-//     save-roubo.yaml journey drift guard. It edits a fixture project's
-//     roubo.yaml on disk while the server runs, and reads the server's
+//     save-roubo.yaml journey drift guard and the HR-TC-002 stale-bench
+//     journey drift guard. Both edit a fixture project's roubo.yaml on disk
+//     while the server runs; HR-TC-001 / HR-TC-045 read the server's
 //     `[input-watcher]` apply lines through GET /test/__input-watcher-log.
-//     Its S004 start leg relies on the `process` component overlay under
+//     Their bench legs rely on the `process` component overlay under
 //     ROUBO_BUNDLED_PLUGINS_DIR, which mirrors the real plugin's translate
 //     mapping. Every fixture project binds a component to `process`, so the
-//     overlay is force-disabled by every /test/__reset, and the spec enables
+//     overlay is force-disabled by every /test/__reset, and each spec enables
 //     and consents it before it sets up a bench.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
