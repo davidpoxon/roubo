@@ -242,8 +242,19 @@ router.delete("/:id", async (req, res) => {
   }
   try {
     await pluginManager.uninstall(id);
-    res.status(204).end();
+    res.status(200).json({ id, removed: true });
   } catch (err) {
+    // HR-FR-010: a bench still uses the plugin. The message is the notice that
+    // names each bench; `benchIds` lets the client point at them.
+    const inUse = err as Partial<pluginManager.PluginInUseError>;
+    if (inUse.code === "plugin-in-use" && Array.isArray(inUse.benchIds)) {
+      res.status(409).json({
+        error: (err as Error).message,
+        code: "plugin-in-use",
+        benchIds: inUse.benchIds,
+      });
+      return;
+    }
     res.status(409).json({ error: (err as Error).message });
   }
 });

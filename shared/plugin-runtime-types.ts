@@ -81,4 +81,12 @@ export interface PluginRecord {
   sourceUrl?: string;
   unverified?: boolean;
   orphaned?: boolean;
+  /**
+   * True when a swap of this plugin's process (HR-FR-009) left a bench resource
+   * that did not re-bind, or a new process that did not start. It sits beside
+   * `status` rather than in it: the plugin may still be `enabled`, and the bench
+   * resources are left running. Derived by the host on each read; absent on a
+   * record the host did not build.
+   */
+  stale?: boolean;
 }
