@@ -30,7 +30,7 @@ export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliverySta
         {eyebrow}
       </span>
       <span className="font-mono text-16 font-semibold text-text-primary">{value}</span>{" "}
-      <span className="text-11 text-text-secondary">{note}</span>
+      <span className="max-w-full break-words text-11 text-text-secondary">{note}</span>
       {fill !== undefined && (
         <span aria-hidden="true" className="block h-1 w-full rounded-full bg-bg-hover">
           <span

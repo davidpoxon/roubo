@@ -147,7 +147,7 @@ export default function DeliveryCrossCheck({
             role="status"
             data-testid="delivery-crosscheck-source-error"
             data-source={sourceError.source}
-            className="py-0.5 font-mono text-11 text-text-secondary"
+            className="break-words py-0.5 font-mono text-11 text-text-secondary"
           >
             {SOURCE_NAMES[sourceError.source] ?? sourceError.source} could not be read:{" "}
             {sourceError.message}

@@ -4,6 +4,11 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import type { DeliveryCrossCheckResponse } from "@roubo/shared/delivery-bench";
+import {
+  DELIVERY_CONTROL_SCHEMA_ID,
+  DELIVERY_CONTROL_SCHEMA_VERSION,
+  type DeliveryControl,
+} from "@roubo/shared/delivery-control-contract";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
 import { DeliveryCrossCheckChip } from "./DeliveryCrossCheck";
 import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./DeliverySummaryRail";
@@ -103,6 +108,58 @@ describe("NextBoundaryPanel", () => {
     expect(within(panel).getByText("A · running")).toBeTruthy();
     expect(within(panel).getByText("Nothing is queued for it")).toBeTruthy();
   });
+
+  it("lists each note and role change queued for the boundary", () => {
+    const control = (seq: number, kind: string, body: object, target?: string) =>
+      ({
+        $schema: DELIVERY_CONTROL_SCHEMA_ID,
+        schemaVersion: DELIVERY_CONTROL_SCHEMA_VERSION,
+        delivery_id: "demo-delivery-1",
+        control_seq: seq,
+        kind,
+        body,
+        ...(target !== undefined && { target_id: target }),
+        durability: "durable",
+        issued_at: "2026-10-16T10:00:00Z",
+        status: "pending",
+      }) as DeliveryControl;
+    render(
+      <NextBoundaryPanel
+        snapshot={foldDelivery({
+          record: fourUnitRecord(),
+          events: [],
+          controls: [
+            control(3, "steering-note", { note: "Prefer the dialog component" }),
+            control(4, "role-change", { tier: "fast" }, "coder"),
+          ],
+        })}
+      />,
+    );
+    const panel = screen.getByRole("region", { name: "Boundary summary" });
+    expect(within(panel).getByTestId("delivery-next-boundary-item-3")).toHaveTextContent(
+      "note queued",
+    );
+    expect(within(panel).getByTestId("delivery-next-boundary-item-3")).toHaveTextContent(
+      "Prefer the dialog component",
+    );
+    expect(within(panel).getByTestId("delivery-next-boundary-item-4")).toHaveTextContent(
+      "role queued",
+    );
+    expect(within(panel).getByTestId("delivery-next-boundary-item-4")).toHaveTextContent(
+      "coder: fast",
+    );
+  });
+
+  it("says so when no unit boundary is ahead", () => {
+    const record = fourUnitRecord();
+    const done = {
+      ...record,
+      units: record.units.map((unit) => ({ ...unit, status: "done" })),
+    };
+    render(<NextBoundaryPanel snapshot={foldDelivery({ record: done, events: [] })} />);
+    const panel = screen.getByRole("region", { name: "Boundary summary" });
+    expect(within(panel).getByText("No unit boundary is ahead")).toBeTruthy();
+  });
 });
 
 function crossCheck(blocking: boolean[]): DeliveryCrossCheckResponse {
@@ -132,6 +189,21 @@ describe("DeliveryCrossCheckChip", () => {
     expect(chip).toHaveTextContent(text);
     await userEvent.click(chip);
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("names a source it could not read when no disagreement was found", () => {
+    render(
+      <DeliveryCrossCheckChip
+        crossCheck={{
+          ...crossCheck([]),
+          sourceError: { source: "github", message: "fetch failed" },
+        }}
+        onOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("delivery-crosscheck-chip")).toHaveTextContent(
+      "cross-check · source not read",
+    );
   });
 
   it("does not show while the cross-check has nothing to show", () => {

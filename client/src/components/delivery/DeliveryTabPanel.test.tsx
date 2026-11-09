@@ -434,6 +434,31 @@ describe("DeliveryTabPanel", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
   });
 
+  it("heads the snapshot with the spec slug, the case progress, the rail and the mode, then the source paths", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const header = await screen.findByTestId("delivery-header");
+    expect(within(header).getByTestId("delivery-slug")).toHaveTextContent("fixture-spec");
+    expect(within(header).getByTestId("delivery-header-progress")).toHaveTextContent(
+      /\d+ of \d+ cases met/,
+    );
+    expect(within(header).getByTestId("delivery-rail")).toBeInTheDocument();
+    expect(within(header).getByTestId("delivery-mode-label")).toBeInTheDocument();
+    expect(screen.getByTestId("delivery-source")).toHaveTextContent(
+      "/repos/demo/.specifications/fixture-spec",
+    );
+  });
+
+  it("brings the decision pile into view from the rail's Decisions panel", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
+    await userEvent.click(within(rail).getByRole("button", { name: "Open the decision pile" }));
+    expect(document.activeElement).toBe(screen.getByTestId("delivery-decision-pile-target"));
+  });
+
   it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     const classes = [

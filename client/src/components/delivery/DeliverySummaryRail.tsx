@@ -15,7 +15,8 @@ import { DeliveryStat } from "./DeliveryProgress";
 
 // The summary panels on the Delivery tab's rail, as the Spec Bench design
 // prototype draws them: "Burn and health" (spent, jams and cases met in one stat
-// strip), "Decisions" (the newest decision on the pile and the counts), and
+// strip), "Decisions" (the newest open decision first, else the newest on the
+// pile, and the counts), and
 // "Next boundary" (the next unit boundary and what is queued for it). Each one
 // reads the snapshot and summarises a view that holds the full detail and its
 // controls; the link in a panel's header brings that view into view. Nothing

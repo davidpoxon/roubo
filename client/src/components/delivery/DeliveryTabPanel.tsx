@@ -33,13 +33,15 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
 // and how it is bound, then reads the delivery: the folded snapshot, laid out
-// as the Spec Bench design prototype lays it out. A header row holds the cases
-// met with a meter, the health chip (SB-FR-019, SB-NFR-006), the mode in effect
-// in a mono label (SB-FR-032) and a chip that counts the cross-check's
-// disagreements. Below it, the map sits on the left and a rail of summary
-// panels on the right (burn and health, decisions, the next boundary, and the
-// cross-check with its disagreements and source error, SB-FR-030), where Enter
-// on an entry focuses its unit or gate on the map (SB-FR-029). Below both come
+// as the Spec Bench design prototype lays it out. A header row holds the spec
+// slug, the cases met with a meter, the health chip (SB-FR-019, SB-NFR-006),
+// the mode in effect in a mono label (SB-FR-032) and a chip that counts the
+// cross-check's disagreements, with how the bench is bound and the spec folder
+// on a line under it. Below it sit the map and a rail of summary panels (burn
+// and health, decisions, the next boundary, and the cross-check with its
+// disagreements and source error, SB-FR-030): side by side once the tab is wide
+// enough for both, else the rail under the map. Enter on a cross-check entry
+// focuses its unit or gate on the map (SB-FR-029). Below both come
 // its progress in cases met and requirements covered (SB-FR-011), the gate
 // sitting the bench prepares or has open, which reads waiting for build until
 // the pinned build passed its smoke check and ready to sit after (SB-FR-023),
@@ -82,29 +84,31 @@ export default function DeliveryTabPanel({
 }) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
+  const bindText =
+    bench.deliveryBindMode === "attach"
+      ? "attached to a running delivery"
+      : bench.deliveryBindMode === "launch"
+        ? "launched from this bench"
+        : undefined;
   const delivery = useDelivery(bench.projectId, bench.id);
   const readError = delivery.isError ? deliveryReadErrorOf(delivery.error) : undefined;
 
   return (
     <div data-testid="delivery-tab-panel" className="space-y-4">
-      <div className="space-y-2">
-        <p className="text-13 text-text-body">
-          Delivering{" "}
-          <span className="font-mono text-16 font-medium text-text-primary">
-            {slug ?? "no spec"}
-          </span>
-          {bench.deliveryBindMode && (
-            <span className="text-text-secondary">
-              {bench.deliveryBindMode === "attach"
-                ? " · attached to a running delivery"
-                : " · launched from this bench"}
+      {!delivery.isSuccess && (
+        <div className="space-y-2">
+          <p className="text-13 text-text-body">
+            Delivering{" "}
+            <span className="font-mono text-16 font-medium text-text-primary">
+              {slug ?? "no spec"}
             </span>
+            {bindText !== undefined && <span className="text-text-secondary"> · {bindText}</span>}
+          </p>
+          {specFolder && (
+            <p className="break-all font-mono text-12 text-text-secondary">{specFolder}</p>
           )}
-        </p>
-        {specFolder && (
-          <p className="break-all font-mono text-12 text-text-secondary">{specFolder}</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {delivery.isPending && (
         <p role="status" className="text-13 text-text-secondary">
@@ -122,6 +126,10 @@ export default function DeliveryTabPanel({
       {delivery.isSuccess && (
         <DeliverySnapshotView
           bench={bench}
+          slug={slug}
+          source={[bindText, specFolder].filter(
+            (part): part is string => part !== undefined && part !== "",
+          )}
           snapshot={delivery.data}
           decisionPileFocusKey={decisionPileFocusKey}
           onDecisionPileFocused={onDecisionPileFocused}
@@ -249,8 +257,14 @@ function DeliverySnapshotView({
   decisionPileFocusKey,
   onDecisionPileFocused,
   onSittingOpened,
+  slug,
+  source,
 }: {
   bench: Bench;
+  // The spec the bench delivers, which leads the header row, and the line
+  // under the row: how the bench is bound and the spec folder.
+  slug: string | undefined;
+  source: string[];
   snapshot: DeliverySnapshotResponse;
   decisionPileFocusKey: string | undefined;
   onDecisionPileFocused: ((key: string) => void) | undefined;
@@ -344,24 +358,37 @@ function DeliverySnapshotView({
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
-      <div
-        data-testid="delivery-header"
-        className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border pb-3"
-      >
-        <DeliveryHeaderProgress snapshot={snapshot} />
-        <DeliveryRail
-          snapshot={snapshot}
-          attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
-        />
-        <span
-          data-testid="delivery-mode-label"
-          data-mode={snapshot.mode.value}
-          className="py-0.5 font-mono text-11 font-medium text-text-secondary"
-        >
-          {snapshot.mode.value} mode
-        </span>
-        {crossCheck.data !== undefined && (
-          <DeliveryCrossCheckChip crossCheck={crossCheck.data} onOpen={openCrossCheck} />
+      <div className="space-y-1 border-b border-border pb-3">
+        <div data-testid="delivery-header" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span
+            data-testid="delivery-slug"
+            className="font-mono text-16 font-medium text-text-primary"
+          >
+            {slug ?? "no spec"}
+          </span>
+          <DeliveryHeaderProgress snapshot={snapshot} />
+          <DeliveryRail
+            snapshot={snapshot}
+            attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
+          />
+          <span
+            data-testid="delivery-mode-label"
+            data-mode={snapshot.mode.value}
+            className="py-0.5 font-mono text-11 font-medium text-text-secondary"
+          >
+            {snapshot.mode.value} mode
+          </span>
+          {crossCheck.data !== undefined && (
+            <DeliveryCrossCheckChip crossCheck={crossCheck.data} onOpen={openCrossCheck} />
+          )}
+        </div>
+        {source.length > 0 && (
+          <p
+            data-testid="delivery-source"
+            className="break-all font-mono text-11 text-text-secondary"
+          >
+            {source.join(" · ")}
+          </p>
         )}
       </div>
       {digest.isSuccess && digest.data.entries.length > 0 && (
@@ -373,42 +400,44 @@ function DeliverySnapshotView({
         />
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0">
-          <DeliveryMap
-            projectId={bench.projectId}
-            benchId={bench.id}
-            snapshot={snapshot}
-            {...(bench.deliverySessionId !== undefined && {
-              deliverySessionId: bench.deliverySessionId,
-            })}
-            {...(snapshot.sitting !== undefined && { sitting: snapshot.sitting })}
-            focusRequest={mapFocus}
-          />
-        </div>
-        <aside
-          data-testid="delivery-summary-rail"
-          aria-label="Delivery summary"
-          className="@container min-w-0"
-        >
-          <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
-            <BurnHealthPanel
+      <div className="@container">
+        <div className="grid items-start gap-4 @5xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0">
+            <DeliveryMap
+              projectId={bench.projectId}
+              benchId={bench.id}
               snapshot={snapshot}
-              onOpenCostHealthControls={openCostHealthControls}
+              {...(bench.deliverySessionId !== undefined && {
+                deliverySessionId: bench.deliverySessionId,
+              })}
+              {...(snapshot.sitting !== undefined && { sitting: snapshot.sitting })}
+              focusRequest={mapFocus}
             />
-            <DecisionSummaryPanel snapshot={snapshot} onOpenDecisions={openDecisionPile} />
-            <NextBoundaryPanel snapshot={snapshot} className="col-span-full" />
-            {crossCheck.data !== undefined && (
-              <DeliveryCrossCheck
-                ref={crossCheckPanel}
-                crossCheck={crossCheck.data}
-                snapshot={snapshot}
-                onFocusMapTarget={focusMapTarget}
-                className="col-span-full"
-              />
-            )}
           </div>
-        </aside>
+          <aside
+            data-testid="delivery-summary-rail"
+            aria-label="Delivery summary"
+            className="@container/rail min-w-0"
+          >
+            <div className="grid gap-4 @md/rail:grid-cols-2 @3xl/rail:grid-cols-3">
+              <BurnHealthPanel
+                snapshot={snapshot}
+                onOpenCostHealthControls={openCostHealthControls}
+              />
+              <DecisionSummaryPanel snapshot={snapshot} onOpenDecisions={openDecisionPile} />
+              <NextBoundaryPanel snapshot={snapshot} className="col-span-full" />
+              {crossCheck.data !== undefined && (
+                <DeliveryCrossCheck
+                  ref={crossCheckPanel}
+                  crossCheck={crossCheck.data}
+                  snapshot={snapshot}
+                  onFocusMapTarget={focusMapTarget}
+                  className="col-span-full"
+                />
+              )}
+            </div>
+          </aside>
+        </div>
       </div>
 
       <DeliveryProgressStats snapshot={snapshot} />
