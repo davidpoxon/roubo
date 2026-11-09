@@ -111,6 +111,13 @@ beforeEach(() => {
 
 const card = (id: string) => screen.getByTestId(`review-card-${id}`);
 
+// The Overturn actions of a card: one for each other option (#1622).
+function overturnsOf(element: HTMLElement): HTMLElement[] {
+  const overturns = within(element).getAllByRole("button", { name: /^Overturn: / });
+  expect(overturns.length).toBeGreaterThan(0);
+  return overturns;
+}
+
 afterEach(() => {
   cleanup();
 });
@@ -257,10 +264,9 @@ describe("ReviewPile", () => {
     expect(screen.queryByTestId("review-card-D-1")).not.toBeInTheDocument();
     expect(card("D-2")).toHaveAttribute("data-position", "top");
 
-    // Step 3: Overturn on D-2 offers the other option and sends it.
-    await user.click(within(card("D-2")).getByRole("button", { name: "Overturn" }));
+    // Step 3: D-2's Overturn for its other option, named by it, sends it.
     const choices = within(card("D-2")).getByRole("group", { name: "Overturn D-2 with" });
-    await user.click(within(choices).getByRole("button", { name: OPTIONS[0] }));
+    await user.click(within(choices).getByRole("button", { name: `Overturn: ${OPTIONS[0]}` }));
     expect(api.overturnDeliveryDecision).toHaveBeenCalledWith("demo", 1, "D-2", OPTIONS[0]);
   });
 
@@ -276,7 +282,7 @@ describe("ReviewPile", () => {
     // Step 1: the top card during a run.
     expect(within(top).getByTestId("review-badge")).toHaveTextContent("D-1 · decided");
     expect(within(top).getByRole("button", { name: "Accept" })).toBeEnabled();
-    expect(within(top).getByRole("button", { name: "Overturn" })).toBeEnabled();
+    for (const overturn of overturnsOf(top)) expect(overturn).toBeEnabled();
     expect(within(top).getByRole("button", { name: "Discuss" })).toBeDisabled();
     expect(within(top).getByTestId("review-thread-unavailable")).toHaveTextContent(
       REVIEW_THREAD_UNAVAILABLE,
@@ -311,11 +317,11 @@ describe("ReviewPile", () => {
       other(9, "review.opened", { trigger: "boundary", unreviewed: ["D-1"] }),
     ];
     const { rerender } = renderWithProviders(pileOf(events, [acceptControl("D-1")]));
-    expect(within(card("D-1")).getByRole("button", { name: "Overturn" })).toBeEnabled();
+    for (const overturn of overturnsOf(card("D-1"))) expect(overturn).toBeEnabled();
 
     rerender(pileOf(events, [acceptControl("D-1", "delivered")]));
     expect(within(card("D-1")).getByRole("button", { name: "Accept" })).toBeDisabled();
-    expect(within(card("D-1")).getByRole("button", { name: "Overturn" })).toBeDisabled();
+    for (const overturn of overturnsOf(card("D-1"))) expect(overturn).toBeDisabled();
     expect(within(card("D-1")).getByTestId("review-queued")).toHaveTextContent(
       "accept read by the session",
     );

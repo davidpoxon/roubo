@@ -101,6 +101,20 @@ afterEach(() => {
 });
 
 describe("DecisionPile", () => {
+  it("sits in the Decisions panel, whose meta counts the cards to review, the pending questions and the defaults in force (#1622)", () => {
+    renderPile([
+      FIRST,
+      SECOND,
+      decisionEvent(10, "decision.defaulted", { decision_id: "decision-a" }),
+    ]);
+    const panel = screen.getByRole("region", { name: "Decisions" });
+    expect(within(panel).getByRole("heading", { name: "Decisions" })).toBeInTheDocument();
+    expect(panel.querySelector("header")).toHaveTextContent(
+      "0 to review · 1 pending · 1 default in force",
+    );
+    expect(within(panel).getByRole("list", { name: "Decision pile" })).toBeInTheDocument();
+  });
+
   it("SB-TC-036 puts the newest raised decision on top with its options and default, and the earlier one beneath", () => {
     const { rerender } = renderPile([FIRST]);
     const top = screen.getByTestId("decision-card-decision-a");
@@ -238,18 +252,12 @@ describe("DecisionPile", () => {
       "Applied: one file per unit (the default), pending overturn.",
     );
 
-    // Overturn offers the other options, and Cancel takes them away.
-    await user.click(screen.getByRole("button", { name: "Overturn" }));
-    expect(
-      within(screen.getByRole("group", { name: "Overturn decision-a with" })).getAllByRole(
-        "button",
-      ),
-    ).toHaveLength(1);
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("group", { name: "Overturn decision-a with" })).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Overturn" }));
-    await user.click(screen.getByRole("button", { name: "one file per stack" }));
+    // One Overturn for each other option, named by it (#1622).
+    const overturns = within(
+      screen.getByRole("group", { name: "Overturn decision-a with" }),
+    ).getAllByRole("button");
+    expect(overturns.map((button) => button.textContent)).toEqual(["Overturn: one file per stack"]);
+    await user.click(screen.getByRole("button", { name: "Overturn: one file per stack" }));
     expect(api.overturnDeliveryDecision).toHaveBeenCalledWith(
       "demo",
       3,

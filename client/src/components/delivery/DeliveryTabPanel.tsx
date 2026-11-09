@@ -562,25 +562,29 @@ function DeliverySnapshotView({
           onReturn={returnToMap}
         />
         <h2 className={VIEW_TITLE}>Decisions and steering</h2>
-        <div
-          ref={decisionPile}
-          tabIndex={-1}
-          data-testid="delivery-decision-pile-target"
-          className="focus:outline-none"
-        >
-          <DecisionPile
-            projectId={bench.projectId}
-            benchId={bench.id}
-            snapshot={snapshot}
-            sessionLive={sessionLive}
-            onSittingOpened={onSittingOpened}
-            raiseRequest={raiseDecision}
-          />
-        </div>
+        {/* The Decisions panel and the Steering panel sit side by side on a
+            wide view and stack on a narrow one (#1622). */}
+        <div className="@container">
+          <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+            <div
+              ref={decisionPile}
+              tabIndex={-1}
+              data-testid="delivery-decision-pile-target"
+              className="min-w-0 focus:outline-none"
+            >
+              <DecisionPile
+                projectId={bench.projectId}
+                benchId={bench.id}
+                snapshot={snapshot}
+                sessionLive={sessionLive}
+                onSittingOpened={onSittingOpened}
+                raiseRequest={raiseDecision}
+              />
+            </div>
 
-        <section data-testid="delivery-steering-controls" aria-label="Steering">
-          <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
-        </section>
+            <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+          </div>
+        </div>
       </section>
 
       <section

@@ -7,16 +7,20 @@ import {
   isDecisionDefaulted,
   selectDecisionHolds,
   selectDecisionPile,
+  selectReviewStack,
   type DecisionHolds,
 } from "@roubo/shared/delivery-selectors";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { focusRing } from "../ui/focus-ring";
 import { useDecisionControl, type DecisionControlKind } from "../../hooks/useDelivery";
+import { DeliveryPanel } from "./DeliveryPanel";
+import { PILE_LOWER_BAR, PILE_LOWER_ITEM, PILE_TOP_CARD } from "./pile-styles";
 import ReviewPile from "./ReviewPile";
 
 // The decision pile of the Delivery tab (SB-FR-014, SB-FR-015, SB-NFR-004), the
-// Decision item of DESIGN.md. Every question the delivery session asked that is
+// Decision item of DESIGN.md, in the "Decisions" panel of the decisions view
+// (#1622), whose meta counts the cards to review, the pending questions and the
+// defaults in force. Every question the delivery session asked that is
 // open, defaulted or overturned sits on the pile, newest on top. The top card is
 // live under the 2px accent rule, with its state badge, a mono origin line, the
 // question and the options as buttons, the recorded default as the primary. An
@@ -28,12 +32,13 @@ import ReviewPile from "./ReviewPile";
 //
 // An option answers an open decision: Enter or a click sends the answer, which
 // waits in the bench's outbox until the session reads it back. A defaulted
-// decision shows its default as applied and pending overturn, and Overturn
-// offers the other options; an overturned one shows the option that replaced
+// decision shows its default as applied and pending overturn, with one
+// Overturn for each other option, named by it; an overturned one shows the option that replaced
 // its default. The pile announces each change of state in a polite live region.
 //
 // The decisions the session made on its own in auto mode join the pile as
-// Review cards, oldest first, beneath the questions (see ReviewPile).
+// Review cards, oldest first, beneath the questions (see ReviewPile), and the
+// reviewed ones close the panel as dimmed rows.
 
 // How long a leaving card stays for its drop-away: motion.duration.fast.
 export const DECISION_DROP_AWAY_MS = 150;
@@ -138,12 +143,16 @@ function OptionButtons({
   label,
   isDisabled,
   onChoose,
+  labelOf,
 }: {
   decision: DeliveryDecision;
   options: readonly string[];
   label: string;
   isDisabled: boolean;
   onChoose: (option: string) => void;
+  // The button text of an option; the option itself, marked when it is the
+  // default, unless given.
+  labelOf?: (option: string) => string;
 }) {
   return (
     <div
@@ -153,7 +162,7 @@ function OptionButtons({
       onKeyDown={moveFocusWithArrows}
     >
       {options.map((option) => {
-        const isDefault = option === decision.default;
+        const isDefault = labelOf === undefined && option === decision.default;
         return (
           <Button
             key={option}
@@ -161,7 +170,7 @@ function OptionButtons({
             isDisabled={isDisabled}
             onPress={() => onChoose(option)}
           >
-            {isDefault ? `${option} (default)` : option}
+            {labelOf?.(option) ?? (isDefault ? `${option} (default)` : option)}
           </Button>
         );
       })}
@@ -202,19 +211,18 @@ function TopCard({
   isSending: boolean;
   onSend: (kind: DecisionControlKind, option: string) => void;
 }) {
-  const [overturning, setOverturning] = useState(false);
   return (
     <article
       data-testid={`decision-card-${decision.id}`}
       data-position="top"
       aria-label={`Decision ${decision.id}`}
-      className="animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
+      className={PILE_TOP_CARD}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Badge state={state} />
-        <span className="font-mono text-12 text-text-secondary">{originText(decision)}</span>
+        <span className="font-mono text-11 text-text-secondary">{originText(decision)}</span>
       </div>
-      <p className="text-13 text-text-primary">{decision.question}</p>
+      <p className="break-words text-13 font-medium text-text-primary">{decision.question}</p>
 
       {state.kind === "open" && (
         <>
@@ -244,24 +252,15 @@ function TopCard({
             <p className="text-12 text-text-secondary">
               Overturned to {state.pendingOverturn}, pending until the session reads it back.
             </p>
-          ) : overturning ? (
-            <div className="space-y-2">
-              <OptionButtons
-                decision={decision}
-                options={decision.options.filter((option) => option !== state.applied)}
-                label={`Overturn ${decision.id} with`}
-                isDisabled={isSending}
-                onChoose={(option) => {
-                  setOverturning(false);
-                  onSend("overturn", option);
-                }}
-              />
-              <Button onPress={() => setOverturning(false)}>Cancel</Button>
-            </div>
           ) : (
-            <Button onPress={() => setOverturning(true)} isDisabled={isSending}>
-              Overturn
-            </Button>
+            <OptionButtons
+              decision={decision}
+              options={decision.options.filter((option) => option !== state.applied)}
+              label={`Overturn ${decision.id} with`}
+              isDisabled={isSending}
+              labelOf={(option) => `Overturn: ${option}`}
+              onChoose={(option) => onSend("overturn", option)}
+            />
           )}
         </>
       )}
@@ -382,69 +381,76 @@ export default function DecisionPile({
     );
   };
 
+  const states = pile.map((decision) => decisionState(decision, snapshot.controls));
+  const pending = states.filter((state) => state.kind === "open").length;
+  const inForce = states.filter((state) => state.kind === "defaulted").length;
+  const meta = `${String(selectReviewStack(snapshot).length)} to review · ${String(pending)} pending · ${String(inForce)} ${inForce === 1 ? "default" : "defaults"} in force`;
+
   return (
-    <section data-testid="delivery-decision-controls" aria-label="Decisions" className="space-y-2">
-      <div role="status" aria-live="polite" className="sr-only" data-testid="decision-announcer">
-        {announcement}
-      </div>
-      {control.isError && (
-        <Callout role="alert" title="The decision control was not sent">
-          {control.error.message}
-        </Callout>
-      )}
-      {pile.length === 0 && leaving.length === 0 && (
-        <p className="text-13 text-text-secondary">No open decisions</p>
-      )}
-      {leaving.map((decision) => (
-        <div
-          key={`leaving-${decision.id}`}
-          data-testid={`decision-leaving-${decision.id}`}
-          aria-hidden="true"
-          className="animate-drop-away rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
-        >
-          <p className="text-13 text-text-primary">{decision.question}</p>
+    <DeliveryPanel testId="delivery-decision-controls" title="Decisions" meta={meta}>
+      <div className="space-y-3 p-3">
+        <div role="status" aria-live="polite" className="sr-only" data-testid="decision-announcer">
+          {announcement}
         </div>
-      ))}
-      {top !== undefined && (
-        <ul aria-label="Decision pile" className="space-y-2">
-          <li key={`top-${top.id}`}>
-            <TopCard
-              decision={top}
-              state={decisionState(top, snapshot.controls)}
-              holds={selectDecisionHolds(snapshot, top)}
-              isSending={control.isPending}
-              onSend={(kind, option) => send(kind, top.id, option)}
-            />
-          </li>
-          {lower.map((decision) => {
-            const state = decisionState(decision, snapshot.controls);
-            return (
-              <li key={decision.id} className="animate-slide-under">
-                <AriaButton
-                  data-testid={`decision-card-${decision.id}`}
-                  data-position="lower"
-                  onPress={() => setRaisedId(decision.id)}
-                  className={`flex w-full flex-wrap items-center gap-2 rounded-card border border-border bg-bg-surface px-3 py-2 text-left transition-colors data-[hovered]:bg-bg-hover data-[pressed]:bg-bg-pressed ${focusRing}`}
-                >
-                  <span className="sr-only">Raise decision </span>
-                  <Badge state={state} />
-                  <span className="font-mono text-12 text-text-secondary">
-                    {originText(decision)}
-                  </span>
-                </AriaButton>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <ReviewPile
-        projectId={projectId}
-        benchId={benchId}
-        snapshot={snapshot}
-        sessionLive={sessionLive}
-        onSittingOpened={onSittingOpened}
-        raiseRequest={raiseRequest}
-      />
-    </section>
+        {control.isError && (
+          <Callout role="alert" title="The decision control was not sent">
+            {control.error.message}
+          </Callout>
+        )}
+        {pile.length === 0 && leaving.length === 0 && (
+          <p className="text-13 text-text-secondary">No open decisions</p>
+        )}
+        {leaving.map((decision) => (
+          <div
+            key={`leaving-${decision.id}`}
+            data-testid={`decision-leaving-${decision.id}`}
+            aria-hidden="true"
+            className="animate-drop-away rounded-card border border-border border-l-2 border-l-accent bg-bg-surface p-3"
+          >
+            <p className="text-13 font-medium text-text-primary">{decision.question}</p>
+          </div>
+        ))}
+        {top !== undefined && (
+          <ul aria-label="Decision pile" className="flex flex-col">
+            <li key={`top-${top.id}`}>
+              <TopCard
+                decision={top}
+                state={decisionState(top, snapshot.controls)}
+                holds={selectDecisionHolds(snapshot, top)}
+                isSending={control.isPending}
+                onSend={(kind, option) => send(kind, top.id, option)}
+              />
+            </li>
+            {lower.map((decision) => {
+              const state = decisionState(decision, snapshot.controls);
+              return (
+                <li key={decision.id} className={PILE_LOWER_ITEM}>
+                  <AriaButton
+                    data-testid={`decision-card-${decision.id}`}
+                    data-position="lower"
+                    onPress={() => setRaisedId(decision.id)}
+                    className={PILE_LOWER_BAR}
+                  >
+                    <span className="sr-only">Raise decision </span>
+                    <Badge state={state} />
+                    <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
+                      {originText(decision)}
+                    </span>
+                  </AriaButton>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <ReviewPile
+          projectId={projectId}
+          benchId={benchId}
+          snapshot={snapshot}
+          sessionLive={sessionLive}
+          onSittingOpened={onSittingOpened}
+          raiseRequest={raiseRequest}
+        />
+      </div>
+    </DeliveryPanel>
   );
 }

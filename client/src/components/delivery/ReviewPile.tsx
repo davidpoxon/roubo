@@ -22,6 +22,7 @@ import {
 } from "../../hooks/useDelivery";
 import { gateUnconfirmedCount, toConfirmText } from "./delivery-map-model";
 import ProvisionalMarkCard from "./ProvisionalMark";
+import { PILE_LOWER_BAR, PILE_LOWER_ITEM, PILE_TOP_CARD } from "./pile-styles";
 import { recordedProvisionalMark } from "./provisional-mark-model";
 
 // The agent decisions on the decision pile (SB-FR-033, SB-FR-034, SB-NFR-009),
@@ -29,8 +30,8 @@ import { recordedProvisionalMark } from "./provisional-mark-model";
 // auto mode waits here for the operator's review, oldest first. The oldest card
 // is the live top card under the 2px accent rule: its badge, a mono origin line
 // naming where it was decided and the units it affects, the question, the
-// choice, the rationale and its actions (SB-FR-035): Accept, Overturn with
-// another option, and Discuss, which opens the decision's thread while a review
+// choice, the rationale and its actions (SB-FR-035): Accept as the primary, one
+// Overturn for each other option, named by it, and Discuss, which opens the decision's thread while a review
 // is open (SB-FR-036): the operator's messages, the session's replies on the
 // inset ground, a waiting line while a message has no reply, and a composer
 // that sends a message as a volatile thread_message control. The composer is
@@ -46,7 +47,7 @@ import { recordedProvisionalMark } from "./provisional-mark-model";
 // and `queued` while an operator's review control on the decision waits in the
 // outbox. Accept and Overturn issue that control; once one is queued, a line
 // names when the session reads it (the next unit boundary, or the resume) and
-// the actions dim. They stay enabled, so a second action supersedes the first,
+// the actions drop to the disabled opacity. They stay enabled, so a second action supersedes the first,
 // until the session has read it. Every text the
 // session wrote (the question, the choice, the rationale, a reply, a summary)
 // renders as a React text node: never as markup, and never as a link.
@@ -321,7 +322,6 @@ function TopCard({
 }) {
   const cardRef = useFocusWhen<HTMLElement>(takeFocus);
   const [discussingAtReview, setDiscussing] = useState(false);
-  const [overturning, setOverturning] = useState(false);
   const discussing = reviewOpen && discussingAtReview;
   const threadId = `review-thread-${decision.id}`;
   const actionsDisabled = isSending || queued?.delivered === true;
@@ -333,15 +333,15 @@ function TopCard({
       data-testid={`review-card-${decision.id}`}
       data-position="top"
       aria-label={`Agent decision ${decision.id}`}
-      className={`animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3 ${focusRing}`}
+      className={`${PILE_TOP_CARD} ${focusRing}`}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Badge decision={decision} word={word} />
-        <span data-testid="review-origin" className="font-mono text-12 text-text-secondary">
+        <span data-testid="review-origin" className="font-mono text-11 text-text-secondary">
           {originText(decision)}
         </span>
       </div>
-      <p className="text-13 text-text-primary">{decision.question}</p>
+      <p className="break-words text-13 font-medium text-text-primary">{decision.question}</p>
       <p data-testid="review-choice" className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-11 font-medium text-text-secondary">chose</span>
         <span className="text-13 font-medium text-text-primary">{decision.chosen}</span>
@@ -357,27 +357,19 @@ function TopCard({
       <div
         data-testid="review-actions"
         data-dimmed={queued !== undefined ? "true" : "false"}
-        className={`flex flex-wrap items-center gap-2 ${queued !== undefined ? "opacity-60" : ""}`}
+        className={`flex flex-wrap items-center gap-2 ${queued !== undefined ? "opacity-40" : ""}`}
       >
         <Button
+          variant="primary"
           isDisabled={actionsDisabled}
-          onPress={() => {
-            setOverturning(false);
-            onAction({ kind: "accept", decisionId: decision.id });
-          }}
+          onPress={() => onAction({ kind: "accept", decisionId: decision.id })}
         >
           Accept
         </Button>
-        <Button
-          aria-expanded={overturning}
-          isDisabled={actionsDisabled || others.length === 0}
-          onPress={() => setOverturning((open) => !open)}
-        >
-          Overturn
-        </Button>
-        {/* The options sit between Overturn and Discuss, so Tab reaches Accept,
-            each Overturn action and Discuss in that order (SB-NFR-004). */}
-        {overturning && !actionsDisabled && (
+        {/* One Overturn for each other option sits between Accept and Discuss,
+            so Tab reaches Accept, each Overturn action and Discuss in that
+            order (SB-NFR-004). */}
+        {others.length > 0 && (
           <div
             role="group"
             aria-label={`Overturn ${decision.id} with`}
@@ -386,12 +378,10 @@ function TopCard({
             {others.map((option) => (
               <Button
                 key={option}
-                onPress={() => {
-                  setOverturning(false);
-                  onAction({ kind: "overturn", decisionId: decision.id, option });
-                }}
+                isDisabled={actionsDisabled}
+                onPress={() => onAction({ kind: "overturn", decisionId: decision.id, option })}
               >
-                {option}
+                Overturn: {option}
               </Button>
             ))}
           </div>
@@ -513,11 +503,11 @@ function GateTopCard({
       data-position="top"
       data-kind="gate"
       aria-label={`Provisional gate ${gate.id}`}
-      className={`animate-rise-in space-y-2 rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3 ${focusRing}`}
+      className={`${PILE_TOP_CARD} ${focusRing}`}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <GateBadge gate={gate} />
-        <span data-testid="review-origin" className="font-mono text-12 text-text-secondary">
+        <span data-testid="review-origin" className="font-mono text-11 text-text-secondary">
           {gateOriginText(gate)}
         </span>
       </div>
@@ -671,9 +661,9 @@ export default function ReviewPile({
           key={`leaving-${decision.id}`}
           data-testid={`review-leaving-${decision.id}`}
           aria-hidden="true"
-          className="animate-drop-away rounded-card border border-border border-t-2 border-t-accent bg-bg-surface p-3"
+          className="animate-drop-away rounded-card border border-border border-l-2 border-l-accent bg-bg-surface p-3"
         >
-          <p className="text-13 text-text-primary">{decision.question}</p>
+          <p className="text-13 font-medium text-text-primary">{decision.question}</p>
         </div>
       ))}
       {review.isError && (
@@ -687,7 +677,7 @@ export default function ReviewPile({
         </Callout>
       )}
       {topCard !== undefined && (
-        <ul aria-label="Review pile" className="space-y-2">
+        <ul aria-label="Review pile" className="flex flex-col">
           <li key={`top-${cardKey(topCard)}`}>
             {top !== undefined && (
               <TopCard
@@ -719,13 +709,13 @@ export default function ReviewPile({
             )}
           </li>
           {lower.map((card) => (
-            <li key={cardKey(card)} className="animate-slide-under">
+            <li key={cardKey(card)} className={PILE_LOWER_ITEM}>
               <AriaButton
                 data-testid={`review-card-${card.id}`}
                 data-position="lower"
                 data-kind={card.kind}
                 onPress={() => setRaisedId(cardKey(card))}
-                className={`flex w-full flex-wrap items-center gap-2 rounded-card border border-border bg-bg-surface px-3 py-2 text-left transition-colors data-[hovered]:bg-bg-hover data-[pressed]:bg-bg-pressed ${focusRing}`}
+                className={PILE_LOWER_BAR}
               >
                 <span className="sr-only">Raise this review card </span>
                 {card.kind === "decision" ? (
@@ -734,14 +724,14 @@ export default function ReviewPile({
                       decision={card.decision}
                       word={reviewWord(reviewOpen, queuedAction(snapshot.controls, card.id))}
                     />
-                    <span className="font-mono text-12 text-text-secondary">
+                    <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
                       {originText(card.decision)}
                     </span>
                   </>
                 ) : (
                   <>
                     <GateBadge gate={card.gate} />
-                    <span className="font-mono text-12 text-text-secondary">
+                    <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
                       {gateOriginText(card.gate)}
                     </span>
                   </>
@@ -752,14 +742,15 @@ export default function ReviewPile({
         </ul>
       )}
       {reviewed.length > 0 && (
-        <ul aria-label="Reviewed agent decisions" className="space-y-1">
+        // The reviewed decisions close the panel as dimmed rows.
+        <ul aria-label="Reviewed agent decisions" className="-mx-3 -mb-3 border-t border-border">
           {reviewed.map((decision) => (
             <li
               key={decision.id}
               data-testid={`review-reviewed-${decision.id}`}
-              className="space-y-1 rounded-card border border-border bg-bg-surface px-3 py-2"
+              className="space-y-1 border-b border-border px-3 py-1.5 opacity-40 last:border-b-0"
             >
-              <p className="font-mono text-12 text-text-secondary">
+              <p className="break-words font-mono text-11 text-text-secondary">
                 {decision.id} · {decision.review?.status} · chose {decision.chosen}
               </p>
               {decision.review?.summary !== undefined && (
