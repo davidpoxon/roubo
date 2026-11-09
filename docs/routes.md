@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 187 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 188 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -99,6 +99,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/api/projects/:projectId/benches/:id/delivery/wind-down`                                  | `server/routes/delivery.ts`             |
 | DELETE | `/api/projects/:projectId/benches/:id/notifications`                                       | `server/routes/benches.ts`              |
 | DELETE | `/api/projects/:projectId/benches/:id/notifications/:notificationId`                       | `server/routes/benches.ts`              |
+| POST   | `/api/projects/:projectId/benches/:id/restart-with-config`                                 | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:id/start`                                               | `server/routes/benches.ts`              |
 | POST   | `/api/projects/:projectId/benches/:id/stop`                                                | `server/routes/benches.ts`              |
 | GET    | `/api/projects/:projectId/benches/:id/terminals`                                           | `server/routes/terminal.ts`             |

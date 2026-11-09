@@ -10,6 +10,7 @@ import type {
   useStopBench,
   useTeardownBench,
   useCleanupAndRetryBench,
+  useRestartBenchWithConfig,
 } from "../hooks/useBenches";
 import type { useTeardownTracker } from "../hooks/useClearingTracker";
 import { ApiError } from "../lib/api";
@@ -29,6 +30,7 @@ import {
   useStopBench as _useStopBench,
   useTeardownBench as _useTeardownBench,
   useCleanupAndRetryBench as _useCleanupAndRetryBench,
+  useRestartBenchWithConfig as _useRestartBenchWithConfig,
 } from "../hooks/useBenches";
 import { useTeardownTracker as _useTeardownTracker } from "../hooks/useClearingTracker";
 import { useToast as _useToast } from "../hooks/useToast";
@@ -38,6 +40,7 @@ const mockedUseStartBench = vi.mocked(_useStartBench);
 const mockedUseStopBench = vi.mocked(_useStopBench);
 const mockedUseTeardownBench = vi.mocked(_useTeardownBench);
 const mockedUseCleanupAndRetryBench = vi.mocked(_useCleanupAndRetryBench);
+const mockedUseRestartBenchWithConfig = vi.mocked(_useRestartBenchWithConfig);
 const mockedUseTeardownTracker = vi.mocked(_useTeardownTracker);
 const mockedUseToast = vi.mocked(_useToast);
 
@@ -68,6 +71,7 @@ function makeDefaultMutations() {
     },
   );
   const cleanupMutate = vi.fn();
+  const restartMutate = vi.fn();
   const registerTeardown = vi.fn();
   const addToast = vi.fn();
 
@@ -87,12 +91,24 @@ function makeDefaultMutations() {
     mutate: cleanupMutate,
     isPending: false,
   } as unknown as ReturnType<typeof useCleanupAndRetryBench>);
+  mockedUseRestartBenchWithConfig.mockReturnValue({
+    mutate: restartMutate,
+    isPending: false,
+  } as unknown as ReturnType<typeof useRestartBenchWithConfig>);
   mockedUseTeardownTracker.mockReturnValue({ register: registerTeardown } as unknown as ReturnType<
     typeof useTeardownTracker
   >);
   mockedUseToast.mockReturnValue({ addToast } as unknown as ReturnType<typeof _useToast>);
 
-  return { startMutate, stopMutate, teardownMutate, cleanupMutate, registerTeardown, addToast };
+  return {
+    startMutate,
+    stopMutate,
+    teardownMutate,
+    cleanupMutate,
+    restartMutate,
+    registerTeardown,
+    addToast,
+  };
 }
 
 function renderCard(bench: Bench, projectName?: string) {
@@ -107,6 +123,71 @@ function renderCard(bench: Bench, projectName?: string) {
 }
 
 describe("BenchCard", () => {
+  describe("stale bench marker and Restart with new config", () => {
+    it("HR-TC-007: a stale bench shows the marker beside its status label, with its tooltip", async () => {
+      const user = userEvent.setup();
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true }));
+      const marker = screen.getByTestId("bench-card-stale-marker");
+      expect(marker).toHaveTextContent("stale · Set up with an older roubo.yaml");
+      // Beside the status label: both sit in the same group of the card head.
+      expect(marker.parentElement).toBe(screen.getByTestId("bench-card-status").parentElement);
+      // The card itself takes the first Tab, the marker the next.
+      await user.tab();
+      await user.tab();
+      expect(marker).toHaveFocus();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "This bench keeps the component definitions it was set up with. Restart to apply the current roubo.yaml.",
+      );
+    });
+
+    it("HR-TC-007: Restart with new config carries its tooltip", async () => {
+      const user = userEvent.setup();
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true }));
+      await user.hover(screen.getByRole("button", { name: /Restart with new config/ }));
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "Stop all components, apply the current roubo.yaml, and start them again",
+      );
+    });
+
+    it("HR-TC-007: Restart with new config calls the restart action for the bench", async () => {
+      const user = userEvent.setup();
+      const { restartMutate } = makeDefaultMutations();
+      renderCard(makeBench({ id: 4, projectId: "lantern", stale: true }));
+      await user.click(screen.getByRole("button", { name: /Restart with new config/ }));
+      expect(restartMutate).toHaveBeenCalledWith(
+        { projectId: "lantern", benchId: 4 },
+        expect.objectContaining({ onError: expect.any(Function) }),
+      );
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it("HR-TC-007: a bench that is not stale shows no marker and no restart action", () => {
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: false }));
+      expect(screen.queryByTestId("bench-card-stale-marker")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Restart with new config/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("HR-TC-006: a legacy bench, which reports no stale flag, shows no marker and no restart action", () => {
+      makeDefaultMutations();
+      renderCard(makeBench());
+      expect(screen.queryByTestId("bench-card-stale-marker")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Restart with new config/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("disables Restart with new config while the bench is preparing", () => {
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true, status: "preparing" }));
+      expect(screen.getByRole("button", { name: /Restart with new config/ })).toBeDisabled();
+    });
+  });
+
   describe("content rendering", () => {
     it("renders bench id and branch", () => {
       makeDefaultMutations();

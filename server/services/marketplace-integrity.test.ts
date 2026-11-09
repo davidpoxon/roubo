@@ -3,8 +3,8 @@ import { generateKeyPairSync, sign, createPublicKey, type KeyObject } from "node
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { canonicalize } from "../lib/canonical-json.js";
 import {
-  canonicalize,
   computePackageDigest,
   fingerprintKeyId,
   resolveActiveKey,
@@ -48,19 +48,6 @@ async function writeSourceSubdir(dir: string): Promise<void> {
   await writeFile(path.join(dir, "tsup.config.ts"), "export default {};\n");
   await writeFile(path.join(dir, "README.md"), "# Demo plugin\n");
 }
-
-describe("canonicalize", () => {
-  it("sorts object keys recursively and is whitespace-insensitive", () => {
-    const a = canonicalize({ b: 1, a: { d: 2, c: 3 } });
-    const b = canonicalize({ a: { c: 3, d: 2 }, b: 1 });
-    expect(a).toBe(b);
-    expect(a).toBe('{"a":{"c":3,"d":2},"b":1}');
-  });
-
-  it("preserves array order", () => {
-    expect(canonicalize([3, 1, 2])).toBe("[3,1,2]");
-  });
-});
 
 // Key-ring trust chain (CPHM-FR-007 / NFR-001, #845): the client mirrors
 // the producer publish gate (roubo-plugins scripts/release/verify-keyring.mjs).

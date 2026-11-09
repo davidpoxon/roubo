@@ -7,6 +7,7 @@ import type { RunCommandResult } from "./exec.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
+import { hashDefinitions, takeComponentSnapshot } from "../lib/bench-config.js";
 
 // Bench setup is the only runCommand call routed through a login shell, so the
 // shell flag is what identifies it in the mock call list. Resolve it the same
@@ -10112,5 +10113,371 @@ describe("imperative component dispatch (#887)", () => {
     await benchManager.stopComponent("test-project", 1, "backend");
 
     expect(ledgerService.clearEntry).toHaveBeenCalledWith("process", 1);
+  });
+});
+
+// ── Component snapshot, stale marker and Restart with new config ──
+
+function snapshotProcessConfig(
+  command: string,
+  extra: Partial<ReturnType<typeof makeConfig>> = {},
+): ReturnType<typeof makeConfig> {
+  return makeConfig({
+    components: {
+      backend: {
+        plugin: { id: "process" },
+        config: { command },
+        type: "process",
+        command,
+      },
+    },
+    ports: { backend: { base: 5000 } },
+    ...extra,
+  });
+}
+
+/**
+ * Set up an existing bench through initialize() whose persisted record holds a
+ * snapshot of `snapshotOf` while the project's live config is `live`. Without
+ * `snapshotOf` the record is a legacy one, with no snapshot.
+ */
+function benchOne() {
+  const bench = benchManager.getBench("test-project", 1);
+  if (!bench) throw new Error("expected bench 1");
+  return bench;
+}
+
+function setupSnapshotBench(
+  live: ReturnType<typeof makeConfig>,
+  snapshotOf?: ReturnType<typeof makeConfig>,
+  benchSetupComplete = true,
+) {
+  const project = makeProject({ config: live });
+  const ports = { backend: 5001 };
+  vi.mocked(stateService.loadState).mockReturnValue({
+    benches: [
+      makePersistedBench({
+        ports,
+        componentSetupState: { backend: true },
+        benchSetupComplete,
+        ...(snapshotOf && { componentSnapshot: takeComponentSnapshot(snapshotOf) }),
+      }),
+    ],
+  });
+  vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+  vi.mocked(portAllocator.allocatePorts).mockReturnValue(ports);
+  vi.mocked(stateService.getWorkspacePath).mockReturnValue(
+    "/home/.roubo/workspaces/test-project/bench-1",
+  );
+  vi.mocked(configParser.buildTemplateContext).mockReturnValue({
+    ports,
+    portHttps: {},
+    workspace: "/home/.roubo/workspaces/test-project/bench-1",
+    components: {},
+  });
+  vi.mocked(configParser.resolveTemplate).mockImplementation((s) => s);
+  vi.mocked(configParser.resolveServiceEnv).mockImplementation((env) => env);
+  benchManager.initialize();
+  return project;
+}
+
+// The bench serialiser, imported after the module reset of each test so it
+// reads the same project-registry mock the test configures.
+let serializeBench: typeof import("./bench-serializer.js").serializeBench;
+
+async function resetSnapshotTestState() {
+  serializeBench = (await import("./bench-serializer.js")).serializeBench;
+  // An earlier describe leaves getRecord answering an imperative plugin record,
+  // and clearAllMocks keeps implementations: these benches run declarative
+  // process components.
+  vi.mocked(pluginManager.getRecord).mockReturnValue(undefined);
+}
+
+describe("component snapshot (HR-FR-003, HR-FR-004)", () => {
+  beforeEach(resetSnapshotTestState);
+
+  it("HR-TC-007: a bench set up now stores componentSnapshot on its persisted record, with no stale key", async () => {
+    const project = setupCreateBenchMocks();
+    project.config = makeConfig({ benches: { max: 5, setup: "npm ci", shell: "bash -lc" } });
+    setupProcessMocks();
+
+    const bench = benchManager.createBench("test-project", "feature-branch");
+
+    await vi.waitFor(() => {
+      expect(stateService.addBench).toHaveBeenCalled();
+    });
+    const persisted = vi.mocked(stateService.addBench).mock.calls[0][0];
+    expect(persisted.componentSnapshot).toEqual({
+      components: project.config.components,
+      ports: project.config.ports,
+      benches: { setup: "npm ci", shell: "bash -lc" },
+      configHash: hashDefinitions(project.config),
+      takenAt: expect.any(String),
+    });
+    expect(persisted).not.toHaveProperty("stale");
+    expect(bench.componentSnapshot?.configHash).toBe(hashDefinitions(project.config));
+    expect(serializeBench(bench).stale).toBe(false);
+  });
+
+  it("HR-TC-007: a roubo.yaml change marks the bench stale, a revert clears it, and a tools-only change does not mark it", async () => {
+    const project = setupCreateBenchMocks();
+    setupProcessMocks();
+    const original = project.config;
+    if (!original) throw new Error("expected a config");
+    const bench = benchManager.createBench("test-project", "feature-branch");
+    await vi.waitFor(() => {
+      expect(stateService.addBench).toHaveBeenCalled();
+    });
+
+    // 1. Change and save roubo.yaml: the bench reports stale=true.
+    project.config = {
+      ...original,
+      components: {
+        backend: { plugin: { id: "process" }, config: { command: "npm run start:new" } },
+      },
+    };
+    expect(serializeBench(bench).stale).toBe(true);
+
+    // 2. The record that would be written has the snapshot and no 'stale' key.
+    const record = stateService.toPersistedBench(serializeBench(bench));
+    expect(record.componentSnapshot?.components).toEqual(original.components);
+    expect(record).not.toHaveProperty("stale");
+    // The in-memory bench never holds the flag either: only the serialiser adds it.
+    expect(benchManager.getBench("test-project", 1)).not.toHaveProperty("stale");
+
+    // 3. Revert roubo.yaml to the snapshotted content: stale=false.
+    project.config = structuredClone(original);
+    expect(serializeBench(bench).stale).toBe(false);
+
+    // 4. Change only the tools section: stale=false.
+    project.config = {
+      ...structuredClone(original),
+      tools: [{ type: "browser", name: "App", icon: "globe", url: "http://localhost" }],
+    };
+    expect(serializeBench(bench).stale).toBe(false);
+  });
+
+  it("HR-TC-007: a setup-command change marks a bench stale even after its setup completed", () => {
+    const set = snapshotProcessConfig("npm start", { benches: { max: 5, setup: "npm ci" } });
+    const live = snapshotProcessConfig("npm start", { benches: { max: 5, setup: "pnpm i" } });
+    setupSnapshotBench(live, set, true);
+
+    const bench = benchOne();
+    expect(bench.benchSetupComplete).toBe(true);
+    expect(serializeBench(bench).stale).toBe(true);
+  });
+
+  it("HR-TC-006: a legacy bench record without a snapshot loads, reads the live config, and is never marked stale", async () => {
+    const live = snapshotProcessConfig("npm start");
+    const project = setupSnapshotBench(live);
+    setupProcessMocks();
+
+    // 1. The bench loads without error.
+    const bench = benchManager.getBench("test-project", 1);
+    if (!bench) throw new Error("expected bench");
+    expect(bench.status).toBe("idle");
+    expect(bench.error).toBeUndefined();
+    expect(bench.componentSnapshot).toBeUndefined();
+
+    // 2. A roubo.yaml save for the project: the bench is not marked stale, and
+    // its next start reads the live definition.
+    project.config = snapshotProcessConfig("npm run start:new");
+    expect(serializeBench(bench).stale).toBe(false);
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "process:1:backend",
+      "npm",
+      ["run", "start:new"],
+      expect.any(Object),
+      expect.any(String),
+    );
+    // Its record gains no snapshot key until it takes one.
+    expect(stateService.toPersistedBench(bench)).not.toHaveProperty("componentSnapshot");
+  });
+
+  it("a single-component start after a roubo.yaml change keeps the snapshotted definition", async () => {
+    setupSnapshotBench(
+      snapshotProcessConfig("npm run start:new"),
+      snapshotProcessConfig("npm start"),
+    );
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "process:1:backend",
+      "npm",
+      ["start"],
+      expect.any(Object),
+      expect.any(String),
+    );
+    const bench = benchOne();
+    // The start read the snapshot and took no new one.
+    expect(bench.componentSnapshot?.components.backend.config).toEqual({ command: "npm start" });
+    expect(serializeBench(bench).stale).toBe(true);
+  });
+
+  it("a bench reloaded at boot keeps the component definitions of its snapshot", () => {
+    const set = snapshotProcessConfig("npm start");
+    const live = makeConfig({
+      components: {
+        backend: { plugin: { id: "process" }, config: { command: "npm start" } },
+        worker: { plugin: { id: "process" }, config: { command: "npm run worker" } },
+      },
+    });
+    setupSnapshotBench(live, set);
+
+    const bench = benchOne();
+    expect(Object.keys(bench.components)).toEqual(["backend"]);
+  });
+});
+
+describe("restartBenchWithConfig (HR-FR-005)", () => {
+  beforeEach(resetSnapshotTestState);
+
+  it("re-snapshots from the live config, starts the components under it, and clears the stale marker", async () => {
+    const live = snapshotProcessConfig("npm run start:new");
+    setupSnapshotBench(live, snapshotProcessConfig("npm start"));
+    setupProcessMocks();
+    const before = benchOne();
+    expect(serializeBench(before).stale).toBe(true);
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    expect(bench.componentSnapshot?.configHash).toBe(hashDefinitions(live));
+    expect(serializeBench(bench).stale).toBe(false);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        componentSnapshot: expect.objectContaining({ configHash: hashDefinitions(live) }),
+      }),
+    );
+    // The setup command did not change, so bench setup does not run again.
+    expect(bench.benchSetupComplete).toBe(true);
+    expect(bench.provisioningSteps.some((s) => s.id === "bench-setup")).toBe(false);
+
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(processManager.startProcess).toHaveBeenCalledWith(
+      "process:1:backend",
+      "npm",
+      ["run", "start:new"],
+      expect.any(Object),
+      expect.any(String),
+    );
+  });
+
+  it("resets benchSetupComplete when the setup command changed, so the new setup runs on the restart", async () => {
+    const set = snapshotProcessConfig("npm start", { benches: { max: 5, setup: "npm ci" } });
+    const live = snapshotProcessConfig("npm start", { benches: { max: 5, setup: "pnpm i" } });
+    setupSnapshotBench(live, set, true);
+    setupProcessMocks();
+    vi.mocked(execModule.runCommand).mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    // The returned bench is the live record and the setup step starts at once, so
+    // only its presence is asserted here; the run itself is checked below.
+    expect(bench.provisioningSteps[0]).toMatchObject({ id: "bench-setup" });
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(execModule.runCommand).toHaveBeenCalledWith(
+      getLoginShell(),
+      loginShellScriptArgs("pnpm i"),
+      "/home/.roubo/workspaces/test-project/bench-1",
+      undefined,
+      600_000,
+    );
+    expect(benchManager.getBench("test-project", 1)?.benchSetupComplete).toBe(true);
+  });
+
+  it("runs a component setup command that the live config adds, on the restart", async () => {
+    const set = snapshotProcessConfig("npm start");
+    const live = makeConfig({
+      components: {
+        backend: {
+          plugin: { id: "process" },
+          config: { command: "npm start", setup: "npm ci" },
+          type: "process",
+          command: "npm start",
+          setup: "npm ci",
+        },
+      },
+      ports: { backend: { base: 5000 } },
+    });
+    // The bench was set up with no component setup, so its flag reads complete.
+    setupSnapshotBench(live, set);
+    setupProcessMocks();
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
+    expect(benchOne().components.backend.setupComplete).toBe(true);
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    expect(bench.components.backend.setupComplete).toBe(false);
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "process:1:backend:setup",
+      "npm",
+      ["ci"],
+      expect.any(Object),
+      "/home/.roubo/workspaces/test-project/bench-1",
+      0,
+    );
+    expect(benchManager.getBench("test-project", 1)?.components.backend.setupComplete).toBe(true);
+  });
+
+  it("keeps a component's setup flag when its setup command did not change", async () => {
+    const withSetup = (command: string) =>
+      makeConfig({
+        components: {
+          backend: {
+            plugin: { id: "process" },
+            config: { command, setup: "npm ci" },
+            type: "process",
+            command,
+            setup: "npm ci",
+          },
+        },
+        ports: { backend: { base: 5000 } },
+      });
+    setupSnapshotBench(withSetup("npm run start:new"), withSetup("npm start"));
+    setupProcessMocks();
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    expect(bench.components.backend.setupComplete).toBe(true);
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(processManager.runProcess).not.toHaveBeenCalledWith(
+      "process:1:backend:setup",
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("rejects a bench that is clearing", async () => {
+    setupSnapshotBench(snapshotProcessConfig("npm start"), snapshotProcessConfig("npm start"));
+    benchOne().status = "clearing";
+
+    await expect(benchManager.restartBenchWithConfig("test-project", 1)).rejects.toMatchObject({
+      code: "INVALID_STATE",
+    });
+  });
+
+  it("rejects an unknown bench", async () => {
+    setupSnapshotBench(snapshotProcessConfig("npm start"));
+
+    await expect(benchManager.restartBenchWithConfig("test-project", 9)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });

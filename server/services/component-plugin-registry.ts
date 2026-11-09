@@ -1,4 +1,5 @@
 import type { JsonRpcConnection } from "./plugin-rpc.js";
+import type { ComponentConfig } from "@roubo/shared";
 import { getConnection, getRecord, HOST_API_VERSION } from "./plugin-manager.js";
 import { getProject } from "./project-registry.js";
 import { hasConsent } from "./plugin-consent-state.js";
@@ -72,10 +73,16 @@ export { isNotBound };
  * per-plugin connection plugin-manager holds, so two benches that bind the same
  * component to the same plugin receive the same connection object and
  * multiplex over it via `BenchContext.benchId`.
+ *
+ * `components` is the bench variant (HR-FR-003): pass the component
+ * definitions the bench was set up with (`benchConfig(bench, config).components`)
+ * so a bench resolves the plugin its own snapshot binds, not the one a later
+ * roubo.yaml save binds. Omitted, the live project config is read.
  */
 export function resolveBinding(
   projectId: string,
   componentName: string,
+  components?: Record<string, ComponentConfig>,
 ): ResolvedBinding | NotBound {
   const project = getProject(projectId);
   if (!project) return { reason: "unknown-project" };
@@ -85,11 +92,11 @@ export function resolveBinding(
   // guard rather than a bare index so a crafted name (`__proto__`,
   // `constructor`) cannot reach an inherited object property (CodeQL
   // prototype-pollution guard, mirrors the bench-manager indexing sites).
-  const components = project.config.components;
-  if (!Object.prototype.hasOwnProperty.call(components, componentName)) {
+  const definitions = components ?? project.config.components;
+  if (!Object.prototype.hasOwnProperty.call(definitions, componentName)) {
     return { reason: "unknown-component" };
   }
-  const component = components[componentName];
+  const component = definitions[componentName];
   const binding = component.plugin;
   if (!binding) return { reason: "not-bound" };
 
