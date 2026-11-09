@@ -12,6 +12,7 @@ import {
 } from "@roubo/shared";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
+import * as inputWatcher from "../services/input-watcher.js";
 import * as benchManager from "../services/bench-manager.js";
 import { resolveTestbenchHost } from "../services/testbench-host-resolver.js";
 import {
@@ -547,6 +548,9 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // The tap is the ROUBO_E2E=1-only mirror of the production-grade
     // structured log emitted by `recordConnectionStateTransition`.
     pluginManager.__test.resetE2EConnectionStateLogTap();
+    // HR-TC-001 / HR-TC-045: and the mirror of the input-watcher apply lines, so
+    // a spec counts only the lines its own saves wrote.
+    inputWatcher.__test.resetE2EApplyLogTap();
     await pluginManager.shutdown();
     // Drop any fixture projects registered via /test/__register-fixture-project
     // BEFORE clearing the in-memory map. Removing the projects.json rows now
@@ -1649,6 +1653,17 @@ router.get("/__connection-state-log", (_req: Request, res: Response) => {
     return res.status(404).end();
   }
   res.status(200).json({ entries: pluginManager.__test.getE2EConnectionStateLogTap() });
+});
+
+// HR-TC-001 / HR-TC-045 e2e tap reader. Returns the ROUBO_E2E=1-only buffer that
+// mirrors every `[input-watcher] surface=... outcome=...` apply line, so the
+// hot-reload journey can count the server's log lines without scraping its
+// stdout. Gated by ROUBO_E2E so production builds return 404 for this URL.
+router.get("/__input-watcher-log", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  res.status(200).json({ lines: inputWatcher.__test.getE2EApplyLogTap() });
 });
 
 // TC-154 (#261): read the persisted plugin-enable-state file so a Playwright
