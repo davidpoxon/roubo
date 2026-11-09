@@ -11,8 +11,9 @@
  *   keeps what it has.
  * - auth.json: a GitHub token put there is moved into the github-com plugin's
  *   credential slot, as the boot migration does.
- * - plugins-consent.json: each plugin that the edit consents starts, as a
- *   grant of consent in the app starts it.
+ * - plugins-consent.json: each consented plugin that is not running and that
+ *   the user has not disabled starts, as a grant of consent in the app starts
+ *   it, and the notice names the plugins that started.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
  *   edit disables stops, and one it enables starts.
  * - settings.json: read again. A settings.json that does not parse keeps the
@@ -200,18 +201,6 @@ function only<T>(items: readonly T[]): T | undefined {
 
 // ── The handlers ──
 
-// The plugins with a ConsentRecord as of the last read of
-// plugins-consent.json by this watch, so an edit names the ones it adds.
-let consentedIds = new Set<string>();
-
-function readConsentedIds(): Set<string> {
-  try {
-    return new Set(Object.keys(loadConsentState()?.plugins ?? {}));
-  } catch {
-    return new Set();
-  }
-}
-
 /** Whether `value` has what matches a bench record to its bench: a project id and a number. */
 function isBenchRecord(value: unknown): boolean {
   if (value === null || typeof value !== "object") return false;
@@ -297,10 +286,7 @@ async function handleAuth(absPath: string): Promise<HandlerResult> {
 
 async function handleConsent(absPath: string): Promise<HandlerResult> {
   const read = readStateFile(absPath);
-  if (read.kind === "missing") {
-    consentedIds = new Set();
-    return applied({ summary: consentAppliedNotice([]) });
-  }
+  if (read.kind === "missing") return applied({ summary: consentAppliedNotice([]) });
   if (read.kind === "invalid") {
     return rejected("plugins-consent.json", "Plugin consent", read.first);
   }
@@ -310,22 +296,25 @@ async function handleConsent(absPath: string): Promise<HandlerResult> {
   }
   // Refresh the module's last known consent from the file the edit left.
   loadConsentState();
-  const now = Object.keys(parsed.data.plugins);
-  const added = now.filter((id) => !consentedIds.has(id));
-  consentedIds = new Set(now);
-  for (const pluginId of added) {
+  // Every consented plugin is offered a start, not only the ones the edit
+  // adds: the app's own consent writes are self-writes that run no handler, so
+  // no snapshot kept here could tell which records this edit added.
+  // startAfterConsent leaves a running or held plugin as it is, and only the
+  // plugins it started are named.
+  const started: string[] = [];
+  for (const pluginId of Object.keys(parsed.data.plugins)) {
     try {
-      await pluginManager.startAfterConsent(pluginId);
+      if (await pluginManager.startAfterConsent(pluginId)) started.push(pluginId);
     } catch (err) {
       console.warn(
         `[state-dir-watch] plugin ${pluginId} did not start after consent: ${(err as Error).message}`,
       );
     }
   }
-  const pluginId = only(added);
+  const pluginId = only(started);
   return applied({
     ...(pluginId === undefined ? {} : { pluginId }),
-    summary: consentAppliedNotice(added),
+    summary: consentAppliedNotice(started),
   });
 }
 
@@ -403,7 +392,6 @@ export interface StateDirWatchOptions {
  */
 export async function startStateDirWatch(options: StateDirWatchOptions = {}): Promise<InputWatch> {
   if (active) return active;
-  consentedIds = readConsentedIds();
   // Read settings.json once, so a hand edit that breaks it later still has
   // last good settings to serve.
   try {
@@ -433,6 +421,5 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
 export async function stopStateDirWatch(): Promise<void> {
   const current = active;
   active = null;
-  consentedIds = new Set();
   if (current) await current.dispose();
 }

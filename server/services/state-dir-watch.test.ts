@@ -41,7 +41,7 @@ vi.mock("./bench-manager.js", () => ({
   applyStateFileEdit: vi.fn(() => ({ applied: [], refused: [] })),
 }));
 vi.mock("./plugin-manager.js", () => ({
-  startAfterConsent: vi.fn(() => Promise.resolve()),
+  startAfterConsent: vi.fn(() => Promise.resolve(true)),
   reloadEnableState: vi.fn(() => Promise.resolve({ disabled: [], enabled: [] })),
 }));
 vi.mock("./project-registry.js", () => ({
@@ -190,18 +190,54 @@ describe("state dir watch", () => {
     expect(fileLines("plugins-consent.json")[0]).toContain("surface=plugin ");
   });
 
-  it("HR-TC-027 a consent record already known before the edit is not started again", async () => {
+  it("HR-TC-027 a consented plugin that is already running is not named in the notice", async () => {
     await stopStateDirWatch();
     hoisted.consent = JSON.parse(consentFile("process"));
     fs.writeFileSync(path.join(dir, "plugins-consent.json"), consentFile("process"));
     await startStateDirWatch({ dir });
+    // "process" runs already, so its start is a no-op that starts nothing.
+    // The file lists "process" first, then "database".
+    vi.mocked(pluginManager.startAfterConsent)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
 
     fs.writeFileSync(path.join(dir, "plugins-consent.json"), consentFile("process", "database"));
     await waitFor(() => hoisted.events.length === 1);
 
-    expect(pluginManager.startAfterConsent).toHaveBeenCalledTimes(1);
+    expect(pluginManager.startAfterConsent).toHaveBeenCalledWith("process");
     expect(pluginManager.startAfterConsent).toHaveBeenCalledWith("database");
-    expect(hoisted.events[0].summary).toBe("Plugin consent applied: database.");
+    expect(hoisted.events[0]).toMatchObject({
+      pluginId: "database",
+      summary: "Plugin consent applied: database.",
+    });
+  });
+
+  it("HR-TC-027 a consent record removed by the app and added back by hand starts the plugin", async () => {
+    const file = path.join(dir, "plugins-consent.json");
+    await stopStateDirWatch();
+    hoisted.consent = JSON.parse(consentFile("database"));
+    fs.writeFileSync(file, consentFile("database"));
+    await startStateDirWatch({ dir });
+
+    // The app removes the record, as an uninstall does: a self-write, which
+    // runs no handler.
+    hoisted.consent = JSON.parse(consentFile());
+    atomicWrite(file, consentFile());
+    await waitFor(() => fileLines("plugins-consent.json", "self-write").length === 1);
+    expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
+
+    // The record is added back by hand.
+    hoisted.consent = JSON.parse(consentFile("database"));
+    fs.writeFileSync(file, consentFile("database"));
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(pluginManager.startAfterConsent).toHaveBeenCalledWith("database");
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "plugin",
+      outcome: "applied",
+      pluginId: "database",
+      summary: "Plugin consent applied: database.",
+    });
   });
 
   it("HR-TC-028 setting a plugin disabled in plugins-state.json by hand reloads the enable state with a notice", async () => {
