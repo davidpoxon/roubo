@@ -130,6 +130,29 @@ export interface Disposable {
   dispose(): Promise<void>;
 }
 
+/** The handle of one `watchInput` watch. */
+export interface InputWatch extends Disposable {
+  /**
+   * Record that the surface rejected the content `hash` of the input at
+   * `absPath` outside a watched run, such as an app write it could not apply.
+   * The watch then treats that content as rejected rather than applied: the
+   * matching self-write keeps it so, and the next save of the input runs the
+   * handler even when it holds the same content. A path that is not an input
+   * of this watch is ignored.
+   */
+  markRejected(absPath: string, hash: string | null): void;
+}
+
+/**
+ * What the watch remembers of an input whose last handler run did not apply:
+ * the hash of that content. As an object it never equals a hash or null, so
+ * the next save runs the handler whatever it holds, a delete included, while
+ * a rescan can still tell that the content is the one already rejected.
+ */
+interface RejectedContent {
+  readonly rejected: string | null;
+}
+
 /** Thrown by `watchInput` for a path outside every allowed root. */
 export class WatchRootError extends Error {
   constructor(target: string) {
@@ -365,7 +388,7 @@ export function watchInput(
   target: string,
   options: WatchInputOptions,
   handler: InputHandler,
-): Disposable {
+): InputWatch {
   const resolved = resolveAllowedPath(target);
 
   let isFile = options.kind === "file";
@@ -388,7 +411,9 @@ export function watchInput(
   }
 
   const { surface, settleMs } = options;
-  const lastApplied = new Map<string, string | null>();
+  // The hash of each input's last applied content, or what was rejected when
+  // its last handler run did not apply.
+  const lastApplied = new Map<string, string | null | RejectedContent>();
   const timers = new Map<string, NodeJS.Timeout>();
   const chains = new Map<string, Promise<void>>();
   let watcher: FSWatcher | null = null;
@@ -525,12 +550,18 @@ export function watchInput(
       lastApplied.set(unit, hash);
       return;
     }
+    const last = lastApplied.get(unit);
+    const lastRejected = typeof last === "object" && last !== null ? last : null;
     if (hash !== null && consumeSelfWrite(unit, hash)) {
-      lastApplied.set(unit, hash);
+      // An app write the surface rejected stays rejected (see markRejected).
+      if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
       emit("self-write", hash);
       return;
     }
-    const unchanged = lastApplied.has(unit) ? lastApplied.get(unit) === hash : hash === null;
+    // A rescan finds the content that was last rejected unchanged: the handler
+    // already said no to it, so it does not run again for it.
+    if (mode === "quiet" && lastRejected !== null && lastRejected.rejected === hash) return;
+    const unchanged = lastApplied.has(unit) ? last === hash : hash === null;
     if (unchanged) {
       if (mode === "event") emit("deduped", hash);
       return;
@@ -556,11 +587,13 @@ export function watchInput(
     }
     // The handler ran, so its outcome is recorded and logged even when the
     // watch was disposed while it was awaited.
-    // After a rejection the applied hash is forgotten, so a save that puts the
-    // last applied content back runs the handler and its applied event clears
-    // the open error notice (HR-TC-005) instead of being deduped.
+    // After a rejection the applied hash is replaced by a record of the
+    // rejected content, which never equals a hash or null: a save that puts
+    // the last applied content back, or deletes the input, runs the handler,
+    // and its applied event clears the open error notice (HR-TC-005) instead
+    // of being deduped.
     if (outcome === "applied") lastApplied.set(unit, hash);
-    else lastApplied.delete(unit);
+    else lastApplied.set(unit, { rejected: hash });
     emit(outcome, hash, action, detail, reason);
   }
 
@@ -710,6 +743,14 @@ export function watchInput(
 
   return {
     ready,
+    markRejected(absPath, hash) {
+      // The watch keys its inputs by the real path of the watched directory,
+      // so the caller's path is resolved the same way.
+      const abs = path.join(realpathLoose(path.dirname(absPath)), path.basename(absPath));
+      const unit = unitOf(abs);
+      if (unit === null || disposed) return;
+      lastApplied.set(unit, { rejected: hash });
+    },
     async dispose() {
       disposed = true;
       if (poll) clearInterval(poll);
