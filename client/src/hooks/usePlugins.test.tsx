@@ -185,6 +185,25 @@ describe("useUninstallPlugin", () => {
     expect(addToast).toHaveBeenCalledWith("plugin in use");
   });
 
+  it("HR-TC-017 shows the notice that names each bench when the plugin is in use", async () => {
+    const notice =
+      "Plugin database not removed. Benches 2 and 5 use it. Clear those benches first.";
+    mockedApi.uninstallPlugin.mockRejectedValue(
+      new ApiError("Plugin database is in use by benches 2 and 5", 409, "plugin-in-use", {
+        error: "Plugin database is in use by benches 2 and 5",
+        code: "plugin-in-use",
+        benchIds: [2, 5],
+        notice,
+      }),
+    );
+    const { result } = renderHookWithProviders(() => useUninstallPlugin());
+    await act(async () => {
+      result.current.mutate("database");
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(addToast).toHaveBeenCalledWith(notice);
+  });
+
   it("falls back to a generic message for non-ApiError errors", async () => {
     mockedApi.uninstallPlugin.mockRejectedValue("string-error");
     const { result } = renderHookWithProviders(() => useUninstallPlugin());

@@ -151,6 +151,21 @@ describe("BenchCard", () => {
       );
     });
 
+    it("HR-TC-056: a bench a plugin swap left stale names the swap, not roubo.yaml", async () => {
+      const user = userEvent.setup();
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true, staleFromSwap: true }));
+      const marker = screen.getByTestId("bench-card-stale-marker");
+      expect(marker).toHaveTextContent("stale · A plugin swap left it unbound");
+      expect(marker).not.toHaveTextContent(/roubo\.yaml/);
+      await user.tab();
+      await user.tab();
+      expect(marker).toHaveFocus();
+      const tooltip = await screen.findByRole("tooltip");
+      expect(tooltip).toHaveTextContent(/did not re-bind to the new plugin process/);
+      expect(tooltip).not.toHaveTextContent(/roubo\.yaml/);
+    });
+
     it("HR-TC-007: Restart with new config carries its tooltip", async () => {
       const user = userEvent.setup();
       makeDefaultMutations();
