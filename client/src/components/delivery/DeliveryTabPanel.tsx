@@ -348,14 +348,21 @@ function DeliverySnapshotView({
     if (active !== element && active !== null && element.contains(active)) return;
     element.focus();
   }, [pendingFocus]);
-  const openView = useCallback((next: DeliveryView, focus?: () => HTMLElement | null) => {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && mapView.current?.contains(active) === true) {
-      opener.current = active;
-    }
-    setView(next);
-    setPendingFocus(focus === undefined ? null : { target: focus, block: "start" });
-  }, []);
+  // The opener is the map control that has the focus. A view that a link from
+  // outside the tab opens (fromMap false) has no opener, so the return focuses
+  // the map, whatever had the focus when the link arrived.
+  const openView = useCallback(
+    (next: DeliveryView, focus?: () => HTMLElement | null, fromMap = true) => {
+      const active = document.activeElement;
+      opener.current =
+        fromMap && active instanceof HTMLElement && mapView.current?.contains(active) === true
+          ? active
+          : null;
+      setView(next);
+      setPendingFocus(focus === undefined ? null : { target: focus, block: "start" });
+    },
+    [],
+  );
   const returnToMap = () => {
     setView({ kind: "map" });
     setPendingFocus({
@@ -404,7 +411,7 @@ function DeliverySnapshotView({
       return;
     }
     focusedPileKey.current = decisionPileFocusKey;
-    openView({ kind: "decisions" }, () => decisionPile.current);
+    openView({ kind: "decisions" }, () => decisionPile.current, false);
     onDecisionPileFocused?.(decisionPileFocusKey);
   }, [decisionPileFocusKey, onDecisionPileFocused, openView]);
   // A complete delivery takes no role change and no mode switch.

@@ -795,4 +795,50 @@ describe("The Delivery tab's views (#1620)", () => {
     await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
     expect(screen.getByTestId("delivery-view-map")).toHaveFocus();
   });
+
+  it("focuses the map after a link from outside the tab, even when a map node opened the view before it", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const { rerender } = renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const node = await screen.findByTestId("unit-node-B");
+
+    // Node B opens its drill-in, and the return gives node B the focus back.
+    await userEvent.click(node);
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    expect(node).toHaveFocus();
+
+    // A link from outside the tab arrives while node B has the focus. Node B
+    // did not open the decisions view, so the return focuses the map.
+    rerender(<DeliveryTabPanel bench={bench} decisionPileFocusKey="link-2" />);
+    await waitFor(() => expect(screen.getByTestId("delivery-decision-pile-target")).toHaveFocus());
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    expect(screen.getByTestId("delivery-view-map")).toHaveFocus();
+    expect(node).not.toHaveFocus();
+  });
+
+  it("opens a unit's drill-in from a list row, and the return gives the row the focus back", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await userEvent.click(await screen.findByRole("button", { name: "List" }));
+    const row = screen.getByTestId("unit-row-C");
+
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
+    expect(screen.getByRole("region", { name: "Unit C" })).toBeVisible();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/C");
+
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    expect(screen.getByTestId("unit-row-C")).toHaveFocus();
+  });
+
+  it("keeps an unsent steering note while the operator goes to the map and back", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Open the decision pile" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Steering note" }), "Keep it short");
+
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open the decision pile" }));
+    expect(screen.getByRole("textbox", { name: "Steering note" })).toHaveValue("Keep it short");
+  });
 });
