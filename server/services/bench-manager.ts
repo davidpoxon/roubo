@@ -2673,6 +2673,28 @@ function ledgerRowsOfBench(
 }
 
 /**
+ * Whether the ledger process id `processId` of `bench` names a handle that runs
+ * for as long as its component does, so a swap can check that it is still up.
+ * The `:setup` and `:migration` phase ids stay in the ledger until the
+ * component stops, but their processes exit once the phase is done, and a
+ * one-shot component's process exits once it has completed. Neither is a
+ * handle the swap re-binds, so neither is checked for liveness.
+ */
+function isLongRunningHandle(
+  pluginId: string,
+  bench: Bench,
+  names: string[],
+  processId: string,
+): boolean {
+  for (const name of names) {
+    const base = `${pluginId}:${bench.id}:${name}`;
+    if (processId === `${base}:setup` || processId === `${base}:migration`) return false;
+    if (processId === base && bench.components[name]?.status === "completed") return false;
+  }
+  return true;
+}
+
+/**
  * Each live bench, by project and number, that holds a resource of `pluginId`
  * in the ownership ledger (HR-FR-009). Registered with plugin-manager as
  * `findBenchesUsingPlugin`: a swap whose new process does not start marks these
@@ -2699,7 +2721,9 @@ export function findBenchesUsingPlugin(pluginId: string): pluginSwapState.SwapBe
  *
  * It drops the plugin's cached descriptors, then, for each live bench bound to
  * the plugin that holds ledger rows of it, checks each of its rows (matched to
- * the bench by project and number, see ledgerRowsOfBench) and runs a
+ * the bench by project and number, see ledgerRowsOfBench; a setup or migration
+ * phase id and a completed one-shot are not checked, see isLongRunningHandle)
+ * and runs a
  * `translate` round trip on the new connection for each bound component, which
  * caches the new process's descriptors. A bench with a resource that is no
  * longer up, or a component the new process does not translate, is marked
@@ -2719,6 +2743,7 @@ export async function handleComponentPluginSwapped(pluginId: string): Promise<vo
     if (rows.processIds.length === 0 && rows.composeProjects.length === 0) continue;
     let rebound = true;
     for (const processId of rows.processIds) {
+      if (!isLongRunningHandle(pluginId, bench, names, processId)) continue;
       if (!processManager.getProcessStatus(processId).alive) rebound = false;
     }
     for (const composeProject of rows.composeProjects) {

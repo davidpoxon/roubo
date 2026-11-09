@@ -9879,6 +9879,71 @@ describe("handleComponentPluginSwapped", () => {
     expect(bench.status).toBe("active");
   });
 
+  it("HR-TC-021 does not mark the bench stale for a setup phase process that has exited", async () => {
+    const bench = setupSwappedBench();
+    useLedger([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["process:1:backend:setup", "process:1:backend"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.getProcessStatus).mockImplementation((id: string) =>
+      id === "process:1:backend:setup"
+        ? { alive: false, exitCode: 0 }
+        : { alive: true, exitCode: null },
+    );
+    const swapState = await import("./plugin-swap-state.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+
+    expect(processManager.getProcessStatus).not.toHaveBeenCalledWith("process:1:backend:setup");
+    expect(processManager.getProcessStatus).toHaveBeenCalledWith("process:1:backend");
+    expect(swapState.isPluginStale("process")).toBe(false);
+    expect(swapState.isBenchStaleFromSwap("test-project", 1)).toBe(false);
+    expect(bench.status).toBe("active");
+  });
+
+  it("HR-TC-021 does not mark the bench stale for a migration phase process or a completed one-shot", async () => {
+    const bench = setupSwappedBench();
+    bench.components.backend = { name: "backend", status: "completed" };
+    useLedger([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["process:1:backend:migration", "process:1:backend"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.getProcessStatus).mockReturnValue({ alive: false, exitCode: 0 });
+    const swapState = await import("./plugin-swap-state.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+
+    expect(swapState.isPluginStale("process")).toBe(false);
+    expect(swapState.isBenchStaleFromSwap("test-project", 1)).toBe(false);
+  });
+
+  it("HR-TC-056 still marks the bench stale when its long-running process has exited", async () => {
+    setupSwappedBench();
+    useLedger([
+      {
+        pluginId: "process",
+        benchId: 1,
+        processIds: ["process:1:backend:setup", "process:1:backend"],
+        composeProjects: ["roubo-test-project-bench-1"],
+      },
+    ]);
+    vi.mocked(processManager.getProcessStatus).mockReturnValue({ alive: false, exitCode: 1 });
+    const swapState = await import("./plugin-swap-state.js");
+
+    await benchManager.handleComponentPluginSwapped("process");
+
+    expect(swapState.isPluginStale("process")).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("test-project", 1)).toBe(true);
+  });
+
   it("marks the bench stale when the new process does not translate a bound component", async () => {
     setupSwappedBench();
     vi.mocked(pluginManager.invoke).mockRejectedValue(new Error("translate failed"));
