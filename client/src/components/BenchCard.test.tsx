@@ -1004,6 +1004,9 @@ describe("BenchCard", () => {
       renderCard(specBench());
       const error = await screen.findByTestId("specbench-card-error");
       expect(error).toHaveTextContent("The delivery record is missing its decisions section");
+      expect(screen.getByTestId("specbench-card-summary")).toHaveTextContent(
+        "fixture-spec The delivery record is missing its decisions section",
+      );
       expect(error.className).toContain("text-danger-text");
       expect(screen.getByText("No controls until the record conforms")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Open delivery" })).toBeNull();
