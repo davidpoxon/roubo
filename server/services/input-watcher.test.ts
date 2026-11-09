@@ -302,6 +302,25 @@ describe("watchInput dedupe and self-write", () => {
     expect(outcomeCount("deduped")).toBe(0);
   });
 
+  it("HR-TC-041 markApplied drops a rejected record, so the next save of the same content is deduped", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+
+    // The surface applies the same content outside the watch.
+    w.markApplied(file, hashContent("name: two\n"));
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("deduped") === 1);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(outcomeCount("rejected")).toBe(1);
+  });
+
   it("holds self-write tokens as a multiset that consumes the oldest match and expires", () => {
     const file = path.join(stateDir, "state.json");
     const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
