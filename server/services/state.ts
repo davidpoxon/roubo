@@ -170,7 +170,14 @@ export function loadState(): PersistedState {
   if (!fs.existsSync(STATE_FILE)) {
     return { benches: [] };
   }
-  const data: PersistedState = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+  return migratePersistedState(JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")));
+}
+
+/**
+ * Migrate the legacy fields of each bench record of a parsed state.json in
+ * place, as every read of the file does, and return it.
+ */
+export function migratePersistedState(data: PersistedState): PersistedState {
   for (const bench of data.benches) {
     bench.assignedIssue = migrateAssignedIssue(bench.assignedIssue);
     migrateInjectedJigFields(bench);
@@ -318,70 +325,88 @@ export function removeBench(projectId: string, benchId: number) {
   saveState(data);
 }
 
+function defaultSettings(): UserPreferences {
+  return {
+    theme: "dark",
+    jigs: DEFAULT_JIG_SETTINGS,
+    benches: DEFAULT_BENCH_SETTINGS,
+    testBench: DEFAULT_TESTBENCH_SETTINGS,
+    github: DEFAULT_GITHUB_SETTINGS,
+  };
+}
+
+/**
+ * The settings of the last read of settings.json that parsed, or null when no
+ * read has parsed yet in this process. A hand edit that leaves the file
+ * unparseable keeps serving it (HR-TC-034).
+ */
+let lastGoodSettings: UserPreferences | null = null;
+
 export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferences {
   ensureDirs();
   if (!fs.existsSync(SETTINGS_FILE)) {
-    return {
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      github: DEFAULT_GITHUB_SETTINGS,
-    };
+    return defaultSettings();
   }
   try {
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
-    // Legacy migration: the `blueprints` object plus its `defaultBlueprintId`
-    // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
-    // the new ones are absent, so a user-authored settings file keeps working.
-    const legacyJigSettings = raw.blueprints as
-      (Record<string, unknown> & { defaultBlueprintId?: string }) | undefined;
-    const mergedJigSettings = {
-      ...DEFAULT_JIG_SETTINGS,
-      ...(legacyJigSettings ?? {}),
-      ...raw.jigs,
-    } as Record<string, unknown>;
-    if (
-      mergedJigSettings.defaultJigId === undefined &&
-      typeof legacyJigSettings?.defaultBlueprintId === "string"
-    ) {
-      mergedJigSettings.defaultJigId = legacyJigSettings.defaultBlueprintId;
-    }
-    delete mergedJigSettings.defaultBlueprintId;
-    return {
-      theme: raw.theme ?? "dark",
-      jigs: mergedJigSettings as UserPreferences["jigs"],
-      // AP-FR-008 (found while writing the AP-TC-025 e2e, #1101): the app-level
-      // agent tool presets have to be read back explicitly. This object is
-      // rebuilt key by key rather than spread from `raw`, so an unlisted key is
-      // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
-      // re-rendered an empty list, and the next settings write erased the file's
-      // copy too (PUT /api/settings falls back to `current.agentTools`). Saving
-      // an agent tool therefore never survived a reload.
-      ...(Array.isArray(raw.agentTools) && {
-        agentTools: raw.agentTools as UserPreferences["agentTools"],
-      }),
-      benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
-      testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
-      github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
-    };
+    const settings = parseSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8")));
+    lastGoodSettings = structuredClone(settings);
+    return settings;
   } catch (err) {
-    // Fail-open by default: a corrupt settings.json yields built-in defaults so
-    // the app keeps working. Callers that need to distinguish corruption from a
-    // legitimately-default config (e.g. the global bench-cap check, which warns
-    // once per process load) opt in via throwOnCorrupt. A missing file is handled
-    // by the early return above and never reaches here, so absence never throws.
+    // Fail-open by default: a corrupt settings.json yields the last settings
+    // that parsed in this process, or the built-in defaults when none has yet,
+    // so the app keeps working. Callers that need to distinguish corruption
+    // from a legitimately-default config (e.g. the global bench-cap check,
+    // which warns once per process load) opt in via throwOnCorrupt. A missing
+    // file is handled by the early return above and never reaches here, so
+    // absence never throws.
     if (opts?.throwOnCorrupt) {
       throw err;
     }
-    return {
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      github: DEFAULT_GITHUB_SETTINGS,
-    };
+    return lastGoodSettings === null ? defaultSettings() : structuredClone(lastGoodSettings);
   }
+}
+
+/** Forget the last settings that parsed. For tests. */
+export function resetLastGoodSettings(): void {
+  lastGoodSettings = null;
+}
+
+/** The settings a parsed settings.json holds, legacy keys migrated and defaults filled in. */
+function parseSettings(raw: ReturnType<typeof JSON.parse>): UserPreferences {
+  // Legacy migration: the `blueprints` object plus its `defaultBlueprintId`
+  // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
+  // the new ones are absent, so a user-authored settings file keeps working.
+  const legacyJigSettings = raw.blueprints as
+    (Record<string, unknown> & { defaultBlueprintId?: string }) | undefined;
+  const mergedJigSettings = {
+    ...DEFAULT_JIG_SETTINGS,
+    ...(legacyJigSettings ?? {}),
+    ...raw.jigs,
+  } as Record<string, unknown>;
+  if (
+    mergedJigSettings.defaultJigId === undefined &&
+    typeof legacyJigSettings?.defaultBlueprintId === "string"
+  ) {
+    mergedJigSettings.defaultJigId = legacyJigSettings.defaultBlueprintId;
+  }
+  delete mergedJigSettings.defaultBlueprintId;
+  return {
+    theme: raw.theme ?? "dark",
+    jigs: mergedJigSettings as UserPreferences["jigs"],
+    // AP-FR-008 (found while writing the AP-TC-025 e2e, #1101): the app-level
+    // agent tool presets have to be read back explicitly. This object is
+    // rebuilt key by key rather than spread from `raw`, so an unlisted key is
+    // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
+    // re-rendered an empty list, and the next settings write erased the file's
+    // copy too (PUT /api/settings falls back to `current.agentTools`). Saving
+    // an agent tool therefore never survived a reload.
+    ...(Array.isArray(raw.agentTools) && {
+      agentTools: raw.agentTools as UserPreferences["agentTools"],
+    }),
+    benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
+    testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
+    github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
+  };
 }
 
 export function saveSettings(data: UserPreferences) {

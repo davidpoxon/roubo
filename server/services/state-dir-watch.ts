@@ -1,0 +1,438 @@
+/**
+ * The state-file surfaces of hot reload (HR-FR-012, HR-FR-013): one
+ * InputWatcher watch of the Roubo state dir at depth 0, whose inputs are the
+ * state files the app reads while it runs. A change made outside the app is
+ * applied live; the app's own writes go through `atomicWrite`, so the watch
+ * takes each of them as a self-write and runs no handler (HR-NFR-002).
+ *
+ * - projects.json: the settings of each registered project.
+ * - state.json: the hand-editable fields of each bench that is not live. An
+ *   edit of a live bench is refused with a notice that names it, and the bench
+ *   keeps what it has.
+ * - auth.json: a GitHub token put there is moved into the github-com plugin's
+ *   credential slot, as the boot migration does.
+ * - plugins-consent.json: each plugin that the edit consents starts, as a
+ *   grant of consent in the app starts it.
+ * - plugins-state.json: the enable-state cache is read again; a plugin the
+ *   edit disables stops, and one it enables starts.
+ * - settings.json: read again. A settings.json that does not parse keeps the
+ *   last good settings served (HR-TC-034).
+ *
+ * The state dir is watched as one directory with a basename allowlist rather
+ * than file by file, since a single-file watch loses saves that replace the
+ * file. The allowlist also drops the `.tmp` sibling that `atomicWrite` renames
+ * from. A file that does not parse is rejected with its parse error, and
+ * nothing of it is applied.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import {
+  PluginConsentStateSchema,
+  PluginEnableStateSchema,
+  type InputSurface,
+  type PersistedProjects,
+  type PersistedState,
+} from "@roubo/shared";
+import * as benchManager from "./bench-manager.js";
+import type { BenchStateEditRef } from "./bench-manager.js";
+import * as credentialStore from "./credential-store.js";
+import { loadConsentState } from "./plugin-consent-state.js";
+import * as pluginManager from "./plugin-manager.js";
+import * as projectRegistry from "./project-registry.js";
+import * as state from "./state.js";
+import {
+  watchInput,
+  type HandlerResult,
+  type InputChange,
+  type InputEventDetail,
+  type InputWatch,
+} from "./input-watcher.js";
+
+/** The settle window of one state file. */
+export const STATE_DIR_SETTLE_MS = 150;
+
+/** The surface named on a watch line that is about no one state file. */
+export const STATE_DIR_SURFACE = "state";
+
+/** The state files the watch applies, by basename, with the surface each one feeds. */
+export const STATE_FILE_SURFACES = {
+  "projects.json": "project-config",
+  "state.json": "bench",
+  "auth.json": "github",
+  "plugins-consent.json": "plugin",
+  "plugins-state.json": "plugin",
+  "settings.json": "settings",
+} as const satisfies Record<string, InputSurface>;
+
+export type StateFile = keyof typeof STATE_FILE_SURFACES;
+
+export const STATE_FILES = Object.keys(STATE_FILE_SURFACES) as StateFile[];
+
+const MISSING = "the file is missing";
+const NOT_AN_OBJECT = "the top level must be an object";
+
+// The plugin and the credential slot the boot migration moves an auth.json
+// token into.
+const GITHUB_PLUGIN_ID = "github-com";
+const GITHUB_TOKEN_SLOT = "github-token";
+
+// ── Reading a state file ──
+
+/**
+ * The parse error of `raw` as a sentence clause, or null when it parses. Only
+ * the place of the error is kept: a JSON.parse message can quote the input,
+ * and a notice never carries file content.
+ */
+export function jsonParseError(raw: string): string | null {
+  try {
+    JSON.parse(raw);
+    return null;
+  } catch (err) {
+    const message = (err as Error).message;
+    const at = /line (\d+) column (\d+)/.exec(message);
+    if (at) return `invalid JSON at line ${at[1]} column ${at[2]}`;
+    if (/unexpected end/i.test(message)) return "invalid JSON: unexpected end of input";
+    const position = /position (\d+)/.exec(message);
+    if (position) return `invalid JSON at position ${position[1]}`;
+    return "invalid JSON";
+  }
+}
+
+type ReadResult =
+  | { kind: "missing" }
+  | { kind: "invalid"; first: string }
+  | { kind: "ok"; value: Record<string, unknown> };
+
+function readStateFile(absPath: string): ReadResult {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(absPath, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
+    return { kind: "invalid", first: "the file could not be read" };
+  }
+  const parseError = jsonParseError(raw);
+  if (parseError !== null) return { kind: "invalid", first: parseError };
+  const value: unknown = JSON.parse(raw);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { kind: "invalid", first: NOT_AN_OBJECT };
+  }
+  return { kind: "ok", value: value as Record<string, unknown> };
+}
+
+/** The first schema issue as a clause: its path and its message. */
+function firstIssue(issues: readonly { path: PropertyKey[]; message: string }[]): string {
+  const issue = issues[0];
+  if (!issue) return "the file does not match its schema";
+  const where = issue.path.map(String).join(".");
+  return where === "" ? issue.message : `${where}: ${issue.message}`;
+}
+
+// ── Notice copy ──
+
+/** "Bench state not applied. state.json: invalid JSON at line 1 column 2." */
+function rejected(file: StateFile, lead: string, first: string, tail = ""): HandlerResult {
+  const summary = `${lead} not applied. ${file}: ${first}.${tail === "" ? "" : ` ${tail}`}`;
+  return { outcome: "rejected", event: { summary, error: { path: file, first } } };
+}
+
+function applied(event: InputEventDetail): HandlerResult {
+  return { outcome: "applied", event };
+}
+
+/** "bench 3 on lantern", "benches 3, 4 on lantern", across projects joined by "and". */
+export function benchPhrase(refs: readonly BenchStateEditRef[]): string {
+  const byProject = new Map<string, number[]>();
+  for (const ref of refs) {
+    const ids = byProject.get(ref.projectId) ?? [];
+    ids.push(ref.benchId);
+    byProject.set(ref.projectId, ids);
+  }
+  return [...byProject]
+    .map(([projectId, ids]) => {
+      const sorted = [...ids].sort((a, b) => a - b);
+      const noun = sorted.length === 1 ? "bench" : "benches";
+      return `${noun} ${sorted.join(", ")} on ${projectId}`;
+    })
+    .join(" and ");
+}
+
+/** "Bench state applied: bench 3 on lantern." */
+export function benchAppliedNotice(refs: readonly BenchStateEditRef[]): string {
+  return refs.length === 0 ? "Bench state applied." : `Bench state applied: ${benchPhrase(refs)}.`;
+}
+
+/** "Bench state not applied: bench 2 on lantern is active. Stop it first." */
+export function benchRefusedNotice(refs: readonly (BenchStateEditRef & { status: string })[]): {
+  summary: string;
+  first: string;
+} {
+  const statuses = new Set(refs.map((r) => r.status));
+  const status = statuses.size === 1 ? [...statuses][0] : "live";
+  const one = refs.length === 1;
+  const first = `${benchPhrase(refs)} ${one ? "is" : "are"} ${status}`;
+  return {
+    summary: `Bench state not applied: ${first}. Stop ${one ? "it" : "them"} first.`,
+    first,
+  };
+}
+
+/** "Plugin consent applied: database." */
+export function consentAppliedNotice(pluginIds: readonly string[]): string {
+  return pluginIds.length === 0
+    ? "Plugin consent applied."
+    : `Plugin consent applied: ${pluginIds.join(", ")}.`;
+}
+
+/** "Plugin database disabled." for each plugin the edit turned off, then each it turned on. */
+export function enableStateNotice(reload: pluginManager.EnableStateReload): string {
+  const lines = [
+    ...reload.disabled.map((id) => `Plugin ${id} disabled.`),
+    ...reload.enabled.map((id) => `Plugin ${id} enabled.`),
+  ];
+  return lines.length === 0 ? "Plugin state applied." : lines.join(" ");
+}
+
+/** The single target of a list, for the event's target id. */
+function only<T>(items: readonly T[]): T | undefined {
+  return items.length === 1 ? items[0] : undefined;
+}
+
+// ── The handlers ──
+
+// The plugins with a ConsentRecord as of the last read of
+// plugins-consent.json by this watch, so an edit names the ones it adds.
+let consentedIds = new Set<string>();
+
+function readConsentedIds(): Set<string> {
+  try {
+    return new Set(Object.keys(loadConsentState()?.plugins ?? {}));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Whether `value` has what matches a bench record to its bench: a project id and a number. */
+function isBenchRecord(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const record = value as { projectId?: unknown; id?: unknown };
+  return typeof record.projectId === "string" && typeof record.id === "number";
+}
+
+/** Whether `value` names its project: a project record has a string id. */
+function isProjectRecord(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+async function handleProjects(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  if (read.kind === "missing") return rejected("projects.json", "Project state", MISSING);
+  if (read.kind === "invalid") return rejected("projects.json", "Project state", read.first);
+  const entries = read.value.projects;
+  if (!Array.isArray(entries) || !entries.every(isProjectRecord)) {
+    return rejected("projects.json", "Project state", "projects must be a list of project records");
+  }
+  const changed = projectRegistry.applyProjectsFileEdit(read.value as unknown as PersistedProjects);
+  const projectId = only(changed);
+  return applied({
+    ...(projectId === undefined ? {} : { projectId }),
+    summary:
+      changed.length === 0
+        ? "Project state applied."
+        : `Project settings applied: ${changed.join(", ")}.`,
+  });
+}
+
+async function handleBenchState(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  if (read.kind === "missing") return rejected("state.json", "Bench state", MISSING);
+  if (read.kind === "invalid") return rejected("state.json", "Bench state", read.first);
+  const benches = read.value.benches;
+  if (!Array.isArray(benches) || !benches.every(isBenchRecord)) {
+    return rejected("state.json", "Bench state", "benches must be a list of bench records");
+  }
+  // A legacy record is migrated as every read of the file migrates it.
+  const persisted = state.migratePersistedState(read.value as unknown as PersistedState);
+  const edit = benchManager.applyStateFileEdit(persisted);
+  const touched = [...edit.refused, ...edit.applied];
+  const projects = new Set(touched.map((r) => r.projectId));
+  const target =
+    projects.size === 1
+      ? {
+          projectId: [...projects][0],
+          benchIds: touched.map((r) => r.benchId).sort((a, b) => a - b),
+        }
+      : {};
+  if (edit.refused.length > 0) {
+    const refused = benchRefusedNotice(edit.refused);
+    const summary =
+      edit.applied.length === 0
+        ? refused.summary
+        : `${refused.summary} ${benchAppliedNotice(edit.applied)}`;
+    return {
+      outcome: "refused",
+      event: { ...target, summary, error: { path: "state.json", first: refused.first } },
+    };
+  }
+  return applied({ ...target, summary: benchAppliedNotice(edit.applied) });
+}
+
+async function handleAuth(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  // auth.json is a legacy file: the boot migration moves its token out and
+  // removes it, so its absence is the normal state.
+  if (read.kind === "missing") return "ignored";
+  if (read.kind === "invalid") return rejected("auth.json", "GitHub token", read.first);
+  const token = read.value.githubToken;
+  if (typeof token !== "string" || token.length === 0) {
+    return rejected("auth.json", "GitHub token", "githubToken must be a non-empty string");
+  }
+  await credentialStore.set(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT, token);
+  return applied({ summary: "GitHub token applied from auth.json." });
+}
+
+async function handleConsent(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  if (read.kind === "missing") {
+    consentedIds = new Set();
+    return applied({ summary: consentAppliedNotice([]) });
+  }
+  if (read.kind === "invalid") {
+    return rejected("plugins-consent.json", "Plugin consent", read.first);
+  }
+  const parsed = PluginConsentStateSchema.safeParse(read.value);
+  if (!parsed.success) {
+    return rejected("plugins-consent.json", "Plugin consent", firstIssue(parsed.error.issues));
+  }
+  // Refresh the module's last known consent from the file the edit left.
+  loadConsentState();
+  const now = Object.keys(parsed.data.plugins);
+  const added = now.filter((id) => !consentedIds.has(id));
+  consentedIds = new Set(now);
+  for (const pluginId of added) {
+    try {
+      await pluginManager.startAfterConsent(pluginId);
+    } catch (err) {
+      console.warn(
+        `[state-dir-watch] plugin ${pluginId} did not start after consent: ${(err as Error).message}`,
+      );
+    }
+  }
+  const pluginId = only(added);
+  return applied({
+    ...(pluginId === undefined ? {} : { pluginId }),
+    summary: consentAppliedNotice(added),
+  });
+}
+
+async function handleEnableState(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  // A missing file reads as a legacy install, where every plugin is enabled:
+  // removing it by hand is not taken as a request to start them all.
+  if (read.kind === "missing") return rejected("plugins-state.json", "Plugin state", MISSING);
+  if (read.kind === "invalid") return rejected("plugins-state.json", "Plugin state", read.first);
+  const parsed = PluginEnableStateSchema.safeParse(read.value);
+  if (!parsed.success) {
+    return rejected("plugins-state.json", "Plugin state", firstIssue(parsed.error.issues));
+  }
+  const reload = await pluginManager.reloadEnableState();
+  const pluginId = only([...reload.disabled, ...reload.enabled]);
+  return applied({
+    ...(pluginId === undefined ? {} : { pluginId }),
+    summary: enableStateNotice(reload),
+  });
+}
+
+async function handleSettings(absPath: string): Promise<HandlerResult> {
+  const read = readStateFile(absPath);
+  if (read.kind === "invalid") {
+    return rejected("settings.json", "Settings", read.first, "Last good settings still in effect.");
+  }
+  // Read again, so the last good settings are the ones the edit left. A
+  // missing file reads as the built-in defaults.
+  state.loadSettings();
+  return applied({ summary: "Settings applied." });
+}
+
+/** The handler of one state file of the state dir. */
+export async function handleStateFileChange(change: InputChange): Promise<HandlerResult> {
+  const file = path.basename(change.path) as StateFile;
+  switch (file) {
+    case "projects.json":
+      return handleProjects(change.path);
+    case "state.json":
+      return handleBenchState(change.path);
+    case "auth.json":
+      return handleAuth(change.path);
+    case "plugins-consent.json":
+      return handleConsent(change.path);
+    case "plugins-state.json":
+      return handleEnableState(change.path);
+    case "settings.json":
+      return handleSettings(change.path);
+    default:
+      return "ignored";
+  }
+}
+
+/** The surface of one state file, or undefined for a path that is not one. */
+export function stateFileSurface(absPath: string): InputSurface | undefined {
+  const name = path.basename(absPath);
+  return Object.hasOwn(STATE_FILE_SURFACES, name)
+    ? STATE_FILE_SURFACES[name as StateFile]
+    : undefined;
+}
+
+let active: InputWatch | null = null;
+
+export interface StateDirWatchOptions {
+  /** The state dir. Defaults to the Roubo state dir. */
+  dir?: string;
+  settleMs?: number;
+  rearmPollMs?: number;
+}
+
+/**
+ * Arm the watch of the state dir. Resolves once each state file on disk has
+ * been hashed, so only a change after it runs a handler. A second call while
+ * armed returns the armed watch.
+ */
+export async function startStateDirWatch(options: StateDirWatchOptions = {}): Promise<InputWatch> {
+  if (active) return active;
+  consentedIds = readConsentedIds();
+  // Read settings.json once, so a hand edit that breaks it later still has
+  // last good settings to serve.
+  try {
+    state.loadSettings();
+  } catch {
+    // A settings file that cannot be read has no last good value to keep.
+  }
+  const watch = watchInput(
+    options.dir ?? state.getRouboDir(),
+    {
+      surface: STATE_DIR_SURFACE,
+      surfaceOf: stateFileSurface,
+      kind: "directory",
+      depth: 0,
+      allow: STATE_FILES,
+      settleMs: options.settleMs ?? STATE_DIR_SETTLE_MS,
+      ...(options.rearmPollMs === undefined ? {} : { rearmPollMs: options.rearmPollMs }),
+    },
+    handleStateFileChange,
+  );
+  active = watch;
+  await watch.ready;
+  return watch;
+}
+
+/** Dispose the watch of the state dir. */
+export async function stopStateDirWatch(): Promise<void> {
+  const current = active;
+  active = null;
+  consentedIds = new Set();
+  if (current) await current.dispose();
+}
