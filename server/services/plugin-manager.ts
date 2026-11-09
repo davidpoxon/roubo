@@ -506,6 +506,22 @@ function isAwaitingConsent(pluginId: string): boolean {
   );
 }
 
+/**
+ * Whether enable() or restart() must refuse to start `entry` for want of
+ * consent (HR-FR-008): it awaits consent, or it is a component or agent plugin
+ * with no ConsentRecord that is not enabled, such as a held plugin that the
+ * user disabled. A legacy install that is enabled is not held.
+ */
+function needsConsentToStart(entry: PluginEntry): boolean {
+  const pluginId = entry.record.id;
+  if (isAwaitingConsent(pluginId)) return true;
+  return (
+    isConsentGatedKind(entry.record.manifest?.kind) &&
+    !isPluginEnabled(pluginId) &&
+    !pluginConsentState.hasConsent(pluginId)
+  );
+}
+
 /** Drop `pluginId` from the in-process enable-state copy, as removePlugin does on disk. */
 function forgetCachedEnableValue(pluginId: string): void {
   if (!enableStateCache || !(pluginId in enableStateCache.plugins)) return;
@@ -1922,7 +1938,7 @@ export async function enable(pluginId: string): Promise<void> {
   if (entry.record.status === "incompatible") {
     throw new Error(`Plugin "${pluginId}" is incompatible with this host`);
   }
-  if (isAwaitingConsent(pluginId)) throw awaitingConsentError(pluginId);
+  if (needsConsentToStart(entry)) throw awaitingConsentError(pluginId);
   if (entry.process) {
     // Already running. Record the user's intent and return; the on-disk file
     // converges with the runtime here even if it had drifted (e.g. a prior
@@ -2011,11 +2027,10 @@ export async function enable(pluginId: string): Promise<void> {
 export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
-  // A plugin awaiting consent keeps that value: written "disabled", a later
-  // enable() would start it with no ConsentRecord (HR-FR-008).
-  if (!isAwaitingConsent(pluginId)) {
-    enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
-  }
+  // Also for a plugin awaiting consent: "disabled" survives a later grant of
+  // consent, and enable() and restart() still refuse it while it has no
+  // ConsentRecord (HR-FR-008).
+  enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
   // FR-004 / NFR-001 (per Spike 553, #576): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
   // issue-snapshot-cache, which is kept warm on disable so the route's
@@ -2037,7 +2052,10 @@ export async function restart(pluginId: string): Promise<void> {
   if (!entry.record.manifest) {
     throw new Error(`Plugin "${pluginId}" has no valid manifest`);
   }
-  if (isAwaitingConsent(pluginId)) throw awaitingConsentError(pluginId);
+  // A running plugin restarts as before; a stopped one starts only as enable() would.
+  if (isAwaitingConsent(pluginId) || (!entry.process && needsConsentToStart(entry))) {
+    throw awaitingConsentError(pluginId);
+  }
   if (entry.process) {
     await stopPluginProcess(entry);
   }
@@ -2544,8 +2562,9 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
  *
  * With `inertUntilConsent` (a plugin found on disk, HR-FR-008) a component or
  * agent plugin with no ConsentRecord is registered but not started, and its
- * enable value is written `"awaiting-consent"`, so neither a relaunch nor
- * enable() or restart() starts it before `startAfterConsent`. Any other plugin
+ * enable value is written `"awaiting-consent"` (unless the user disabled it), so
+ * neither a relaunch nor enable() or restart() starts it before
+ * `startAfterConsent`. Any other plugin
  * found on disk, an integration plugin or a consented one, is started unless
  * the user disabled it. Registration never grants consent.
  */
@@ -2578,7 +2597,9 @@ export async function registerInstalled(
     built.entry.record.manifest !== null &&
     isConsentGatedKind(built.entry.record.manifest.kind) &&
     !consented;
-  if (awaitingConsent) {
+  if (awaitingConsent && enableStateCache?.plugins[id] !== "disabled") {
+    // A plugin the user disabled stays "disabled": a grant of consent then
+    // leaves it as it is, and enable() still refuses it until consent.
     enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
   } else if (fromDisk && consented && enableStateCache?.plugins[id] === "awaiting-consent") {
     // A leftover hold whose consent has since been recorded.
@@ -2630,7 +2651,8 @@ export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInsp
  * Start a registered plugin that was left inert for want of consent, once it
  * has a ConsentRecord (HR-FR-008): its `"awaiting-consent"` value turns
  * `"enabled"`. A plugin that is running, has no valid manifest, is not
- * consented, or that the user disabled is left as it is.
+ * consented, or that the user disabled, also while it awaited consent, is left
+ * as it is.
  */
 export async function startAfterConsent(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
