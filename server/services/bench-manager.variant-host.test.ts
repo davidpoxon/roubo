@@ -2,7 +2,8 @@
 // site, in reconcile and in teardown (SB-FR-004, SB-NFR-008). A fake host for
 // the `specbench` variant answers a root that is not the bench workspace, so
 // every site that still used the workspace would show here. One test swaps in
-// the real Spec Bench host to check a gate pin across a restart (SB-TC-009).
+// the real Spec Bench host, opens a sitting through the real gate pin service
+// over a git workspace, and checks the pin across a restart (SB-TC-009).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -89,6 +90,8 @@ vi.mock("./sse.js", () => ({
 
 import * as pluginManager from "./plugin-manager.js";
 import * as dockerService from "./docker.js";
+import * as stateService from "./state.js";
+import { openGatePin } from "./gate-pin.js";
 import { runDescriptor } from "./lifecycle-engine.js";
 import * as benchManager from "./bench-manager.js";
 import {
@@ -162,6 +165,7 @@ beforeEach(() => {
 
 afterEach(() => {
   benchManager.dropProjectBenches(PID);
+  vi.mocked(runDescriptor).mockImplementation(async () => ({ status: "running" }));
   // A module mock keeps its implementation across tests (restoreMocks does not
   // reset it), so a test that reports a running container hands it back here.
   vi.mocked(dockerService.getContainerStatuses).mockImplementation(async () => new Map());
@@ -242,8 +246,8 @@ describe("reconcile and teardown consult the variant host", () => {
     const verify = vi.fn(specbenchVariantHost.verifyVariantState);
     registerVariantHost("specbench", { ...specbenchVariantHost, verifyVariantState: verify });
 
-    // The bench workspace is a repository with two commits; the gate pin is a
-    // detached worktree of it at the first.
+    // The bench workspace is a repository with two commits. The gate pin does
+    // not exist yet: the gate pin service makes it.
     const git = (cwd: string, ...args: string[]) =>
       execFileSync(
         "git",
@@ -256,29 +260,43 @@ describe("reconcile and teardown consult the variant host", () => {
     git(workspace, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "later commit");
     const laterCommit = git(workspace, "rev-parse", "HEAD");
     fs.rmSync(root, { recursive: true, force: true });
-    git(workspace, "worktree", "add", "-q", "--detach", root, gateCommit);
-    fs.mkdirSync(path.join(tmp, "repo", ".specifications", "fixture-spec"), { recursive: true });
-
-    // S001: a sitting is open, so the bench records the pin and its commit.
-    hoisted.persisted = [
-      {
-        ...hoisted.persisted[0],
-        gatePin: {
-          gateId: "gate-after-a",
-          workspacePath: root,
-          commit: gateCommit,
-          createdAt: "2026-01-01T01:00:00.000Z",
-        },
-        deliverySitting: {
-          gateId: "gate-after-a",
-          commit: gateCommit,
-          openedAt: "2026-01-01T01:00:00.000Z",
-        },
-      },
-    ];
+    const specFolder = path.join(tmp, "repo", ".specifications", "fixture-spec");
+    fs.mkdirSync(specFolder, { recursive: true });
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
       new Map([["roubo-demo-bench-1/db", { status: "running", id: "c1" }]]),
     );
+
+    // The lifecycle engine is faked: a launch reports the component running,
+    // as the engine does once compose brings the service up.
+    vi.mocked(runDescriptor).mockImplementation(async (_descriptor, ctx) => {
+      ctx.reportStatus({ name: ctx.componentName, status: "running" });
+      return { status: "running" };
+    });
+
+    // S001: the bench's component runs, then a sitting opens through the gate
+    // pin service, which adds the pin at the gate commit, restarts the
+    // component from it and saves the bench.
+    await benchManager.startComponentsAndWait(PID, 1, ["backend"]);
+    vi.mocked(stateService.updateBench).mockClear();
+    const sitting = await openGatePin(liveBench(), {
+      gateId: "gate-after-a",
+      commit: gateCommit,
+      resultsSpecPath: specFolder,
+    });
+    expect(sitting).toMatchObject({ state: "open", commit: gateCommit });
+    expect(git(root, "rev-parse", "HEAD")).toBe(gateCommit);
+    const previousStatus = liveBench().status;
+    expect(previousStatus).toBe("active");
+
+    // The server restarts from what the service saved.
+    const saved = vi.mocked(stateService.updateBench).mock.lastCall?.[0];
+    expect(saved?.gatePin).toMatchObject({
+      gateId: "gate-after-a",
+      workspacePath: root,
+      commit: gateCommit,
+    });
+    if (saved === undefined) throw new Error("the gate pin service saved no bench");
+    hoisted.persisted = [saved];
     const restart = async () => {
       benchManager.dropProjectBenches(PID);
       benchManager.initialize();
@@ -286,10 +304,6 @@ describe("reconcile and teardown consult the variant host", () => {
       await benchManager.reconcile();
       return liveBench();
     };
-    const before = await restart();
-    const previousStatus = before.status;
-    expect(previousStatus).toBe("active");
-
     // Restart: reconcile verifies the pin path and commit against the bench
     // record, and the bench comes back with its previous status.
     const restarted = await restart();
