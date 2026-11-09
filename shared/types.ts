@@ -2077,6 +2077,41 @@ export interface BenchNotification {
   unexpectedExit?: SessionUnexpectedExit;
 }
 
+// ── Hot-reload input-changed event (HR-FR-015, HR-FR-016) ──
+
+/** The input surfaces whose changes the server watches and reports. */
+export const INPUT_SURFACES = [
+  "project-config",
+  "plugin",
+  "settings",
+  "bench",
+  "github",
+  "environment",
+] as const;
+
+export type InputSurface = (typeof INPUT_SURFACES)[number];
+
+/** What a surface's handler did with a changed input. */
+export type InputChangedOutcome = "applied" | "rejected" | "refused";
+
+/**
+ * One applied, rejected or refused change of a watched input, sent on
+ * `GET /api/notifications/stream`. It never carries file content: only the
+ * target ids, a one-line summary, and on a rejection the input path with the
+ * first validation error. Deduped and self-write outcomes are never sent.
+ */
+export interface InputChangedEvent {
+  type: "input-changed";
+  surface: InputSurface;
+  outcome: InputChangedOutcome;
+  projectId?: string;
+  pluginId?: string;
+  benchIds?: number[];
+  /** One line that starts with the surface's thing, such as `Project`. */
+  summary: string;
+  error?: { path: string; first: string };
+}
+
 // ── Resolved tool types ──
 
 export interface ResolvedTool {

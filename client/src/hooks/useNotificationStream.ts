@@ -1,9 +1,16 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { Bench, BenchNotification, BenchStatus, SpecBenchDecisionMode } from "@roubo/shared";
+import type {
+  Bench,
+  BenchNotification,
+  BenchStatus,
+  InputChangedEvent,
+  SpecBenchDecisionMode,
+} from "@roubo/shared";
 import type { DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { formatNotification, notificationRouteTo } from "../lib/notifications";
+import { inputChangedQueryKeys, publishInputChanged } from "../lib/input-changed";
 import { deliveryQueryKey } from "./useDelivery";
 
 interface NotificationsEvent {
@@ -29,7 +36,11 @@ interface BenchDecisionModeEvent {
 }
 
 type SseEvent =
-  NotificationsEvent | BenchStatusEvent | BenchDecisionModeEvent | DeliveryStreamFrame;
+  | NotificationsEvent
+  | BenchStatusEvent
+  | BenchDecisionModeEvent
+  | InputChangedEvent
+  | DeliveryStreamFrame;
 
 // How long the hook waits before it opens the stream again when the browser
 // gave the connection up (readyState CLOSED). A connection that only dropped is
@@ -100,6 +111,17 @@ export function useNotificationStream(): void {
 
       if (data.type === "delivery") {
         applyDeliveryFrame(queryClient, data);
+        return;
+      }
+
+      if (data.type === "input-changed") {
+        // A watched input changed (HR-FR-016): refresh only the surface's
+        // keys, so the screen, selection, scroll and unsent input stay, and
+        // hand the event to the notice list.
+        for (const queryKey of inputChangedQueryKeys(data)) {
+          void queryClient.invalidateQueries({ queryKey });
+        }
+        publishInputChanged(data);
         return;
       }
 

@@ -19,6 +19,7 @@ import { RegisterProjectModalProvider } from "./components/RegisterProjectModalP
 import { DeclinedSourceOffersProvider } from "./components/DeclinedSourceOffersProvider";
 import ProjectDeclaredSourceOffer from "./components/marketplace/ProjectDeclaredSourceOffer";
 import SystemStatusBanner from "./components/SystemStatusBanner";
+import InputChangeNotices from "./components/InputChangeNotices";
 
 export default function App() {
   useThemeSync();
@@ -76,6 +77,7 @@ export default function App() {
               </ErrorBoundary>
             </main>
           </div>
+          <InputChangeNotices />
         </div>
       </RegisterProjectModalProvider>
     </DeclinedSourceOffersProvider>

@@ -14,6 +14,9 @@
  * - self-write suppression through the tokens that `atomicWrite` leaves;
  * - one `[input-watcher] ...` key=value log line for every outcome, which never
  *   carries file content;
+ * - one `input-changed` event on the notification stream for every applied,
+ *   rejected or refused outcome of a known surface (HR-FR-015); deduped and
+ *   self-write outcomes are logged only;
  * - re-arming when the watched directory disappears and returns.
  *
  * A file is watched through its parent directory at depth 0 with a basename
@@ -22,14 +25,17 @@
  * extra two seconds it adds.
  *
  * The handler receives `{ path, hash }` only. It reads its input itself and
- * resolves to `'applied' | 'rejected' | 'refused'` (or `{ outcome, action }`
- * on a surface that reports an action). A thrown error counts as `rejected`.
+ * resolves to `'applied' | 'rejected' | 'refused'` (or `{ outcome, action, event }`
+ * on a surface that reports an action or the target ids, summary and first
+ * error of its event). A thrown error counts as `rejected`.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import { getRouboDir, loadProjects } from "./state.js";
 import { consumeSelfWrite, hashContent } from "./self-write-tokens.js";
+import { broadcastInputChanged } from "./sse.js";
+import { INPUT_SURFACES, type InputSurface } from "@roubo/shared";
 
 export type ApplyOutcome = "applied" | "rejected" | "deduped" | "self-write" | "refused";
 
@@ -54,7 +60,22 @@ export interface InputChange {
   hash: string | null;
 }
 
-export type HandlerResult = HandlerOutcome | { outcome: HandlerOutcome; action?: string };
+/**
+ * What a handler adds to the `input-changed` event of its outcome: the target
+ * ids, a one-line summary and, on a rejection, the input path with the first
+ * validation error. Never file content.
+ */
+export interface InputEventDetail {
+  projectId?: string;
+  pluginId?: string;
+  benchIds?: number[];
+  /** One line that starts with the surface's thing. A default is written when absent. */
+  summary?: string;
+  error?: { path: string; first: string };
+}
+
+export type HandlerResult =
+  HandlerOutcome | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
 
 export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 
@@ -121,6 +142,53 @@ export function formatApplyLogLine(line: ApplyLogLine): string {
 /** Write one ApplyLogLine. */
 export function logApply(line: ApplyLogLine): void {
   console.info(formatApplyLogLine(line));
+}
+
+const SURFACE_THINGS: Record<InputSurface, string> = {
+  "project-config": "Project",
+  plugin: "Plugin",
+  settings: "Settings",
+  bench: "Bench",
+  github: "GitHub",
+  environment: "Environment",
+};
+
+export function isInputSurface(surface: string): surface is InputSurface {
+  return (INPUT_SURFACES as readonly string[]).includes(surface);
+}
+
+/** The word a notice about `surface` starts with; an unknown surface is its own id. */
+export function surfaceThing(surface: string): string {
+  return isInputSurface(surface) ? SURFACE_THINGS[surface] : surface;
+}
+
+/** The one-line summary of an outcome whose handler gave none. */
+export function defaultInputSummary(surface: string, outcome: HandlerOutcome): string {
+  return `${surfaceThing(surface)} change ${outcome}`;
+}
+
+/**
+ * Send the `input-changed` event of one handler outcome (HR-FR-015). Only the
+ * six known surfaces are sent, since a client maps nothing else; deduped and
+ * self-write outcomes never reach here.
+ */
+function sendInputChanged(
+  surface: string,
+  outcome: HandlerOutcome,
+  detail: InputEventDetail | undefined,
+): void {
+  if (!isInputSurface(surface)) return;
+  broadcastInputChanged({
+    surface,
+    outcome,
+    ...(detail?.projectId === undefined ? {} : { projectId: detail.projectId }),
+    ...(detail?.pluginId === undefined ? {} : { pluginId: detail.pluginId }),
+    ...(detail?.benchIds === undefined ? {} : { benchIds: [...detail.benchIds] }),
+    summary: detail?.summary ?? defaultInputSummary(surface, outcome),
+    ...(detail?.error === undefined
+      ? {}
+      : { error: { path: detail.error.path, first: detail.error.first } }),
+  });
 }
 
 function hash8Of(hash: string | null): string {
@@ -351,7 +419,12 @@ export function watchInput(
     // rescans, so a run now would only churn the surface.
     if (!fs.existsSync(dir)) return;
     const start = performance.now();
-    const emit = (outcome: ApplyOutcome, hash: string | null, action?: string) => {
+    const emit = (
+      outcome: ApplyOutcome,
+      hash: string | null,
+      action?: string,
+      detail?: InputEventDetail,
+    ) => {
       logApply({
         surface,
         path: unit,
@@ -360,6 +433,10 @@ export function watchInput(
         durationMs: Math.round(performance.now() - start),
         ...(action === undefined ? {} : { action }),
       });
+      // Deduped and self-write outcomes are logged only, never sent.
+      if (outcome === "applied" || outcome === "rejected" || outcome === "refused") {
+        sendInputChanged(surface, outcome, detail);
+      }
     };
 
     // The input can have become a symlink out of every root since the watch
@@ -410,11 +487,15 @@ export function watchInput(
 
     let outcome: HandlerOutcome = "rejected";
     let action: string | undefined;
+    let detail: InputEventDetail | undefined;
     try {
       const result = await handler({ path: unit, hash });
       const value = typeof result === "string" ? result : result?.outcome;
       if (value === "applied" || value === "rejected" || value === "refused") outcome = value;
-      if (typeof result === "object" && result !== null) action = result.action;
+      if (typeof result === "object" && result !== null) {
+        action = result.action;
+        detail = result.event;
+      }
     } catch {
       // The error message can quote the input, so it is not logged.
       outcome = "rejected";
@@ -422,7 +503,7 @@ export function watchInput(
     // The handler ran, so its outcome is recorded and logged even when the
     // watch was disposed while it was awaited.
     if (outcome === "applied") lastApplied.set(unit, hash);
-    emit(outcome, hash, action);
+    emit(outcome, hash, action, detail);
   }
 
   async function scan(initial: boolean): Promise<void> {
