@@ -10393,6 +10393,77 @@ describe("restartBenchWithConfig (HR-FR-005)", () => {
     expect(benchManager.getBench("test-project", 1)?.benchSetupComplete).toBe(true);
   });
 
+  it("runs a component setup command that the live config adds, on the restart", async () => {
+    const set = snapshotProcessConfig("npm start");
+    const live = makeConfig({
+      components: {
+        backend: {
+          plugin: { id: "process" },
+          config: { command: "npm start", setup: "npm ci" },
+          type: "process",
+          command: "npm start",
+          setup: "npm ci",
+        },
+      },
+      ports: { backend: { base: 5000 } },
+    });
+    // The bench was set up with no component setup, so its flag reads complete.
+    setupSnapshotBench(live, set);
+    setupProcessMocks();
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
+    expect(benchOne().components.backend.setupComplete).toBe(true);
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    expect(bench.components.backend.setupComplete).toBe(false);
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(processManager.runProcess).toHaveBeenCalledWith(
+      "process:1:backend:setup",
+      "npm",
+      ["ci"],
+      expect.any(Object),
+      "/home/.roubo/workspaces/test-project/bench-1",
+      0,
+    );
+    expect(benchManager.getBench("test-project", 1)?.components.backend.setupComplete).toBe(true);
+  });
+
+  it("keeps a component's setup flag when its setup command did not change", async () => {
+    const withSetup = (command: string) =>
+      makeConfig({
+        components: {
+          backend: {
+            plugin: { id: "process" },
+            config: { command, setup: "npm ci" },
+            type: "process",
+            command,
+            setup: "npm ci",
+          },
+        },
+        ports: { backend: { base: 5000 } },
+      });
+    setupSnapshotBench(withSetup("npm run start:new"), withSetup("npm start"));
+    setupProcessMocks();
+    vi.mocked(processManager.runProcess).mockResolvedValue({ exitCode: 0, timedOut: false });
+
+    const bench = await benchManager.restartBenchWithConfig("test-project", 1);
+
+    expect(bench.components.backend.setupComplete).toBe(true);
+    await vi.waitFor(() => {
+      expect(benchManager.getBench("test-project", 1)?.status).toBe("active");
+    });
+    expect(processManager.runProcess).not.toHaveBeenCalledWith(
+      "process:1:backend:setup",
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it("rejects a bench that is clearing", async () => {
     setupSnapshotBench(snapshotProcessConfig("npm start"), snapshotProcessConfig("npm start"));
     benchOne().status = "clearing";

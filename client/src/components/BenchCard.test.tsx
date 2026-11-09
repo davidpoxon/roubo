@@ -137,7 +137,17 @@ describe("BenchCard", () => {
       await user.tab();
       expect(marker).toHaveFocus();
       expect(await screen.findByRole("tooltip")).toHaveTextContent(
-        "This bench keeps the component definitions it was set up with. Restart with new config to apply the current roubo.yaml.",
+        "This bench keeps the component definitions it was set up with. Restart to apply the current roubo.yaml.",
+      );
+    });
+
+    it("HR-TC-007: Restart with new config carries its tooltip", async () => {
+      const user = userEvent.setup();
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true }));
+      await user.hover(screen.getByRole("button", { name: /Restart with new config/ }));
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "Stop all components, apply the current roubo.yaml, and start them again",
       );
     });
 
