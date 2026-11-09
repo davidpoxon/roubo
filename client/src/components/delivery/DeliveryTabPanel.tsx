@@ -3,7 +3,11 @@ import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError, DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
-import { classifyLifecycleState, selectDecisionPile } from "@roubo/shared/delivery-selectors";
+import {
+  classifyLifecycleState,
+  selectDecisionPile,
+  selectProgress,
+} from "@roubo/shared/delivery-selectors";
 import { isUnreviewedAgentDecision, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { useDelivery, useDeliverySessionLive, useLaunchDelivery } from "../../hooks/useDelivery";
 import { useDeliveryCrossCheck } from "../../hooks/useDeliveryCrossCheck";
@@ -12,6 +16,7 @@ import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
 import DeliveryBurn from "./DeliveryBurn";
 import DeliveryDriftLedger from "./DeliveryDriftLedger";
+import DeliveryCrossCheck, { DeliveryCrossCheckChip } from "./DeliveryCrossCheck";
 import DeliveryRail from "./DeliveryHealth";
 import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
@@ -24,17 +29,21 @@ import type { DeliveryDigestEntry } from "@roubo/shared/delivery-digest";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
 import LifecycleControls from "./LifecycleControls";
 import RoleMatrix from "./RoleMatrix";
+import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./DeliverySummaryRail";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It names what the bench delivers
-// and how it is bound, then reads the delivery: the folded snapshot, its
-// health rail (SB-FR-019, SB-NFR-006) with the cross-check's disagreements and
-// source error on it (SB-FR-030), where Enter on an entry focuses its unit or
-// gate on the map (SB-FR-029), and the mode in effect named in a mono label
-// beside the health chip (SB-FR-032), its progress in cases met and
-// requirements covered (SB-FR-011), the gate sitting the bench prepares or has
-// open, which reads waiting for build until the pinned build passed its smoke
-// check and ready to sit after (SB-FR-023), its map, and its view of cost, health and
-// controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
+// and how it is bound, then reads the delivery: the folded snapshot, laid out
+// as the Spec Bench design prototype lays it out. A header row holds the cases
+// met with a meter, the health chip (SB-FR-019, SB-NFR-006), the mode in effect
+// in a mono label (SB-FR-032) and a chip that counts the cross-check's
+// disagreements. Below it, the map sits on the left and a rail of summary
+// panels on the right (burn and health, decisions, the next boundary, and the
+// cross-check with its disagreements and source error, SB-FR-030), where Enter
+// on an entry focuses its unit or gate on the map (SB-FR-029). Below both come
+// its progress in cases met and requirements covered (SB-FR-011), the gate
+// sitting the bench prepares or has open, which reads waiting for build until
+// the pinned build passed its smoke check and ready to sit after (SB-FR-023),
+// and its view of cost, health and controls: the burn meter (SB-FR-018), the jam list (SB-FR-019), the drift
 // ledger (SB-FR-020), the decision pile where a decision is answered or its
 // default overturned in place (SB-FR-014, SB-FR-015), with the agent decisions
 // to review on the same pile (SB-FR-033), the boundary panel with the steering
@@ -80,7 +89,10 @@ export default function DeliveryTabPanel({
     <div data-testid="delivery-tab-panel" className="space-y-4">
       <div className="space-y-2">
         <p className="text-13 text-text-body">
-          Delivering <span className="font-mono text-text-primary">{slug ?? "no spec"}</span>
+          Delivering{" "}
+          <span className="font-mono text-16 font-medium text-text-primary">
+            {slug ?? "no spec"}
+          </span>
           {bench.deliveryBindMode && (
             <span className="text-text-secondary">
               {bench.deliveryBindMode === "attach"
@@ -89,7 +101,9 @@ export default function DeliveryTabPanel({
             </span>
           )}
         </p>
-        {specFolder && <p className="text-12 font-mono text-text-secondary">{specFolder}</p>}
+        {specFolder && (
+          <p className="break-all font-mono text-12 text-text-secondary">{specFolder}</p>
+        )}
       </div>
 
       {delivery.isPending && (
@@ -201,6 +215,34 @@ function decisionLinkTarget(snapshot: DeliverySnapshot, decisionId: string): Dec
   return { kind: "pile" };
 }
 
+function bringIntoView(view: HTMLElement | null): void {
+  if (view === null) return;
+  view.scrollIntoView?.({ block: "start" });
+  view.focus();
+}
+
+// The header's progress: the cases met of all the cases, with a meter.
+function DeliveryHeaderProgress({ snapshot }: { snapshot: DeliverySnapshot }) {
+  const { cases } = selectProgress(snapshot);
+  const fill = cases.total === 0 ? 0 : cases.met / cases.total;
+  return (
+    <span
+      data-testid="delivery-header-progress"
+      className="flex min-w-0 flex-wrap items-center gap-2 text-12 text-text-secondary"
+    >
+      <span>
+        {cases.met} of {cases.total} cases met
+      </span>
+      <span aria-hidden="true" className="block h-1 w-40 max-w-full rounded-full bg-bg-hover">
+        <span
+          className="block h-1 rounded-full bg-accent"
+          style={{ width: `${Math.round(fill * 100)}%` }}
+        />
+      </span>
+    </span>
+  );
+}
+
 function DeliverySnapshotView({
   bench,
   snapshot,
@@ -240,6 +282,7 @@ function DeliverySnapshotView({
   const driftLedger = useRef<HTMLDivElement>(null);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
+  const crossCheckPanel = useRef<HTMLElement>(null);
   const openMapTarget = (kind: "unit" | "gate", id: string) => {
     setMapFocus((last) => ({
       keys: [kind === "unit" ? unitKey(id) : gateKey(id)],
@@ -285,33 +328,41 @@ function DeliverySnapshotView({
   // A complete delivery takes no role change and no mode switch.
   const ended = classifyLifecycleState(snapshot.lifecycle.state) === "complete";
   // The view of cost, health and controls: the burn meter, the jam list, the
-  // drift ledger and the delivery's controls, which the header's button opens.
+  // drift ledger and the delivery's controls, which the rail's Burn and health
+  // panel opens.
   const openCostHealthControls = () => {
-    const view = costHealthControls.current;
-    if (view === null) return;
-    view.scrollIntoView?.({ block: "start" });
-    view.focus();
+    bringIntoView(costHealthControls.current);
+  };
+  // The rail's links and the header's cross-check chip bring the view they
+  // summarise into view.
+  const openDecisionPile = () => {
+    bringIntoView(decisionPile.current);
+  };
+  const openCrossCheck = () => {
+    bringIntoView(crossCheckPanel.current);
   };
 
   return (
     <div data-testid="delivery-snapshot" className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-start gap-3">
-          <DeliveryRail
-            snapshot={snapshot}
-            attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
-            crossCheck={crossCheck.data}
-            onFocusMapTarget={focusMapTarget}
-          />
-          <span
-            data-testid="delivery-mode-label"
-            data-mode={snapshot.mode.value}
-            className="py-0.5 font-mono text-11 font-medium text-text-secondary"
-          >
-            {snapshot.mode.value} mode
-          </span>
-        </div>
-        <Button onPress={openCostHealthControls}>Cost, health and controls</Button>
+      <div
+        data-testid="delivery-header"
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border pb-3"
+      >
+        <DeliveryHeaderProgress snapshot={snapshot} />
+        <DeliveryRail
+          snapshot={snapshot}
+          attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
+        />
+        <span
+          data-testid="delivery-mode-label"
+          data-mode={snapshot.mode.value}
+          className="py-0.5 font-mono text-11 font-medium text-text-secondary"
+        >
+          {snapshot.mode.value} mode
+        </span>
+        {crossCheck.data !== undefined && (
+          <DeliveryCrossCheckChip crossCheck={crossCheck.data} onOpen={openCrossCheck} />
+        )}
       </div>
       {digest.isSuccess && digest.data.entries.length > 0 && (
         <DeliveryDigest
@@ -321,21 +372,49 @@ function DeliverySnapshotView({
           onOpen={openDigestEntry}
         />
       )}
+
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          <DeliveryMap
+            projectId={bench.projectId}
+            benchId={bench.id}
+            snapshot={snapshot}
+            {...(bench.deliverySessionId !== undefined && {
+              deliverySessionId: bench.deliverySessionId,
+            })}
+            {...(snapshot.sitting !== undefined && { sitting: snapshot.sitting })}
+            focusRequest={mapFocus}
+          />
+        </div>
+        <aside
+          data-testid="delivery-summary-rail"
+          aria-label="Delivery summary"
+          className="@container min-w-0"
+        >
+          <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
+            <BurnHealthPanel
+              snapshot={snapshot}
+              onOpenCostHealthControls={openCostHealthControls}
+            />
+            <DecisionSummaryPanel snapshot={snapshot} onOpenDecisions={openDecisionPile} />
+            <NextBoundaryPanel snapshot={snapshot} className="col-span-full" />
+            {crossCheck.data !== undefined && (
+              <DeliveryCrossCheck
+                ref={crossCheckPanel}
+                crossCheck={crossCheck.data}
+                snapshot={snapshot}
+                onFocusMapTarget={focusMapTarget}
+                className="col-span-full"
+              />
+            )}
+          </div>
+        </aside>
+      </div>
+
       <DeliveryProgressStats snapshot={snapshot} />
       <DeliveryMetCases snapshot={snapshot} />
 
       <GateSitting sitting={snapshot.sitting} />
-
-      <DeliveryMap
-        projectId={bench.projectId}
-        benchId={bench.id}
-        snapshot={snapshot}
-        {...(bench.deliverySessionId !== undefined && {
-          deliverySessionId: bench.deliverySessionId,
-        })}
-        {...(snapshot.sitting !== undefined && { sitting: snapshot.sitting })}
-        focusRequest={mapFocus}
-      />
 
       <section
         ref={costHealthControls}

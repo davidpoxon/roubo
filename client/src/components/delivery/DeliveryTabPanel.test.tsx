@@ -461,7 +461,9 @@ describe("DeliveryTabPanel", () => {
     });
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
-    const rail = await screen.findByRole("group", { name: "Delivery health" });
+    // The rail of summary panels holds the cross-check, and the header names
+    // the count on its chip instead of listing the entries.
+    const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
     await waitFor(() =>
       expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
     );
@@ -469,6 +471,12 @@ describe("DeliveryTabPanel", () => {
     expect(within(rail).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
       "GitHub could not be read",
     );
+    const header = screen.getByTestId("delivery-header");
+    expect(within(header).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+    const chip = within(header).getByTestId("delivery-crosscheck-chip");
+    expect(chip).toHaveTextContent("9 disagreements");
+    await userEvent.click(chip);
+    expect(document.activeElement).toBe(within(rail).getByTestId("delivery-crosscheck"));
   });
 
   it("SB-TC-074 reads the cross-check again after exactly 5 seconds, so the rail lists what a restart reconciled within 5 seconds", async () => {
@@ -505,7 +513,7 @@ describe("DeliveryTabPanel", () => {
           sourceError: null,
         });
       renderWithProviders(<DeliveryTabPanel bench={bench} />);
-      const rail = await screen.findByRole("group", { name: "Delivery health" });
+      const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
       await waitFor(() => expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1));
       await act(() => vi.advanceTimersByTimeAsync(0));
       expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
@@ -518,7 +526,9 @@ describe("DeliveryTabPanel", () => {
       // At the interval, the second read lists all nine.
       await act(() => vi.advanceTimersByTimeAsync(1));
       expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
-      await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9));
+      await waitFor(() =>
+        expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
+      );
       expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();

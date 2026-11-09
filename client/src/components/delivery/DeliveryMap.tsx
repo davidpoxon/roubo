@@ -15,6 +15,7 @@ import { focusRing } from "../ui/focus-ring";
 import { useBenchViewState } from "../../hooks/useBenchViewState";
 import DeliveryGraph from "./DeliveryGraph";
 import DeliveryList from "./DeliveryList";
+import { DeliveryPanel } from "./DeliveryPanel";
 import UnitDrillIn from "./UnitDrillIn";
 import { sittingLabel, type DeliverySittingView } from "./gate-sitting-model";
 import {
@@ -125,83 +126,87 @@ export default function DeliveryMap({
 
   if (order.kind === "cycle") {
     return (
-      <section aria-label="Delivery map" data-testid="delivery-map">
-        <Callout
-          role="alert"
-          title="The delivery map cannot be drawn: the units depend on each other in a cycle"
-          data-testid="delivery-map-cycle"
-        >
-          <p>{cycleMessage(order.cycle)}</p>
-          <p>
-            Fix the units' depends_on in the delivery record. The map reads it again on its own.
-          </p>
-        </Callout>
-      </section>
+      <DeliveryPanel title="Delivery map" testId="delivery-map">
+        <div className="p-3">
+          <Callout
+            role="alert"
+            title="The delivery map cannot be drawn: the units depend on each other in a cycle"
+            data-testid="delivery-map-cycle"
+          >
+            <p>{cycleMessage(order.cycle)}</p>
+            <p>
+              Fix the units' depends_on in the delivery record. The map reads it again on its own.
+            </p>
+          </Callout>
+        </div>
+      </DeliveryPanel>
     );
   }
 
   const selectedKey = selected === null ? null : targetKey(selected);
 
   return (
-    <section
+    <DeliveryPanel
       ref={sectionRef}
-      aria-label="Delivery map"
-      data-testid="delivery-map"
-      className="space-y-3"
+      title="Delivery map"
+      testId="delivery-map"
+      meta={
+        <div
+          role="group"
+          aria-label="Map view"
+          className="inline-flex rounded-control border border-border-strong"
+        >
+          {VIEWS.map((option) => {
+            const pressed = view === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={pressed}
+                onClick={() => viewState.setDeliveryMapView(option.id)}
+                className={`px-2.5 py-0.5 text-12 font-medium transition-colors ${focusRing} ${
+                  pressed
+                    ? "bg-accent-muted text-accent-text"
+                    : "text-text-body hover:bg-bg-hover active:bg-bg-pressed"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      }
     >
-      <div
-        role="group"
-        aria-label="Map view"
-        className="inline-flex rounded-control border border-border-strong"
-      >
-        {VIEWS.map((option) => {
-          const pressed = view === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={pressed}
-              onClick={() => viewState.setDeliveryMapView(option.id)}
-              className={`px-3 py-1.5 text-12 font-medium transition-colors ${focusRing} ${
-                pressed
-                  ? "bg-accent-muted text-accent-text"
-                  : "text-text-body hover:bg-bg-hover active:bg-bg-pressed"
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
+      <div className="space-y-3 p-3">
+        {view === "graph" && layout !== null ? (
+          <DeliveryGraph
+            layout={layout}
+            selectedKey={selectedKey}
+            onSelect={setSelected}
+            onOpen={setOpened}
+          />
+        ) : (
+          <DeliveryList
+            rows={rows}
+            selectedKey={selectedKey}
+            onSelect={setSelected}
+            onOpen={setOpened}
+          />
+        )}
+
+        {opened !== null && (
+          <DrillIn
+            projectId={projectId}
+            benchId={benchId}
+            snapshot={snapshot}
+            target={opened}
+            deliverySessionId={deliverySessionId}
+            sitting={sitting}
+            onClose={() => setOpened(null)}
+          />
+        )}
       </div>
-
-      {view === "graph" && layout !== null ? (
-        <DeliveryGraph
-          layout={layout}
-          selectedKey={selectedKey}
-          onSelect={setSelected}
-          onOpen={setOpened}
-        />
-      ) : (
-        <DeliveryList
-          rows={rows}
-          selectedKey={selectedKey}
-          onSelect={setSelected}
-          onOpen={setOpened}
-        />
-      )}
-
-      {opened !== null && (
-        <DrillIn
-          projectId={projectId}
-          benchId={benchId}
-          snapshot={snapshot}
-          target={opened}
-          deliverySessionId={deliverySessionId}
-          sitting={sitting}
-          onClose={() => setOpened(null)}
-        />
-      )}
-    </section>
+    </DeliveryPanel>
   );
 }
 

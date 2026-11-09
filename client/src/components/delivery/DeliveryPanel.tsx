@@ -1,28 +1,46 @@
-import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from "react";
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+} from "react";
 
 // The frame the Spec Bench views group their content in, as the Spec Bench
 // design prototype draws it: a surface with a hairline border, a header with a
 // mono uppercase eyebrow on the left and an optional secondary meta line on the
 // right, and a body. The panel is a labelled section, so a screen reader can
-// move between panels by landmark.
+// move between panels by landmark. `label` names the section when its title
+// alone would repeat the name of another region on the same view. A panel that
+// a control brings into view takes `ref` and `focusable`, which puts it in the
+// focus order of a script but not of the Tab key.
 export function DeliveryPanel({
+  ref,
   testId,
   title,
+  label,
   meta,
+  focusable,
   className,
   children,
 }: {
+  ref?: Ref<HTMLElement>;
   testId?: string;
   title: string;
+  label?: string;
   meta?: ReactNode;
+  focusable?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <section
+      ref={ref}
       data-testid={testId}
-      aria-label={title}
-      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface ${className ?? ""}`}
+      aria-label={label ?? title}
+      tabIndex={focusable === true ? -1 : undefined}
+      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface focus:outline-none ${className ?? ""}`}
     >
       <header className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
         <h3 className="font-mono text-11 font-medium uppercase tracking-label text-text-secondary">

@@ -14,12 +14,13 @@ import {
 } from "./delivery-health-model";
 
 // The delivery's health on the Delivery tab (SB-FR-019, SB-NFR-006, SB-US-007):
-// the rail at the top of the tab holds the Health chip and, while the delivery
-// is stale, the age of the record. The chip reads the shared health selector
+// the health group in the tab's header row holds the Health chip and, while the
+// delivery is stale, the age of the record. The chip reads the shared health selector
 // against the view's own clock, so the delivery turns stale 2 minutes after its
 // last event even when no new snapshot arrives, and the next event clears it.
-// Given the bench's last cross-check, the rail also lists its disagreements and
-// names a source it could not read (SB-FR-030).
+// Given the bench's last cross-check, the group also lists its disagreements and
+// names a source it could not read (SB-FR-030); the Delivery tab passes none,
+// and shows the cross-check as a panel on its summary rail instead.
 
 // DESIGN.md Health chip: one word, a dot that names the state, and a press that
 // opens the reason.
