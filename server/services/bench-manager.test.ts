@@ -10885,6 +10885,8 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     return { ...stateService.toPersistedBench(bench), ...edits };
   }
 
+  const none = { applied: [], refused: [], reverted: [], unmatched: [], removed: [] };
+
   it("HR-TC-029 merges an edited branch into an idle bench", () => {
     loadBenches();
 
@@ -10895,7 +10897,7 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       ],
     });
 
-    expect(edit).toEqual({ applied: [{ projectId: "test-project", benchId: 3 }], refused: [] });
+    expect(edit).toEqual({ ...none, applied: [{ projectId: "test-project", benchId: 3 }] });
     expect(benchManager.getBench("test-project", 3)?.branch).toBe("feature/new");
     expect(stateService.updateBench).not.toHaveBeenCalled();
   });
@@ -10911,7 +10913,7 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     });
 
     expect(edit).toEqual({
-      applied: [],
+      ...none,
       refused: [{ projectId: "test-project", benchId: 2, status: "active" }],
     });
     const two = benchManager.getBench("test-project", 2);
@@ -10949,7 +10951,11 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       ],
     });
 
-    expect(edit).toEqual({ applied: [{ projectId: "test-project", benchId: 3 }], refused: [] });
+    expect(edit).toEqual({
+      ...none,
+      applied: [{ projectId: "test-project", benchId: 3 }],
+      reverted: [{ projectId: "test-project", benchId: 3, fields: ["workspacePath"] }],
+    });
     const three = benchManager.getBench("test-project", 3);
     expect(three?.branch).toBe("feature/new");
     expect(three?.workspacePath).not.toBe("/somewhere/else");
@@ -10970,7 +10976,10 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       benches: [record(2, {}), record(3, { benchSetupComplete: false })],
     });
 
-    expect(edit).toEqual({ applied: [], refused: [] });
+    expect(edit).toEqual({
+      ...none,
+      reverted: [{ projectId: "test-project", benchId: 3, fields: ["benchSetupComplete"] }],
+    });
     expect(stateService.updateBench).toHaveBeenCalledTimes(1);
     expect(stateService.updateBench).toHaveBeenCalledWith(
       expect.objectContaining({ id: 3, benchSetupComplete: true }),
@@ -11001,7 +11010,7 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       });
 
       expect(edit).toEqual({
-        applied: [],
+        ...none,
         refused: [{ projectId: "test-project", benchId: 3, status: "active" }],
       });
       expect(benchManager.getBench("test-project", 3)?.ports).toEqual({ backend: 5003 });
@@ -11011,7 +11020,21 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     },
   );
 
-  it("leaves benches whose editable fields did not change, and records with no bench, as they are", () => {
+  it("leaves benches whose records did not change as they are and reports nothing", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [
+        record(2, { branch: "bench-2", ports: { backend: 5002 } }),
+        record(3, { branch: "bench-3", ports: { backend: 5003 } }),
+      ],
+    });
+
+    expect(edit).toEqual(none);
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+  });
+
+  it("reports a record with no bench in memory as unmatched and creates no bench", () => {
     loadBenches();
 
     const edit = benchManager.applyStateFileEdit({
@@ -11022,8 +11045,36 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       ],
     });
 
-    expect(edit).toEqual({ applied: [], refused: [] });
+    expect(edit).toEqual({ ...none, unmatched: [{ projectId: "test-project", benchId: 9 }] });
     expect(benchManager.getBench("test-project", 9)).toBeUndefined();
     expect(stateService.updateBench).not.toHaveBeenCalled();
   });
+
+  it("reports a bench whose record the edit removed, and keeps the bench", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [record(2, { branch: "bench-2", ports: { backend: 5002 } })],
+    });
+
+    expect(edit).toEqual({ ...none, removed: [{ projectId: "test-project", benchId: 3 }] });
+    expect(benchManager.getBench("test-project", 3)).toBeDefined();
+    expect(stateService.updateBench).not.toHaveBeenCalled();
+  });
+
+  it.each(["preparing", "clearing"] as const)(
+    "does not report a %s bench with no record as removed, since the app writes or removes it",
+    (status) => {
+      loadBenches();
+      const three = benchManager.getBench("test-project", 3);
+      if (!three) throw new Error("expected bench 3");
+      three.status = status;
+
+      const edit = benchManager.applyStateFileEdit({
+        benches: [record(2, { branch: "bench-2", ports: { backend: 5002 } })],
+      });
+
+      expect(edit).toEqual(none);
+    },
+  );
 });

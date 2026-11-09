@@ -37,8 +37,16 @@ vi.mock("./sse.js", async (importOriginal) => {
     }),
   };
 });
+const NO_EDIT = { applied: [], refused: [], reverted: [], unmatched: [], removed: [] };
+
 vi.mock("./bench-manager.js", () => ({
-  applyStateFileEdit: vi.fn(() => ({ applied: [], refused: [] })),
+  applyStateFileEdit: vi.fn(() => ({
+    applied: [],
+    refused: [],
+    reverted: [],
+    unmatched: [],
+    removed: [],
+  })),
 }));
 vi.mock("./plugin-manager.js", () => ({
   startAfterConsent: vi.fn(() => Promise.resolve(true)),
@@ -65,6 +73,9 @@ import {
   STATE_FILES,
   benchAppliedNotice,
   benchRefusedNotice,
+  benchRemovedNotice,
+  benchRevertedNotice,
+  benchUnmatchedNotice,
   jsonParseError,
   startStateDirWatch,
   stopStateDirWatch,
@@ -127,6 +138,11 @@ beforeEach(async () => {
   hoisted.consent = null;
   resetSelfWriteTokens();
   vi.clearAllMocks();
+  // clearAllMocks keeps queued once-values, so a case that did not consume its
+  // own would hand it to the next one.
+  vi.mocked(benchManager.applyStateFileEdit)
+    .mockReset()
+    .mockImplementation(() => ({ ...NO_EDIT }));
   lines = [];
   const capture = (...args: unknown[]) => {
     lines.push(args.map(String).join(" "));
@@ -283,8 +299,8 @@ describe("state dir watch", () => {
 
   it("HR-TC-029 a branch edit of an idle bench in state.json is applied with a notice naming the bench", async () => {
     vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
       applied: [{ projectId: "lantern", benchId: 3 }],
-      refused: [],
     });
     fs.writeFileSync(path.join(dir, "state.json"), benchFile("feature/new"));
 
@@ -307,7 +323,7 @@ describe("state dir watch", () => {
 
   it("HR-TC-029 a ports edit of an active bench in state.json is refused with a notice naming the bench", async () => {
     vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
-      applied: [],
+      ...NO_EDIT,
       refused: [{ projectId: "lantern", benchId: 2, status: "active" }],
     });
     fs.writeFileSync(path.join(dir, "state.json"), benchFile("bench-3-ports"));
@@ -331,7 +347,7 @@ describe("state dir watch", () => {
     // a refused edit, through the real atomicWrite.
     vi.mocked(benchManager.applyStateFileEdit).mockImplementationOnce(() => {
       atomicWrite(file, benchFile("bench-3"));
-      return { applied: [], refused: [{ projectId: "lantern", benchId: 3, status: "active" }] };
+      return { ...NO_EDIT, refused: [{ projectId: "lantern", benchId: 3, status: "active" }] };
     });
     fs.writeFileSync(file, benchFile("refused-by-hand"));
 
@@ -344,6 +360,101 @@ describe("state dir watch", () => {
     expect(hoisted.events).toHaveLength(1);
     expect(hoisted.events[0]).toMatchObject({ outcome: "refused" });
     expect(JSON.parse(fs.readFileSync(file, "utf-8")).benches[0].branch).toBe("bench-3");
+  });
+
+  it("a state.json edit of a field that is not hand-editable is rejected with a notice naming the bench and the field", async () => {
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      reverted: [{ projectId: "lantern", benchId: 3, fields: ["workspacePath"] }],
+    });
+    fs.writeFileSync(path.join(dir, "state.json"), benchFile("bench-3-moved"));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "bench",
+      outcome: "rejected",
+      projectId: "lantern",
+      benchIds: [3],
+      summary: "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable.",
+      error: {
+        path: "state.json",
+        first: "workspacePath of bench 3 on lantern is not hand-editable",
+      },
+    });
+    expect(fileLines("state.json", "rejected")).toHaveLength(1);
+    expect(fileLines("state.json", "applied")).toHaveLength(0);
+  });
+
+  it("a state.json edit that applies one bench and undoes a field of another names both", async () => {
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      applied: [{ projectId: "lantern", benchId: 3 }],
+      reverted: [{ projectId: "lantern", benchId: 4, fields: ["createdAt", "notifications"] }],
+    });
+    fs.writeFileSync(path.join(dir, "state.json"), benchFile("bench-3-mixed"));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      outcome: "rejected",
+      benchIds: [3, 4],
+      summary:
+        "Bench state not applied: createdAt, notifications of bench 4 on lantern are not hand-editable. " +
+        "Bench state applied: bench 3 on lantern.",
+    });
+  });
+
+  it("a state.json record added by hand for no bench is rejected with a notice naming it", async () => {
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      unmatched: [{ projectId: "lantern", benchId: 9 }],
+    });
+    fs.writeFileSync(path.join(dir, "state.json"), benchFile("bench-3-added"));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "bench",
+      outcome: "rejected",
+      projectId: "lantern",
+      benchIds: [9],
+      summary: "Bench state not applied: bench 9 on lantern does not exist.",
+      error: { path: "state.json", first: "bench 9 on lantern does not exist" },
+    });
+  });
+
+  it("a state.json record removed by hand is rejected with a notice naming the bench", async () => {
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      removed: [{ projectId: "lantern", benchId: 3 }],
+    });
+    fs.writeFileSync(path.join(dir, "state.json"), JSON.stringify({ benches: [] }));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "bench",
+      outcome: "rejected",
+      projectId: "lantern",
+      benchIds: [3],
+      summary: "Bench state not applied: bench 3 on lantern cannot be removed by hand.",
+      error: { path: "state.json", first: "bench 3 on lantern cannot be removed by hand" },
+    });
+  });
+
+  it("a state.json edit that changes no bench sends no notice and logs no applied line", async () => {
+    // The default fake reports that the edit changed nothing.
+    fs.writeFileSync(
+      path.join(dir, "state.json"),
+      JSON.stringify(JSON.parse(benchFile("bench-3")), null, 4),
+    );
+
+    await waitFor(() => vi.mocked(benchManager.applyStateFileEdit).mock.calls.length === 1);
+    await sleep(400);
+
+    expect(hoisted.events).toEqual([]);
+    expect(fileLines("state.json")).toEqual([]);
   });
 
   it("HR-TC-030 the app's own write of state.json logs self-write and applies and sends nothing", async () => {
@@ -370,6 +481,10 @@ describe("state dir watch", () => {
     expect(fileLines("state.json", "applied")).toHaveLength(0);
     expect(benchManager.applyStateFileEdit).not.toHaveBeenCalled();
 
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      applied: [{ projectId: "lantern", benchId: 3 }],
+    });
     fs.writeFileSync(file, benchFile("by-hand"));
     await waitFor(() => fileLines("state.json", "applied").length === 1);
 
@@ -474,6 +589,24 @@ describe("state dir watch notice copy", () => {
         { projectId: "lantern", benchId: 5, status: "active" },
       ]).summary,
     ).toBe("Bench state not applied: benches 2, 5 on lantern are active. Stop them first.");
+    expect(
+      benchRevertedNotice([
+        { projectId: "lantern", benchId: 3, fields: ["workspacePath"] },
+        { projectId: "kiln", benchId: 1, fields: ["benchSetupComplete", "createdAt"] },
+      ]).summary,
+    ).toBe(
+      "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable; " +
+        "benchSetupComplete, createdAt of bench 1 on kiln are not hand-editable.",
+    );
+    expect(
+      benchUnmatchedNotice([
+        { projectId: "lantern", benchId: 8 },
+        { projectId: "lantern", benchId: 9 },
+      ]).summary,
+    ).toBe("Bench state not applied: benches 8, 9 on lantern do not exist.");
+    expect(benchRemovedNotice([{ projectId: "lantern", benchId: 4 }]).summary).toBe(
+      "Bench state not applied: bench 4 on lantern cannot be removed by hand.",
+    );
   });
 
   it("names the place of a JSON parse error and never the input", () => {
