@@ -87,6 +87,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openDecisionsView } from "../../client/src/test/delivery-views";
 
 // The jsdom URL global is not the one fileURLToPath takes, so the path is
 // joined from this file's own path.
@@ -340,6 +341,8 @@ describe("Steering composer and boundary panel over the live path", () => {
   it("SB-TC-039 a steering note queues for the next boundary and is applied only after the read-back", async () => {
     renderTab();
     await snapshotShown();
+    // The steering composer is in the decisions view (#1620).
+    await openDecisionsView();
     expect(boundaryName()).toHaveTextContent("B finishes");
 
     // Step 1: the operator types a note and sends it.
@@ -403,6 +406,7 @@ describe("Steering composer and boundary panel over the live path", () => {
   it("SB-TC-040 the panel names the next boundary with every queued note and role change, then the following boundary with an empty queue", async () => {
     renderTab();
     await snapshotShown();
+    await openDecisionsView();
 
     // Step 1: a role change waits in the outbox, and the operator queues a note.
     const roleChange = issueDeliveryControl(bench, {

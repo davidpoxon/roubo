@@ -263,6 +263,7 @@ import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { returnToMap } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1006,7 +1007,9 @@ describe("Spec Bench attach journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
           record.delivery_id,
         );
         expect(bench?.deliverySessionId).toBe(`delivery-session-${benchId}-1`);
-        // No event has arrived yet, so the chip is not active.
+        // Back on the map, through the view's breadcrumb (#1620). No event has
+        // arrived yet, so the chip is not active.
+        await returnToMap(user);
         expect(healthChip()).not.toHaveAttribute("data-tone", "active");
 
         const status = await tooling.post([

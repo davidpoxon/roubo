@@ -23,6 +23,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { openCostView, returnToMap } from "../../test/delivery-views";
 import { NODE_HEIGHT } from "./delivery-map-model";
 
 const bench = {
@@ -201,8 +202,12 @@ describe("Delivery map", () => {
     );
     const first = renderWithProviders(<DeliveryTabPanel bench={bench} />);
     await screen.findByTestId("delivery-graph");
+    // A press opens B's drill-in as a view of its own; the map keeps B selected
+    // and gives it the focus back on the return.
     await userEvent.click(screen.getByTestId("unit-node-B"));
+    await returnToMap();
     expect(screen.getByTestId("unit-node-B")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByTestId("unit-node-B")).toHaveFocus();
 
     // Step 1: the list toggle.
     await userEvent.click(screen.getByRole("button", { name: "List" }));
@@ -261,6 +266,7 @@ describe("Delivery map", () => {
 
     // The rest of the tab still answers.
     expect(screen.getByTestId("delivery-lifecycle")).toHaveTextContent("running");
+    await openCostView();
     await userEvent.click(screen.getByRole("button", { name: "Resume" }));
     await waitFor(() => expect(api.resumeDelivery).toHaveBeenCalledWith("demo", 3));
   });

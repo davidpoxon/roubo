@@ -245,6 +245,7 @@ import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { openDecisionsView } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -833,6 +834,9 @@ describe("Spec Bench steering journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
         ),
       { timeout: 3000 },
     );
+    await screen.findByTestId("delivery-snapshot", {}, { timeout: 3000 });
+    // Steering is in the decisions and steering view (#1620).
+    await openDecisionsView(user);
     await screen.findByRole("region", { name: "Next boundary" }, { timeout: 3000 });
 
     const controlSeq = await step(

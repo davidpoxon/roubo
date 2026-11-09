@@ -285,6 +285,7 @@ vi.mock("../testbench/TestBenchPanel", () => ({ default: () => null }));
 import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
+import { openCostView, returnToMap } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -994,10 +995,12 @@ describe("Spec Bench lifecycle journey", () => {
         ),
       { timeout: 3000 },
     );
-    await screen.findByRole("region", { name: "Cost, health and controls" }, { timeout: 3000 });
+    await screen.findByTestId("delivery-snapshot", {}, { timeout: 3000 });
 
     // Precondition of step 1, not an observation of it: the record the test
-    // wrote has the role on its current tier with no pending change.
+    // wrote has the role on its current tier with no pending change. The role
+    // matrix and the lifecycle controls are in the cost, health and controls
+    // view (#1620); the health chip is on the map.
     await user.click(screen.getByRole("button", { name: "Cost, health and controls" }));
     expect(roleRow(), "precondition of step 1: the role row is current").toHaveAttribute(
       "data-state",
@@ -1090,6 +1093,7 @@ describe("Spec Bench lifecycle journey", () => {
         await user.click(within(dialog).getByRole("button", { name: "Confirm wind down" }));
         await requestAnswered(bench.id, "POST", "wind-down", 202);
         await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+        await returnToMap(user);
         expect(healthChip()).not.toHaveAttribute("data-health", "wound down");
 
         const controls = await tooling.readControls();
@@ -1111,6 +1115,7 @@ describe("Spec Bench lifecycle journey", () => {
           },
           { timeout: 3000 },
         );
+        await openCostView(user);
         expect(lifecycleButton("Wind down")).toBeDisabled();
       },
     );
@@ -1142,6 +1147,7 @@ describe("Spec Bench lifecycle journey", () => {
           record.delivery_id,
         );
         expect(bench.deliverySessionId).toBe(server.sessions[1]?.id);
+        await returnToMap(user);
         expect(healthChip()).not.toHaveAttribute("data-tone", "active");
 
         await tooling.post([tooling.event("lifecycle.changed", { state: "running" })]);

@@ -32,6 +32,7 @@ import {
   shouldRetryDeliveryCrossCheck,
 } from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { openCostView, openDecisionsView, returnToMap } from "../../test/delivery-views";
 
 const bench = {
   id: 3,
@@ -147,8 +148,11 @@ describe("DeliveryTabPanel", () => {
     expect(screen.getByTestId("delivery-decision-controls")).toHaveTextContent(
       "One file per unit or one per stack?",
     );
+    await openDecisionsView();
     expect(screen.getByRole("button", { name: "one file per stack" })).toBeInTheDocument();
     expect(screen.getByTestId("delivery-steering-controls")).toBeInTheDocument();
+    await returnToMap();
+    await openCostView();
     expect(screen.getByRole("combobox", { name: "Model of main" })).toHaveValue("balanced");
     expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
   });
@@ -399,6 +403,7 @@ describe("DeliveryTabPanel", () => {
     vi.mocked(api.resumeDelivery).mockResolvedValue({ resume: "demo-delivery-1" });
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
+    await openCostView();
     await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
     await waitFor(() => expect(api.resumeDelivery).toHaveBeenCalledWith("demo", 3));
   });
@@ -409,6 +414,7 @@ describe("DeliveryTabPanel", () => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
       renderWithProviders(<DeliveryTabPanel bench={{ ...bench, status }} />);
 
+      await openCostView();
       expect(await screen.findByRole("button", { name: "Resume" })).toBeDisabled();
     },
   );
@@ -424,6 +430,7 @@ describe("DeliveryTabPanel", () => {
       { queryClient },
     );
 
+    await openCostView();
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled());
     expect(api.fetchTerminals).toHaveBeenCalledWith("demo", 3);
 
@@ -700,5 +707,92 @@ describe("DeliveryTabPanel gate sitting", () => {
     renderWithProviders(<DeliveryTabPanel bench={bench} />, { queryClient: makeQueryClient() });
     await screen.findByTestId("delivery-snapshot");
     expect(screen.queryByTestId("delivery-gate-sitting")).not.toBeInTheDocument();
+  });
+});
+
+describe("The Delivery tab's views (#1620)", () => {
+  function breadcrumb(): HTMLElement {
+    return screen.getByRole("navigation", { name: "Breadcrumb" });
+  }
+
+  it("opens decisions and steering from the rail, and its Delivery crumb returns to the map with the focus on the link", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const link = await screen.findByRole("button", { name: "Open the decision pile" });
+
+    await userEvent.click(link);
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
+    const view = screen.getByRole("region", { name: "Decisions and steering" });
+    expect(view).toBeVisible();
+    expect(within(view).getByRole("heading", { name: "Decisions and steering" })).toBeVisible();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/Decisions and steering");
+    expect(within(breadcrumb()).getByText("Decisions and steering")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByTestId("delivery-decision-pile-target")).toHaveFocus();
+    expect(within(view).getByTestId("delivery-steering-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("delivery-cost-health-controls")).not.toBeVisible();
+
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    expect(screen.getByTestId("delivery-view-map")).toBeVisible();
+    expect(screen.getByTestId("delivery-decisions-steering")).not.toBeVisible();
+    expect(link).toHaveFocus();
+  });
+
+  it("opens cost, health and controls from the rail, and its Bench crumb also returns to the map", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const link = await screen.findByRole("button", { name: "Cost, health and controls" });
+
+    await userEvent.click(link);
+    const view = screen.getByRole("region", { name: "Cost, health and controls" });
+    expect(view).toBeVisible();
+    expect(view).toHaveFocus();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/Cost, health and controls");
+    expect(within(view).getByTestId("delivery-lifecycle-controls")).toBeInTheDocument();
+    expect(within(view).getByTestId("delivery-role-controls")).toBeInTheDocument();
+    expect(within(view).queryByTestId("delivery-decision-pile-target")).not.toBeInTheDocument();
+
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Bench 3" }));
+    expect(screen.getByTestId("delivery-view-map")).toBeVisible();
+    expect(view).not.toBeVisible();
+    expect(link).toHaveFocus();
+  });
+
+  it("opens a gate's drill-in as a view, and Close returns to the map with the focus on the gate", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const marker = await screen.findByTestId("gate-marker-gate-after-b");
+
+    await userEvent.click(marker);
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
+    const drillIn = screen.getByRole("region", { name: "Gate gate-after-b" });
+    expect(drillIn).toBeVisible();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/gate-after-b");
+
+    await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
+    expect(screen.queryByTestId("delivery-drill-in")).not.toBeInTheDocument();
+    expect(screen.getByTestId("delivery-view-map")).toBeVisible();
+    expect(marker).toHaveFocus();
+  });
+
+  it("focuses the map when the view it returns from was not opened from the map", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    const onDecisionPileFocused = vi.fn();
+    renderWithProviders(
+      <DeliveryTabPanel
+        bench={bench}
+        decisionPileFocusKey="link-1"
+        onDecisionPileFocused={onDecisionPileFocused}
+      />,
+    );
+    // A link to the decision pile opens the decisions view on the pile.
+    await waitFor(() => expect(screen.getByTestId("delivery-decision-pile-target")).toHaveFocus());
+    expect(screen.getByRole("region", { name: "Decisions and steering" })).toBeVisible();
+    expect(onDecisionPileFocused).toHaveBeenCalledWith("link-1");
+
+    await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Delivery" }));
+    expect(screen.getByTestId("delivery-view-map")).toHaveFocus();
   });
 });

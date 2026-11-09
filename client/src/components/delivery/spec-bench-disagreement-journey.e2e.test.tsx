@@ -262,6 +262,7 @@ import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { openCostView, openDecisionsView, returnToMap } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1028,7 +1029,9 @@ describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () 
         ),
       { timeout: 3000 },
     );
-    await screen.findByRole("region", { name: "Next boundary" }, { timeout: 3000 });
+    await screen.findByTestId("delivery-snapshot", {}, { timeout: 3000 });
+    // Approve is in the cost, health and controls view (#1620).
+    await openCostView(user);
 
     // The precondition holds: the view has read the cross-check, which finds
     // nothing, and Approve is enabled.
@@ -1067,6 +1070,7 @@ describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () 
       `a notification names ${CLASS} for ${MOVED_UNIT}, and the rail lists the ${CLASS} disagreement of ${MOVED_UNIT}, blocking, with the recorded commit ${shortCommit(recordedHead)} and the branch's commit ${shortCommit(movedHead)}`,
       owners(["loader", "crossCheck"], ["reducer"]),
       async () => {
+        await returnToMap(user);
         await waitForNextRefresh(bench.id);
 
         // The notification, shown through the desktop bridge.
@@ -1120,6 +1124,7 @@ describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () 
       `the bench shows the approval blocked with ${CLASS} named, and the approve route refuses it with 409 CROSSCHECK_BLOCKED naming ${CLASS}`,
       owners(["blocking"], ["lifecycle"]),
       async () => {
+        await openCostView(user);
         await user.click(approveButton());
         await waitFor(
           () => {
@@ -1153,6 +1158,9 @@ describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () 
       `the note "${NOTE}" is queued for the next boundary, "${NEXT_BOUNDARY_UNIT} finishes", and the session can read it from the controls endpoint`,
       owners(["blocking"], ["steering", "controls"]),
       async () => {
+        // Steering is in the decisions and steering view.
+        await returnToMap(user);
+        await openDecisionsView(user);
         await user.type(screen.getByRole("textbox", { name: "Steering note" }), NOTE);
         await user.click(screen.getByRole("button", { name: "Send note" }));
         await waitFor(
@@ -1205,6 +1213,8 @@ describe("Spec Bench disagreement journey", { timeout: JOURNEY_TIMEOUT_MS }, () 
           (server.benches[0]?.notifications ?? []).filter((n) => n.type === "delivery-crosscheck"),
         ).toEqual([]);
 
+        await returnToMap(user);
+        await openCostView(user);
         await waitFor(() => expect(approveButton()).toBeEnabled(), { timeout: 3000 });
         expect(screen.queryByTestId("delivery-approve-reason")).toBeNull();
       },

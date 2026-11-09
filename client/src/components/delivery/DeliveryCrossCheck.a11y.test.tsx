@@ -30,6 +30,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 import * as api from "../../lib/api";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { openCostView, returnToMap } from "../../test/delivery-views";
 
 const bench = {
   id: 3,
@@ -217,6 +218,7 @@ describe("The cross-check rail by keyboard and screen reader", () => {
       expect(row).toHaveAttribute("data-blocking", "false");
       expect(within(row).getByRole("button")).toHaveAccessibleName(/, shown only, /);
     }
+    await openCostView();
     expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(screen.queryByTestId("delivery-approve-reason")).not.toBeInTheDocument();
   });
@@ -225,6 +227,7 @@ describe("The cross-check rail by keyboard and screen reader", () => {
     withDisagreements([HEAD_MOVED]);
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
     await rail();
+    await openCostView();
     const approve = screen.getByRole("button", { name: "Approve" });
     await waitFor(() => expect(approve).toBeDisabled());
     const reason = screen.getByTestId("delivery-approve-reason");
@@ -245,6 +248,7 @@ describe("The cross-check rail by keyboard and screen reader", () => {
     );
     const user = userEvent.setup();
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openCostView(user);
     const approve = await screen.findByRole("button", { name: "Approve" });
     await waitFor(() => expect(approve).toBeEnabled());
     // The next cross-check read lists the class the route found.
@@ -255,6 +259,7 @@ describe("The cross-check rail by keyboard and screen reader", () => {
     expect(reason).toHaveTextContent("head-commit-differs");
     expect(screen.queryByText("The approval was not sent")).not.toBeInTheDocument();
     // The refusal reads the cross-check again, so the rail lists the class.
+    await returnToMap(user);
     const region = await rail();
     expect(within(region).getByRole("button")).toHaveAccessibleName(
       "head-commit-differs, blocking, A",

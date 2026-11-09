@@ -34,6 +34,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 import * as api from "../../lib/api";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { returnToMap } from "../../test/delivery-views";
 
 const bench = {
   id: 3,
@@ -196,15 +197,20 @@ describe("Since-you-left digest", () => {
     // A digest with entries is not marked seen until it is dismissed.
     expect(api.markDeliveryDigestSeen).not.toHaveBeenCalled();
 
-    // A unit entry opens the unit's drill-in.
+    // A unit entry opens the unit's drill-in, and the return to the map puts
+    // the focus back on the entry.
     await user.click(within(digest).getByRole("button", { name: "Open unit A" }));
     expect(await screen.findByRole("region", { name: "Unit A" })).toBeInTheDocument();
+    await returnToMap(user);
+    expect(within(digest).getByRole("button", { name: "Open unit A" })).toHaveFocus();
 
     // A gate entry opens the gate's drill-in.
     await user.click(within(digest).getByRole("button", { name: "Open gate gate-after-b" }));
     expect(await screen.findByRole("region", { name: "Gate gate-after-b" })).toBeInTheDocument();
+    await returnToMap(user);
 
-    // A decision entry raises its card to the top of the pile and focuses it.
+    // A decision entry opens the decisions view, raises its card to the top of
+    // the pile and focuses the pile.
     await user.click(within(digest).getByRole("button", { name: "Show decision decision-4" }));
     await waitFor(() =>
       expect(screen.getByTestId("decision-card-decision-4")).toHaveAttribute(
@@ -274,6 +280,7 @@ describe("Since-you-left digest", () => {
 
     // decision-1 was answered since the last view: its link opens the drill-in
     // of its unit, and the pile keeps decision-3 on top.
+    await returnToMap(user);
     await user.click(within(digest).getByRole("button", { name: "Show decision decision-1" }));
     expect(await screen.findByRole("region", { name: "Unit B" })).toBeInTheDocument();
     expect(screen.getByTestId("decision-card-decision-3")).toHaveAttribute("data-position", "top");

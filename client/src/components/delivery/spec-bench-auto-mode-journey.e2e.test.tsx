@@ -263,6 +263,7 @@ import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { openCostView } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1069,6 +1070,8 @@ describe("Spec Bench auto mode journey", { timeout: JOURNEY_TIMEOUT_MS }, () => 
       "the switch shows a pending badge, with Auto still the mode in effect",
       owners(["modeSwitch", "surfaces"], ["controls"]),
       async () => {
+        // The mode switch is in the cost, health and controls view (#1620).
+        await openCostView(user);
         expect(modeSegment(modeControl(), "Auto")).toHaveAttribute("aria-checked", "true");
         expect(within(modeControl()).queryByTestId("decision-mode-pending")).toBeNull();
         await user.click(modeSegment(modeControl(), "Attended"));

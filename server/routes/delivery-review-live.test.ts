@@ -93,6 +93,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openCostView, openDecisionsView } from "../../client/src/test/delivery-views";
 
 // The jsdom URL global is not the one fileURLToPath takes, so the path is
 // joined from this file's own path.
@@ -473,6 +474,8 @@ describe("Agent decisions and the review call over the live path", () => {
     const frames = await openNotificationFrames();
     renderTab();
     await snapshotShown();
+    // The review pile is in the decisions view (#1620).
+    await openDecisionsView();
     await waitFor(() => expect(reviewCard("D-1")).toHaveAttribute("data-position", "top"), {
       timeout: 3000,
     });
@@ -560,6 +563,7 @@ describe("Agent decisions and the review call over the live path", () => {
     ]);
     const view = renderTab();
     await snapshotShown();
+    await openDecisionsView();
 
     // Step 1: the rationale shows as literal characters; nothing runs.
     await waitFor(() => expect(reviewCard("D-1")).toBeInTheDocument(), { timeout: 3000 });
@@ -611,6 +615,8 @@ describe("Agent decisions and the review call over the live path", () => {
     ]);
     renderTab();
     await snapshotShown();
+    // The approval control is in the cost view (#1620).
+    await openCostView();
 
     // Step 1: the approval control is unavailable and names the open review.
     const approve = await screen.findByRole("button", { name: "Approve" }, { timeout: 3000 });
@@ -667,6 +673,7 @@ describe("Agent decisions and the review call over the live path", () => {
     expect(decisionNotifications()).toEqual([]);
     renderTab();
     await snapshotShown();
+    await openDecisionsView();
     await waitFor(() => expect(reviewCard("D-1")).toHaveAttribute("data-position", "top"), {
       timeout: 3000,
     });

@@ -317,6 +317,7 @@ vi.mock("../testbench/TestBenchPanel", () => ({ default: () => null }));
 import { useProjects } from "../../hooks/useProjects";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDetail from "../BenchDetail";
+import { openCostView, openDecisionsView, returnToMap } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1307,6 +1308,9 @@ describe("Spec Bench review journey", () => {
       { timeout: 3000 },
     );
 
+    // The review pile is in the decisions and steering view (#1620).
+    await openDecisionsView(user);
+
     // Precondition, not an observation: the pile holds the two agent cards,
     // oldest on top, and the provisional gate's card below them, and no
     // review has called the operator yet.
@@ -1540,7 +1544,12 @@ describe("Spec Bench review journey", () => {
         expect(snapshot.gatesById[GATE]?.gate.status).toBe("passed");
 
         await user.click(screen.getByRole("tab", { name: /delivery/i }));
+        // The tab opens on the map: the pile is in the decisions view, and
+        // Approve in the cost, health and controls view.
+        await openDecisionsView(user);
         await waitFor(() => expect(pileCards()).toEqual([]), { timeout: 3000 });
+        await returnToMap(user);
+        await openCostView(user);
         await waitFor(() => expect(approveButton()).toBeEnabled(), { timeout: 8000 });
         await user.click(approveButton());
         await requestAnswered(bench.id, "POST", "delivery/approve", 202);
