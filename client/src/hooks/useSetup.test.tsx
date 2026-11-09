@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
-import { renderHookWithProviders } from "../test/renderWithProviders";
+import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
 import {
   useScanRepo,
   useSaveConfig,
@@ -49,6 +49,19 @@ describe("useSaveConfig", () => {
     result.current.mutate({ repoPath: "/repo", config });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.saveConfig).toHaveBeenCalledWith("/repo", config);
+  });
+
+  it("HR-TC-041 refreshes projects and the project's raw config after a save in edit mode", async () => {
+    mockedApi.saveConfig.mockResolvedValue({ path: "/repo/roubo.yaml", config: {} } as never);
+    const queryClient = makeQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useSaveConfig("lantern"), { queryClient });
+    result.current.mutate({ repoPath: "/repo", config: {} as never });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidate.mock.calls.map(([arg]) => arg?.queryKey)).toEqual([
+      ["projects"],
+      ["raw-config", "lantern"],
+    ]);
   });
 });
 

@@ -31,13 +31,16 @@ export function useValidateConfig() {
   });
 }
 
-export function useSaveConfig() {
+export function useSaveConfig(projectId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ repoPath, config }: { repoPath: string; config: RouboConfig }) =>
       api.saveConfig(repoPath, config),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ["raw-config", projectId] });
+      }
     },
   });
 }
