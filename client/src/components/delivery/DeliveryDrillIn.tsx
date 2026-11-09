@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import {
   selectGateState,
@@ -14,19 +15,24 @@ import UnitDrillIn from "./UnitDrillIn";
 import { sittingLabel, type DeliverySittingView } from "./gate-sitting-model";
 import {
   GATE_MARKERS,
+  HELD_DRAFT_LABEL,
   classifyGateMarker,
   dependencyLine,
   gateMarkerLabel,
+  pullRequestNumber,
+  selectHeldUnitIds,
   targetKey,
   unitStatusTone,
   type MapTarget,
 } from "./delivery-map-model";
 
 // The drill-in of the unit or gate opened from the map, which the Delivery tab
-// shows as a view of its own (#1620). A unit's opens on its timeline, with its
-// terminal beside it and its diff and verify results beneath (UnitDrillIn),
-// then names what the snapshot holds for it; a gate's names what the snapshot
-// holds for the gate. Its heading takes the focus as it opens.
+// shows as a view of its own (#1620). A unit's drill-in (#1621) is headed by
+// its mono id, its title and chips for its status, its stack, layer and base,
+// its dependencies when they are not only the base, its pull request, the
+// gates after it and its cost; UnitDrillIn lays out its timeline, terminal and
+// Diff and Verify tabs beneath. A gate's names what the snapshot holds for the
+// gate. Its heading takes the focus as it opens.
 export default function DeliveryDrillIn({
   projectId,
   benchId,
@@ -50,71 +56,119 @@ export default function DeliveryDrillIn({
     headingRef.current?.focus();
   }, [key]);
 
-  const heading = target.kind === "unit" ? `Unit ${target.id}` : `Gate ${target.id}`;
+  if (target.kind === "gate") {
+    const heading = `Gate ${target.id}`;
+    return (
+      <section
+        aria-label={heading}
+        data-testid="delivery-drill-in"
+        className="space-y-2 rounded-control border border-border bg-bg-surface p-3"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className={`text-14 font-medium text-text-primary ${focusRing}`}
+          >
+            {heading}
+          </h3>
+          <Button onPress={onClose}>Close</Button>
+        </div>
+        <GateDetail snapshot={snapshot} gateId={target.id} sitting={sitting} />
+      </section>
+    );
+  }
+
+  const unit = ownValue(snapshot.unitsById, target.id);
   return (
-    <section
-      aria-label={heading}
-      data-testid="delivery-drill-in"
-      className="space-y-2 rounded-control border border-border bg-bg-surface p-3"
-    >
-      <div className="flex items-center justify-between gap-3">
+    <section aria-label={`Unit ${target.id}`} data-testid="delivery-drill-in" className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h3
           ref={headingRef}
           tabIndex={-1}
-          className={`text-14 font-medium text-text-primary ${focusRing}`}
+          className={`flex min-w-0 flex-wrap items-baseline gap-x-3 rounded-control ${focusRing}`}
         >
-          {heading}
+          <span className="font-mono text-13 font-medium text-text-body">{target.id}</span>
+          {/* A space, so the heading's name reads "B Second", not "BSecond". */}{" "}
+          {unit !== undefined && (
+            <span className="min-w-0 break-words text-16 font-semibold text-text-primary">
+              {unit.title}
+            </span>
+          )}
         </h3>
-        <Button onPress={onClose}>Close</Button>
+        {unit !== undefined && <UnitChips snapshot={snapshot} unit={unit} />}
+        <div className="ml-auto">
+          <Button onPress={onClose}>Close</Button>
+        </div>
       </div>
-      {target.kind === "unit" ? (
-        <>
-          <UnitDrillIn
-            projectId={projectId}
-            benchId={benchId}
-            snapshot={snapshot}
-            unitId={target.id}
-            {...(deliverySessionId !== undefined && { deliverySessionId })}
-          />
-          <UnitDetail snapshot={snapshot} unitId={target.id} />
-        </>
+      {unit === undefined ? (
+        <p className="text-13 text-text-secondary">The delivery no longer has this unit.</p>
       ) : (
-        <GateDetail snapshot={snapshot} gateId={target.id} sitting={sitting} />
+        <UnitDrillIn
+          projectId={projectId}
+          benchId={benchId}
+          snapshot={snapshot}
+          unitId={target.id}
+          {...(deliverySessionId !== undefined && { deliverySessionId })}
+        />
       )}
     </section>
   );
 }
 
-function UnitDetail({ snapshot, unitId }: { snapshot: DeliverySnapshot; unitId: string }) {
-  const unit = ownValue(snapshot.unitsById, unitId);
-  if (unit === undefined) {
-    return <p className="text-13 text-text-secondary">The delivery no longer has this unit.</p>;
-  }
-  const status = selectUnitStatus(snapshot, unitId);
-  const gates = selectGatesAfterUnit(snapshot, unitId);
+const CHIP =
+  "inline-flex min-w-0 items-center gap-1 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 text-11 text-text-secondary";
+
+// The unit below this one on its stack, whose branch this unit's pull request
+// is based on; none for the first unit of a stack.
+function stackBase(snapshot: DeliverySnapshot, unit: DeliveryUnit): string | undefined {
+  const stack = ownValue(snapshot.stacks, unit.stack) ?? [];
+  const index = stack.indexOf(unit.id);
+  return index > 0 ? stack[index - 1] : undefined;
+}
+
+// The facts the drill-in names about a unit, as chips beside its title.
+function UnitChips({ snapshot, unit }: { snapshot: DeliverySnapshot; unit: DeliveryUnit }) {
+  const status = selectUnitStatus(snapshot, unit.id);
+  const base = stackBase(snapshot, unit);
+  const dependencies = selectUnitDependencies(snapshot, unit.id);
+  const onlyBase =
+    base === undefined
+      ? dependencies.length === 0
+      : dependencies.length === 1 && dependencies[0] === base;
+  const held = selectHeldUnitIds(snapshot).has(unit.id);
+  const pr = held ? HELD_DRAFT_LABEL : pullRequestNumber(unit);
+  const gates = selectGatesAfterUnit(snapshot, unit.id);
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-13">
-      <dt className="text-text-secondary">Title</dt>
-      <dd className="text-text-primary">{unit.title}</dd>
-      <dt className="text-text-secondary">Status</dt>
-      <dd>
+    <ul aria-label={`About unit ${unit.id}`} className="flex flex-wrap items-center gap-2">
+      <li data-testid="unit-chip-status" className={CHIP}>
         <StatusIndicator tone={unitStatusTone(unit)} label={status.status ?? unit.status} />
-      </dd>
-      <dt className="text-text-secondary">Stack</dt>
-      <dd className="font-mono text-text-body">
-        {unit.stack}, layer {unit.layer}
-      </dd>
-      <dt className="text-text-secondary">Dependencies</dt>
-      <dd className="font-mono text-text-body">
-        {dependencyLine(selectUnitDependencies(snapshot, unitId))}
-      </dd>
-      <dt className="text-text-secondary">Gates</dt>
-      <dd className="font-mono text-text-body">
-        {gates.length === 0
-          ? "none"
-          : gates.map((view) => `${view.gate.id} ${gateMarkerLabel(view.gate)}`).join(", ")}
-      </dd>
-    </dl>
+      </li>
+      <li data-testid="unit-chip-stack" className={CHIP}>
+        stack {unit.stack} · layer {unit.layer}
+        {base !== undefined && ` · base ${base}`}
+      </li>
+      {!onlyBase && (
+        <li data-testid="unit-chip-dependencies" className={`${CHIP} font-mono`}>
+          {dependencyLine(dependencies)}
+        </li>
+      )}
+      {pr !== null && (
+        <li data-testid="unit-chip-pr" className={`${CHIP} font-mono`}>
+          {pr}
+        </li>
+      )}
+      {gates.map((view) => (
+        <li key={view.gate.id} data-testid={`unit-chip-gate-${view.gate.id}`} className={CHIP}>
+          gate {view.gate.id} · {gateMarkerLabel(view.gate)}
+        </li>
+      ))}
+      {unit.cost_usd !== undefined && (
+        <li data-testid="unit-chip-cost" className={`${CHIP} tabular-nums`}>
+          USD {unit.cost_usd.toFixed(2)}
+        </li>
+      )}
+    </ul>
   );
 }
 

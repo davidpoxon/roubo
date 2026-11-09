@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { TabPanel as AriaTabPanel, type Key } from "react-aria-components";
 import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
 import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import {
@@ -20,6 +21,8 @@ import { useDeliveryFeed } from "../../hooks/useDeliveryFeed";
 import { useDeliveryUnitDiff, useDeliveryUnitTranscript } from "../../hooks/useDelivery";
 import Terminal from "../Terminal";
 import { focusRing } from "../ui/focus-ring";
+import { Tab, TabList, TAB_PANEL_CLASS, Tabs } from "../ui/Tabs";
+import { DeliveryPanel } from "./DeliveryPanel";
 import {
   buildTimeline,
   clockTime,
@@ -34,8 +37,8 @@ import {
 } from "./delivery-timeline-model";
 
 // A unit's drill-in (SB-FR-013, SB-US-004): the structured event timeline
-// first, the delivery session's terminal beside it, and the Diff and Verify
-// panels beneath. The timeline holds the unit's events from GET
+// first, on the left, and on the right the delivery session's terminal above
+// a panel with a Diff tab and a Verify tab (#1621). The timeline holds the unit's events from GET
 // /delivery/events?unit=<id> (the most recent 1,000, SB-NFR-003) with each
 // generation seam of the unit marked on it. A done or jammed (failed, blocked)
 // unit's terminal replays its recorded transcript read-only, and choosing an
@@ -45,8 +48,10 @@ import {
 // own to the session, next to the one the bench's Terminal tab holds: the
 // server takes several viewers per session and sends each the replay and the
 // live output. Every panel is a named region the keyboard reaches, F6
-// leaves the terminal for the next panel (Shift+F6 for the one before), and a
-// unit with no events shows an empty state naming the unit in each panel.
+// leaves the terminal for the selected one of Diff and Verify (Shift+F6 for
+// the timeline), and a unit with no events shows an empty state naming the
+// unit in each panel. Both tab panels stay mounted, the unselected one hidden,
+// so the diff is read as the drill-in opens, whichever tab shows.
 
 export const LEAVE_TERMINAL_KEY = "F6";
 
@@ -59,12 +64,9 @@ export interface UnitDrillInProps {
   deliverySessionId?: string;
 }
 
-const PANEL = `min-w-0 space-y-2 rounded-control border border-border bg-bg-surface p-3 ${focusRing}`;
 const EMPTY = "text-13 text-text-secondary";
-
-function PanelHeading({ children }: { children: ReactNode }) {
-  return <h4 className="text-13 font-medium text-text-primary">{children}</h4>;
-}
+// The body of a tab panel, named for the screen reader by its region.
+const TAB_BODY = `min-w-0 space-y-2 p-3 ${focusRing} focus-visible:ring-inset`;
 
 export default function UnitDrillIn({
   projectId,
@@ -78,6 +80,8 @@ export default function UnitDrillIn({
   const unit = ownValue(snapshot.unitsById, unitId);
   const timelineRef = useRef<HTMLElement>(null);
   const diffRef = useRef<HTMLElement>(null);
+  const verifyRef = useRef<HTMLElement>(null);
+  const [sideTab, setSideTab] = useState<Key>("diff");
   const [chosenSeq, setChosenSeq] = useState<number | null>(null);
   const chosen = useMemo(
     () => (chosenSeq === null ? null : (events.find((item) => item.seq === chosenSeq) ?? null)),
@@ -88,8 +92,8 @@ export default function UnitDrillIn({
   const kind = classifyUnitStatus(unit.status);
 
   return (
-    <div data-testid="unit-drill-in" className="space-y-3">
-      <div data-drill-in-row="top" className="grid gap-3 lg:grid-cols-2">
+    <div data-testid="unit-drill-in" className="@container">
+      <div className="grid items-start gap-3.5 @4xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <UnitTimeline
           panelRef={timelineRef}
           unitId={unitId}
@@ -101,29 +105,64 @@ export default function UnitDrillIn({
           chosenSeq={chosen?.seq ?? null}
           onChoose={setChosenSeq}
         />
-        <UnitTerminalPanel
-          projectId={projectId}
-          benchId={benchId}
-          unitId={unitId}
-          recorded={kind === "done" || kind === "jammed"}
-          active={kind === "running"}
-          events={events}
-          chosen={chosen}
-          deliverySessionId={deliverySessionId}
-          onLeave={(backwards) => (backwards ? timelineRef : diffRef).current?.focus()}
-        />
-      </div>
-      <div data-drill-in-row="bottom" className="grid gap-3 lg:grid-cols-2">
-        <UnitDiffPanel
-          panelRef={diffRef}
-          projectId={projectId}
-          benchId={benchId}
-          unitId={unitId}
-          head={unit.head}
-        />
-        <UnitVerifyPanel snapshot={snapshot} unitId={unitId} />
+        <div data-drill-in-column="side" className="grid min-w-0 gap-3.5">
+          <UnitTerminalPanel
+            projectId={projectId}
+            benchId={benchId}
+            unitId={unitId}
+            recorded={kind === "done" || kind === "jammed"}
+            active={kind === "running"}
+            events={events}
+            chosen={chosen}
+            deliverySessionId={deliverySessionId}
+            onLeave={(backwards) => {
+              const next = backwards ? timelineRef : sideTab === "verify" ? verifyRef : diffRef;
+              next.current?.focus();
+            }}
+          />
+          <div
+            data-testid="unit-diff-verify"
+            className="animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface"
+          >
+            <Tabs selectedKey={sideTab} onSelectionChange={setSideTab}>
+              <TabList aria-label={`Diff and verify results of unit ${unitId}`} className="px-3">
+                <Tab id="diff">Diff</Tab>
+                <Tab id="verify">Verify</Tab>
+              </TabList>
+              <SideTabPanel id="diff">
+                <UnitDiffPanel
+                  panelRef={diffRef}
+                  projectId={projectId}
+                  benchId={benchId}
+                  unitId={unitId}
+                  head={unit.head}
+                />
+              </SideTabPanel>
+              <SideTabPanel id="verify">
+                <UnitVerifyPanel panelRef={verifyRef} snapshot={snapshot} unitId={unitId} />
+              </SideTabPanel>
+            </Tabs>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+// A tab panel of the Diff and Verify pair. It stays mounted while the other
+// tab shows, inert and out of the layout, as the Terminal tab of the bench
+// does. The display is set inline, so it holds wherever the page's styles do
+// not reach.
+function SideTabPanel({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <AriaTabPanel
+      id={id}
+      shouldForceMount
+      className={TAB_PANEL_CLASS}
+      style={({ isInert }) => (isInert ? { display: "none" } : undefined)}
+    >
+      {children}
+    </AriaTabPanel>
   );
 }
 
@@ -157,28 +196,29 @@ function UnitTimeline({
     () => buildTimeline(unitId, events, snapshot.seams),
     [unitId, events, snapshot.seams],
   );
+  const count = items.filter((item) => item.kind === "event").length;
   return (
-    <section
+    <DeliveryPanel
       ref={panelRef}
-      aria-label={`Timeline of unit ${unitId}`}
-      tabIndex={0}
-      data-testid="unit-timeline"
-      className={PANEL}
+      title="Timeline"
+      label={`Timeline of unit ${unitId}`}
+      tabStop
+      testId="unit-timeline"
+      meta={count > 0 && `${count} ${count === 1 ? "event" : "events"} · newest first`}
     >
-      <PanelHeading>Timeline</PanelHeading>
       {error !== undefined ? (
-        <p role="alert" className="text-13 text-danger-text">
+        <p role="alert" className="p-3 text-13 text-danger-text">
           The events of unit {unitId} could not be read: {error}
         </p>
       ) : isPending ? (
-        <p role="status" className={EMPTY}>
+        <p role="status" className={`p-3 ${EMPTY}`}>
           Reading the events of unit {unitId}...
         </p>
       ) : items.length === 0 ? (
         <p
           data-testid="unit-timeline-empty"
           data-folded={folded > 0 ? "true" : undefined}
-          className={EMPTY}
+          className={`p-3 ${EMPTY}`}
         >
           {folded > 0
             ? `No newer events for unit ${unitId}: the delivery record holds its ${folded} ${folded === 1 ? "event" : "events"}.`
@@ -187,7 +227,7 @@ function UnitTimeline({
       ) : (
         <TimelineList unitId={unitId} items={items} chosenSeq={chosenSeq} onChoose={onChoose} />
       )}
-    </section>
+    </DeliveryPanel>
   );
 }
 
@@ -233,7 +273,7 @@ const TimelineList = memo(function TimelineList({
         tabIndex={0}
         data-testid="unit-timeline-list"
         onKeyDown={onKeyDown}
-        className={`max-h-96 overflow-y-auto ${focusRing}`}
+        className={`max-h-[40rem] overflow-y-auto ${focusRing} focus-visible:ring-inset`}
       >
         {items.map((item) =>
           item.kind === "seam" ? (
@@ -273,7 +313,7 @@ function TimelineEvent({
       data-testid={`timeline-event-${event.seq}`}
       data-seq={event.seq}
       data-chosen={chosen ? "true" : undefined}
-      className={`border-b border-border ${chosen ? "bg-bg-hover" : "bg-bg-surface"} ${
+      className={`border-b border-border last:border-b-0 ${chosen ? "bg-bg-hover" : "bg-bg-surface"} ${
         newest ? "border-l-2 border-l-accent" : ""
       }`}
     >
@@ -283,18 +323,18 @@ function TimelineEvent({
         data-event-seq={event.seq}
         aria-pressed={chosen}
         onClick={() => onChoose(event.seq)}
-        className={`flex w-full items-start gap-3 p-2 text-left ${focusRing}`}
+        className={`grid w-full grid-cols-[4rem_7rem_minmax(0,1fr)] items-start gap-3 px-3 py-2 text-left transition-colors hover:bg-bg-hover active:bg-bg-pressed ${focusRing} focus-visible:ring-inset`}
       >
         <time dateTime={event.ts} className="font-mono text-11 text-text-secondary">
           {clockTime(event.ts)}
         </time>
-        <span className="rounded-sm bg-bg-hover px-1 font-mono text-11 text-text-secondary">
+        <span className="justify-self-start rounded-chip bg-bg-hover px-1 font-mono text-11 text-text-secondary [overflow-wrap:anywhere]">
           {event.type}
         </span>
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-13 text-text-body">{eventText(event)}</span>
+          <span className="break-words text-13 text-text-body">{eventText(event)}</span>
           {detail !== null && (
-            <span className="font-mono text-11 text-text-secondary">{detail}</span>
+            <span className="break-words font-mono text-11 text-text-secondary">{detail}</span>
           )}
         </span>
       </button>
@@ -306,7 +346,10 @@ function TimelineEvent({
 // timeline. Not focusable: it describes the timeline.
 function GenerationSeam({ seam }: { seam: TimelineSeamItem }) {
   return (
-    <li data-testid="timeline-seam" className="flex items-center gap-2 p-1">
+    <li
+      data-testid="timeline-seam"
+      className="flex items-center gap-3 border-b border-border px-3 py-1.5"
+    >
       <span aria-hidden="true" className="h-px flex-1 bg-border-strong" />
       <span className="font-mono text-11 font-medium text-text-secondary">
         <span className="sr-only">Generation seam: </span>
@@ -351,39 +394,42 @@ function UnitTerminalPanel({
     event.stopPropagation();
     onLeave(event.shiftKey);
   };
+  const live = !recorded && deliverySessionId !== undefined && (active || events.length > 0);
   return (
-    <section
-      aria-label={`Terminal of unit ${unitId}`}
-      aria-describedby={`unit-terminal-hint-${unitId}`}
-      tabIndex={0}
-      data-testid="unit-terminal"
+    <DeliveryPanel
+      title="Terminal"
+      label={`Terminal of unit ${unitId}`}
+      describedBy={`unit-terminal-hint-${unitId}`}
+      tabStop
+      testId="unit-terminal"
       onKeyDownCapture={onKeyDownCapture}
-      className={PANEL}
+      meta={recorded ? "read-only transcript" : live ? `${unitId} · live` : null}
     >
-      <PanelHeading>Terminal</PanelHeading>
-      <p id={`unit-terminal-hint-${unitId}`} className="text-11 text-text-secondary">
-        Press F6 to leave the terminal, Shift+F6 to go back to the timeline.
-      </p>
-      {recorded ? (
-        <RecordedTranscript
-          projectId={projectId}
-          benchId={benchId}
-          unitId={unitId}
-          events={events}
-          chosen={chosen}
-        />
-      ) : deliverySessionId !== undefined && (active || events.length > 0) ? (
-        <div data-testid="unit-terminal-live" className="h-80">
-          <Terminal sessionId={deliverySessionId} active />
-        </div>
-      ) : (
-        <p data-testid="unit-terminal-empty" className={EMPTY}>
-          {deliverySessionId === undefined
-            ? `No terminal for unit ${unitId}: the bench has no delivery session.`
-            : `No terminal output for unit ${unitId} yet.`}
+      <div className="space-y-2 p-3">
+        <p id={`unit-terminal-hint-${unitId}`} className="text-11 text-text-secondary">
+          Press F6 to leave the terminal, Shift+F6 to go back to the timeline.
         </p>
-      )}
-    </section>
+        {recorded ? (
+          <RecordedTranscript
+            projectId={projectId}
+            benchId={benchId}
+            unitId={unitId}
+            events={events}
+            chosen={chosen}
+          />
+        ) : live ? (
+          <div data-testid="unit-terminal-live" className="h-80">
+            <Terminal sessionId={deliverySessionId} active />
+          </div>
+        ) : (
+          <p data-testid="unit-terminal-empty" className={EMPTY}>
+            {deliverySessionId === undefined
+              ? `No terminal for unit ${unitId}: the bench has no delivery session.`
+              : `No terminal output for unit ${unitId} yet.`}
+          </p>
+        )}
+      </div>
+    </DeliveryPanel>
   );
 }
 
@@ -503,9 +549,8 @@ function UnitDiffPanel({
       aria-label={`Diff of unit ${unitId}`}
       tabIndex={0}
       data-testid="unit-diff"
-      className={PANEL}
+      className={TAB_BODY}
     >
-      <PanelHeading>Diff</PanelHeading>
       {diff.isPending ? (
         <p role="status" className={EMPTY}>
           Reading the diff of unit {unitId}...
@@ -591,19 +636,27 @@ function CaseEvidence({ caseId, result }: { caseId: string; result: CaseResult |
 // The verify results of the cases the unit implements: the cases of the gates
 // that run after it, each with its result from the spec's test-results.json as
 // the server's fold reads it, and the evidence that result rests on.
-function UnitVerifyPanel({ snapshot, unitId }: { snapshot: DeliverySnapshot; unitId: string }) {
+function UnitVerifyPanel({
+  panelRef,
+  snapshot,
+  unitId,
+}: {
+  panelRef: RefObject<HTMLElement | null>;
+  snapshot: DeliverySnapshot;
+  unitId: string;
+}) {
   const gates = selectGatesAfterUnit(snapshot, unitId);
   const rows = gates.flatMap((view) =>
     view.gate.cases.map((caseId) => ({ gateId: view.gate.id, caseId })),
   );
   return (
     <section
+      ref={panelRef}
       aria-label={`Verify results of unit ${unitId}`}
       tabIndex={0}
       data-testid="unit-verify"
-      className={PANEL}
+      className={TAB_BODY}
     >
-      <PanelHeading>Verify</PanelHeading>
       {rows.length === 0 ? (
         <p data-testid="unit-verify-empty" className={EMPTY}>
           No verify results for unit {unitId}: no gate after it names a case.

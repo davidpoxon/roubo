@@ -2,10 +2,12 @@ import {
   Children,
   Fragment,
   isValidElement,
+  type KeyboardEventHandler,
   type ReactElement,
   type ReactNode,
   type Ref,
 } from "react";
+import { focusRing } from "../ui/focus-ring";
 
 // The frame the Spec Bench views group their content in (#1617): a surface with a hairline border, a header with a
 // mono uppercase eyebrow on the left and an optional secondary meta line on the
@@ -13,7 +15,9 @@ import {
 // move between panels by landmark. `label` names the section when its title
 // alone would repeat the name of another region on the same view. A panel that
 // a control brings into view takes `ref` and `focusable`, which puts it in the
-// focus order of a script but not of the Tab key.
+// focus order of a script but not of the Tab key. A panel that is a stop of
+// the Tab key itself takes `tabStop`, and with it the focus ring; `describedBy`
+// and `onKeyDownCapture` serve such a panel.
 export function DeliveryPanel({
   ref,
   testId,
@@ -21,6 +25,9 @@ export function DeliveryPanel({
   label,
   meta,
   focusable,
+  tabStop,
+  describedBy,
+  onKeyDownCapture,
   className,
   children,
 }: {
@@ -30,16 +37,22 @@ export function DeliveryPanel({
   label?: string;
   meta?: ReactNode;
   focusable?: boolean;
+  tabStop?: boolean;
+  describedBy?: string;
+  onKeyDownCapture?: KeyboardEventHandler<HTMLElement>;
   className?: string;
   children: ReactNode;
 }) {
+  const stop = tabStop === true;
   return (
     <section
       ref={ref}
       data-testid={testId}
       aria-label={label ?? title}
-      tabIndex={focusable === true ? -1 : undefined}
-      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface focus:outline-none ${className ?? ""}`}
+      aria-describedby={describedBy}
+      tabIndex={stop ? 0 : focusable === true ? -1 : undefined}
+      onKeyDownCapture={onKeyDownCapture}
+      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface ${stop ? focusRing : "focus:outline-none"} ${className ?? ""}`}
     >
       <header className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
         <h3 className="font-mono text-11 font-medium uppercase tracking-label text-text-secondary">

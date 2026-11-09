@@ -986,6 +986,8 @@ describe("Spec Bench investigate journey", { timeout: JOURNEY_TIMEOUT_MS }, () =
       owners(["drillIn"], ["reducer"]),
       async () => {
         const panels = drillInOfB();
+        // The Verify panel is the second tab beside Diff (#1621).
+        await user.click(within(panels).getByRole("tab", { name: "Verify" }));
         const verify = within(panels).getByRole("region", { name: "Verify results of unit B" });
         await user.click(verify);
         expect(verify).toHaveFocus();
