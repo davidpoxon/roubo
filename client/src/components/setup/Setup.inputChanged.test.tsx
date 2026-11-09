@@ -24,7 +24,6 @@ vi.mock("../../hooks/useProjects", () => ({
     data: [{ id: "lantern", repoPath: "/repo/lantern", configValid: false }],
   }),
   useRegisterProject: () => ({ mutate: vi.fn(), isPending: false }),
-  useReloadProjectConfig: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("../../hooks/useSetup", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../hooks/useSetup")>();

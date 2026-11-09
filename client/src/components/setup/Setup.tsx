@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from "react-router";
 import * as YAML from "yaml";
 import type { Diagnostic } from "@codemirror/lint";
 import type { RouboConfig } from "@roubo/shared";
-import { useProjects, useRegisterProject, useReloadProjectConfig } from "../../hooks/useProjects";
+import { useProjects, useRegisterProject } from "../../hooks/useProjects";
 import { ApiError } from "../../lib/api";
 import {
   useScanRepo,
@@ -280,9 +280,11 @@ export default function Setup() {
   }, [pendingConfig, editProject?.config, benches]);
 
   // ── Save ────────────────────────────────────────────────────────────────────
-  const saveConfig = useSaveConfig();
+  // Both save routes re-parse the written roubo.yaml on the server, so a save
+  // only refreshes the projects and raw-config queries. The manual reload
+  // route is not called here: it logs and broadcasts, which an app write must not.
+  const saveConfig = useSaveConfig(projectId);
   const saveRawConfig = useSaveRawConfig(projectId);
-  const reloadConfig = useReloadProjectConfig();
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
   const registerProject = useRegisterProject();
 
@@ -304,9 +306,6 @@ export default function Setup() {
               }
             } catch {
               // parse failure after successful save: non-fatal
-            }
-            if (isEditMode && projectId) {
-              reloadConfig.mutate(projectId);
             }
             setGuidedDirty(false);
           },
@@ -356,9 +355,6 @@ export default function Setup() {
           onSuccess: () => {
             if (!isEditMode) {
               registerProject.mutate(state.repoPath || repoPath);
-            }
-            if (isEditMode && projectId) {
-              reloadConfig.mutate(projectId);
             }
             setGuidedDirty(false);
             configSnapshot.current = JSON.stringify(state.config);

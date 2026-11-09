@@ -80,7 +80,7 @@ describe("useUnregisterProject", () => {
 });
 
 describe("useReloadProjectConfig", () => {
-  it("calls reloadProjectConfig with projectId", async () => {
+  it("HR-TC-009 calls the manual reload route with projectId", async () => {
     const project = { id: "p1", repoPath: "/path", configValid: true };
     mockedApi.reloadProjectConfig.mockResolvedValue(project as never);
     const { result } = renderHookWithProviders(() => useReloadProjectConfig());
