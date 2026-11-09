@@ -1,0 +1,159 @@
+// @vitest-environment jsdom
+// The cost view of the Delivery tab (#1623): a title row with the lifecycle
+// badge and buttons, then the Burn, Health, Role matrix, Decision mode and
+// Drift ledger panels, in that order, each from figures the snapshot has.
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Bench } from "@roubo/shared";
+import type { DeliveryCrossCheckResponse } from "@roubo/shared/delivery-bench";
+import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
+import { foldDelivery } from "@roubo/shared/delivery-reducer";
+import { fourUnitRecord, unitChanged } from "../../test/delivery-fixtures";
+import { renderWithProviders } from "../../test/renderWithProviders";
+import { formatElapsed } from "./delivery-health-model";
+import DeliveryCostView from "./DeliveryCostView";
+
+const bench = {
+  id: 3,
+  projectId: "demo",
+  status: "active",
+  variant: "specbench",
+  focusedSpecPath: "/repos/demo/.specifications/fixture-spec",
+  deliveryBindMode: "launch",
+} as unknown as Bench;
+
+// Two display-only disagreements.
+const crossCheck: DeliveryCrossCheckResponse = {
+  disagreements: ["A", "B"].map((unitId) => ({
+    class: "layer-order-differs",
+    blocking: false,
+    unitId,
+    claimed: "1",
+    observed: "2",
+    source: "git",
+  })),
+  refreshedAt: "2026-10-16T10:00:00Z",
+  sourceError: null,
+};
+
+function renderView(events: DeliveryEvent[] = [], onOpenUnit = vi.fn()) {
+  const record = fourUnitRecord();
+  record.budget = {
+    ...record.budget,
+    by_role: { main: 0.12, "unit-coder": 0.2, "gate-verifier": 0.02 },
+  };
+  record.roles = { main: { tier: "balanced" }, "unit-coder": { tier: "fast" } };
+  record.drift = [
+    {
+      kind: "spec",
+      detail: "Added a case",
+      detected_at: "2026-10-16T10:31:00Z",
+      file: "test-cases.json",
+      summary: "Added a case",
+      ids: ["FX-TC-009"],
+      unit_id: "B",
+    },
+  ];
+  renderWithProviders(
+    <section aria-label="Cost, health and controls">
+      <DeliveryCostView
+        bench={bench}
+        snapshot={foldDelivery({ record, events })}
+        title="Cost, health and controls"
+        ended={false}
+        attached={false}
+        sessionStartBlocked={false}
+        crossCheck={crossCheck}
+        driftLedgerRef={() => undefined}
+        onOpenUnit={onOpenUnit}
+      />
+    </section>,
+  );
+  return onOpenUnit;
+}
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe("DeliveryCostView", () => {
+  it("shows the title row, then Burn, Health, Role matrix, Decision mode and Drift ledger, in that order", () => {
+    renderView();
+    const order = [
+      screen.getByRole("heading", { level: 2, name: "Cost, health and controls" }),
+      screen.getByTestId("delivery-lifecycle"),
+      screen.getByRole("region", { name: "Lifecycle" }),
+      screen.getByRole("region", { name: "Burn" }),
+      screen.getByRole("region", { name: "Health" }),
+      screen.getByRole("region", { name: "Roles" }),
+      screen.getByRole("region", { name: "Decision mode" }),
+      screen.getByRole("region", { name: "Drift ledger" }),
+    ];
+    for (let index = 1; index < order.length; index += 1) {
+      expect(order[index - 1].compareDocumentPosition(order[index])).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }
+    expect(screen.getByTestId("delivery-lifecycle")).toHaveTextContent("running");
+    expect(
+      within(screen.getByRole("region", { name: "Lifecycle" })).getByRole("button", {
+        name: "Wind down",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Decision mode" })).getByTestId(
+        "delivery-mode-control",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("fills the Burn strip with spent, the top role, spend against the estimate and the elapsed time", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-17T13:30:00Z"), toFake: ["Date"] });
+    renderView();
+    expect(screen.getByTestId("delivery-stat-spent")).toHaveTextContent("0.42 of 5.00 soft budget");
+    const role = screen.getByTestId("delivery-stat-by-role");
+    expect(role).toHaveTextContent("0.20");
+    expect(role).toHaveTextContent("unit-coder · 48 percent");
+    expect(role).toHaveTextContent("main 0.12 · gate-verifier 0.02");
+    expect(screen.getByTestId("delivery-stat-estimate")).toHaveTextContent(
+      "3.20 spent is 13 percent of it",
+    );
+    expect(screen.getByTestId("delivery-stat-elapsed")).toHaveTextContent(
+      "1d 04h since 2026-10-16 09:00 UTC",
+    );
+  });
+
+  it("writes an elapsed time in minutes, then hours and minutes, then days and hours", () => {
+    expect(formatElapsed(42 * 60_000)).toBe("42m");
+    expect(formatElapsed((3 * 60 + 5) * 60_000)).toBe("3h 05m");
+    expect(formatElapsed((26 * 60 + 59) * 60_000)).toBe("1d 02h");
+  });
+
+  it("counts the jams and disagreements, and shows each jam as a callout that opens its unit", async () => {
+    const onOpenUnit = renderView([unitChanged(8, "B", "jammed")]);
+    const health = screen.getByRole("region", { name: "Health" });
+    expect(health.querySelector("header")).toHaveTextContent("1 jam · 2 disagreements");
+    expect(within(health).getByTestId("delivery-health-line")).toHaveAttribute(
+      "data-health",
+      "blocked",
+    );
+    const jam = within(health).getByTestId("delivery-jam-row-B");
+    expect(jam).toHaveTextContent("BSecondjammed");
+    await userEvent.setup().click(within(jam).getByRole("button", { name: "Open B" }));
+    expect(onOpenUnit).toHaveBeenCalledWith("B");
+  });
+
+  it("gives each role its share of the spend, and each drift row its time, file, ids and unit", () => {
+    renderView();
+    expect(screen.getByTestId("role-spent-unit-coder")).toHaveTextContent("$0.20 · 48 percent");
+    const ledger = screen.getByRole("region", { name: "Drift ledger" });
+    expect(ledger.querySelector("header")).toHaveTextContent("1 entry");
+    const row = within(ledger).getByTestId("delivery-drift-row-0");
+    expect(row.querySelector('[data-col="time"]')).toHaveTextContent("2026-10-16 10:31 UTC");
+    expect(row).toHaveTextContent("test-cases.json");
+    expect(row.querySelector('[data-col="ids"]')).toHaveTextContent(/^FX-TC-009$/);
+    expect(row.querySelector('[data-col="unit"]')).toHaveTextContent("· B");
+  });
+});

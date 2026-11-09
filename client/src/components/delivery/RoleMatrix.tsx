@@ -5,15 +5,17 @@ import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
 import { useRoleChange } from "../../hooks/useDelivery";
+import { DeliveryPanel } from "./DeliveryPanel";
 
-// The role matrix of the Delivery tab (SB-FR-021): one DESIGN.md Role matrix
-// row per role of the delivery, with the mono role name, its model tier as a
-// menu on the field ground, its spend so far, and an accent badge while a
+// The role matrix of the Delivery tab (SB-FR-021): a "Role matrix" panel with
+// one DESIGN.md Role matrix row per role of the delivery, as a dense hairline
+// row (#1623): the mono role name, its model tier as a menu on the field
+// ground, its spend so far and its share of the spend, and an accent badge while a
 // change waits for the session. Changing the tier and saving writes a
 // role-change control (PUT .../delivery/roles); the row shows pending from the
 // outbox the snapshot carries, until the session's `roles.applied` reads the
 // control back and makes the tier the role's current one. The record carries
-// no effort per role, so the row has no effort menu.
+// no effort per role, so the row has no effort menu (#1615).
 
 // The tier aliases the menu always offers. The contract gives a tier no
 // vocabulary, so every tier the delivery already names is offered too.
@@ -34,12 +36,15 @@ const SELECT_CLASS = `rounded-control border border-border-control bg-bg-field p
 function RoleRow({
   row,
   options,
+  spentUsd,
   disabled,
   saving,
   onSave,
 }: {
   row: RoleMatrixRow;
   options: readonly string[];
+  // The spend of the whole delivery, which the row's share is of.
+  spentUsd: number;
   disabled: boolean;
   saving: boolean;
   onSave: (tier: string) => void;
@@ -52,11 +57,13 @@ function RoleRow({
     <li
       data-testid={`role-row-${row.role}`}
       data-state={pending ? "pending" : "current"}
-      className={`flex flex-wrap items-center gap-3 rounded-card border border-border bg-bg-surface p-2 ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 last:border-b-0 ${
         disabled ? "opacity-40" : ""
       }`}
     >
-      <span className="min-w-28 font-mono text-13 font-medium text-text-primary">{row.role}</span>
+      <span className="min-w-28 break-all font-mono text-13 font-medium text-text-primary">
+        {row.role}
+      </span>
       <select
         data-testid={`role-model-${row.role}`}
         aria-label={`Model of ${row.role}`}
@@ -80,9 +87,13 @@ function RoleRow({
       </Button>
       <span
         data-testid={`role-spent-${row.role}`}
-        className="font-mono text-13 text-text-secondary"
+        className="font-mono text-12 tabular-nums text-text-secondary"
       >
-        {row.spentUsd === null ? "no spend yet" : `$${row.spentUsd.toFixed(2)}`}
+        {row.spentUsd === null
+          ? "no spend yet"
+          : `$${row.spentUsd.toFixed(2)} · ${String(
+              spentUsd > 0 ? Math.round((row.spentUsd / spentUsd) * 100) : 0,
+            )} percent`}
       </span>
       {pending && (
         <span
@@ -112,17 +123,22 @@ export default function RoleMatrix({
   const options = tierOptions(rows);
   const change = useRoleChange(projectId, benchId);
   return (
-    <div className="space-y-2">
-      <h3 className="text-13 font-medium text-text-primary">Roles</h3>
+    <DeliveryPanel
+      testId="delivery-role-controls"
+      title="Role matrix"
+      label="Roles"
+      meta="changes apply at the next unit boundary"
+    >
       {rows.length === 0 ? (
-        <p className="text-12 text-text-secondary">The delivery names no role.</p>
+        <p className="px-3 py-2 text-12 text-text-secondary">The delivery names no role.</p>
       ) : (
-        <ul aria-label="Role matrix" className="space-y-2">
+        <ul aria-label="Role matrix">
           {rows.map((row) => (
             <RoleRow
               key={`${row.role}:${row.tier}:${row.pendingTier ?? ""}`}
               row={row}
               options={options}
+              spentUsd={snapshot.budget.spent_usd}
               disabled={disabled}
               saving={change.isPending}
               onSave={(tier) => change.mutate({ role: row.role, tier })}
@@ -131,10 +147,10 @@ export default function RoleMatrix({
         </ul>
       )}
       {change.isError && (
-        <Callout role="alert" title="The role change was not sent">
+        <Callout role="alert" title="The role change was not sent" className="m-3">
           {change.error.message}
         </Callout>
       )}
-    </div>
+    </DeliveryPanel>
   );
 }

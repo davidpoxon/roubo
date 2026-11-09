@@ -14,23 +14,18 @@ import { useDeliveryCrossCheck } from "../../hooks/useDeliveryCrossCheck";
 import { deliveryReadErrorOf } from "../../lib/api";
 import BoundaryPanel from "./BoundaryPanel";
 import DecisionPile from "./DecisionPile";
-import DeliveryBurn from "./DeliveryBurn";
-import DeliveryDriftLedger from "./DeliveryDriftLedger";
+import DeliveryCostView from "./DeliveryCostView";
 import DeliveryCrossCheck, { DeliveryCrossCheckChip } from "./DeliveryCrossCheck";
 import DeliveryRail from "./DeliveryHealth";
-import DeliveryJams from "./DeliveryJams";
 import DeliveryMap from "./DeliveryMap";
 import DeliveryBreadcrumb from "./DeliveryBreadcrumb";
 import DeliveryDrillIn from "./DeliveryDrillIn";
-import DeliveryModeControl from "./DeliveryModeControl";
 import GateSitting from "./GateSitting";
 import { gateKey, unitKey, type MapFocusRequest, type MapTarget } from "./delivery-map-model";
 import DeliveryDigest from "./DeliveryDigest";
 import { useDeliveryDigest } from "../../hooks/useDeliveryDigest";
 import type { DeliveryDigestEntry } from "@roubo/shared/delivery-digest";
 import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
-import LifecycleControls from "./LifecycleControls";
-import RoleMatrix from "./RoleMatrix";
 import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./DeliverySummaryRail";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It shows one view at a time
@@ -66,12 +61,14 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 // The decisions view holds the decision pile, where a decision is answered or
 // its default overturned in place (SB-FR-014, SB-FR-015), with the agent
 // decisions to review on the same pile (SB-FR-033), and the boundary panel
-// with the steering composer (SB-FR-016, SB-FR-017). The cost view holds the
-// burn meter (SB-FR-018), the jam list (SB-FR-019), the drift ledger
-// (SB-FR-020), the role matrix (SB-FR-021) with the Mode switch beside it
-// (SB-FR-032), and the lifecycle controls (SB-FR-022), among them Approve,
-// which waits while a review is open (SB-FR-034), a gating case is unmet or
-// the cross-check holds a blocking class (SB-FR-029).
+// with the steering composer (SB-FR-016, SB-FR-017). The cost view
+// (DeliveryCostView, #1623) holds a title row with the lifecycle badge and the
+// lifecycle controls (SB-FR-022), among them Approve, which waits while a
+// review is open (SB-FR-034), a gating case is unmet or the cross-check holds a
+// blocking class (SB-FR-029); then the burn meter (SB-FR-018), the health line
+// and the jams (SB-FR-019), the role matrix (SB-FR-021), the Mode switch
+// (SB-FR-032) and the drift ledger (SB-FR-020), each in its own panel. A jam's
+// Open button opens its unit's drill-in.
 //
 // The tab shows the snapshot when the record conforms, or the named error
 // when it does not. No decision, steering, role, mode or lifecycle control
@@ -416,9 +413,9 @@ function DeliverySnapshotView({
   }, [decisionPileFocusKey, onDecisionPileFocused, openView]);
   // A complete delivery takes no role change and no mode switch.
   const ended = classifyLifecycleState(snapshot.lifecycle.state) === "complete";
-  // The view of cost, health and controls: the burn meter, the jam list, the
-  // drift ledger and the delivery's controls, which the rail's Burn and health
-  // panel opens.
+  // The view of cost, health and controls: the burn meter, the health and the
+  // jams, the drift ledger and the delivery's controls, which the rail's Burn
+  // and health panel opens.
   const openCostHealthControls = () => {
     openView({ kind: "cost" }, () => costHealthControls.current);
   };
@@ -600,56 +597,16 @@ function DeliverySnapshotView({
           current="Cost, health and controls"
           onReturn={returnToMap}
         />
-        <h2 className={VIEW_TITLE}>Cost, health and controls</h2>
-        <DeliveryBurn snapshot={snapshot} />
-        <DeliveryJams snapshot={snapshot} />
-
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-13">
-          <dt className="text-text-secondary">Lifecycle</dt>
-          <dd className="text-text-primary" data-testid="delivery-lifecycle">
-            {snapshot.lifecycle.state}
-          </dd>
-          <dt className="text-text-secondary">Budget</dt>
-          <dd className="text-text-primary" data-testid="delivery-budget">
-            ${snapshot.budget.spent_usd.toFixed(2)} of ${snapshot.budget.soft_budget_usd.toFixed(2)}
-          </dd>
-        </dl>
-
-        <div
-          ref={driftLedger}
-          tabIndex={-1}
-          data-testid="delivery-drift-ledger-target"
-          className="focus:outline-none"
-        >
-          <DeliveryDriftLedger snapshot={snapshot} />
-        </div>
-
-        <section
-          data-testid="delivery-role-controls"
-          aria-label="Roles and mode"
-          className="flex flex-wrap items-start gap-6"
-        >
-          <div className="min-w-0 flex-1">
-            <RoleMatrix
-              projectId={bench.projectId}
-              benchId={bench.id}
-              snapshot={snapshot}
-              disabled={ended}
-            />
-          </div>
-          <DeliveryModeControl
-            projectId={bench.projectId}
-            benchId={bench.id}
-            snapshot={snapshot}
-            disabled={ended}
-          />
-        </section>
-
-        <LifecycleControls
+        <DeliveryCostView
           bench={bench}
           snapshot={snapshot}
+          title="Cost, health and controls"
+          ended={ended}
+          attached={bench.deliveryBindMode === "attach" && bench.deliverySessionId === undefined}
           sessionStartBlocked={sessionStartBlocked}
           crossCheck={crossCheck.data}
+          driftLedgerRef={driftLedger}
+          onOpenUnit={(id) => openMapTarget("unit", id)}
         />
       </section>
     </div>

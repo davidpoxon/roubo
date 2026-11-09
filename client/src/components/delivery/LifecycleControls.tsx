@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { DialogTrigger } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryCrossCheckResponse } from "@roubo/shared/delivery-bench";
@@ -23,13 +24,16 @@ import {
 // health chip follows the session's `lifecycle.changed`. A blocking class of
 // the bench's last cross-check holds Approve back (SB-FR-029), and the reason
 // beneath it names the class; so does a 409 CROSSCHECK_BLOCKED that the route
-// answers for a class the view had not read yet, in the same place.
+// answers for a class the view had not read yet, in the same place. The cost
+// view passes its title as `heading` (#1623): the buttons then close the title
+// row, and the reason and any error sit under it.
 
 export default function LifecycleControls({
   bench,
   snapshot,
   sessionStartBlocked,
   crossCheck,
+  heading,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshot;
@@ -38,6 +42,8 @@ export default function LifecycleControls({
   sessionStartBlocked: boolean;
   // The bench's last cross-check, when the view has read it.
   crossCheck?: DeliveryCrossCheckResponse | undefined;
+  // What opens the row before the buttons, such as the view's title.
+  heading?: ReactNode;
 }) {
   const control = useLifecycleControl(bench.projectId, bench.id);
   const resume = useResumeDelivery(bench.projectId, bench.id);
@@ -56,57 +62,60 @@ export default function LifecycleControls({
         : null;
 
   return (
-    <>
-      <section
-        data-testid="delivery-lifecycle-controls"
-        aria-label="Lifecycle"
-        className="flex flex-wrap gap-2"
-      >
-        <Button
-          onPress={() => control.mutate("pause")}
-          isDisabled={control.isPending || !pause.available}
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {heading}
+        <section
+          data-testid="delivery-lifecycle-controls"
+          aria-label="Lifecycle"
+          className="flex flex-wrap items-center gap-2"
         >
-          Pause
-        </Button>
-        <DialogTrigger>
-          <Button isDisabled={control.isPending || !windDown.available}>Wind down</Button>
-          <Dialog title="Wind down the delivery?" role="alertdialog" isDismissable>
-            {({ close }) => (
-              <>
-                <p className="text-13 text-text-body">
-                  The session finishes the unit it is on and starts no other. Resume the delivery to
-                  go on later.
-                </p>
-                <div className={DIALOG_ACTIONS_CLASS}>
-                  <Button onPress={close}>Cancel</Button>
-                  <Button
-                    variant="danger"
-                    onPress={() => {
-                      control.mutate("wind-down");
-                      close();
-                    }}
-                  >
-                    Confirm wind down
-                  </Button>
-                </div>
-              </>
-            )}
-          </Dialog>
-        </DialogTrigger>
-        <Button
-          onPress={() => resume.mutate()}
-          isDisabled={resume.isPending || sessionStartBlocked || !resumable.available}
-        >
-          Resume
-        </Button>
-        <Button
-          onPress={() => approve.mutate()}
-          isDisabled={approve.isPending || refusal !== null}
-          aria-describedby={reason !== null ? "delivery-approve-reason" : undefined}
-        >
-          Approve
-        </Button>
-      </section>
+          <Button
+            onPress={() => control.mutate("pause")}
+            isDisabled={control.isPending || !pause.available}
+          >
+            Pause
+          </Button>
+          <DialogTrigger>
+            <Button isDisabled={control.isPending || !windDown.available}>Wind down</Button>
+            <Dialog title="Wind down the delivery?" role="alertdialog" isDismissable>
+              {({ close }) => (
+                <>
+                  <p className="text-13 text-text-body">
+                    The session finishes the unit it is on and starts no other. Resume the delivery
+                    to go on later.
+                  </p>
+                  <div className={DIALOG_ACTIONS_CLASS}>
+                    <Button onPress={close}>Cancel</Button>
+                    <Button
+                      variant="danger"
+                      onPress={() => {
+                        control.mutate("wind-down");
+                        close();
+                      }}
+                    >
+                      Confirm wind down
+                    </Button>
+                  </div>
+                </>
+              )}
+            </Dialog>
+          </DialogTrigger>
+          <Button
+            onPress={() => resume.mutate()}
+            isDisabled={resume.isPending || sessionStartBlocked || !resumable.available}
+          >
+            Resume
+          </Button>
+          <Button
+            onPress={() => approve.mutate()}
+            isDisabled={approve.isPending || refusal !== null}
+            aria-describedby={reason !== null ? "delivery-approve-reason" : undefined}
+          >
+            Approve
+          </Button>
+        </section>
+      </div>
       {reason !== null && (
         <p
           id="delivery-approve-reason"
@@ -132,6 +141,6 @@ export default function LifecycleControls({
           {approve.error.message}
         </Callout>
       )}
-    </>
+    </div>
   );
 }

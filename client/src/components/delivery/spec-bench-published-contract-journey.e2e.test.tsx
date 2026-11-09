@@ -907,7 +907,7 @@ const RENDERED_SECTIONS = [
   "delivery-burn",
   "delivery-jams",
   "delivery-lifecycle",
-  "delivery-budget",
+  "delivery-health-panel",
   "delivery-drift-ledger",
   "delivery-decision-controls",
   "delivery-steering-controls",

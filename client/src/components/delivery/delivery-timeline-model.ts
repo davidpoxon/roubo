@@ -160,6 +160,14 @@ export function clockTime(ts: string | null): string {
   return Number.isNaN(parsed.getTime()) ? ts : parsed.toISOString().slice(11, 19);
 }
 
+/** An RFC 3339 time as a date and a minute in UTC: `2026-10-16 10:20 UTC`. */
+export function utcMinute(ts: string): string {
+  const parsed = new Date(ts);
+  return Number.isNaN(parsed.getTime())
+    ? ts
+    : `${parsed.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 /** The label of a Generation seam marker. */
 export function seamLabel(seam: TimelineSeamItem): string {
   return [seam.name, seam.status, seam.at === null ? "no time" : clockTime(seam.at), seam.detail]

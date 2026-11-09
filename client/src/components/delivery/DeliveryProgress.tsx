@@ -14,6 +14,8 @@ interface DeliveryStatProps {
   eyebrow: string;
   value: number | string;
   note: string;
+  // A second, quieter note line, such as the rest of a breakdown.
+  detail?: string;
   // The meter's fill, from 0 to 1. Absent, the stat has no meter.
   fill?: number;
 }
@@ -22,7 +24,7 @@ interface DeliveryStatProps {
 // label tracking, a value, a note and an optional meter whose fill is the only accent on the strip. The space between the value
 // and the note keeps the figure readable as one phrase ("3 of 10 cases met").
 // The burn meter (DeliveryBurn) is one too.
-export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliveryStatProps) {
+export function DeliveryStat({ testId, eyebrow, value, note, detail, fill }: DeliveryStatProps) {
   return (
     <div data-testid={testId} className="flex flex-col items-start gap-1 bg-bg-surface p-3">
       <span className="font-mono text-11 font-medium uppercase tracking-label text-text-secondary">
@@ -30,6 +32,9 @@ export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliverySta
       </span>
       <span className="font-mono text-16 font-semibold text-text-primary">{value}</span>{" "}
       <span className="max-w-full break-words text-11 text-text-secondary">{note}</span>
+      {detail !== undefined && (
+        <span className="max-w-full break-words text-11 text-text-secondary">{detail}</span>
+      )}
       {fill !== undefined && (
         <span aria-hidden="true" className="block h-1 w-full rounded-full bg-bg-hover">
           <span
