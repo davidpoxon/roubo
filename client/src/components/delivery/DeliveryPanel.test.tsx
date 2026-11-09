@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
@@ -36,6 +36,8 @@ describe("DeliveryPanel", () => {
     ["null", null],
     ["false", false],
     ["empty", ""],
+    ["empty list", []],
+    ["true", true],
   ])("renders no meta line for a %s meta", (_label, meta) => {
     render(
       <DeliveryPanel testId="panel" title="Health" meta={meta}>
@@ -92,7 +94,22 @@ describe("DeliveryStatStrip", () => {
     expect(strip.children).toHaveLength(2);
   });
 
-  it("holds at most four cells", () => {
+  it("counts the children of a Fragment as cells", () => {
+    render(
+      <DeliveryStatStrip testId="strip">
+        <>
+          <DeliveryStat testId="a" eyebrow="Spent" value="1.00" note="of 2.00" />
+          <DeliveryStat testId="b" eyebrow="Jams" value={0} note="none" />
+        </>
+      </DeliveryStatStrip>,
+    );
+    const strip = screen.getByTestId("strip");
+    expect(strip.className).toContain("grid-cols-2");
+    expect(strip.children).toHaveLength(2);
+  });
+
+  it("holds at most four cells and warns when given more", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     render(
       <DeliveryStatStrip testId="strip">
         {["a", "b", "c", "d", "e"].map((id) => (
@@ -103,6 +120,8 @@ describe("DeliveryStatStrip", () => {
     const strip = screen.getByTestId("strip");
     expect(strip.className).toContain("grid-cols-4");
     expect(strip.children).toHaveLength(4);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("at most 4 cells; 5 were given"));
+    warn.mockRestore();
   });
 });
 

@@ -1,4 +1,4 @@
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from "react";
 
 // The frame the Spec Bench views group their content in, as the Spec Bench
 // design prototype draws it: a surface with a hairline border, a header with a
@@ -39,19 +39,35 @@ export function DeliveryPanel({
   );
 }
 
-// An absent, empty or conditional-false meta renders no meta line.
+// A meta that React would render as nothing (absent, null, a boolean, an empty
+// string or an empty list) renders no meta line.
 function hasMeta(meta: ReactNode): boolean {
-  return meta !== undefined && meta !== null && meta !== false && meta !== "";
+  return Children.toArray(meta).some((child) => child !== "");
+}
+
+// The cells of a strip: each element child, with a Fragment's children counted
+// as cells of their own.
+function stripCells(children: ReactNode): ReactElement[] {
+  return Children.toArray(children).flatMap((child) => {
+    if (!isValidElement<{ children?: ReactNode }>(child)) return [];
+    return child.type === Fragment ? stripCells(child.props.children) : [child];
+  });
 }
 
 const STRIP_COLUMNS = ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"] as const;
 
 // A row of Delivery stat cells (DESIGN.md) split by hairline dividers, the
 // stat strip of a panel. It holds one to four cells: the column count is the
-// number of rendered cells (a false or null child is not a cell), and the
-// dividers assume a single row, so a strip never takes more than four.
+// number of element cells (a false, null, string or number child is not a
+// cell), and the dividers assume a single row, so a strip shows at most four
+// and warns in development when it is given more.
 export function DeliveryStatStrip({ testId, children }: { testId?: string; children: ReactNode }) {
-  const cells = Children.toArray(children).filter(isValidElement);
+  const cells = stripCells(children);
+  if (import.meta.env.DEV && cells.length > STRIP_COLUMNS.length) {
+    console.warn(
+      `DeliveryStatStrip shows at most ${String(STRIP_COLUMNS.length)} cells; ${String(cells.length)} were given.`,
+    );
+  }
   const count = Math.min(Math.max(cells.length, 1), STRIP_COLUMNS.length);
   return (
     <div
