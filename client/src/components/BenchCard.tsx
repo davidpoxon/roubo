@@ -147,7 +147,9 @@ export default function BenchCard({
                 <VariantBadge variant={bench.variant} decisionMode={bench.deliveryDecisionMode} />
                 <NotificationIndicator notifications={bench.notifications} />
                 <div className="ml-auto flex items-center gap-2 min-w-0">
-                  {bench.stale === true && <StaleBenchMarker />}
+                  {bench.stale === true && (
+                    <StaleBenchMarker fromSwap={bench.staleFromSwap === true} />
+                  )}
                   <StatusIndicator
                     tone={statusTone}
                     label={bench.status}

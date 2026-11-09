@@ -62,33 +62,61 @@ export function waitForSwapGap(pluginId: string): Promise<void> {
   return gaps.get(pluginId)?.promise ?? Promise.resolve();
 }
 
-// pluginId -> the ids of the benches the swap left stale. A plugin is stale
-// while it has an entry here, even one with no bench.
-const stale = new Map<string, Set<number>>();
-
 /**
- * Marks `pluginId` stale, and each of `benchIds` with it. Marks add up: a
- * bench marked by an earlier swap stays marked until the plugin is cleared.
+ * A bench, named by its project and its number. Bench numbers are per project,
+ * so a number alone does not name one bench.
  */
-export function markPluginStale(pluginId: string, benchIds: Iterable<number>): void {
-  const benches = stale.get(pluginId) ?? new Set<number>();
-  for (const id of benchIds) benches.add(id);
-  stale.set(pluginId, benches);
+export interface SwapBenchRef {
+  projectId: string;
+  benchId: number;
 }
 
-/** Clears the stale mark of `pluginId` and of the benches it marked. */
+function benchRefKey(projectId: string, benchId: number): string {
+  return JSON.stringify([projectId, benchId]);
+}
+
+// pluginId -> the keys (benchRefKey) of the benches the swap left stale. A
+// plugin is stale while it has an entry here, even one with no bench.
+const stale = new Map<string, Set<string>>();
+
+/**
+ * Marks `pluginId` stale, and each of `benches` with it. Marks add up: a bench
+ * marked by an earlier swap stays marked until the plugin is cleared or the
+ * bench is (see clearBenchStale).
+ */
+export function markPluginStale(pluginId: string, benches: Iterable<SwapBenchRef>): void {
+  const keys = stale.get(pluginId) ?? new Set<string>();
+  for (const { projectId, benchId } of benches) keys.add(benchRefKey(projectId, benchId));
+  stale.set(pluginId, keys);
+}
+
+/**
+ * Clears the stale mark of `pluginId` and of the benches it marked: the plugin
+ * is up again with its resources re-bound, or it is gone.
+ */
 export function clearPluginStale(pluginId: string): void {
   stale.delete(pluginId);
+}
+
+/**
+ * Drops one bench from every plugin's stale set: the bench was stopped,
+ * restarted or cleared, so no resource of it is left unbound, and a bench
+ * created later with the same number starts fresh. The plugin's own mark stays.
+ */
+export function clearBenchStale(projectId: string, benchId: number): void {
+  const key = benchRefKey(projectId, benchId);
+  for (const keys of stale.values()) keys.delete(key);
 }
 
 export function isPluginStale(pluginId: string): boolean {
   return stale.has(pluginId);
 }
 
-/** Whether a swap of any plugin left `benchId` stale. */
-export function isBenchStaleFromSwap(benchId: number): boolean {
-  for (const benches of stale.values()) {
-    if (benches.has(benchId)) return true;
+/** Whether a swap of any plugin left bench `benchId` of `projectId` stale. */
+export function isBenchStaleFromSwap(projectId: string, benchId: number): boolean {
+  const key = benchRefKey(projectId, benchId);
+  for (const keys of stale.values()) {
+    if (keys.has(key)) return true;
   }
   return false;
 }

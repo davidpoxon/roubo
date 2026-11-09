@@ -25,6 +25,7 @@ import { registerHostHandlers } from "./plugin-host-api.js";
 import { registerBrokerHandlers } from "./component-broker.js";
 import * as ledger from "./resource-ownership-ledger.js";
 import * as swapState from "./plugin-swap-state.js";
+import { PluginInUseError } from "./plugin-in-use.js";
 import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
@@ -228,13 +229,24 @@ export interface ComponentPluginHooks {
   onComponentPluginBudgetExhausted?: (pluginId: string) => void | Promise<void>;
   /**
    * Fired once swapProcess has started the new process of a component plugin
-   * (HR-FR-009). Host-internal, not an SDK hook. The host drops the plugin's
-   * cached descriptors, re-binds each ledger entry by its deterministic handle
-   * (compose projects by name, host processes by process-manager id), runs a
-   * `translate` round trip on the new connection, and marks a bench stale when
-   * a resource did not re-bind. It never stops a resource.
+   * (HR-FR-009), and once restart() or enable() brings up a plugin that a
+   * failed swap left stale. Host-internal, not an SDK hook. The host drops the
+   * plugin's cached descriptors, re-binds each ledger entry by its
+   * deterministic handle (compose projects by name, host processes by
+   * process-manager id), runs a `translate` round trip on the new connection,
+   * and marks a bench stale when a resource did not re-bind. It never stops a
+   * resource.
    */
   onComponentPluginSwapped?: (pluginId: string) => void | Promise<void>;
+  /**
+   * Asked by swapProcess before the stop: each bench, by project and number,
+   * that holds a resource of this plugin in the ownership ledger. A swap whose
+   * new process does not start marks these benches stale. Bench numbers are
+   * per project and the ledger keys on the number alone, so only the host's
+   * bench registry can name the project. Host-internal, like
+   * `onComponentPluginSwapped`.
+   */
+  findBenchesUsingPlugin?: (pluginId: string) => swapState.SwapBenchRef[];
   /**
    * Asked by swapProcess before the stop: the components that benches bind to
    * this plugin whose config the next manifest no longer accepts, each named
@@ -1936,6 +1948,7 @@ export async function enable(pluginId: string): Promise<void> {
     entry.record.status = "disabled";
     throw err;
   }
+  await rebindIfSwapStale(entry);
 }
 
 export async function disable(pluginId: string): Promise<void> {
@@ -1970,13 +1983,42 @@ export async function restart(pluginId: string): Promise<void> {
   entry.record.restartHistory = [];
   entry.record.lastError = null;
   await spawnPlugin(entry);
+  await rebindIfSwapStale(entry);
+}
+
+/**
+ * Re-binds the bench resources of a plugin that a swap left stale, once
+ * restart() or enable() has brought it up (HR-FR-009). The plugin's stale mark,
+ * and the bench marks under it, are cleared first; the re-bind marks again each
+ * bench whose resource still does not re-bind. A plugin that is not stale, or
+ * not up, is left as it is.
+ */
+async function rebindIfSwapStale(entry: PluginEntry): Promise<void> {
+  const pluginId = entry.record.id;
+  if (!swapState.isPluginStale(pluginId)) return;
+  if (entry.record.status !== "enabled" || !entry.process) return;
+  const benches = swapBenchesOf(entry);
+  swapState.clearPluginStale(pluginId);
+  await rebindSwappedResources(entry, benches);
+}
+
+/**
+ * The benches, by project and number, whose resources a swap of `entry` must
+ * keep: asked of the host through `findBenchesUsingPlugin`. Empty for a plugin
+ * that is not a component plugin, or when no host hook is registered.
+ */
+function swapBenchesOf(entry: PluginEntry): swapState.SwapBenchRef[] {
+  if (!isComponentPlugin(entry)) return [];
+  return componentPluginHooks.findBenchesUsingPlugin?.(entry.record.id) ?? [];
 }
 
 /**
  * The ids of the benches that use `pluginId`, ascending: each bench whose
  * ownership ledger entry under the plugin still records a host process or a
- * compose project (HR-FR-010). The ledger is the single source: removal is
- * refused on this list, and a swap re-binds and marks stale by it.
+ * compose project (HR-FR-010). The ledger is the single source of the removal
+ * refusal. The ledger keys on the bench number alone, so a number here can
+ * stand for a bench of more than one project; a swap names its benches by
+ * project through `findBenchesUsingPlugin` instead.
  */
 export function benchesUsingPlugin(pluginId: string): number[] {
   const ids = new Set<number>();
@@ -1986,38 +2028,6 @@ export function benchesUsingPlugin(pluginId: string): number[] {
     ids.add(entry.benchId);
   }
   return [...ids].sort((a, b) => a - b);
-}
-
-function benchList(benchIds: number[]): string {
-  const names = benchIds.map((id) => `bench ${id}`);
-  if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-/**
- * The notice a refused removal shows (HR-FR-010). It names each bench that
- * uses the plugin, so the user knows which benches to clear first.
- */
-export function pluginInUseNotice(pluginName: string, benchIds: number[]): string {
-  const benches = benchList(benchIds);
-  return `"${pluginName}" is in use by ${benches}. Clear ${benches} to remove it.`;
-}
-
-/**
- * Thrown by `uninstall` while a bench uses the plugin (HR-FR-010). The route
- * answers it with 409 `{ code: 'plugin-in-use', benchIds }`.
- */
-export class PluginInUseError extends Error {
-  readonly code = "plugin-in-use";
-  readonly pluginId: string;
-  readonly benchIds: number[];
-
-  constructor(pluginId: string, pluginName: string, benchIds: number[]) {
-    super(pluginInUseNotice(pluginName, benchIds));
-    this.name = "PluginInUseError";
-    this.pluginId = pluginId;
-    this.benchIds = benchIds;
-  }
 }
 
 /** Why swapProcess refused a swap before it stopped anything. */
@@ -2052,7 +2062,7 @@ const SWAP_SPAWN_SETTLE_MS = 250;
 // Benches whose plugin is mid-update through the installer, keyed by plugin id:
 // uninstallForUpdate records them, and registerInstalled re-attaches the ledger
 // to the re-registered entry by starting it as a swap (HR-FR-009).
-const pendingUpdates = new Map<string, number[]>();
+const pendingUpdates = new Map<string, swapState.SwapBenchRef[]>();
 
 /**
  * The reason to refuse swapping `entry` to the plugin built from its directory,
@@ -2152,11 +2162,14 @@ function exitsWithin(proc: ChildProcess, ms: number): Promise<boolean> {
 /**
  * Starts the new process of a swap on `entry`, which the caller holds in
  * `swapping`, so an exit at start is not read as a crash and no pre-restart
- * teardown runs. When the process does not start, the plugin and `benchIds`
+ * teardown runs. When the process does not start, the plugin and `benches`
  * are marked stale and every bench resource is left running. When it starts,
  * the host re-binds the ledger through `onComponentPluginSwapped`.
  */
-async function startSwappedProcess(entry: PluginEntry, benchIds: number[]): Promise<void> {
+async function startSwappedProcess(
+  entry: PluginEntry,
+  benches: swapState.SwapBenchRef[],
+): Promise<void> {
   const pluginId = entry.record.id;
   await spawnPlugin(entry);
   const proc = entry.process as ChildProcess | null;
@@ -2172,16 +2185,29 @@ async function startSwappedProcess(entry: PluginEntry, benchIds: number[]): Prom
       code: "swap-start-failed",
       message: `The new process of plugin "${pluginId}" did not start (${cause}). The bench resources it managed are still running.`,
     };
-    swapState.markPluginStale(pluginId, benchIds);
+    swapState.markPluginStale(pluginId, benches);
     await writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
     return;
   }
   swapState.clearPluginStale(pluginId);
+  await rebindSwappedResources(entry, benches);
+}
+
+/**
+ * Re-binds the bench resources of `entry`'s new process through the host's
+ * `onComponentPluginSwapped`. When the hook throws, the plugin and `benches`
+ * are marked stale; no resource is stopped.
+ */
+async function rebindSwappedResources(
+  entry: PluginEntry,
+  benches: swapState.SwapBenchRef[],
+): Promise<void> {
+  const pluginId = entry.record.id;
   if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginSwapped) {
     try {
       await componentPluginHooks.onComponentPluginSwapped(pluginId);
     } catch (err) {
-      swapState.markPluginStale(pluginId, benchIds);
+      swapState.markPluginStale(pluginId, benches);
       await writeLog(
         entry,
         "host",
@@ -2236,14 +2262,14 @@ async function runSwap(entry: PluginEntry): Promise<void> {
   entry.record.manifestPath = built.entry.record.manifestPath;
   if (!wasRunning) return;
 
-  const benchIds = benchesUsingPlugin(pluginId);
+  const benches = swapBenchesOf(entry);
   entry.swapping = true;
   swapState.openSwapGap(pluginId);
   try {
     await stopPluginProcess(entry);
     entry.record.restartHistory = [];
     entry.record.lastError = null;
-    await startSwappedProcess(entry, benchIds);
+    await startSwappedProcess(entry, benches);
   } finally {
     entry.swapping = false;
     swapState.closeSwapGap(pluginId);
@@ -2273,7 +2299,7 @@ export async function uninstall(pluginId: string): Promise<void> {
 
   const benchIds = benchesUsingPlugin(pluginId);
   if (benchIds.length > 0) {
-    throw new PluginInUseError(pluginId, entry.record.manifest?.name ?? pluginId, benchIds);
+    throw new PluginInUseError(pluginId, benchIds);
   }
 
   const referencingProjects: string[] = [];
@@ -2360,7 +2386,7 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
   // as a swap does, so its exit never reaches the crash path, and hold the swap
   // gap open so a component start or stop waits for the re-registered entry.
   // registerInstalled re-attaches the ledger to that entry.
-  pendingUpdates.set(pluginId, benchesUsingPlugin(pluginId));
+  pendingUpdates.set(pluginId, swapBenchesOf(entry));
   swapState.openSwapGap(pluginId);
   entry.swapping = true;
   try {
@@ -2403,14 +2429,14 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   // the ledger to the re-registered entry: the new process starts as a swap, so
   // an exit at start is no crash, and the benches' resources are re-bound to it
   // rather than torn down (HR-FR-009).
-  const updateBenchIds = pendingUpdates.get(built.idForMap);
+  const updateBenches = pendingUpdates.get(built.idForMap);
   pendingUpdates.delete(built.idForMap);
 
   if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
-    if (updateBenchIds) {
+    if (updateBenches) {
       built.entry.swapping = true;
       try {
-        await startSwappedProcess(built.entry, updateBenchIds);
+        await startSwappedProcess(built.entry, updateBenches);
       } finally {
         built.entry.swapping = false;
       }
@@ -2418,7 +2444,7 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
       await spawnPlugin(built.entry);
     }
   }
-  if (updateBenchIds) swapState.closeSwapGap(built.idForMap);
+  if (updateBenches) swapState.closeSwapGap(built.idForMap);
 
   return copyRecord(built.entry);
 }
