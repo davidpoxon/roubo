@@ -832,3 +832,17 @@ describe("PluginCard: unverified and orphaned badges (#977)", () => {
     expect(badge.textContent).not.toMatch(/dismiss|hide/i);
   });
 });
+
+describe("PluginCard: stale after a swap (HR-FR-009)", () => {
+  it("HR-TC-056 shows the stale marker beside an enabled status when the record is stale", () => {
+    render(<PluginCard plugin={componentRecord({ stale: true })} hostApiVersion="1.9.0" />);
+    const marker = screen.getByTestId("plugin-card-stale-marker");
+    expect(marker).toHaveTextContent("stale");
+    expect(marker).toHaveAttribute("aria-description", expect.stringMatching(/still running/));
+  });
+
+  it("shows no stale marker when the record is not stale", () => {
+    render(<PluginCard plugin={componentRecord({ stale: false })} hostApiVersion="1.9.0" />);
+    expect(screen.queryByTestId("plugin-card-stale-marker")).toBeNull();
+  });
+});

@@ -27,6 +27,14 @@ function asErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+// HR-FR-010: a removal refused while a bench uses the plugin carries a notice
+// that names each bench and says what to do; show it rather than the error.
+function pluginInUseNotice(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.code !== "plugin-in-use") return null;
+  const notice = (err.details as { notice?: unknown } | undefined)?.notice;
+  return typeof notice === "string" && notice.length > 0 ? notice : null;
+}
+
 export function useEnablePlugin() {
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -96,7 +104,7 @@ export function useUninstallPlugin() {
       void queryClient.invalidateQueries({ queryKey: PLUGINS_KEY });
     },
     onError: (err) => {
-      addToast(asErrorMessage(err, "Failed to uninstall plugin."));
+      addToast(pluginInUseNotice(err) ?? asErrorMessage(err, "Failed to uninstall plugin."));
     },
   });
 }

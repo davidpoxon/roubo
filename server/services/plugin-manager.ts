@@ -24,6 +24,8 @@ import { CancellationTokenSource, createConnection, type JsonRpcConnection } fro
 import { registerHostHandlers } from "./plugin-host-api.js";
 import { registerBrokerHandlers } from "./component-broker.js";
 import * as ledger from "./resource-ownership-ledger.js";
+import * as swapState from "./plugin-swap-state.js";
+import { PluginInUseError } from "./plugin-in-use.js";
 import { AuditLog } from "./audit-log.js";
 import {
   buildSandboxedSpawn,
@@ -44,6 +46,7 @@ import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
+import { declaredCategories } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 // 1.3.0 (#646): the `component` plugin kind lands, alongside the `ports`
@@ -178,6 +181,22 @@ interface PluginEntry {
   // settled, so exactly one cycle (the last crash) re-provisions and never
   // overlaps a later cycle's still in-flight teardown.
   preRestartEpoch: number;
+  // True while swapProcess replaces this plugin's process (HR-FR-009), from the
+  // stop of the old process until the new one has started and its resources
+  // are re-bound, or has failed to start. handleChildExit treats an exit seen
+  // while it is set like an intentional stop, so a swap never reaches the crash
+  // path: no pre-restart teardown, no restart budget, no re-provision. An exit
+  // during the re-bind is still a failure of the swap (see swapRebinding).
+  swapping: boolean;
+  // The benches of the swap whose new process has passed its start check and
+  // is being re-bound, else `null`. An exit of that process is a real failure
+  // of the swap, not its own stop: handleChildExit then marks the plugin
+  // errored and stale with these benches and closes the swap gap, still without
+  // reaching the crash path, so the ledger and the resources stay as they are.
+  swapRebinding: swapState.SwapBenchRef[] | null;
+  // The swap queued last on this entry, so a second swap runs after the first
+  // rather than racing it. `null` when no swap has run.
+  swapChain: Promise<void> | null;
 }
 
 const plugins = new Map<string, PluginEntry>();
@@ -215,6 +234,33 @@ export interface ComponentPluginHooks {
    * failure visible only as plugin-level state.
    */
   onComponentPluginBudgetExhausted?: (pluginId: string) => void | Promise<void>;
+  /**
+   * Fired once swapProcess has started the new process of a component plugin
+   * (HR-FR-009), and once restart() or enable() brings up a plugin that a
+   * failed swap left stale. Host-internal, not an SDK hook. The host drops the
+   * plugin's cached descriptors, re-binds each ledger entry by its
+   * deterministic handle (compose projects by name, host processes by
+   * process-manager id), runs a `translate` round trip on the new connection,
+   * and marks a bench stale when a resource did not re-bind. It never stops a
+   * resource.
+   */
+  onComponentPluginSwapped?: (pluginId: string) => void | Promise<void>;
+  /**
+   * Asked by swapProcess before the stop: each bench, by project and number,
+   * that holds a resource of this plugin in the ownership ledger. A swap whose
+   * new process does not start marks these benches stale. Bench numbers are
+   * per project and the ledger keys on the number alone, so only the host's
+   * bench registry can name the project. Host-internal, like
+   * `onComponentPluginSwapped`.
+   */
+  findBenchesUsingPlugin?: (pluginId: string) => swapState.SwapBenchRef[];
+  /**
+   * Asked by swapProcess before the stop: the components that benches bind to
+   * this plugin whose config the next manifest no longer accepts, each named
+   * for the refusal message. Empty when the swap keeps every binding. Host-
+   * internal, like `onComponentPluginSwapped`.
+   */
+  findBindingsBrokenBySwap?: (pluginId: string, next: PluginManifest) => string[];
 }
 let componentPluginHooks: ComponentPluginHooks = {};
 
@@ -596,6 +642,9 @@ function makeEmptyEntry(record: PluginRecord): PluginEntry {
     restartTimer: null,
     preRestartCleanups: new Set(),
     preRestartEpoch: 0,
+    swapping: false,
+    swapRebinding: null,
+    swapChain: null,
   };
 }
 
@@ -1388,7 +1437,10 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
 
 function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
   entry.record.pid = null;
-  const wasIntentional = entry.intentionalStop;
+  // An exit during a swap is the swap's own stop, or the new process failing
+  // to start: neither is a crash (HR-FR-009).
+  const stoppedByHost = entry.intentionalStop;
+  const wasIntentional = stoppedByHost || entry.swapping;
   entry.intentionalStop = false;
   if (entry.connection) {
     try {
@@ -1399,6 +1451,27 @@ function handleChildExit(entry: PluginEntry, exitCode: number | null): void {
     entry.connection = null;
   }
   entry.process = null;
+
+  // The new process of a swap passed its start check, then exited while its
+  // resources were being re-bound. That is a failure of the swap, so it is
+  // recorded as one, but it stays off the crash path as the rest of the swap
+  // does: no pre-restart teardown, no restart, and the ledger is kept. Closing
+  // the swap gap lets a call that waits on it fail now rather than at the gap's
+  // timeout.
+  const rebindBenches = entry.swapRebinding;
+  if (rebindBenches && !stoppedByHost) {
+    entry.swapRebinding = null;
+    const pluginId = entry.record.id;
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "swap-process-exited",
+      message: `The new process of plugin "${pluginId}" exited (code=${exitCode}) while its bench resources were being re-bound. The bench resources it managed are still running.`,
+    };
+    swapState.markPluginStale(pluginId, rebindBenches);
+    swapState.closeSwapGap(pluginId);
+    writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
+    return;
+  }
 
   if (wasIntentional) {
     if (entry.record.status === "enabled") {
@@ -1724,13 +1797,20 @@ export async function shutdown(): Promise<void> {
 }
 
 export function listInstalled(): PluginRecord[] {
-  return Array.from(plugins.values()).map((entry) => ({
+  return Array.from(plugins.values()).map(copyRecord);
+}
+
+// A defensive copy of an entry's record, with `stale` read from the swap state
+// (HR-FR-009): it is derived on each read, never stored on the record.
+function copyRecord(entry: PluginEntry): PluginRecord {
+  return {
     ...entry.record,
     restartHistory: [...entry.record.restartHistory],
     ...(entry.record.isolationNotices
       ? { isolationNotices: [...entry.record.isolationNotices] }
       : {}),
-  }));
+    stale: swapState.isPluginStale(entry.record.id),
+  };
 }
 
 /**
@@ -1779,13 +1859,7 @@ export function getAgentManifests(): PluginManifest[] {
 export function getRecord(pluginId: string): PluginRecord | undefined {
   const entry = plugins.get(pluginId);
   if (!entry) return undefined;
-  return {
-    ...entry.record,
-    restartHistory: [...entry.record.restartHistory],
-    ...(entry.record.isolationNotices
-      ? { isolationNotices: [...entry.record.isolationNotices] }
-      : {}),
-  };
+  return copyRecord(entry);
 }
 
 /**
@@ -1904,6 +1978,7 @@ export async function enable(pluginId: string): Promise<void> {
     entry.record.status = "disabled";
     throw err;
   }
+  await rebindIfSwapStale(entry);
 }
 
 export async function disable(pluginId: string): Promise<void> {
@@ -1938,6 +2013,312 @@ export async function restart(pluginId: string): Promise<void> {
   entry.record.restartHistory = [];
   entry.record.lastError = null;
   await spawnPlugin(entry);
+  await rebindIfSwapStale(entry);
+}
+
+/**
+ * Re-binds the bench resources of a plugin that a swap left stale, once
+ * restart() or enable() has brought it up (HR-FR-009). The plugin's stale mark,
+ * and the bench marks under it, are cleared first; the re-bind marks again each
+ * bench whose resource still does not re-bind. A plugin that is not stale, or
+ * not up, is left as it is.
+ */
+async function rebindIfSwapStale(entry: PluginEntry): Promise<void> {
+  const pluginId = entry.record.id;
+  if (!swapState.isPluginStale(pluginId)) return;
+  if (entry.record.status !== "enabled" || !entry.process) return;
+  const benches = swapBenchesOf(entry);
+  swapState.clearPluginStale(pluginId);
+  await rebindSwappedResources(entry, benches);
+}
+
+/**
+ * The benches, by project and number, whose resources a swap of `entry` must
+ * keep: asked of the host through `findBenchesUsingPlugin`. Empty for a plugin
+ * that is not a component plugin, or when no host hook is registered.
+ */
+function swapBenchesOf(entry: PluginEntry): swapState.SwapBenchRef[] {
+  if (!isComponentPlugin(entry)) return [];
+  return componentPluginHooks.findBenchesUsingPlugin?.(entry.record.id) ?? [];
+}
+
+/**
+ * The ids of the benches that use `pluginId`, ascending: each bench whose
+ * ownership ledger entry under the plugin still records a host process or a
+ * compose project (HR-FR-010). The ledger is the single source of the removal
+ * refusal. The ledger keys on the bench number alone, so a number here can
+ * stand for a bench of more than one project; a swap names its benches by
+ * project through `findBenchesUsingPlugin` instead.
+ */
+export function benchesUsingPlugin(pluginId: string): number[] {
+  const ids = new Set<number>();
+  for (const entry of ledger.getAllEntries()) {
+    if (entry.pluginId !== pluginId) continue;
+    if (entry.processIds.length === 0 && entry.composeProjects.length === 0) continue;
+    ids.add(entry.benchId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/** Why swapProcess refused a swap before it stopped anything. */
+export type SwapRefusalReason =
+  "invalid-manifest" | "imperative" | "kind" | "contract-version" | "component-type" | "permission";
+
+/**
+ * Thrown by swapProcess when it refuses a swap (HR-FR-009). It is thrown
+ * before the old process is stopped, so the old process keeps running and the
+ * bench resources stay bound to it.
+ */
+export class PluginSwapRefusedError extends Error {
+  readonly code = "plugin-swap-refused";
+  readonly pluginId: string;
+  readonly reason: SwapRefusalReason;
+
+  constructor(pluginId: string, reason: SwapRefusalReason, detail: string) {
+    super(`Plugin "${pluginId}" was not swapped: ${detail}`);
+    this.name = "PluginSwapRefusedError";
+    this.pluginId = pluginId;
+    this.reason = reason;
+  }
+}
+
+/**
+ * How long a swapped-in process must stay up before the swap counts it as
+ * started. Same window, and same reason, as enable()'s settle wait: an entry
+ * that exits at start does so after spawn() has returned.
+ */
+const SWAP_SPAWN_SETTLE_MS = 250;
+
+// Benches whose plugin is mid-update through the installer, keyed by plugin id:
+// uninstallForUpdate records them, and registerInstalled re-attaches the ledger
+// to the re-registered entry by starting it as a swap (HR-FR-009).
+const pendingUpdates = new Map<string, swapState.SwapBenchRef[]>();
+
+/**
+ * The reason to refuse swapping `entry` to the plugin built from its directory,
+ * or null when the swap keeps every binding. An imperative plugin owns its
+ * resources inside the old process, so it cannot be swapped; a change of kind,
+ * contract version, a component config a bench uses, or a permission that
+ * needs consent would break a binding the benches rely on.
+ */
+function swapRefusal(
+  entry: PluginEntry,
+  current: PluginManifest,
+  built: BuiltEntry | null,
+): PluginSwapRefusedError | null {
+  const id = entry.record.id;
+  const next = built?.manifest ?? null;
+  if (!built || !next || built.entry.record.status !== "disabled") {
+    const detail = built?.entry.record.lastError?.message ?? "no manifest was found";
+    return new PluginSwapRefusedError(
+      id,
+      "invalid-manifest",
+      `its new manifest is not valid: ${detail}`,
+    );
+  }
+  if (next.id !== id) {
+    return new PluginSwapRefusedError(
+      id,
+      "invalid-manifest",
+      `its new manifest names "${next.id}"`,
+    );
+  }
+  if (current.componentMode === "imperative" || next.componentMode === "imperative") {
+    return new PluginSwapRefusedError(
+      id,
+      "imperative",
+      "an imperative component plugin owns its resources in its process; restart the benches that use it instead",
+    );
+  }
+  if (next.kind !== current.kind) {
+    return new PluginSwapRefusedError(
+      id,
+      "kind",
+      `its kind changed from ${current.kind} to ${next.kind}`,
+    );
+  }
+  if (next.contractVersion !== current.contractVersion) {
+    return new PluginSwapRefusedError(
+      id,
+      "contract-version",
+      `its contractVersion changed from ${current.contractVersion ?? "none"} to ${next.contractVersion ?? "none"}`,
+    );
+  }
+  const consent = pluginConsentState.getConsent(id);
+  const covered = new Set<string>(
+    consent ? consent.acknowledgedCategories : declaredCategories(current.permissions),
+  );
+  const needsConsent = declaredCategories(next.permissions).filter((c) => !covered.has(c));
+  if (needsConsent.length > 0) {
+    return new PluginSwapRefusedError(
+      id,
+      "permission",
+      `it declares permissions that need consent: ${needsConsent.join(", ")}`,
+    );
+  }
+  const broken = isComponentPlugin(entry)
+    ? (componentPluginHooks.findBindingsBrokenBySwap?.(id, next) ?? [])
+    : [];
+  if (broken.length > 0) {
+    return new PluginSwapRefusedError(
+      id,
+      "component-type",
+      `its new manifest no longer accepts ${broken.join(", ")}`,
+    );
+  }
+  return null;
+}
+
+/** Resolves true when `proc` exits within `ms`, false when it is still up then. */
+function exitsWithin(proc: ChildProcess, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve(true);
+      return;
+    }
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      proc.off("exit", onExit);
+      resolve(false);
+    }, ms);
+    if (typeof timer.unref === "function") timer.unref();
+    proc.once("exit", onExit);
+  });
+}
+
+/**
+ * Starts the new process of a swap on `entry`, which the caller holds in
+ * `swapping`, so an exit at start is not read as a crash and no pre-restart
+ * teardown runs. When the process does not start, the plugin and `benches`
+ * are marked stale and every bench resource is left running. When it starts,
+ * the host re-binds the ledger through `onComponentPluginSwapped`; when the new
+ * process exits during that re-bind, the plugin is errored and it and
+ * `benches` are marked stale, again with every bench resource left running.
+ */
+async function startSwappedProcess(
+  entry: PluginEntry,
+  benches: swapState.SwapBenchRef[],
+): Promise<void> {
+  const pluginId = entry.record.id;
+  await spawnPlugin(entry);
+  const proc = entry.process as ChildProcess | null;
+  const started =
+    proc !== null &&
+    entry.record.status === "enabled" &&
+    !(await exitsWithin(proc, SWAP_SPAWN_SETTLE_MS)) &&
+    entry.process === proc;
+  if (!started) {
+    const cause = entry.record.lastError?.message ?? "the process exited at start";
+    entry.record.status = "errored";
+    entry.record.lastError = {
+      code: "swap-start-failed",
+      message: `The new process of plugin "${pluginId}" did not start (${cause}). The bench resources it managed are still running.`,
+    };
+    swapState.markPluginStale(pluginId, benches);
+    await writeLog(entry, "host", entry.record.lastError.message, "error").catch(() => {});
+    return;
+  }
+  swapState.clearPluginStale(pluginId);
+  // From here an exit of the new process is a failure of the swap, which
+  // handleChildExit records (errored, stale, swap gap closed) without reaching
+  // the crash path.
+  entry.swapRebinding = benches;
+  try {
+    await rebindSwappedResources(entry, benches);
+  } finally {
+    entry.swapRebinding = null;
+  }
+  if (entry.process !== proc) {
+    // The new process is gone, so the re-bind did not hold: the swap does not
+    // end as a success, also for a plugin that no bench uses.
+    swapState.markPluginStale(pluginId, benches);
+  }
+}
+
+/**
+ * Re-binds the bench resources of `entry`'s new process through the host's
+ * `onComponentPluginSwapped`. When the hook throws, the plugin and `benches`
+ * are marked stale; no resource is stopped.
+ */
+async function rebindSwappedResources(
+  entry: PluginEntry,
+  benches: swapState.SwapBenchRef[],
+): Promise<void> {
+  const pluginId = entry.record.id;
+  if (isComponentPlugin(entry) && componentPluginHooks.onComponentPluginSwapped) {
+    try {
+      await componentPluginHooks.onComponentPluginSwapped(pluginId);
+    } catch (err) {
+      swapState.markPluginStale(pluginId, benches);
+      await writeLog(
+        entry,
+        "host",
+        `swap re-bind hook failed: ${(err as Error).message}`,
+        "error",
+      ).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Replace the running process of `pluginId` with one started from its plugin
+ * directory as it is now, keeping every bench resource the plugin manages
+ * (HR-FR-009). The containers stay with the Docker daemon and the host
+ * processes with the server, so nothing is stopped: after the new process
+ * starts, each ledger entry is re-bound to it by its deterministic handle.
+ *
+ * The swap never reaches the crash path: no pre-restart teardown runs and the
+ * ledger is never cleared, also when the new process does not start or exits
+ * during the re-bind. Those cases, and a resource that does not re-bind, mark
+ * the plugin and its benches stale and leave the resources running.
+ *
+ * Rejects with PluginSwapRefusedError, before the stop, for an imperative
+ * plugin or a binding-breaking manifest change. A swap of a plugin that is not
+ * running only takes the new manifest. Swaps of one plugin run one at a time.
+ */
+export function swapProcess(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry) return Promise.reject(new Error(`Unknown plugin: ${pluginId}`));
+  const run = (entry.swapChain ?? Promise.resolve()).catch(() => {}).then(() => runSwap(entry));
+  entry.swapChain = run;
+  return run;
+}
+
+async function runSwap(entry: PluginEntry): Promise<void> {
+  const pluginId = entry.record.id;
+  if (plugins.get(pluginId) !== entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  const current = entry.record.manifest;
+  if (!current) throw new Error(`Plugin "${pluginId}" has no valid manifest`);
+
+  const built = await buildEntryFromDir(entry.record.pluginDir, entry.record.source, pluginId);
+  const refusal = swapRefusal(entry, current, built);
+  if (refusal || !built?.manifest) {
+    const error =
+      refusal ?? new PluginSwapRefusedError(pluginId, "invalid-manifest", "no manifest was found");
+    await writeLog(entry, "host", error.message, "warn").catch(() => {});
+    throw error;
+  }
+
+  const wasRunning = entry.process !== null;
+  entry.record.manifest = built.manifest;
+  entry.record.manifestPath = built.entry.record.manifestPath;
+  if (!wasRunning) return;
+
+  const benches = swapBenchesOf(entry);
+  entry.swapping = true;
+  swapState.openSwapGap(pluginId);
+  try {
+    await stopPluginProcess(entry);
+    entry.record.restartHistory = [];
+    entry.record.lastError = null;
+    await startSwappedProcess(entry, benches);
+  } finally {
+    entry.swapping = false;
+    swapState.closeSwapGap(pluginId);
+  }
 }
 
 /**
@@ -1948,6 +2329,8 @@ export async function restart(pluginId: string): Promise<void> {
  * Throws when:
  *  - the plugin is unknown,
  *  - the plugin is bundled (IP-FR-016: bundled plugins are not uninstallable),
+ *  - a bench uses the plugin (HR-FR-010): a PluginInUseError naming each bench
+ *    from `benchesUsingPlugin`. The user clears those benches first,
  *  - any project's effective integration config still references the plugin.
  *    The user must clear or reassign each project's integration plugin
  *    before retrying, mirroring the jig-delete-when-referenced rule.
@@ -1957,6 +2340,11 @@ export async function uninstall(pluginId: string): Promise<void> {
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   if (entry.record.source === "bundled") {
     throw new Error(`Bundled plugins cannot be uninstalled: ${pluginId}`);
+  }
+
+  const benchIds = benchesUsingPlugin(pluginId);
+  if (benchIds.length > 0) {
+    throw new PluginInUseError(pluginId, benchIds);
   }
 
   const referencingProjects: string[] = [];
@@ -2004,6 +2392,8 @@ export async function uninstall(pluginId: string): Promise<void> {
   // errored/disabled stale fallback): the disk cache has its own lifecycle and
   // must not survive an uninstall.
   cutListQueryService.evictPlugin(pluginId);
+  // A swap's stale mark belongs to this deployment of the plugin.
+  swapState.clearPluginStale(pluginId);
 }
 
 /**
@@ -2037,7 +2427,18 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
     throw new Error(`Bundled plugins cannot be updated in place: ${pluginId}`);
   }
 
-  await stopPluginProcess(entry);
+  // The update keeps the benches' resources (HR-FR-009): stop the old process
+  // as a swap does, so its exit never reaches the crash path, and hold the swap
+  // gap open so a component start or stop waits for the re-registered entry.
+  // registerInstalled re-attaches the ledger to that entry.
+  pendingUpdates.set(pluginId, swapBenchesOf(entry));
+  swapState.openSwapGap(pluginId);
+  entry.swapping = true;
+  try {
+    await stopPluginProcess(entry);
+  } finally {
+    entry.swapping = false;
+  }
 
   if (entry.logStream) {
     const stream = entry.logStream;
@@ -2069,14 +2470,28 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   }
   plugins.set(built.idForMap, built.entry);
 
-  if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
-    await spawnPlugin(built.entry);
-  }
+  // An update through the installer (uninstallForUpdate, then this) re-attaches
+  // the ledger to the re-registered entry: the new process starts as a swap, so
+  // an exit at start is no crash, and the benches' resources are re-bound to it
+  // rather than torn down (HR-FR-009).
+  const updateBenches = pendingUpdates.get(built.idForMap);
+  pendingUpdates.delete(built.idForMap);
 
-  return {
-    ...built.entry.record,
-    restartHistory: [...built.entry.record.restartHistory],
-  };
+  if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
+    if (updateBenches) {
+      built.entry.swapping = true;
+      try {
+        await startSwappedProcess(built.entry, updateBenches);
+      } finally {
+        built.entry.swapping = false;
+      }
+    } else {
+      await spawnPlugin(built.entry);
+    }
+  }
+  if (updateBenches) swapState.closeSwapGap(built.idForMap);
+
+  return copyRecord(built.entry);
 }
 
 /**
@@ -2204,7 +2619,16 @@ export async function invoke<T = unknown>(
   params: unknown,
   opts?: { timeoutMs?: number },
 ): Promise<T> {
-  const entry = plugins.get(pluginId);
+  let entry = plugins.get(pluginId);
+  // A call that lands in a swap gap, between the stop of the old process and
+  // the start of the new one, waits for the new process rather than failing
+  // with plugin-not-enabled (HR-FR-009). A call on a live connection never
+  // waits, so the swap's own round trips on the new process go straight
+  // through.
+  if ((!entry?.connection || !entry.process) && swapState.isInSwapGap(pluginId)) {
+    await swapState.waitForSwapGap(pluginId);
+    entry = plugins.get(pluginId);
+  }
   if (!entry) {
     throw makeRpcError("unknown-plugin", `Unknown plugin: ${pluginId}`, method);
   }
@@ -2550,6 +2974,8 @@ export const __test = {
     brokerContexts.clear();
     mountUnsharedNoticed.clear();
     hostApiVersionOverride = null;
+    pendingUpdates.clear();
+    swapState.resetForTests();
   },
   // #1269: simulate a host below a manifest's declared `roubo` floor, so the
   // version-named refusal is asserted by a fixture test rather than resting on

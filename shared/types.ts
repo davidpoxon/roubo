@@ -1981,10 +1981,18 @@ export interface Bench {
   /**
    * Whether the project's roubo.yaml changed the component definitions since
    * the bench was set up (HR-FR-004): the snapshot's `configHash` differs from
-   * the hash of the live config. Derived by the bench serialiser on each read
-   * and never persisted. Absent on the in-memory bench.
+   * the hash of the live config. Also true when a swap of a plugin the bench
+   * uses left one of its resources unbound or the plugin's new process not
+   * started (HR-FR-009); the resources are still running. Derived by the bench
+   * serialiser on each read and never persisted. Absent on the in-memory bench.
    */
   stale?: boolean;
+  /**
+   * True when `stale` comes from a plugin swap (HR-FR-009) rather than only
+   * from a roubo.yaml change, so the client can say which. Derived by the bench
+   * serialiser with `stale`, never persisted, and absent unless true.
+   */
+  staleFromSwap?: boolean;
 }
 
 // ── Git dirty-state types ──
