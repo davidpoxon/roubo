@@ -205,6 +205,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     listBenchIds: benchManager.getLiveBenchIds,
     dropBenches: benchManager.dropProjectBenches,
     removeWorkspaces: benchManager.removeProjectBenchWorkspaces,
+    listStaleBenchIds: benchManager.getStaleBenchIds,
   });
 
   console.log("Running migration check...");
@@ -335,6 +336,11 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     jigManager.startWatchers(project.id, project.repoPath);
   }
 
+  // Watch each project's roubo.yaml, and each one registered from now on, so a
+  // save applies with no relaunch (HR-FR-001).
+  console.log("Starting roubo.yaml watchers...");
+  projectRegistry.watchProjectConfigs();
+
   const statusInterval = setInterval(() => {
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
@@ -374,6 +380,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     // connection closes (SB-FR-041).
     releaseDeliveryControlWaiters();
     jigManager.stopAllWatchers();
+    await projectRegistry.unwatchProjectConfigs();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
     await pluginManager.shutdown();

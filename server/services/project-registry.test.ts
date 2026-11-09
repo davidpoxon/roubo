@@ -67,6 +67,7 @@ beforeEach(async () => {
   cutListMocks.evictPlugin.mockReset();
   cutListMocks.evictProject.mockReset();
   pluginManagerMocks.getComponentManifests.mockReset().mockReturnValue([PROCESS_MANIFEST]);
+  mockedCheckPortConflicts.mockReturnValue([]);
   registryModule = await import("./project-registry.js");
 });
 
@@ -819,6 +820,126 @@ describe("reloadConfig", () => {
   });
 });
 
+describe("applyConfig", () => {
+  function bootWith(...ids: string[]) {
+    mockedLoadProjects.mockReturnValue({
+      projects: ids.map((id) => ({ id, repoPath: `/repos/${id}` })),
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+  }
+
+  it("HR-TC-003: a port base that conflicts with another project is rejected with the registration error and the previous config stays live", () => {
+    bootWith("lantern", "harbor");
+    const lastGood = registryModule.getProject("lantern");
+    const conflict =
+      "Port conflict: lantern.backend (6000-6004) overlaps with harbor.web (6000-6004)";
+    mockedParseConfig.mockReturnValue({
+      valid: true,
+      config: makeConfig({ ports: { backend: { base: 6000 } } }),
+    });
+    mockedCheckPortConflicts.mockReturnValue([conflict]);
+
+    const result = registryModule.applyConfig("lantern");
+
+    expect(result.outcome).toBe("rejected");
+    expect(result.error).toEqual({
+      path: ".roubo/roubo.yaml",
+      first: `Port conflicts detected: ${conflict}`,
+    });
+    // The same check registration runs, against every other project.
+    const [candidate, others] = mockedCheckPortConflicts.mock.calls.at(-1) ?? [];
+    expect(candidate?.id).toBe("lantern");
+    expect(others?.map((p) => p.id)).toEqual(["harbor"]);
+    expect(registryModule.getProject("lantern")).toBe(lastGood);
+    expect(registryModule.getProject("lantern")?.config?.ports.backend.base).toBe(5000);
+  });
+
+  it("HR-TC-004: an invalid parse keeps the last good config, fires the rejected seam with the path and first error, and does not throw", () => {
+    bootWith("lantern");
+    const lastGood = registryModule.getProject("lantern");
+    const rejected = vi.fn();
+    registryModule.onProjectConfigRejected(rejected);
+    mockedParseConfig.mockReturnValue({
+      valid: false,
+      errors: ['components.web: Unrecognized key: "command"', "components.web.plugin: Required"],
+    });
+
+    const result = registryModule.applyConfig("lantern");
+
+    expect(result.outcome).toBe("rejected");
+    expect(result.project).toBe(lastGood);
+    expect(registryModule.getProjects()).toEqual([lastGood]);
+    expect(rejected).toHaveBeenCalledWith({
+      projectId: "lantern",
+      error: { path: ".roubo/roubo.yaml", first: 'components.web: Unrecognized key: "command"' },
+    });
+    expect(result.summary).toBe(
+      'Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: components.web: Unrecognized key: "command". Last good config is still live.',
+    );
+  });
+
+  it("HR-TC-038: the first error is the first line of the first error only", () => {
+    bootWith("lantern");
+    mockedParseConfig.mockReturnValue({
+      valid: false,
+      errors: [
+        "Failed to parse YAML: Nested mappings are not allowed.\n\n  web: command: 1\n",
+        "x",
+      ],
+    });
+
+    const result = registryModule.applyConfig("lantern");
+
+    expect(result.error?.first).toBe("Failed to parse YAML: Nested mappings are not allowed");
+    expect(result.summary).not.toContain("web: command: 1");
+    expect(result.summary.endsWith("Last good config is still live.")).toBe(true);
+  });
+
+  it("HR-TC-008: an apply builds a new record and replaces the map entry once, leaving the old record whole", () => {
+    bootWith("lantern");
+    const before = registryModule.getProject("lantern");
+    const beforeConfig = before?.config;
+    const next = makeConfig({
+      ports: { backend: { base: 7000 }, web: { base: 7100 } },
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: next });
+
+    const result = registryModule.applyConfig("lantern");
+
+    expect(result.outcome).toBe("applied");
+    const after = registryModule.getProject("lantern");
+    expect(after).not.toBe(before);
+    expect(after?.config).toBe(next);
+    expect(result.project).toBe(after);
+    // A bench that took the old record mid set-up still sees only old bases.
+    expect(before?.config).toBe(beforeConfig);
+    expect(before?.config?.ports).toEqual({ backend: { base: 5000 } });
+    expect(after?.settings).toBe(before?.settings);
+  });
+
+  it("HR-TC-002: an applied summary counts the benches left stale", () => {
+    bootWith("lantern");
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [2],
+      dropBenches: () => 0,
+      removeWorkspaces: async () => ({ leftovers: [] }),
+      listStaleBenchIds: () => [2],
+    });
+
+    const result = registryModule.applyConfig("lantern");
+
+    expect(result.staleBenchIds).toEqual([2]);
+    expect(result.summary).toBe("Project lantern: roubo.yaml applied. 1 bench is stale.");
+    expect(registryModule.appliedConfigSummary("lantern", 0)).toBe(
+      "Project lantern: roubo.yaml applied.",
+    );
+    expect(registryModule.appliedConfigSummary("lantern", 3)).toBe(
+      "Project lantern: roubo.yaml applied. 3 benches are stale.",
+    );
+  });
+});
+
 describe("checkPortConflictsForConfig", () => {
   it("works correctly", () => {
     const config = makeConfig();
@@ -967,17 +1088,39 @@ describe("component-binding validation (#884)", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("reloadConfig re-runs the second pass and flags a now-invalid config block", () => {
+  it("HR-TC-003: reloadConfig re-runs the second pass, rejects a now-invalid config block and keeps the last good config", () => {
     mockedLoadProjects.mockReturnValue({
       projects: [{ id: "p1", repoPath: "/repos/p1" }],
     });
     mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
     registryModule.initialize();
-    expect(registryModule.getProject("p1")?.configValid).toBe(true);
+    const lastGood = registryModule.getProject("p1");
+    expect(lastGood?.configValid).toBe(true);
 
     // The bound plugin now declares a stricter configSchema the fixture config
-    // violates: the reload's second pass must surface it as a path-keyed error.
+    // violates: the reload's second pass rejects it with a path-keyed error,
+    // and the last good record stays live.
     pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    const rejected = vi.fn();
+    registryModule.onProjectConfigRejected(rejected);
+    const result = registryModule.applyConfig("p1");
+
+    expect(result.outcome).toBe("rejected");
+    expect(result.error?.first).toMatch(/^components\.backend\.config\.port: /);
+    expect(registryModule.getProject("p1")).toBe(lastGood);
+    expect(rejected).toHaveBeenCalledWith({ projectId: "p1", error: result.error });
+  });
+
+  it("reloadConfig flags a now-invalid config block when the project has no last good config", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "p1", repoPath: "/repos/p1" }],
+    });
+    mockedParseConfig.mockReturnValueOnce({ valid: false, errors: ["bad"] });
+    registryModule.initialize();
+    expect(registryModule.getProject("p1")?.configValid).toBe(false);
+
+    pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
     const reloaded = registryModule.reloadConfig("p1");
 
     expect(reloaded.configValid).toBe(false);
@@ -1008,9 +1151,10 @@ describe("component-binding validation (#884)", () => {
     mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
     registryModule.initialize();
 
-    // First reload with a configSchema the fixture config violates: invalid.
+    // The boot second pass runs with a configSchema the fixture config
+    // violates: invalid, with no last good config.
     pluginManagerMocks.getComponentManifests.mockReturnValue([PROCESS_REQUIRES_PORT_MANIFEST]);
-    registryModule.reloadConfig("p1");
+    registryModule.revalidateComponentBindings();
     expect(registryModule.getProject("p1")?.configValid).toBe(false);
 
     // Plugin's schema relaxes (accepts the config): the next reload clears the

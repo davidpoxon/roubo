@@ -30,6 +30,10 @@ vi.mock("./services/project-registry.js", () => ({
   // #884: startServer re-runs the component-binding second pass after the
   // plugin manager initializes.
   revalidateComponentBindings: vi.fn(),
+  // HR-FR-001: startServer arms each project's roubo.yaml watch and disposes
+  // them at shutdown.
+  watchProjectConfigs: vi.fn(),
+  unwatchProjectConfigs: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("./services/integration-migrations.js", () => ({
   initializeIntegrationMigrations: vi.fn(),
@@ -40,6 +44,7 @@ vi.mock("./services/bench-manager.js", () => ({
   reconcile: vi.fn(() => Promise.resolve()),
   getBenches: vi.fn(() => []),
   getLiveBenchIds: vi.fn(() => []),
+  getStaleBenchIds: vi.fn(() => []),
   dropProjectBenches: vi.fn(() => 0),
   removeProjectBenchWorkspaces: vi.fn(async () => ({ leftovers: [] })),
   refreshComponentStatuses: vi.fn(() => Promise.resolve()),
@@ -235,12 +240,15 @@ describe("startServer", { concurrent: false }, () => {
         getProjects: vi.fn(() => []),
         revalidateComponentBindings: vi.fn(),
         registerLiveBenchSource: vi.fn(),
+        watchProjectConfigs: vi.fn(),
+        unwatchProjectConfigs: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/bench-manager.js", () => ({
         initialize: vi.fn(),
         reconcile: vi.fn(() => Promise.resolve()),
         getBenches: vi.fn(() => []),
         getLiveBenchIds: vi.fn(() => []),
+        getStaleBenchIds: vi.fn(() => []),
         dropProjectBenches: vi.fn(() => 0),
         removeProjectBenchWorkspaces: vi.fn(async () => ({ leftovers: [] })),
         refreshComponentStatuses: vi.fn(() => Promise.resolve()),
