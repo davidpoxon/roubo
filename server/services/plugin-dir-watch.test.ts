@@ -8,13 +8,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { InputChangedEvent, ResourceOwnershipEntry } from "@roubo/shared";
+import type {
+  InputChangedEvent,
+  PluginEnableState,
+  PluginEnableStateValue,
+  ResourceOwnershipEntry,
+} from "@roubo/shared";
 
 const hoisted = vi.hoisted(() => ({
   rouboDir: "",
   ledger: [] as ResourceOwnershipEntry[],
   consented: new Set<string>(),
   events: [] as Omit<InputChangedEvent, "type">[],
+  enableState: null as PluginEnableState | null,
 }));
 
 vi.mock("./state.js", async (importOriginal) => {
@@ -48,12 +54,38 @@ vi.mock("./active-plugin.js", () => ({ resolveActivePlugin: vi.fn(() => null) })
 vi.mock("./cut-list-query-service.js", () => ({
   cutListQueryService: { evictPlugin: vi.fn(), evictProject: vi.fn() },
 }));
-vi.mock("./plugin-enable-state.js", () => ({
-  loadEnableState: vi.fn(() => null),
-  saveEnableState: vi.fn(),
-  setPluginEnabled: vi.fn(),
-  removePlugin: vi.fn(),
-}));
+// A plugins-state.json held in memory, so a relaunch (shutdown, then
+// initialize) reads back what the previous run wrote.
+vi.mock("./plugin-enable-state.js", () => {
+  const setValue = (pluginId: string, value: PluginEnableStateValue): PluginEnableState => {
+    const current = hoisted.enableState ?? {
+      schemaVersion: 1 as const,
+      installInitialized: false,
+      plugins: {},
+    };
+    hoisted.enableState = { ...current, plugins: { ...current.plugins, [pluginId]: value } };
+    return structuredClone(hoisted.enableState);
+  };
+  return {
+    loadEnableState: vi.fn(() =>
+      hoisted.enableState ? structuredClone(hoisted.enableState) : null,
+    ),
+    saveEnableState: vi.fn(),
+    setPluginEnabled: vi.fn((pluginId: string, enabled: boolean) =>
+      setValue(pluginId, enabled ? "enabled" : "disabled"),
+    ),
+    setPluginEnableValue: vi.fn(setValue),
+    removePlugin: vi.fn((pluginId: string) => {
+      if (!hoisted.enableState) return;
+      hoisted.enableState = {
+        ...hoisted.enableState,
+        plugins: Object.fromEntries(
+          Object.entries(hoisted.enableState.plugins).filter(([id]) => id !== pluginId),
+        ),
+      };
+    }),
+  };
+});
 vi.mock("./plugin-consent-state.js", () => ({
   getConsent: vi.fn((pluginId: string) =>
     hoisted.consented.has(pluginId)
@@ -220,6 +252,7 @@ beforeEach(async () => {
   hoisted.ledger = [];
   hoisted.consented = new Set();
   hoisted.events = [];
+  hoisted.enableState = null;
   lines = [];
   setChanges = [];
   stopSetListener = onPluginSetChanged((change) => setChanges.push(change));
@@ -268,14 +301,15 @@ describe("notice copy", () => {
 });
 
 describe("a plugin directory added by hand", () => {
-  it("HR-TC-014 registers a dropped plugin directory with no process until consent is granted", async () => {
+  it("HR-TC-014 registers a dropped agent plugin directory with no process until consent is granted", async () => {
     await startWatch();
-    dropPlugin("new-plugin");
+    dropPlugin("new-plugin", { kind: "agent" });
 
     await waitFor(() => record("new-plugin") !== undefined);
     await waitFor(() => hoisted.events.length === 1);
     expect(record("new-plugin")?.status).toBe("disabled");
     expect(record("new-plugin")?.pid).toBeNull();
+    expect(hoisted.enableState?.plugins["new-plugin"]).toBe("awaiting-consent");
     expect(summaries()).toEqual([
       "Plugin new-plugin installed. Grant consent in Settings > Plugins to enable it.",
     ]);
@@ -286,17 +320,45 @@ describe("a plugin directory added by hand", () => {
     });
     expect(setChanges).toEqual([{ added: ["new-plugin"], swapped: [], removed: [] }]);
 
-    // Granting consent starts the process.
+    // Granting consent starts the process and clears the hold.
     hoisted.consented.add("new-plugin");
     await pluginManager.startAfterConsent("new-plugin");
     expect(record("new-plugin")?.status).toBe("enabled");
     expect(typeof record("new-plugin")?.pid).toBe("number");
+    expect(hoisted.enableState?.plugins["new-plugin"]).toBe("enabled");
+  }, 20_000);
+
+  it("HR-TC-014 starts a dropped integration plugin, which is never consent-gated, and names no consent step", async () => {
+    await startWatch();
+    dropPlugin("new-integration");
+
+    await waitFor(() => typeof record("new-integration")?.pid === "number");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(record("new-integration")?.status).toBe("enabled");
+    expect(hoisted.enableState?.plugins["new-integration"]).toBeUndefined();
+    expect(summaries()).toEqual(["Plugin new-integration installed."]);
+  }, 20_000);
+
+  it("HR-TC-014 does not start a dropped integration plugin that the user disabled", async () => {
+    hoisted.enableState = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "off-integration": "disabled" },
+    };
+    await pluginManager.shutdown();
+    await pluginManager.initialize();
+    await startWatch();
+    dropPlugin("off-integration");
+
+    await waitFor(() => outcomeLines("off-integration", "applied").length === 1);
+    expect(record("off-integration")?.status).toBe("disabled");
+    expect(record("off-integration")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-015 never spawns an un-consented plugin found on disk and logs action=register", async () => {
     await startWatch();
     const marker = path.join(base, "started.marker");
-    dropPlugin("marker-plugin", { marker });
+    dropPlugin("marker-plugin", { kind: "agent", marker });
 
     await waitFor(() => outcomeLines("marker-plugin", "applied").length === 1);
     await sleep(1_500);
@@ -307,6 +369,57 @@ describe("a plugin directory added by hand", () => {
     expect(applyLines("marker-plugin")[0]).toMatch(
       /^\[input-watcher\] surface=plugin path=\S+\/marker-plugin outcome=applied hash8=[0-9a-f]{8} durationMs=\d+ action=register$/,
     );
+  }, 20_000);
+
+  it("HR-TC-015 and HR-TC-014 keep an un-consented dropped plugin unspawned after a relaunch, and enable and restart refuse it", async () => {
+    await startWatch();
+    const marker = path.join(base, "relaunch.marker");
+    dropPlugin("held-plugin", { kind: "agent", marker });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    // Relaunch: the next initialize discovers the directory from disk.
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    await pluginManager.initialize();
+    await sleep(500);
+
+    expect(record("held-plugin")?.status).toBe("disabled");
+    expect(record("held-plugin")?.pid).toBeNull();
+    expect(fs.existsSync(marker)).toBe(false);
+
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    await pluginManager.disable("held-plugin");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+    await sleep(500);
+    expect(record("held-plugin")?.pid).toBeNull();
+    expect(fs.existsSync(marker)).toBe(false);
+
+    // Consent lifts the hold.
+    hoisted.consented.add("held-plugin");
+    await pluginManager.startAfterConsent("held-plugin");
+    expect(typeof record("held-plugin")?.pid).toBe("number");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
+    await waitFor(() => fs.existsSync(marker));
+  }, 20_000);
+
+  it("HR-TC-015 does not hold a legacy plugin with no consent record and no awaiting-consent value", async () => {
+    hoisted.enableState = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "legacy-agent": "enabled" },
+    };
+    buildPlugin("legacy-agent", { kind: "agent" });
+    fs.cpSync(path.join(scratch, "legacy-agent"), path.join(root, "legacy-agent"), {
+      recursive: true,
+    });
+    await pluginManager.shutdown();
+    await pluginManager.initialize();
+
+    expect(typeof record("legacy-agent")?.pid).toBe("number");
+    await pluginManager.restart("legacy-agent");
+    expect(typeof record("legacy-agent")?.pid).toBe("number");
   }, 20_000);
 
   it("HR-TC-019 rejects a new directory with an invalid manifest with its first error and registers nothing", async () => {
@@ -428,9 +541,7 @@ describe("a plugin directory removed", () => {
     await sleep(1_200);
 
     expect(applyLines("github-com")).toEqual([]);
-    expect(summaries()).toEqual([
-      "Plugin sentinel installed. Grant consent in Settings > Plugins to enable it.",
-    ]);
+    expect(summaries()).toEqual(["Plugin sentinel installed."]);
     expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
   }, 20_000);
 
@@ -442,9 +553,7 @@ describe("a plugin directory removed", () => {
     await sleep(1_200);
 
     expect(applyLines("foo")).toEqual([]);
-    expect(summaries()).toEqual([
-      "Plugin sentinel installed. Grant consent in Settings > Plugins to enable it.",
-    ]);
+    expect(summaries()).toEqual(["Plugin sentinel installed."]);
     expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
   }, 20_000);
 });
@@ -474,9 +583,26 @@ describe("the marketplace path and the watch", () => {
     expect(applyLines("database")).toHaveLength(2);
   }, 20_000);
 
-  it("HR-TC-011 an install with no consent yet stays inert, says so, and runs once consent is granted", async () => {
+  it("HR-TC-011 an integration install names no consent step, which integration plugins never need", async () => {
     await startWatch();
-    const src = buildPlugin("database");
+    const src = buildPlugin("tracker");
+
+    const installed = await runAppPluginWrite(
+      async () => {
+        const target = path.join(root, "tracker");
+        fs.cpSync(src, target, { recursive: true });
+        return pluginManager.registerInstalled(target, { inertUntilConsent: true });
+      },
+      (r) => appInstallOutcome(r, false),
+    );
+
+    expect(installed.status).toBe("enabled");
+    expect(summaries()).toEqual(["Plugin tracker installed."]);
+  }, 20_000);
+
+  it("HR-TC-011 an agent install with no consent yet stays inert, says so, and runs once consent is granted", async () => {
+    await startWatch();
+    const src = buildPlugin("database", { kind: "agent" });
 
     const installed = await runAppPluginWrite(
       async () => {
