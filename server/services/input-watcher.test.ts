@@ -43,6 +43,9 @@ import {
   markSelfWrite,
   resetSelfWriteTokens,
 } from "./self-write-tokens.js";
+import { addClient, _resetClientsForTest } from "./sse.js";
+import type { Response } from "express";
+import type { InputChangedEvent } from "@roubo/shared";
 
 const LINE_RE =
   /^\[input-watcher\] surface=\S+ path=\S+ outcome=(applied|rejected|deduped|self-write|refused) hash8=([0-9a-f]{8}|none) durationMs=\d+$/;
@@ -494,5 +497,130 @@ describe("watchInput logging", () => {
         .slice(1)
         .map((kv) => kv.split("=")[0]),
     ).toEqual(["surface", "path", "outcome", "hash8", "durationMs"]);
+  });
+});
+
+describe("watchInput input-changed events", () => {
+  let streamed: unknown[];
+
+  function streamClient(): Response {
+    return {
+      setHeader: vi.fn(),
+      flushHeaders: vi.fn(),
+      on: vi.fn(),
+      write: vi.fn((chunk: string) => {
+        const match = /^data: (.*)\n\n$/s.exec(chunk);
+        if (match) streamed.push(JSON.parse(match[1]));
+        return true;
+      }),
+    } as unknown as Response;
+  }
+
+  function inputEvents(): InputChangedEvent[] {
+    return streamed.filter(
+      (e): e is InputChangedEvent => (e as { type?: string }).type === "input-changed",
+    );
+  }
+
+  beforeEach(() => {
+    _resetClientsForTest();
+    streamed = [];
+    addClient(streamClient());
+  });
+
+  afterEach(() => {
+    _resetClientsForTest();
+  });
+
+  it("HR-TC-040 an applied roubo.yaml under two benches sends one event with surface, outcome, projectId, benchIds and summary", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => ({
+      outcome: "applied",
+      event: { projectId: "proj", benchIds: [3, 7], summary: "Project config applied" },
+    }));
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(200);
+
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "applied",
+      projectId: "proj",
+      benchIds: [3, 7],
+      summary: "Project config applied",
+    });
+    expect(JSON.stringify(events[0])).not.toContain("name: two");
+  });
+
+  it("HR-TC-040 an invalid roubo.yaml sends one rejected event with error.path and error.first", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => ({
+      outcome: "rejected",
+      event: {
+        projectId: "proj",
+        error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+      },
+    }));
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "benches: {max: many}\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(200);
+
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "rejected",
+      projectId: "proj",
+      error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+    });
+    expect(events[0].summary).toMatch(/^Project /);
+  });
+
+  it("HR-TC-040 a deduped run and a self-write run send no event", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    expect(inputEvents()).toHaveLength(1);
+    expect(inputEvents()[0].summary).toBe("Project change applied");
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("deduped") === 1);
+    atomicWrite(file, "name: three\n");
+    await waitFor(() => outcomeCount("self-write") === 1);
+    await sleep(200);
+
+    expect(inputEvents()).toHaveLength(1);
+  });
+
+  it("sends no event for a surface outside the six known surfaces", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const w = track(
+      watchInput(file, { surface: "project", settleMs: 50 }, async () => "applied" as const),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(100);
+
+    expect(inputEvents()).toHaveLength(0);
   });
 });

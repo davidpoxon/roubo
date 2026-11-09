@@ -4,7 +4,13 @@ import { act, waitFor } from "@testing-library/react";
 import { renderHookWithProviders, makeQueryClient } from "../test/renderWithProviders";
 import { useNotificationStream } from "./useNotificationStream";
 import { deliveryQueryKey, useDelivery } from "./useDelivery";
-import type { Bench, BenchNotification } from "@roubo/shared";
+import {
+  INPUT_SURFACES,
+  type Bench,
+  type BenchNotification,
+  type InputChangedEvent,
+} from "@roubo/shared";
+import { SURFACE_QUERY_KEYS, subscribeInputChanged } from "../lib/input-changed";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import * as api from "../lib/api";
 
@@ -460,6 +466,86 @@ describe("useNotificationStream", () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe("input-changed events", () => {
+    // invalidateQueries refetches the active queries of its key itself, so a
+    // refetchQueries call is not listed: it is the invalidation's own work.
+    const OTHER_METHODS = [
+      "clear",
+      "resetQueries",
+      "removeQueries",
+      "cancelQueries",
+      "setQueryData",
+      "setQueriesData",
+    ] as const;
+
+    function fireAndCollect(event: InputChangedEvent) {
+      const queryClient = makeQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+      const others = OTHER_METHODS.map((m) => vi.spyOn(queryClient, m));
+      const seen: InputChangedEvent[] = [];
+      const unsubscribe = subscribeInputChanged((e) => seen.push(e));
+      renderHookWithProviders(() => useNotificationStream(), { queryClient });
+      act(() => mockSource._fire(event));
+      unsubscribe();
+      return { invalidateSpy, others, seen };
+    }
+
+    it("invalidates only the mapped keys of a project-config change and hands the event to the notices", () => {
+      const event: InputChangedEvent = {
+        type: "input-changed",
+        surface: "project-config",
+        outcome: "applied",
+        projectId: "p1",
+        benchIds: [1, 2],
+        summary: "Project config applied",
+      };
+      const { invalidateSpy, others, seen } = fireAndCollect(event);
+
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+        { queryKey: ["projects"] },
+        { queryKey: ["project-settings", "p1"] },
+        { queryKey: ["benches"] },
+        { queryKey: ["bench", "p1", 1] },
+        { queryKey: ["bench", "p1", 2] },
+      ]);
+      for (const spy of others) expect(spy).not.toHaveBeenCalled();
+      expect(showNotification).not.toHaveBeenCalled();
+      expect(seen).toEqual([event]);
+    });
+
+    it("invalidates exactly the SURFACE_QUERY_KEYS of each surface and nothing else", () => {
+      for (const surface of INPUT_SURFACES) {
+        const event: InputChangedEvent = {
+          type: "input-changed",
+          surface,
+          outcome: "applied",
+          projectId: "p1",
+          pluginId: "plug",
+          benchIds: [4],
+          summary: "change applied",
+        };
+        const { invalidateSpy, others } = fireAndCollect(event);
+        const expected = SURFACE_QUERY_KEYS[surface](event);
+        expect(expected.length).toBeGreaterThan(0);
+        expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
+          expected.map((queryKey) => ({ queryKey })),
+        );
+        for (const spy of others) expect(spy).not.toHaveBeenCalled();
+      }
+    });
+
+    it("never invalidates the whole cache or the delivery keys on an input change", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "settings",
+        outcome: "rejected",
+        summary: "Settings change rejected",
+        error: { path: "settings.json", first: "theme: invalid" },
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([{ queryKey: ["settings"] }]);
     });
   });
 });
