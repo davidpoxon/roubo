@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // A unit's drill-in on the Delivery tab (SB-FR-013, SB-NFR-003, SB-NFR-004,
-// SB-US-004): the timeline first with the terminal beside it and the Diff and
-// Verify panels beneath, seams marked on the timeline, a done unit's transcript
+// SB-US-004): the timeline first, with the terminal beside it above the Diff
+// and Verify tabs, seams marked on the timeline, a done unit's transcript
 // replayed read-only, the 1,000-event bound, keyboard and screen-reader
 // operation, and the empty states of a unit with no events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,13 +9,18 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import type { Bench } from "@roubo/shared";
-import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
+import {
+  GATE_PROVISIONAL_STATUS,
+  type DeliveryEvent,
+  type DeliveryRecord,
+} from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
 import { FakeSocket } from "../../test/fake-terminal";
+import { HELD_DRAFT_LABEL } from "./delivery-map-model";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -261,7 +266,7 @@ describe("Unit drill-in", () => {
     // B: on stack A over its base A, with a dependency beyond its base, a pull
     // request, the gate after it and a cost.
     const drillIn = await openUnit("B");
-    const heading = within(drillIn).getByRole("heading", { level: 3, name: "B Second" });
+    const heading = within(drillIn).getByRole("heading", { level: 2, name: "B Second" });
     expect(heading).toHaveFocus();
     const chips = within(drillIn).getByRole("list", { name: "About unit B" });
     expect(
@@ -287,6 +292,28 @@ describe("Unit drill-in", () => {
         .getAllByRole("listitem")
         .map((chip) => chip.textContent),
     ).toEqual(["done", "stack D · layer 0"]);
+  });
+
+  it("names a held unit's pull request as a held draft, not its number (#1621)", async () => {
+    const base = withStatus(fourUnitRecord(), { B: "done", C: "running" });
+    record = {
+      ...base,
+      units: base.units.map((unit) =>
+        unit.id === "C" ? { ...unit, pr_url: "https://github.com/demo/demo/pull/48" } : unit,
+      ),
+      stack: {
+        ...base.stack,
+        gates: base.stack.gates.map((gate) =>
+          gate.id === "gate-after-b" ? { ...gate, status: GATE_PROVISIONAL_STATUS } : gate,
+        ),
+      },
+    };
+    renderWithProviders(<Harness />);
+
+    // A provisional gate after B holds C, the layer above it.
+    const drillIn = await openUnit("C");
+    expect(within(drillIn).getByTestId("unit-chip-pr")).toHaveTextContent(HELD_DRAFT_LABEL);
+    expect(within(drillIn).getByTestId("unit-chip-pr")).not.toHaveTextContent("#48");
   });
 
   it("SB-TC-030 marks the record's seams of the unit and a posted seam event on the timeline", async () => {

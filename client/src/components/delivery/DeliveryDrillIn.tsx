@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { DeliveryUnit } from "@roubo/shared/delivery-observation-contract";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import {
   selectGateState,
   selectGatesAfterUnit,
   selectUnitDependencies,
+  selectUnitStack,
   selectUnitStatus,
 } from "@roubo/shared/delivery-selectors";
 import { ownValue } from "@roubo/shared/delivery-reducer";
@@ -22,6 +23,7 @@ import {
   pullRequestNumber,
   selectHeldUnitIds,
   targetKey,
+  unitCostLabel,
   unitStatusTone,
   type MapTarget,
 } from "./delivery-map-model";
@@ -65,13 +67,13 @@ export default function DeliveryDrillIn({
         className="space-y-2 rounded-control border border-border bg-bg-surface p-3"
       >
         <div className="flex items-center justify-between gap-3">
-          <h3
+          <h2
             ref={headingRef}
             tabIndex={-1}
             className={`text-14 font-medium text-text-primary ${focusRing}`}
           >
             {heading}
-          </h3>
+          </h2>
           <Button onPress={onClose}>Close</Button>
         </div>
         <GateDetail snapshot={snapshot} gateId={target.id} sitting={sitting} />
@@ -83,7 +85,7 @@ export default function DeliveryDrillIn({
   return (
     <section aria-label={`Unit ${target.id}`} data-testid="delivery-drill-in" className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h3
+        <h2
           ref={headingRef}
           tabIndex={-1}
           className={`flex min-w-0 flex-wrap items-baseline gap-x-3 rounded-control ${focusRing}`}
@@ -95,7 +97,7 @@ export default function DeliveryDrillIn({
               {unit.title}
             </span>
           )}
-        </h3>
+        </h2>
         {unit !== undefined && <UnitChips snapshot={snapshot} unit={unit} />}
         <div className="ml-auto">
           <Button onPress={onClose}>Close</Button>
@@ -121,22 +123,22 @@ const CHIP =
 
 // The unit below this one on its stack, whose branch this unit's pull request
 // is based on; none for the first unit of a stack.
-function stackBase(snapshot: DeliverySnapshot, unit: DeliveryUnit): string | undefined {
-  const stack = ownValue(snapshot.stacks, unit.stack) ?? [];
-  const index = stack.indexOf(unit.id);
-  return index > 0 ? stack[index - 1] : undefined;
+function stackBase(snapshot: DeliverySnapshot, unitId: string): string | undefined {
+  const view = selectUnitStack(snapshot, unitId);
+  return view !== null && view.index > 0 ? view.members[view.index - 1] : undefined;
 }
 
 // The facts the drill-in names about a unit, as chips beside its title.
 function UnitChips({ snapshot, unit }: { snapshot: DeliverySnapshot; unit: DeliveryUnit }) {
   const status = selectUnitStatus(snapshot, unit.id);
-  const base = stackBase(snapshot, unit);
+  const base = stackBase(snapshot, unit.id);
   const dependencies = selectUnitDependencies(snapshot, unit.id);
   const onlyBase =
     base === undefined
       ? dependencies.length === 0
       : dependencies.length === 1 && dependencies[0] === base;
-  const held = selectHeldUnitIds(snapshot).has(unit.id);
+  const heldIds = useMemo(() => selectHeldUnitIds(snapshot), [snapshot]);
+  const held = heldIds.has(unit.id);
   const pr = held ? HELD_DRAFT_LABEL : pullRequestNumber(unit);
   const gates = selectGatesAfterUnit(snapshot, unit.id);
   return (
@@ -165,7 +167,7 @@ function UnitChips({ snapshot, unit }: { snapshot: DeliverySnapshot; unit: Deliv
       ))}
       {unit.cost_usd !== undefined && (
         <li data-testid="unit-chip-cost" className={`${CHIP} tabular-nums`}>
-          USD {unit.cost_usd.toFixed(2)}
+          {unitCostLabel(unit.cost_usd)}
         </li>
       )}
     </ul>

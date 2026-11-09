@@ -146,6 +146,11 @@ export function pullRequestNumber(unit: DeliveryUnit): string | null {
   return match?.[1] === undefined ? null : `#${match[1]}`;
 }
 
+// A unit's spend as the map and the drill-in name it.
+export function unitCostLabel(costUsd: number): string {
+  return `USD ${costUsd.toFixed(2)}`;
+}
+
 export function selectHeldUnitIds(snapshot: DeliverySnapshot): Set<string> {
   const held = new Set<string>();
   for (const view of Object.values(snapshot.gatesById)) {

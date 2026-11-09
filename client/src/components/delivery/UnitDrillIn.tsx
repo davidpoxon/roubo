@@ -126,8 +126,12 @@ export default function UnitDrillIn({
           >
             <Tabs selectedKey={sideTab} onSelectionChange={setSideTab}>
               <TabList aria-label={`Diff and verify results of unit ${unitId}`} className="px-3">
-                <Tab id="diff">Diff</Tab>
-                <Tab id="verify">Verify</Tab>
+                <Tab id="diff" className="focus-visible:ring-inset">
+                  Diff
+                </Tab>
+                <Tab id="verify" className="focus-visible:ring-inset">
+                  Verify
+                </Tab>
               </TabList>
               <SideTabPanel id="diff">
                 <UnitDiffPanel
@@ -403,7 +407,7 @@ function UnitTerminalPanel({
       tabStop
       testId="unit-terminal"
       onKeyDownCapture={onKeyDownCapture}
-      meta={recorded ? "read-only transcript" : live ? `${unitId} · live` : null}
+      meta={recorded ? "read-only transcript" : live && active ? `${unitId} · live` : null}
     >
       <div className="space-y-2 p-3">
         <p id={`unit-terminal-hint-${unitId}`} className="text-11 text-text-secondary">
