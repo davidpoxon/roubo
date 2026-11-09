@@ -294,6 +294,25 @@ describe("Unit drill-in", () => {
     ).toEqual(["done", "stack D · layer 0"]);
   });
 
+  it("names the terminal live only while the unit runs (#1621)", async () => {
+    // B runs: the terminal's meta names it live.
+    record = withStatus(fourUnitRecord(), { B: "running" });
+    renderWithProviders(<Harness />);
+    const running = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
+    expect(within(running).getByTestId("unit-terminal-live")).toBeInTheDocument();
+    expect(running.querySelector("header")).toHaveTextContent("B · live");
+    cleanup();
+
+    // B waits with events of its own: the session terminal still shows, but the
+    // meta does not call B live, because the session works on another unit.
+    record = withStatus(fourUnitRecord(), { B: "pending" });
+    log = [unitEvent(8, "B", "note", { text: "Queued behind A" }, at(40))];
+    renderWithProviders(<Harness />);
+    const waiting = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
+    expect(within(waiting).getByTestId("unit-terminal-live")).toBeInTheDocument();
+    expect(waiting.querySelector("header")).not.toHaveTextContent("live");
+  });
+
   it("names a held unit's pull request as a held draft, not its number (#1621)", async () => {
     const base = withStatus(fourUnitRecord(), { B: "done", C: "running" });
     record = {
