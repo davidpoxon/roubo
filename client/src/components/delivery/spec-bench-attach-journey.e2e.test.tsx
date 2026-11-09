@@ -819,10 +819,22 @@ async function findSetUpSpecBench(user: ReturnType<typeof userEvent.setup>): Pro
   );
 }
 
+// Picks a spec in the setup dialog's Specification menu (#1625): opens the
+// menu, then chooses the spec's option, which the menu's popover holds.
+async function pickSpec(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+  slug: string,
+): Promise<void> {
+  await user.click(await within(dialog).findByRole("button", { name: /specification/i }));
+  await user.click(await screen.findByRole("option", { name: new RegExp(`^${slug} `) }));
+}
+
 // A choice in the setup dialog, whichever control offers it.
 function choice(dialog: HTMLElement, name: RegExp): HTMLElement {
   const scope = within(dialog);
   const found =
+    scope.queryByRole("tab", { name }) ??
     scope.queryByRole("radio", { name }) ??
     scope.queryByRole("option", { name }) ??
     scope.queryByRole("button", { name }) ??
@@ -919,24 +931,18 @@ describe("Spec Bench attach journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
         await user.click(await findSetUpSpecBench(user));
         await waitFor(() => setupDialog());
         await user.click(choice(setupDialog(), /^attach/i));
-        await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+        await pickSpec(user, setupDialog(), SPEC_SLUG);
         await waitFor(() => {
           const dialog = setupDialog();
-          const summary = within(dialog).queryByRole("region", { name: "Summary" });
-          if (!summary) {
-            throw new Error(
-              `the dialog shows no Summary section; it reads "${dialog.textContent}"`,
-            );
-          }
-          const shown = `the Summary reads "${summary.textContent ?? ""}"`;
-          const scope = within(summary);
-          expect(scope.getByTestId("specbench-setup-summary-mode"), shown).toHaveTextContent(
-            /^Attach$/,
-          );
-          expect(scope.getByTestId("specbench-setup-summary-progress"), shown).toHaveTextContent(
+          // The Attach tab is selected, and its Found line reads what the
+          // summary found in the committed record.
+          const shown = `the dialog reads "${dialog.textContent ?? ""}"`;
+          expect(choice(dialog, /^attach/i), shown).toHaveAttribute("aria-selected", "true");
+          const found = within(within(dialog).getByTestId("specbench-setup-summary-delivery"));
+          expect(found.getByTestId("specbench-setup-summary-progress"), shown).toHaveTextContent(
             /^2 of 4 units done$/,
           );
-          expect(scope.getByTestId("specbench-setup-summary-lifecycle"), shown).toHaveTextContent(
+          expect(found.getByTestId("specbench-setup-summary-lifecycle"), shown).toHaveTextContent(
             /^running$/,
           );
         });
@@ -1037,7 +1043,7 @@ describe("Spec Bench attach journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
     await user.click(await findSetUpSpecBench(user));
     await waitFor(() => setupDialog());
     await user.click(choice(setupDialog(), /^attach/i));
-    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await pickSpec(user, setupDialog(), SPEC_SLUG);
     await waitFor(() =>
       expect(
         within(setupDialog()).getByTestId("specbench-setup-summary-delivery"),
