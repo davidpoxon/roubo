@@ -493,7 +493,7 @@ describe("useNotificationStream", () => {
       return { invalidateSpy, others, seen };
     }
 
-    it("invalidates only the mapped keys of a project-config change and hands the event to the notices", () => {
+    it("HR-TC-035 invalidates only the projects, raw-config and benches keys of a project-config change and hands the event to the notices", () => {
       const event: InputChangedEvent = {
         type: "input-changed",
         surface: "project-config",
@@ -506,7 +506,6 @@ describe("useNotificationStream", () => {
 
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
         { queryKey: ["projects"] },
-        { queryKey: ["project-settings", "p1"] },
         { queryKey: ["raw-config", "p1"] },
         { queryKey: ["benches"] },
         { queryKey: ["bench", "p1", 1] },
