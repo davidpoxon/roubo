@@ -57,6 +57,7 @@ vi.mock("./plugin-provenance-state.js", () => ({
 
 import * as pluginManager from "./plugin-manager.js";
 import * as swapState from "./plugin-swap-state.js";
+import { PluginInUseError } from "./plugin-in-use.js";
 
 const JSONRPC_PATH = createRequire(import.meta.url).resolve("vscode-jsonrpc/node");
 
@@ -169,6 +170,14 @@ const twoBenches = (): ResourceOwnershipEntry[] => [
 const preRestart = vi.fn();
 const restarted = vi.fn();
 const swapped = vi.fn();
+// The host's answer to "which benches, by project, use this plugin": here each
+// ledger entry with a resource is a bench of project 'lantern'.
+const benchesUsing = vi.fn((pluginId: string) =>
+  ledgerFake.entries
+    .filter((e) => e.pluginId === pluginId)
+    .filter((e) => e.processIds.length > 0 || e.composeProjects.length > 0)
+    .map((e) => ({ projectId: "lantern", benchId: e.benchId })),
+);
 
 beforeEach(async () => {
   pluginManager.__test.reset();
@@ -184,6 +193,7 @@ beforeEach(async () => {
     onComponentPluginPreRestart: preRestart,
     onComponentPluginRestarted: restarted,
     onComponentPluginSwapped: swapped,
+    findBenchesUsingPlugin: benchesUsing,
   });
 });
 
@@ -259,27 +269,70 @@ describe("swapProcess (HR-FR-009)", () => {
     expect(r.lastError?.message).toMatch(/still running/);
     expect(r.restartHistory).toEqual([]);
     expect(r.pid).toBeNull();
-    expect(swapState.isBenchStaleFromSwap(2)).toBe(true);
-    expect(swapState.isBenchStaleFromSwap(3)).toBe(false);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("lantern", 3)).toBe(false);
+    // Bench numbers are per project: bench 2 of another project is not marked.
+    expect(swapState.isBenchStaleFromSwap("harbour", 2)).toBe(false);
   }, 30_000);
 
-  it("clears the stale mark when a later swap starts", async () => {
+  it("HR-TC-056 clears the stale mark and re-binds when restart() brings the plugin up", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+    await writePlugin({}, EXITS_AT_START);
+    await pluginManager.swapProcess("database");
+    expect(record().stale).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(true);
+
+    // The user fixes the entry and restarts the plugin: it comes up, its bench
+    // resources re-bind to it, and the stale marks go.
+    await writePlugin({ version: "1.0.2" });
+    await pluginManager.restart("database");
+    expect(record().status).toBe("enabled");
+    expect(swapped).toHaveBeenCalledWith("database");
+    expect(record().stale).toBe(false);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(false);
+    expect(preRestart).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("HR-TC-056 keeps a bench stale after restart() when its resource still does not re-bind", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+    await writePlugin({}, EXITS_AT_START);
+    await pluginManager.swapProcess("database");
+
+    // The re-bind finds bench 2's resource gone and marks it again.
+    swapped.mockImplementation(async (pluginId: string) => {
+      swapState.markPluginStale(pluginId, [{ projectId: "lantern", benchId: 2 }]);
+    });
+    await writePlugin({ version: "1.0.2" });
+    await pluginManager.restart("database");
+    expect(record().status).toBe("enabled");
+    expect(record().stale).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(true);
+  }, 30_000);
+
+  it("HR-TC-056 clears the stale mark and re-binds when enable() brings the plugin up", async () => {
     ledgerFake.entries = [twoBenches()[0]];
     await startDatabase();
     await writePlugin({}, EXITS_AT_START);
     await pluginManager.swapProcess("database");
     expect(record().stale).toBe(true);
 
-    // A plugin left errored by a failed swap takes the next manifest but is
-    // not started by a swap; the user restarts it.
+    await pluginManager.disable("database");
     await writePlugin({ version: "1.0.2" });
-    await pluginManager.swapProcess("database");
-    expect(record().manifest?.version).toBe("1.0.2");
+    await pluginManager.enable("database");
+    expect(record().status).toBe("enabled");
+    expect(swapped).toHaveBeenCalledWith("database");
+    expect(record().stale).toBe(false);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(false);
+  }, 30_000);
+
+  it("leaves a plugin that is not stale alone when restart() brings it up", async () => {
+    await startDatabase();
     await pluginManager.restart("database");
     expect(record().status).toBe("enabled");
-    await pluginManager.swapProcess("database");
+    expect(swapped).not.toHaveBeenCalled();
     expect(record().stale).toBe(false);
-    expect(swapState.isBenchStaleFromSwap(2)).toBe(false);
   }, 30_000);
 
   it("refuses an imperative plugin before the stop", async () => {
@@ -378,11 +431,13 @@ describe("removal while a bench uses the plugin (HR-FR-010)", () => {
     ledgerFake.entries = twoBenches();
     const pid = await startDatabase();
 
-    await expect(pluginManager.uninstall("database")).rejects.toMatchObject({
+    const refusal = pluginManager.uninstall("database");
+    await expect(refusal).rejects.toBeInstanceOf(PluginInUseError);
+    await expect(refusal).rejects.toMatchObject({
       code: "plugin-in-use",
       benchIds: [2, 3],
-      message:
-        '"Database" is in use by bench 2 and bench 3. Clear bench 2 and bench 3 to remove it.',
+      message: "Plugin database is in use by benches 2 and 3",
+      notice: "Plugin database not removed. Benches 2 and 3 use it. Clear those benches first.",
     });
     expect(record().pid).toBe(pid);
 
@@ -391,9 +446,26 @@ describe("removal while a bench uses the plugin (HR-FR-010)", () => {
     expect(pluginManager.getRecord("database")).toBeUndefined();
   }, 30_000);
 
-  it("names a single bench in the notice", () => {
-    expect(pluginManager.pluginInUseNotice("Database", [2])).toBe(
-      '"Database" is in use by bench 2. Clear bench 2 to remove it.',
+  it("HR-TC-017 names the plugin by id and the single bench that uses it", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+
+    await expect(pluginManager.uninstall("database")).rejects.toMatchObject({
+      code: "plugin-in-use",
+      benchIds: [2],
+      message: "Plugin database is in use by bench 2",
+      notice: "Plugin database not removed. Bench 2 uses it. Clear that bench first.",
+    });
+  }, 30_000);
+
+  it("HR-TC-017 gives the refusal copy of the spec for benches 2 and 5", () => {
+    const err = new PluginInUseError("database", [2, 5]);
+    expect(err.message).toBe("Plugin database is in use by benches 2 and 5");
+    expect(err.notice).toBe(
+      "Plugin database not removed. Benches 2 and 5 use it. Clear those benches first.",
+    );
+    expect(new PluginInUseError("database", [2, 3, 5]).message).toBe(
+      "Plugin database is in use by benches 2, 3 and 5",
     );
   });
 });

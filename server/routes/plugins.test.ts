@@ -66,6 +66,7 @@ vi.mock("../services/plugin-installer.js", async () => {
 
 import router from "./plugins.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { PluginInUseError } from "../services/plugin-in-use.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import * as integrationTest from "../services/integration-test.js";
@@ -239,18 +240,28 @@ describe("DELETE /:id", () => {
   });
 
   it("HR-TC-017 returns 409 with code plugin-in-use and the bench ids while a bench uses the plugin", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(new PluginInUseError("github-com", [2]));
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "Plugin github-com is in use by bench 2",
+      code: "plugin-in-use",
+      benchIds: [2],
+      notice: "Plugin github-com not removed. Bench 2 uses it. Clear that bench first.",
+    });
+  });
+
+  it("HR-TC-017 names each bench in the 409 body and notice when several benches use the plugin", async () => {
     vi.mocked(pluginManager.uninstall).mockRejectedValue(
-      Object.assign(new Error('"Database" is in use by bench 2. Clear bench 2 to remove it.'), {
-        code: "plugin-in-use",
-        benchIds: [2],
-      }),
+      new PluginInUseError("github-com", [2, 5]),
     );
     const res = await request(app).delete("/github-com");
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
-      error: '"Database" is in use by bench 2. Clear bench 2 to remove it.',
+      error: "Plugin github-com is in use by benches 2 and 5",
       code: "plugin-in-use",
-      benchIds: [2],
+      benchIds: [2, 5],
+      notice: "Plugin github-com not removed. Benches 2 and 5 use it. Clear those benches first.",
     });
   });
 

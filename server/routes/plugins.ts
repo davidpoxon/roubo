@@ -10,6 +10,7 @@ import { IntegrationConfigSchema, declaredCategories, isFullyAcknowledged } from
 import { z } from "zod";
 import { getConsent, upsertConsent } from "../services/plugin-consent-state.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { PluginInUseError } from "../services/plugin-in-use.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import {
   IntegrationOverrideError,
@@ -244,14 +245,14 @@ router.delete("/:id", async (req, res) => {
     await pluginManager.uninstall(id);
     res.status(200).json({ id, removed: true });
   } catch (err) {
-    // HR-FR-010: a bench still uses the plugin. The message is the notice that
-    // names each bench; `benchIds` lets the client point at them.
-    const inUse = err as Partial<pluginManager.PluginInUseError>;
-    if (inUse.code === "plugin-in-use" && Array.isArray(inUse.benchIds)) {
+    // HR-FR-010: a bench still uses the plugin. `error` and `notice` name the
+    // plugin by id and each bench; `benchIds` lets the client point at them.
+    if (err instanceof PluginInUseError) {
       res.status(409).json({
-        error: (err as Error).message,
-        code: "plugin-in-use",
-        benchIds: inUse.benchIds,
+        error: err.message,
+        code: err.code,
+        benchIds: err.benchIds,
+        notice: err.notice,
       });
       return;
     }

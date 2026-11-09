@@ -242,14 +242,16 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // restart), and restarted re-provisions its components (auto-recovery). They
   // are injected (not imported) to avoid a plugin-manager → bench-manager cycle.
   // The swap hooks (HR-FR-009) ride the same seam: a swap asks bench-manager
-  // which bindings a new manifest breaks, then re-binds the ledger to the new
-  // process without stopping any resource.
+  // which bindings a new manifest breaks and which benches, by project, hold
+  // its resources, then re-binds the ledger to the new process without
+  // stopping any resource.
   pluginManager.registerComponentPluginHooks({
     onComponentPluginPreRestart: benchManager.handleComponentPluginPreRestart,
     onComponentPluginRestarted: benchManager.handleComponentPluginRestarted,
     onComponentPluginBudgetExhausted: benchManager.handleComponentPluginBudgetExhausted,
     onComponentPluginSwapped: benchManager.handleComponentPluginSwapped,
     findBindingsBrokenBySwap: benchManager.findBindingsBrokenBySwap,
+    findBenchesUsingPlugin: benchManager.findBenchesUsingPlugin,
   });
 
   // Run integration backfills after the plugin runtime is up: the github-com

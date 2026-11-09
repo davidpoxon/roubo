@@ -1987,6 +1987,12 @@ export interface Bench {
    * serialiser on each read and never persisted. Absent on the in-memory bench.
    */
   stale?: boolean;
+  /**
+   * True when `stale` comes from a plugin swap (HR-FR-009) rather than only
+   * from a roubo.yaml change, so the client can say which. Derived by the bench
+   * serialiser with `stale`, never persisted, and absent unless true.
+   */
+  staleFromSwap?: boolean;
 }
 
 // ── Git dirty-state types ──
