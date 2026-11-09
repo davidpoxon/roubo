@@ -4,6 +4,7 @@
 // meta that counts the notes by state.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   DELIVERY_CONTROL_SCHEMA_ID,
   DELIVERY_CONTROL_SCHEMA_VERSION,
@@ -113,5 +114,30 @@ describe("BoundaryPanel", () => {
     const panel = screen.getByRole("region", { name: "Steering" });
     expect(panel.querySelector("header")).toHaveTextContent(/^Steering0 queued · 0 applied$/);
     expect(within(panel).getByTestId("boundary-queue-empty")).toBeInTheDocument();
+  });
+
+  it("says no boundary is ahead and keeps Send note disabled when the delivery has none", async () => {
+    // Every unit is done, so no unit boundary is ahead.
+    const base = fourUnitRecord();
+    renderWithProviders(
+      <BoundaryPanel
+        projectId="demo"
+        benchId={3}
+        snapshot={foldDelivery({
+          record: { ...base, units: base.units.map((unit) => ({ ...unit, status: "done" })) },
+          events: [],
+          controls: [],
+        })}
+      />,
+    );
+    const composer = screen.getByTestId("steering-composer");
+    expect(within(composer).getByTestId("steering-applies-at")).toHaveTextContent(
+      "no boundary ahead",
+    );
+    await userEvent
+      .setup()
+      .type(within(composer).getByRole("textbox", { name: "Steering note" }), "Keep it short.");
+    expect(within(composer).getByRole("button", { name: "Send note" })).toBeDisabled();
+    expect(screen.getByTestId("boundary-name")).toHaveTextContent("No unit boundary is ahead");
   });
 });

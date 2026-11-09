@@ -21,24 +21,27 @@ import ReviewPile from "./ReviewPile";
 // Decision item of DESIGN.md, in the "Decisions" panel of the decisions view
 // (#1622), whose meta counts the cards to review, the pending questions and the
 // defaults in force. Every question the delivery session asked that is
-// open, defaulted or overturned sits on the pile, newest on top. The top card is
+// open or defaulted sits on the pile as a card, newest on top. The top card is
 // live under the 2px accent rule, with its state badge, a mono origin line, the
 // question and the options as buttons, the recorded default as the primary. An
 // open top card also lists the units the decision holds and the units that
 // continue without it (see selectDecisionHolds). A
 // lower card shows only its title bar, and raises on click or Enter. A card
 // arrives with `slide-under`, a raised card enters with `rise-in`, and a card
-// that leaves the pile (its answer landed) leaves with `drop-away`.
+// that leaves the pile (its answer or its overturn landed) leaves with
+// `drop-away`. An overturned decision is applied, so it closes the panel as a
+// dimmed row, below the review cards.
 //
 // An option answers an open decision: Enter or a click sends the answer, which
 // waits in the bench's outbox until the session reads it back. A defaulted
 // decision shows its default as applied and pending overturn, with one
-// Overturn for each other option, named by it; an overturned one shows the option that replaced
-// its default. The pile announces each change of state in a polite live region.
+// Overturn for each other option, named by it; an overturned one's row names the
+// option that replaced its default. The pile announces each change of state in a
+// polite live region.
 //
 // The decisions the session made on its own in auto mode join the pile as
 // Review cards, oldest first, beneath the questions (see ReviewPile), and the
-// reviewed ones close the panel as dimmed rows.
+// reviewed ones follow them as rows with a dimmed head line.
 
 // How long a leaving card stays for its drop-away: motion.duration.fast.
 export const DECISION_DROP_AWAY_MS = 150;
@@ -264,13 +267,6 @@ function TopCard({
           )}
         </>
       )}
-
-      {state.kind === "overturned" && (
-        <p data-testid="decision-applied" className="text-12 text-text-body">
-          Applied: <span className="text-text-primary">{state.applied}</span>, overturned from the
-          default {decision.default}.
-        </p>
-      )}
     </article>
   );
 }
@@ -322,7 +318,14 @@ export default function DecisionPile({
   // raises nothing.
   raiseRequest?: { decisionId: string; nonce: number } | null;
 }) {
-  const pile = selectDecisionPile(snapshot);
+  const all = selectDecisionPile(snapshot);
+  // An overturned decision is applied: it leaves the cards for a dimmed row.
+  const pile = all.filter(
+    (decision) => decisionState(decision, snapshot.controls).kind !== "overturned",
+  );
+  const applied = all.filter(
+    (decision) => decisionState(decision, snapshot.controls).kind === "overturned",
+  );
   const control = useDecisionControl(projectId, benchId);
   const [raisedId, setRaisedId] = useState<string | undefined>(undefined);
   const [raisedFor, setRaisedFor] = useState<typeof raiseRequest>(null);
@@ -450,6 +453,24 @@ export default function DecisionPile({
           onSittingOpened={onSittingOpened}
           raiseRequest={raiseRequest}
         />
+        {applied.length > 0 && (
+          // The overturned decisions close the panel as dimmed rows, after the
+          // reviewed agent decisions.
+          <ul aria-label="Applied decisions" className="-mx-3 -mb-3 border-t border-border">
+            {applied.map((decision) => (
+              <li
+                key={decision.id}
+                data-testid={`decision-applied-${decision.id}`}
+                className="border-b border-border px-3 py-1.5 opacity-40 last:border-b-0"
+              >
+                <p className="break-words font-mono text-11 text-text-secondary">
+                  {decision.id} · overturned · applied {decision.chosen ?? decision.default} ·
+                  default {decision.default}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </DeliveryPanel>
   );

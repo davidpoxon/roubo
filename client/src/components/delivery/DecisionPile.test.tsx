@@ -115,6 +115,36 @@ describe("DecisionPile", () => {
     expect(within(panel).getByRole("list", { name: "Decision pile" })).toBeInTheDocument();
   });
 
+  it("counts the agent decisions to review and leaves an overturned decision out of the counts (#1622)", () => {
+    const agentDecided = (seq: number, id: string) =>
+      decisionEvent(seq, "decision.decided", {
+        decision_id: id,
+        question: `Which layout for ${id}?`,
+        options: OPTIONS,
+        default: OPTIONS[0],
+        chosen: OPTIONS[1],
+        rationale: `Rationale of ${id}.`,
+        affected_units: ["B"],
+        decided_at: "2026-10-16T10:10:00Z",
+      });
+    renderPile([
+      FIRST,
+      SECOND,
+      decisionEvent(10, "decision.defaulted", { decision_id: "decision-b" }),
+      decisionEvent(11, "decision.overturned", { decision_id: "decision-b", option: OPTIONS[1] }),
+      agentDecided(12, "decision-x"),
+      agentDecided(13, "decision-y"),
+    ]);
+    const panel = screen.getByRole("region", { name: "Decisions" });
+    expect(panel.querySelector("header")).toHaveTextContent(
+      "2 to review · 1 pending · 0 defaults in force",
+    );
+    // The overturned decision is a row, not a card, so the open one is on top.
+    expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
+    expect(screen.queryByTestId("decision-card-decision-b")).not.toBeInTheDocument();
+    expect(screen.getByTestId("decision-applied-decision-b")).toBeInTheDocument();
+  });
+
   it("SB-TC-036 puts the newest raised decision on top with its options and default, and the earlier one beneath", () => {
     const { rerender } = renderPile([FIRST]);
     const top = screen.getByTestId("decision-card-decision-a");
@@ -300,10 +330,17 @@ describe("DecisionPile", () => {
         )}
       />,
     );
-    expect(screen.getByTestId("decision-badge")).toHaveTextContent("Overturned");
-    expect(screen.getByTestId("decision-applied")).toHaveTextContent(
-      "Applied: one file per stack, overturned from the default one file per unit.",
+    // Applied, the overturned decision leaves the cards for a dimmed row at the
+    // bottom of the panel (#1622).
+    expect(screen.queryByRole("article", { name: "Decision decision-a" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("decision-leaving-decision-a")).toHaveClass("animate-drop-away");
+    const row = within(screen.getByRole("list", { name: "Applied decisions" })).getByTestId(
+      "decision-applied-decision-a",
     );
+    expect(row).toHaveTextContent(
+      "decision-a · overturned · applied one file per stack · default one file per unit",
+    );
+    expect(row).toHaveClass("opacity-40");
     expect(announcer).toHaveTextContent("decision-a overturned: one file per stack is applied.");
   });
 

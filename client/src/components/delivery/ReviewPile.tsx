@@ -742,15 +742,16 @@ export default function ReviewPile({
         </ul>
       )}
       {reviewed.length > 0 && (
-        // The reviewed decisions close the panel as dimmed rows.
+        // The reviewed decisions follow the cards as rows whose head line is dimmed;
+        // a discussion summary stays at full contrast, so it stays readable.
         <ul aria-label="Reviewed agent decisions" className="-mx-3 -mb-3 border-t border-border">
           {reviewed.map((decision) => (
             <li
               key={decision.id}
               data-testid={`review-reviewed-${decision.id}`}
-              className="space-y-1 border-b border-border px-3 py-1.5 opacity-40 last:border-b-0"
+              className="space-y-1 border-b border-border px-3 py-1.5 last:border-b-0"
             >
-              <p className="break-words font-mono text-11 text-text-secondary">
+              <p className="break-words font-mono text-11 text-text-secondary opacity-40">
                 {decision.id} · {decision.review?.status} · chose {decision.chosen}
               </p>
               {decision.review?.summary !== undefined && (
