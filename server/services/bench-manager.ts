@@ -157,6 +157,16 @@ export function componentHasSetup(componentConfig: ComponentConfig | undefined):
   return typeof setup === "string" && setup.trim().length > 0;
 }
 
+/**
+ * The one-time setup command a component declares, read from the same fields
+ * as `componentHasSetup`, or an empty string when it declares none. Restart
+ * with new config compares it across definitions to tell a changed setup.
+ */
+function componentSetupCommand(componentConfig: ComponentConfig | undefined): string {
+  const setup = componentConfig?.config?.setup ?? componentConfig?.setup;
+  return typeof setup === "string" ? setup.trim() : "";
+}
+
 function resolveComponentOrder(components: Record<string, ComponentConfig>): string[] {
   const names = Object.keys(components);
   const visited = new Set<string>();
@@ -2802,14 +2812,19 @@ export async function restartBenchWithConfig(projectId: string, benchId: number)
   }
 
   // A component the new definitions add starts as createBench seeds it; one they
-  // drop leaves the bench. A component in both keeps its setup flag.
+  // drop leaves the bench. A component in both keeps its setup flag, unless its
+  // setup command changed: it is then seeded again, so the new setup runs.
   const components: Record<string, ComponentStatus> = {};
   for (const [name, componentConfig] of Object.entries(config.components)) {
     const prior = bench.components[name];
+    const setupChanged =
+      componentSetupCommand(componentConfig) !==
+      componentSetupCommand(priorConfig.components[name]);
     components[name] = {
       name,
       status: "stopped",
-      setupComplete: prior ? prior.setupComplete : !componentHasSetup(componentConfig),
+      setupComplete:
+        prior && !setupChanged ? prior.setupComplete : !componentHasSetup(componentConfig),
       ...(prior?.url !== undefined && { url: prior.url }),
     };
   }
