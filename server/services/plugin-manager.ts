@@ -2073,12 +2073,15 @@ export class PluginSwapRefusedError extends Error {
   readonly code = "plugin-swap-refused";
   readonly pluginId: string;
   readonly reason: SwapRefusalReason;
+  /** Why, without the plugin name: "its kind changed from component to agent". */
+  readonly detail: string;
 
   constructor(pluginId: string, reason: SwapRefusalReason, detail: string) {
     super(`Plugin "${pluginId}" was not swapped: ${detail}`);
     this.name = "PluginSwapRefusedError";
     this.pluginId = pluginId;
     this.reason = reason;
+    this.detail = detail;
   }
 }
 
@@ -2359,14 +2362,60 @@ export async function uninstall(pluginId: string): Promise<void> {
   }
 
   await stopPluginProcess(entry);
-
-  if (entry.logStream) {
-    const stream = entry.logStream;
-    entry.logStream = null;
-    await new Promise<void>((resolve) => stream.end(resolve));
-  }
-
+  await closeLogStream(entry);
   await rm(entry.record.pluginDir, { recursive: true, force: true });
+  dropUninstalled(entry);
+}
+
+/**
+ * Unregister a user plugin whose directory was removed from disk (HR-FR-007):
+ * stop its process and drop it and its bookkeeping as `uninstall` does. The
+ * directory is already gone, so nothing is removed from disk, and the
+ * active-integration guard does not apply: the plugin cannot keep running
+ * from a directory that no longer exists once its process stops.
+ *
+ * Throws a PluginInUseError, before anything is stopped, while a bench uses
+ * the plugin (HR-FR-010): its process keeps running and the benches keep their
+ * resources until the user clears them.
+ */
+export async function unregisterRemoved(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  if (entry.record.source === "bundled") {
+    throw new Error(`Bundled plugins cannot be uninstalled: ${pluginId}`);
+  }
+  const benchIds = benchesUsingPlugin(pluginId);
+  if (benchIds.length > 0) {
+    throw new PluginInUseError(pluginId, benchIds);
+  }
+  await stopPluginProcess(entry);
+  await closeLogStream(entry);
+  dropUninstalled(entry);
+}
+
+/**
+ * Drop the entry of a user plugin that never had a valid manifest (status
+ * `invalid` or `incompatible`, so no process), so its directory can be
+ * registered again once it is fixed. Does nothing for any other entry.
+ */
+export async function forgetInvalidEntry(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry || entry.record.source !== "user" || entry.process) return;
+  if (entry.record.status !== "invalid" && entry.record.status !== "incompatible") return;
+  await closeLogStream(entry);
+  plugins.delete(pluginId);
+}
+
+async function closeLogStream(entry: PluginEntry): Promise<void> {
+  if (!entry.logStream) return;
+  const stream = entry.logStream;
+  entry.logStream = null;
+  await new Promise<void>((resolve) => stream.end(resolve));
+}
+
+/** The bookkeeping of an uninstall, once the process is stopped. */
+function dropUninstalled(entry: PluginEntry): void {
+  const pluginId = entry.record.id;
   plugins.delete(pluginId);
   // IP-WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
@@ -2458,8 +2507,16 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
  * directory into `~/.roubo/plugins/<id>/`. The caller is responsible for
  * having ruled out duplicate ids before invoking this: we throw if the id
  * is already known.
+ *
+ * With `inertUntilConsent` (a plugin found on disk, HR-FR-008) the plugin is
+ * registered but started only when it already has a ConsentRecord and is not
+ * disabled; otherwise it stays inert until `startAfterConsent`. Registration
+ * never grants consent.
  */
-export async function registerInstalled(pluginDir: string): Promise<PluginRecord> {
+export async function registerInstalled(
+  pluginDir: string,
+  options: { inertUntilConsent?: boolean } = {},
+): Promise<PluginRecord> {
   const fallbackId = path.basename(pluginDir);
   const built = await buildEntryFromDir(pluginDir, "user", fallbackId);
   if (!built) {
@@ -2477,7 +2534,11 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   const updateBenches = pendingUpdates.get(built.idForMap);
   pendingUpdates.delete(built.idForMap);
 
-  if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
+  const inert =
+    options.inertUntilConsent === true &&
+    !updateBenches &&
+    !(pluginConsentState.hasConsent(built.idForMap) && isPluginEnabled(built.idForMap));
+  if (built.entry.record.status === "disabled" && built.entry.record.manifest && !inert) {
     if (updateBenches) {
       built.entry.swapping = true;
       try {
@@ -2492,6 +2553,43 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   if (updateBenches) swapState.closeSwapGap(built.idForMap);
 
   return copyRecord(built.entry);
+}
+
+/** What a plugin directory holds, read and validated as discovery reads it. */
+export interface PluginDirInspection {
+  /** The manifest id, or the directory name when the manifest does not parse. */
+  id: string;
+  manifest: PluginManifest | null;
+  /** Why the directory cannot be registered, or null when it can. */
+  error: PluginError | null;
+}
+
+/**
+ * Read and validate the plugin directory `pluginDir` without registering it.
+ * Null when it holds no manifest file at all.
+ */
+export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInspection | null> {
+  const built = await buildEntryFromDir(pluginDir, "user", path.basename(pluginDir));
+  if (!built) return null;
+  const record = built.entry.record;
+  return {
+    id: built.idForMap,
+    manifest: built.manifest,
+    error: record.status === "disabled" && record.manifest ? null : record.lastError,
+  };
+}
+
+/**
+ * Start a registered plugin that was left inert for want of consent, once it
+ * has a ConsentRecord (HR-FR-008). A plugin that is running, has no valid
+ * manifest, is not consented, or that the user disabled is left as it is.
+ */
+export async function startAfterConsent(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry || entry.process || !entry.record.manifest) return;
+  if (entry.record.status !== "disabled") return;
+  if (!isPluginEnabled(pluginId) || !pluginConsentState.hasConsent(pluginId)) return;
+  await spawnPlugin(entry);
 }
 
 /**

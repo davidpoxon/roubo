@@ -116,6 +116,14 @@ export function isValidStagingToken(token: string): boolean {
   return STAGING_TOKEN_RE.test(token);
 }
 
+/**
+ * Whether the staged install of `token` updates an installed plugin rather
+ * than adding one. False for an unknown token.
+ */
+export function isStagedUpdate(token: string): boolean {
+  return staged.get(token)?.replaceId !== undefined;
+}
+
 function stagingRoot(): string {
   return resolveWithin(pluginManager.getUserPluginsRoot(), STAGING_DIR_NAME);
 }
