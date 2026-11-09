@@ -545,15 +545,15 @@ Opens a Server-Sent Events stream. Each `data:` line is a JSON object with a `ty
 
 `input-changed` fields:
 
-| Field       | Type                                                                               | Notes                                                            |
-| ----------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `surface`   | `project-config` \| `plugin` \| `settings` \| `bench` \| `github` \| `environment` | The input that changed                                           |
-| `outcome`   | `applied` \| `rejected` \| `refused`                                               | `rejected` keeps the last good configuration in effect           |
-| `projectId` | string, optional                                                                   | The project the change belongs to                                |
-| `pluginId`  | string, optional                                                                   | The plugin the change belongs to                                 |
-| `benchIds`  | number[], optional                                                                 | The benches the change reached                                   |
-| `summary`   | string                                                                             | One line that starts with the surface's thing, such as `Project` |
-| `error`     | `{ path, first }`, optional                                                        | On a rejection: the input path and its first validation error    |
+| Field       | Type                                                                               | Notes                                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `surface`   | `project-config` \| `plugin` \| `settings` \| `bench` \| `github` \| `environment` | The input that changed                                                                                                                                             |
+| `outcome`   | `applied` \| `rejected` \| `refused`                                               | `rejected` keeps the last good configuration in effect                                                                                                             |
+| `projectId` | string, optional                                                                   | The project the change belongs to                                                                                                                                  |
+| `pluginId`  | string, optional                                                                   | The plugin the change belongs to                                                                                                                                   |
+| `benchIds`  | number[], optional                                                                 | The benches the change reached                                                                                                                                     |
+| `summary`   | string                                                                             | One line that starts with the surface's thing, such as `Project`                                                                                                   |
+| `error`     | `{ path, first }`, optional                                                        | On a rejection or a refusal: the input path, relative to its project root or the state dir, and its first validation error, or a generic reason when there is none |
 
 The event never carries file content. A change whose content matches what is already applied (deduped) and a write Roubo made itself (self-write) are logged on the server only and never sent.
 
