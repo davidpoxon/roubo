@@ -444,9 +444,9 @@ describe("POST /save-config", () => {
     } as any);
     vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
     vi.mocked(atomicWrite).mockReturnValue(undefined as any);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      id: "test",
-    } as any);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([
+      { id: "test", repoPath: "/repo" },
+    ] as any);
     vi.mocked(projectRegistry.reloadConfig).mockReturnValue({
       id: "test",
     } as any);
@@ -456,6 +456,42 @@ describe("POST /save-config", () => {
     expect(projectRegistry.reloadConfig).toHaveBeenCalledWith("test");
   });
 
+  it("HR-TC-003: re-parses the project registered at the written repoPath when the saved project.name differs", async () => {
+    vi.mocked(validateConfigObject).mockReturnValue({ valid: true, config: {} } as any);
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([
+      { id: "other", repoPath: "/elsewhere" },
+      { id: "lantern", repoPath: "/repo" },
+    ] as any);
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+
+    const config = { project: { name: "beacon" } };
+    const res = await request(app).post("/save-config").send({ repoPath: "/repo/", config });
+    expect(res.status).toBe(200);
+    expect(projectRegistry.reloadConfig).toHaveBeenCalledTimes(1);
+    expect(projectRegistry.reloadConfig).toHaveBeenCalledWith("lantern");
+    // The manual reload logs and broadcasts, which an app write must not.
+    expect(projectRegistry.reloadConfigManually).not.toHaveBeenCalled();
+  });
+
+  it("does not reload a project that only shares the saved project.name", async () => {
+    vi.mocked(validateConfigObject).mockReturnValue({ valid: true, config: {} } as any);
+    vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
+    vi.mocked(atomicWrite).mockReturnValue(undefined as any);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([
+      { id: "lantern", repoPath: "/elsewhere" },
+    ] as any);
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "lantern",
+      repoPath: "/elsewhere",
+    } as any);
+
+    const config = { project: { name: "lantern" } };
+    await request(app).post("/save-config").send({ repoPath: "/repo", config });
+    expect(projectRegistry.reloadConfig).not.toHaveBeenCalled();
+  });
+
   it("still returns 200 when reloadConfig throws after successful save", async () => {
     vi.mocked(validateConfigObject).mockReturnValue({
       valid: true,
@@ -463,9 +499,9 @@ describe("POST /save-config", () => {
     } as any);
     vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
     vi.mocked(atomicWrite).mockReturnValue(undefined as any);
-    vi.mocked(projectRegistry.getProject).mockReturnValue({
-      id: "test",
-    } as any);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([
+      { id: "test", repoPath: "/repo" },
+    ] as any);
     vi.mocked(projectRegistry.reloadConfig).mockImplementation(() => {
       throw new Error("reload failed");
     });
@@ -483,7 +519,7 @@ describe("POST /save-config", () => {
     } as any);
     vi.spyOn(fs, "mkdirSync").mockReturnValue(undefined);
     vi.mocked(atomicWrite).mockReturnValue(undefined as any);
-    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    vi.mocked(projectRegistry.getProjects).mockReturnValue([]);
 
     const config = { project: { name: "new-project" } };
     await request(app).post("/save-config").send({ repoPath: "/repo", config });
