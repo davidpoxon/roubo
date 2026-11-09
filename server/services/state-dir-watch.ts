@@ -10,7 +10,10 @@
  *   edit of a live bench is refused with a notice that names it, and the bench
  *   keeps what it has. A refused edit, and an edit of a field that is not
  *   hand-editable, is undone in the file by writing the bench back from
- *   memory, a self-write, so the next launch does not load it.
+ *   memory, a self-write, so the next launch does not load it. The notice
+ *   names each bench whose edit was not applied: a live one, one whose edited
+ *   field is not hand-editable, a record of no bench and a removed record. An
+ *   edit that changes no bench sends no notice.
  * - auth.json: a GitHub token put there is copied into the github-com
  *   plugin's github-token credential slot, and auth.json is left in place.
  * - plugins-consent.json: each consented plugin that is not running and that
@@ -180,6 +183,41 @@ export function benchRefusedNotice(refs: readonly (BenchStateEditRef & { status:
   };
 }
 
+/** A clause and its sentence for one kind of bench record the edit could not apply. */
+interface NotAppliedNotice {
+  summary: string;
+  first: string;
+}
+
+function notApplied(first: string): NotAppliedNotice {
+  return { summary: `Bench state not applied: ${first}.`, first };
+}
+
+/** "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable." */
+export function benchRevertedNotice(
+  refs: readonly (BenchStateEditRef & { fields: readonly string[] })[],
+): NotAppliedNotice {
+  return notApplied(
+    refs
+      .map(
+        (ref) =>
+          `${ref.fields.join(", ")} of ${benchPhrase([ref])} ` +
+          `${ref.fields.length === 1 ? "is" : "are"} not hand-editable`,
+      )
+      .join("; "),
+  );
+}
+
+/** "Bench state not applied: bench 5 on lantern does not exist." */
+export function benchUnmatchedNotice(refs: readonly BenchStateEditRef[]): NotAppliedNotice {
+  return notApplied(`${benchPhrase(refs)} ${refs.length === 1 ? "does" : "do"} not exist`);
+}
+
+/** "Bench state not applied: bench 4 on lantern cannot be removed by hand." */
+export function benchRemovedNotice(refs: readonly BenchStateEditRef[]): NotAppliedNotice {
+  return notApplied(`${benchPhrase(refs)} cannot be removed by hand`);
+}
+
 /** "Plugin consent applied: database." */
 export function consentAppliedNotice(pluginIds: readonly string[]): string {
   return pluginIds.length === 0
@@ -249,27 +287,40 @@ async function handleBenchState(absPath: string): Promise<HandlerResult> {
   // A legacy record is migrated as every read of the file migrates it.
   const persisted = state.migratePersistedState(read.value as unknown as PersistedState);
   const edit = benchManager.applyStateFileEdit(persisted);
-  const touched = [...edit.refused, ...edit.applied];
+  const touched = [
+    ...edit.refused,
+    ...edit.reverted,
+    ...edit.unmatched,
+    ...edit.removed,
+    ...edit.applied,
+  ];
+  // An edit that changed nothing of any bench, such as a save of the same
+  // records reformatted, is no change to report: it sends no notice, and the
+  // watch logs no line for it.
+  if (touched.length === 0) return "ignored";
   const projects = new Set(touched.map((r) => r.projectId));
-  const target =
-    projects.size === 1
-      ? {
-          projectId: [...projects][0],
-          benchIds: touched.map((r) => r.benchId).sort((a, b) => a - b),
-        }
-      : {};
-  if (edit.refused.length > 0) {
-    const refused = benchRefusedNotice(edit.refused);
-    const summary =
-      edit.applied.length === 0
-        ? refused.summary
-        : `${refused.summary} ${benchAppliedNotice(edit.applied)}`;
-    return {
-      outcome: "refused",
-      event: { ...target, summary, error: { path: "state.json", first: refused.first } },
-    };
-  }
-  return applied({ ...target, summary: benchAppliedNotice(edit.applied) });
+  const benchIds = [...new Set(touched.map((r) => r.benchId))].sort((a, b) => a - b);
+  const target = projects.size === 1 ? { projectId: [...projects][0], benchIds } : {};
+  // Each record the edit could not apply is named: a live bench is refused,
+  // and a change to a field that is not hand-editable, a record of no bench
+  // and a removed record are rejected. The benches it did apply follow.
+  const notApplied: NotAppliedNotice[] = [];
+  if (edit.refused.length > 0) notApplied.push(benchRefusedNotice(edit.refused));
+  if (edit.reverted.length > 0) notApplied.push(benchRevertedNotice(edit.reverted));
+  if (edit.unmatched.length > 0) notApplied.push(benchUnmatchedNotice(edit.unmatched));
+  if (edit.removed.length > 0) notApplied.push(benchRemovedNotice(edit.removed));
+  const first = notApplied[0];
+  if (first === undefined) return applied({ ...target, summary: benchAppliedNotice(edit.applied) });
+  const sentences = notApplied.map((n) => n.summary);
+  if (edit.applied.length > 0) sentences.push(benchAppliedNotice(edit.applied));
+  return {
+    outcome: edit.refused.length > 0 ? "refused" : "rejected",
+    event: {
+      ...target,
+      summary: sentences.join(" "),
+      error: { path: "state.json", first: first.first },
+    },
+  };
 }
 
 async function handleAuth(absPath: string): Promise<HandlerResult> {
