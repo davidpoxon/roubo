@@ -347,21 +347,23 @@ describe("POST /test/__reset", () => {
     // spec that consented it cannot leave a second available agent behind.
     // AP-TC-115 (#1127) adds a third (gemini-cli) on the same terms, and
     // APCC-TC-022 (#1306) a fourth (agent-choice-probe), and APCC-TC-038 (#1349)
-    // a fifth (cursor-cli).
+    // a fifth (cursor-cli). HR-TC-001 adds the `process` component overlay on
+    // the same opt-in terms.
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
-    const OPT_IN_AGENT_FIXTURE_IDS = [
+    const OPT_IN_FIXTURE_IDS = [
       "codex-cli",
       "gemini-cli",
       "agent-choice-probe",
       "cursor-cli",
+      "process",
     ];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
-      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_AGENT_FIXTURE_IDS.length,
+      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_FIXTURE_IDS.length,
     );
     for (const id of BUNDLED_PLUGIN_IDS) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
     }
-    for (const id of [...FAILURE_FIXTURE_IDS, ...OPT_IN_AGENT_FIXTURE_IDS]) {
+    for (const id of [...FAILURE_FIXTURE_IDS, ...OPT_IN_FIXTURE_IDS]) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
     }
 
@@ -493,7 +495,8 @@ describe("POST /test/__reset", () => {
   // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
   // (#1101), AP-TC-115 (#1127), APCC-TC-022 (#1306) and APCC-TC-038 (#1349) add
   // the opt-in agent fixtures (codex-cli, gemini-cli, agent-choice-probe,
-  // cursor-cli) to the same set.
+  // cursor-cli) to the same set, and HR-TC-001 the opt-in `process` component
+  // overlay.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
     const FORCED_DISABLED_IDS = [
@@ -503,6 +506,7 @@ describe("POST /test/__reset", () => {
       "gemini-cli",
       "agent-choice-probe",
       "cursor-cli",
+      "process",
     ];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
