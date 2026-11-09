@@ -7,7 +7,7 @@ import { selectDependencyOrder } from "@roubo/shared/delivery-selectors";
 import type { DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
 import DeliveryGraph from "./DeliveryGraph";
-import { NODE_HEIGHT, NODE_WIDTH, layoutDeliveryMap } from "./delivery-map-model";
+import { GATE_HEIGHT, NODE_HEIGHT, NODE_WIDTH, layoutDeliveryMap } from "./delivery-map-model";
 
 afterEach(() => {
   cleanup();
@@ -69,6 +69,89 @@ describe("DeliveryGraph layout", () => {
     expect(layout.gateLane?.ruleTop).toBeGreaterThan(lowest);
     expect(layout.gateLane?.ruleTop).toBeLessThan(gate?.y ?? 0);
   });
+
+  it("puts two gates that share a column one above the other in the gate lane", () => {
+    const record = fourUnitRecord();
+    const layout = layoutOf({
+      ...record,
+      stack: {
+        ...record.stack,
+        gates: [
+          ...record.stack.gates,
+          { id: "gate-also-after-b", after: ["B"], status: "pending", cases: ["FX-TC-003"] },
+        ],
+      },
+    });
+    const gateY = (id: string) => layout.items.find((entry) => entry.key === `gate:${id}`);
+    const first = gateY("gate-after-b");
+    const second = gateY("gate-also-after-b");
+    expect(second?.x).toBe(first?.x);
+    expect(Math.abs((second?.y ?? 0) - (first?.y ?? 0))).toBeGreaterThanOrEqual(GATE_HEIGHT);
+    expect(layout.gateLane).toMatchObject({ gateCount: 3 });
+    const lane = layout.gateLane;
+    for (const gate of [first, second]) {
+      expect(gate?.y).toBeGreaterThanOrEqual(lane?.top ?? Infinity);
+      expect((gate?.y ?? Infinity) + GATE_HEIGHT).toBeLessThanOrEqual(
+        (lane?.top ?? 0) + (lane?.height ?? 0),
+      );
+    }
+    // Room below the lane for the hover line of the lowest gate.
+    expect(layout.height).toBeGreaterThan((lane?.top ?? 0) + (lane?.height ?? 0));
+  });
+
+  it("starts the first column at the lowest layer a unit has", () => {
+    const record = fourUnitRecord();
+    const layout = layoutOf({
+      ...record,
+      units: record.units.map((unit) => ({ ...unit, layer: unit.layer + 2 })),
+    });
+    expect(layout.columns.map((column) => column.layer)).toEqual([2, 3, 4]);
+    const unitA = layout.items.find((entry) => entry.key === "unit:A");
+    expect(unitA?.x).toBe(layout.columns[0]?.left);
+    expect(unitA?.x).toBeLessThan(NODE_WIDTH);
+  });
+
+  it("has no gate lane when the delivery has no gates", () => {
+    const record = fourUnitRecord();
+    const layout = layoutOf({ ...record, stack: { ...record.stack, gates: [] } });
+    expect(layout.gateLane).toBeNull();
+    const lowest = Math.max(...layout.lanes.map((lane) => lane.top + lane.height));
+    expect(layout.height).toBeGreaterThanOrEqual(lowest);
+    expect(layout.width).toBeLessThan(3 * NODE_WIDTH + 3 * 40 + 20);
+    render(
+      <DeliveryGraph
+        layout={layout}
+        selectedKey={null}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("delivery-gate-lane")).toBeNull();
+    expect(screen.queryByTestId("delivery-gate-lane-rule")).toBeNull();
+  });
+
+  it("puts a gate whose units span stacks after the last of them, below every stack", () => {
+    const record = fourUnitRecord();
+    const layout = layoutOf({
+      ...record,
+      stack: {
+        ...record.stack,
+        gates: [
+          { id: "gate-after-b-d", after: ["B", "D"], status: "pending", cases: ["FX-TC-001"] },
+        ],
+      },
+    });
+    const gate = layout.items.find((entry) => entry.key === "gate:gate-after-b-d");
+    const lowest = Math.max(...layout.lanes.map((lane) => lane.top + lane.height));
+    expect(gate?.x).toBe(layout.columns.find((column) => column.layer === 2)?.left);
+    expect(gate?.y).toBeGreaterThan(lowest);
+    expect(
+      layout.edges
+        .filter((edge) => edge.from === "gate:gate-after-b-d")
+        .map((edge) => edge.to)
+        .sort(),
+    ).toEqual(["unit:B", "unit:D"]);
+  });
 });
 
 describe("DeliveryGraph", () => {
@@ -108,6 +191,26 @@ describe("DeliveryGraph", () => {
     expect(
       within(screen.getByTestId("unit-node-B")).getByText("after A", { selector: ".sr-only" }),
     ).toBeTruthy();
+  });
+
+  it("names a unit's pull request in its head, and a held unit's draft instead", () => {
+    const record = fourUnitRecord();
+    render(
+      <DeliveryGraph
+        layout={layoutOf({
+          ...record,
+          units: record.units.map((unit) =>
+            unit.id === "A" ? { ...unit, pr_url: "https://github.com/demo/demo/pull/42" } : unit,
+          ),
+        })}
+        selectedKey={null}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("unit-pr-number-A")).toHaveTextContent("#42");
+    expect(screen.queryByTestId("unit-pr-number-B")).toBeNull();
+    expect(screen.queryByTestId("unit-pr-A")).toBeNull();
   });
 
   it("scrolls the live unit into view when it opens past the visible width", () => {

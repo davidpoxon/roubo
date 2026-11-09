@@ -23,6 +23,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { NODE_HEIGHT } from "./delivery-map-model";
 
 const bench = {
   id: 3,
@@ -136,7 +137,15 @@ describe("Delivery map", () => {
       expect(node).toHaveAttribute("data-stack", stack);
       expect(node).toHaveAttribute("data-layer", String(layer));
       expect(node.style.left).toBe(header.style.left);
+      // The node lies wholly inside its stack's lane.
+      const lane = within(graph).getByTestId(`delivery-lane-${stack}`);
+      const laneTop = parseFloat(lane.style.top);
+      const nodeTop = parseFloat(node.style.top);
+      expect(nodeTop).toBeGreaterThanOrEqual(laneTop);
+      expect(nodeTop + NODE_HEIGHT).toBeLessThanOrEqual(laneTop + parseFloat(lane.style.height));
     }
+    // A column that holds only a gate has no layer header.
+    expect(within(graph).queryByTestId("delivery-layer-3")).toBeNull();
     expect(parseFloat(screen.getByTestId("unit-node-D").style.top)).toBeGreaterThan(
       parseFloat(screen.getByTestId("unit-node-A").style.top),
     );

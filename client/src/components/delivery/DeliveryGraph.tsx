@@ -16,6 +16,7 @@ import {
   isJammedMapUnit,
   isLiveUnit,
   JAM_MARK_LABEL,
+  pullRequestNumber,
   unitAccessibleName,
   unitStatusTone,
   type DeliveryMapLayout,
@@ -32,7 +33,8 @@ import {
 // lane below the stacks, and the `depends_on` edges between them, with a legend
 // of the edge kinds and a detail line under the graph. A lane longer than the
 // map scrolls sideways while the lane labels stay in place, and the live unit
-// is brought into view when the map opens. The nodes and gates sit in the DOM
+// is brought into view when the map opens. The layer headers scroll with their
+// columns, since the graph never scrolls on its own vertically. The nodes and gates sit in the DOM
 // in dependency order, so Tab walks them in that order whatever their place on
 // the canvas. The edges are decorative: each node names its dependencies for
 // the screen reader.
@@ -102,7 +104,14 @@ export default function DeliveryGraph({
 
   return (
     <div data-testid="delivery-graph" className="space-y-2">
-      <div ref={scroller} data-testid="delivery-graph-scroll" className="overflow-auto">
+      <div
+        ref={scroller}
+        data-testid="delivery-graph-scroll"
+        // Keeps a node that focus or a cross-check scrolls to clear of the
+        // lane labels.
+        style={{ scrollPaddingLeft: LABEL_WIDTH }}
+        className="overflow-auto"
+      >
         <div
           className="grid"
           style={{
@@ -111,8 +120,8 @@ export default function DeliveryGraph({
             width: LABEL_WIDTH + layout.width,
           }}
         >
-          <div aria-hidden="true" className="sticky left-0 top-0 z-30 bg-bg-surface" />
-          <div className="sticky top-0 z-10 bg-bg-surface">
+          <div aria-hidden="true" className="sticky left-0 z-30 bg-bg-surface" />
+          <div>
             <ol aria-label="Layers" className="relative h-full">
               {layout.columns.map((column) => (
                 <li
@@ -316,13 +325,22 @@ function UnitNode({
               {JAM_MARK_LABEL}
             </span>
           )}
-          {item.held && (
+          {item.held ? (
             <span
               data-testid={`unit-pr-${unit.id}`}
               className="ml-auto shrink-0 font-normal text-text-secondary"
             >
               {HELD_DRAFT_LABEL}
             </span>
+          ) : (
+            pullRequestNumber(unit) !== null && (
+              <span
+                data-testid={`unit-pr-number-${unit.id}`}
+                className="ml-auto shrink-0 font-normal text-text-secondary"
+              >
+                {pullRequestNumber(unit)}
+              </span>
+            )
           )}
         </span>
         <span className="w-full truncate text-12 font-medium text-text-primary">{unit.title}</span>
