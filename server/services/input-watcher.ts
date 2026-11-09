@@ -79,8 +79,16 @@ export interface InputEventDetail {
   error?: { path: string; first: string };
 }
 
+/**
+ * What a handler returns. `"ignored"` says the input is not one the surface
+ * acts on, such as a directory under the plugins root that holds no plugin:
+ * its hash is recorded so the same content does not run the handler again,
+ * and nothing is logged or sent.
+ */
 export type HandlerResult =
-  HandlerOutcome | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
+  | HandlerOutcome
+  | "ignored"
+  | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
 
 export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 
@@ -644,6 +652,10 @@ export function watchInput(
     let reason: string | undefined;
     try {
       const result = await handler({ path: unit, hash });
+      if (result === "ignored") {
+        lastApplied.set(unit, hash);
+        return;
+      }
       const value = typeof result === "string" ? result : result?.outcome;
       if (value === "applied" || value === "rejected" || value === "refused") outcome = value;
       if (typeof result === "object" && result !== null) {

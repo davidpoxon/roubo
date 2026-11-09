@@ -410,6 +410,43 @@ describe("a plugin directory removed", () => {
     await waitFor(() => !isAlive(pid), 6_000);
     expect(setChanges).toEqual([{ added: [], swapped: [], removed: ["new-plugin"] }]);
   }, 20_000);
+
+  /** Give the watch time to run, then drop a plugin and wait for it, so later runs are seen. */
+  async function settleAfter(): Promise<void> {
+    await sleep(1_200);
+    dropPlugin("sentinel");
+    await waitFor(() => outcomeLines("sentinel", "applied").length === 1);
+  }
+
+  it("HR-TC-018 sends no removal for the logs-only directory that a bundled plugin writes", async () => {
+    await startWatch();
+    const logs = path.join(root, "github-com", "logs");
+    fs.mkdirSync(logs, { recursive: true });
+    fs.writeFileSync(path.join(logs, "plugin.log"), "started\n");
+    await settleAfter();
+    fs.rmSync(path.join(root, "github-com"), { recursive: true, force: true });
+    await sleep(1_200);
+
+    expect(applyLines("github-com")).toEqual([]);
+    expect(summaries()).toEqual([
+      "Plugin sentinel installed. Grant consent in Settings > Plugins to enable it.",
+    ]);
+    expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
+  }, 20_000);
+
+  it("HR-TC-018 sends no removal for an empty directory made under the plugins root", async () => {
+    await startWatch();
+    fs.mkdirSync(path.join(root, "foo"));
+    await settleAfter();
+    fs.rmdirSync(path.join(root, "foo"));
+    await sleep(1_200);
+
+    expect(applyLines("foo")).toEqual([]);
+    expect(summaries()).toEqual([
+      "Plugin sentinel installed. Grant consent in Settings > Plugins to enable it.",
+    ]);
+    expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
+  }, 20_000);
 });
 
 describe("the marketplace path and the watch", () => {
