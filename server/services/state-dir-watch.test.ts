@@ -419,12 +419,13 @@ describe("state dir watch", () => {
     });
   });
 
-  it("moves a GitHub token put in auth.json into the github-com credential slot", async () => {
+  it("copies a GitHub token put in auth.json into the github-com credential slot and leaves the file", async () => {
     fs.writeFileSync(path.join(dir, "auth.json"), JSON.stringify({ githubToken: "ghp_example" }));
 
     await waitFor(() => hoisted.events.length === 1);
 
     expect(credentialStore.set).toHaveBeenCalledWith("github-com", "github-token", "ghp_example");
+    expect(fs.existsSync(path.join(dir, "auth.json"))).toBe(true);
     expect(hoisted.events[0]).toMatchObject({
       surface: "github",
       outcome: "applied",
