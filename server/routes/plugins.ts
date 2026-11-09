@@ -399,8 +399,9 @@ router.post("/:id/consent", async (req, res) => {
   }
 
   const saved = upsertConsent(id, parsed.data.acknowledgedCategories);
-  // A plugin found on disk stays inert until consent (HR-FR-008): start it
-  // now. One already running, or that the user disabled, is left as it is.
+  // A component or agent plugin found on disk with no consent stays inert,
+  // held as "awaiting-consent" (HR-FR-008): lift the hold and start it now.
+  // One already running, or that the user disabled, is left as it is.
   try {
     await pluginManager.startAfterConsent(id);
   } catch (err) {

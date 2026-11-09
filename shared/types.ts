@@ -137,6 +137,7 @@ export {
   ConsentRecordSchema,
   PluginConsentStateSchema,
   declaredCategories,
+  isConsentGatedKind,
   isFullyAcknowledged,
 } from "./plugin-consent-schema.js";
 export type {
