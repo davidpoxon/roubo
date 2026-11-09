@@ -3,9 +3,11 @@
  * InputWatcher watch of the user plugins root (`~/.roubo/plugins`), whose
  * inputs are its plugin directories.
  *
- * - A new directory is validated and registered, inert until the plugin has a
- *   ConsentRecord: discovery never grants consent. An invalid manifest is
- *   rejected with its first error and registers nothing.
+ * - A new directory is validated and registered. A component or agent plugin
+ *   with no ConsentRecord stays inert, also after a relaunch, until consent is
+ *   granted: discovery never grants consent. An integration plugin, which is
+ *   never consent-gated, starts unless the user disabled it. An invalid
+ *   manifest is rejected with its first error and registers nothing.
  * - A changed manifest or entry file of a registered plugin swaps its process,
  *   keeping every bench resource (HR-FR-009).
  * - A removed directory unregisters its plugin, unless a bench uses it: then
@@ -23,7 +25,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { parseManifest, type PluginRecord } from "@roubo/shared";
+import { isConsentGatedKind, parseManifest, type PluginRecord } from "@roubo/shared";
 import * as pluginManager from "./plugin-manager.js";
 import { PluginSwapRefusedError } from "./plugin-manager.js";
 import { PluginInUseError } from "./plugin-in-use.js";
@@ -98,6 +100,16 @@ export function installedNotice(pluginId: string, consented: boolean): string {
   return consented
     ? `Plugin ${pluginId} installed.`
     : `Plugin ${pluginId} installed. Grant consent in Settings > Plugins to enable it.`;
+}
+
+/**
+ * The install notice of `record`: the consent step is named only for a
+ * component or agent plugin with no ConsentRecord, the kinds that the plugin
+ * tile offers consent for. An integration plugin is never consent-gated.
+ */
+function installedNoticeOf(record: PluginRecord): string {
+  const needsConsent = isConsentGatedKind(record.manifest?.kind) && !hasConsent(record.id);
+  return installedNotice(record.id, !needsConsent);
 }
 
 /** "Plugin database updated to 1.2.0. 1 bench kept its components." */
@@ -378,7 +390,7 @@ async function handlePresent(dir: string, dirName: string): Promise<HandlerResul
   pluginSetChanged({ added: [registered.id] });
   return result("applied", "register", {
     pluginId: registered.id,
-    summary: installedNotice(registered.id, hasConsent(registered.id)),
+    summary: installedNoticeOf(registered),
   });
 }
 
@@ -457,7 +469,7 @@ export function appInstallOutcome(
         dir: record.pluginDir,
         action: "register",
         pluginId: record.id,
-        summary: installedNotice(record.id, hasConsent(record.id)),
+        summary: installedNoticeOf(record),
       };
 }
 

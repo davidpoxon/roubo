@@ -14,7 +14,13 @@ export const PLUGIN_ENABLE_STATE_SCHEMA_VERSION = 1 as const;
 export const BUNDLED_PLUGIN_IDS = ["github-com", "ghe", "jira-self-hosted"] as const;
 export type BundledPluginId = (typeof BUNDLED_PLUGIN_IDS)[number];
 
-export const PluginEnableStateValueSchema = z.enum(["enabled", "disabled"]);
+/**
+ * `"awaiting-consent"` marks a component or agent plugin that the plugins
+ * directory watch registered from disk with no ConsentRecord (HR-FR-008): it
+ * is not started, also after a relaunch, until consent is granted, which
+ * turns it `"enabled"`.
+ */
+export const PluginEnableStateValueSchema = z.enum(["enabled", "disabled", "awaiting-consent"]);
 export type PluginEnableStateValue = z.infer<typeof PluginEnableStateValueSchema>;
 
 export const PluginEnableStateSchema = z

@@ -44,6 +44,14 @@ export const PluginConsentStateSchema = z
 export type PluginConsentState = z.infer<typeof PluginConsentStateSchema>;
 
 /**
+ * Whether plugins of `kind` need a ConsentRecord before they run: component and
+ * agent plugins do; integration plugins are never consent-gated.
+ */
+export function isConsentGatedKind(kind: string | undefined): boolean {
+  return kind === "component" || kind === "agent";
+}
+
+/**
  * Enumerates the permission categories a manifest actually declares, i.e. the
  * categories the consumer must acknowledge before the plugin may run. A category
  * is "declared" only when it requests something: an empty `network.hosts`,

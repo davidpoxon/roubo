@@ -86,6 +86,18 @@ export function saveEnableState(state: PluginEnableState): void {
  * to merge against. Always returns the freshly persisted state.
  */
 export function setPluginEnabled(pluginId: string, enabled: boolean): PluginEnableState {
+  return setPluginEnableValue(pluginId, enabled ? "enabled" : "disabled");
+}
+
+/**
+ * Read-modify-write of one plugin's value, `"awaiting-consent"` included
+ * (HR-FR-008). Seeds a missing file as `setPluginEnabled` does. Always returns
+ * the freshly persisted state.
+ */
+export function setPluginEnableValue(
+  pluginId: string,
+  value: PluginEnableStateValue,
+): PluginEnableState {
   const current = loadEnableState() ?? {
     schemaVersion: PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
     installInitialized: false,
@@ -95,7 +107,7 @@ export function setPluginEnabled(pluginId: string, enabled: boolean): PluginEnab
     ...current,
     plugins: {
       ...current.plugins,
-      [pluginId]: enabled ? "enabled" : "disabled",
+      [pluginId]: value,
     },
   };
   saveEnableState(next);
