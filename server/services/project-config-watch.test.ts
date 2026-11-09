@@ -267,6 +267,36 @@ describe("roubo.yaml watch", () => {
     expect(inputEvents()).toHaveLength(0);
   });
 
+  it("HR-TC-004: a rejected app write keeps the last good config, sends one rejected event, and a hand save of the same content runs again", async () => {
+    const lastGood = registry.getProject("lantern");
+    const invalid = roubo("lantern").replace("max: 3", "max: many");
+
+    // The app writes roubo.yaml through atomicWrite, then reloads it itself.
+    atomicWrite(configFile, invalid);
+    const live = registry.reloadConfig("lantern");
+
+    expect(live).toBe(lastGood);
+    expect(registry.getProject("lantern")?.configValid).toBe(true);
+    expect(configLines("rejected")).toHaveLength(1);
+    expect(inputEvents()).toHaveLength(1);
+    const [event] = inputEvents();
+    expect(event).toMatchObject({ outcome: "rejected", projectId: "lantern" });
+    expect(event.error?.path).toBe(".roubo/roubo.yaml");
+    expect(event.summary.endsWith("Last good config is still live.")).toBe(true);
+
+    // The watch takes the write as the app's own and sends nothing more.
+    await waitFor(() => configLines("self-write").length === 1);
+    await sleep(300);
+    expect(inputEvents()).toHaveLength(1);
+
+    // The same content saved by hand is re-parsed, not deduped.
+    fs.writeFileSync(configFile, invalid);
+    await waitFor(() => configLines("rejected").length === 2);
+    expect(configLines("deduped")).toHaveLength(0);
+    expect(inputEvents()).toHaveLength(2);
+    expect(inputEvents()[1].outcome).toBe("rejected");
+  });
+
   it("HR-TC-009: the manual reload applies unchanged content with no dedupe and writes one applied line and one event", async () => {
     fs.writeFileSync(configFile, fs.readFileSync(configFile, "utf-8"));
     await waitFor(() => configLines("deduped").length === 1);

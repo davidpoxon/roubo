@@ -221,6 +221,87 @@ describe("watchInput dedupe and self-write", () => {
     expect(applyLines()).toHaveLength(1);
   });
 
+  it("HR-TC-005 a delete after a rejected save runs the handler with a null hash, not deduped", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (change: InputChange): Promise<HandlerResult> =>
+      change.hash === hashContent("name: bad\n") ? "rejected" : "applied",
+    );
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    fs.unlinkSync(file);
+    await waitFor(() => handler.mock.calls.length === 2);
+    await waitFor(() => outcomeCount("applied") === 1);
+
+    expect(handler).toHaveBeenLastCalledWith({ path: file, hash: null });
+    expect(outcomeCount("deduped")).toBe(0);
+  });
+
+  it("HR-TC-005 a save that restores the last applied content after a rejection runs the handler", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (change: InputChange): Promise<HandlerResult> =>
+      change.hash === hashContent("name: bad\n") ? "rejected" : "applied",
+    );
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    fs.writeFileSync(file, "name: one\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+
+    expect(handler).toHaveBeenLastCalledWith({ path: file, hash: hashContent("name: one\n") });
+    expect(outcomeCount("deduped")).toBe(0);
+  });
+
+  it("HR-TC-052 a re-arm rescan does not run the handler again on unchanged rejected content", async () => {
+    const dir = path.join(projectDir, "conf");
+    const away = path.join(projectDir, "conf-away");
+    fs.mkdirSync(dir);
+    const file = path.join(dir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    const w = track(
+      watchInput(file, { surface: "project", settleMs: 50, rearmPollMs: 100 }, handler),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    fs.renameSync(dir, away);
+    await sleep(300);
+    fs.renameSync(away, dir);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+    await sleep(300);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(outcomeCount("rejected")).toBe(1);
+  });
+
+  it("HR-TC-004 markRejected keeps a rejected app write rejected, so a hand save of the same content runs the handler", async () => {
+    const file = path.join(stateDir, "settings.json");
+    fs.writeFileSync(file, "{}");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    const w = track(watchInput(file, { surface: "settings", settleMs: 50 }, handler));
+    await w.ready;
+
+    const content = '{"theme":42}';
+    atomicWrite(file, content);
+    w.markRejected(file, hashContent(content));
+    await waitFor(() => outcomeCount("self-write") === 1);
+    expect(handler).not.toHaveBeenCalled();
+
+    fs.writeFileSync(file, content);
+    await waitFor(() => handler.mock.calls.length === 1);
+
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent(content) });
+    expect(outcomeCount("deduped")).toBe(0);
+  });
+
   it("holds self-write tokens as a multiset that consumes the oldest match and expires", () => {
     const file = path.join(stateDir, "state.json");
     const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);

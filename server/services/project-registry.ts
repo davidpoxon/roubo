@@ -15,7 +15,7 @@ import * as state from "./state.js";
 import * as pluginManager from "./plugin-manager.js";
 import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
-import { logApply, watchInput, type Disposable, type HandlerResult } from "./input-watcher.js";
+import { logApply, watchInput, type HandlerResult, type InputWatch } from "./input-watcher.js";
 import { hashContent } from "./self-write-tokens.js";
 import { broadcastInputChanged } from "./sse.js";
 
@@ -492,10 +492,17 @@ export function applyConfig(projectId: string): ConfigApplyResult {
 /**
  * Re-parse a project's roubo.yaml and return the live record. A caller that
  * has just written the file itself goes through here: its write is a
- * self-write, so the watch sends no event for it (HR-NFR-002).
+ * self-write, so the watch sends no event for an applied write (HR-NFR-002).
+ * A rejected write is reported as the manual reload reports it, with one log
+ * line and one rejected input-changed event, since the watch takes the write
+ * as the app's own and would otherwise tell no one; the watch also records
+ * the content as rejected, so a later save of it runs the re-parse again.
  */
 export function reloadConfig(projectId: string): RegisteredProject {
-  return applyConfig(projectId).project;
+  const start = performance.now();
+  const apply = applyConfig(projectId);
+  if (apply.outcome === "rejected") reportConfigApply(projectId, apply, start);
+  return apply.project;
 }
 
 function configWatchEvent(projectId: string, apply: ConfigApplyResult) {
@@ -508,25 +515,25 @@ function configWatchEvent(projectId: string, apply: ConfigApplyResult) {
 }
 
 /**
- * The manual reload (POST /api/projects/:projectId/reload-config). It applies
- * whatever is on disk with no hash dedupe, and writes the same log line and
- * sends the same input-changed event as a watched save (HR-FR-017).
+ * Log and notify one apply that ran outside the watch, as a watched save is
+ * logged and notified. A rejection also marks the content as rejected in the
+ * project's watch, so the watch neither dedupes a save of that content nor
+ * takes the app's own write of it as applied.
  */
-export function reloadConfigManually(projectId: string): RegisteredProject {
-  const start = performance.now();
-  const apply = applyConfig(projectId);
+function reportConfigApply(projectId: string, apply: ConfigApplyResult, start: number): void {
   const configPath = path.join(apply.project.repoPath, ".roubo", "roubo.yaml");
-  let hash8 = "none";
+  let hash: string | null = null;
   try {
-    hash8 = hashContent(fs.readFileSync(configPath)).slice(0, 8);
+    hash = hashContent(fs.readFileSync(configPath));
   } catch {
     // A missing file logs no hash.
   }
+  if (apply.outcome === "rejected") configWatches.get(projectId)?.markRejected(configPath, hash);
   logApply({
     surface: PROJECT_CONFIG_SURFACE,
     path: configPath,
     outcome: apply.outcome,
-    hash8,
+    hash8: hash === null ? "none" : hash.slice(0, 8),
     durationMs: Math.round(performance.now() - start),
   });
   broadcastInputChanged({
@@ -534,11 +541,22 @@ export function reloadConfigManually(projectId: string): RegisteredProject {
     outcome: apply.outcome,
     ...configWatchEvent(projectId, apply),
   });
+}
+
+/**
+ * The manual reload (POST /api/projects/:projectId/reload-config). It applies
+ * whatever is on disk with no hash dedupe, and writes the same log line and
+ * sends the same input-changed event as a watched save (HR-FR-017).
+ */
+export function reloadConfigManually(projectId: string): RegisteredProject {
+  const start = performance.now();
+  const apply = applyConfig(projectId);
+  reportConfigApply(projectId, apply, start);
   return apply.project;
 }
 
 // The roubo.yaml watch of each registered project, by project id.
-const configWatches = new Map<string, Disposable>();
+const configWatches = new Map<string, InputWatch>();
 // Off until the composition root turns it on at boot, so a registry under test
 // arms no file watch.
 let configWatchesEnabled = false;
@@ -683,7 +701,7 @@ export const __test = {
     configWatches.clear();
   },
   /** The roubo.yaml watch of a project, so a test can await its `ready`. */
-  configWatch(projectId: string): Disposable | undefined {
+  configWatch(projectId: string): InputWatch | undefined {
     return configWatches.get(projectId);
   },
 };
