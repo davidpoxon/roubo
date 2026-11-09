@@ -452,25 +452,27 @@ export default function DecisionPile({
           sessionLive={sessionLive}
           onSittingOpened={onSittingOpened}
           raiseRequest={raiseRequest}
+          trailingRows={
+            applied.length > 0 ? (
+              // The overturned decisions close the panel as dimmed rows, after
+              // the reviewed agent decisions.
+              <ul aria-label="Applied decisions" className="border-t border-border">
+                {applied.map((decision) => (
+                  <li
+                    key={decision.id}
+                    data-testid={`decision-applied-${decision.id}`}
+                    className="border-b border-border px-3 py-1.5 opacity-40 last:border-b-0"
+                  >
+                    <p className="break-words font-mono text-11 text-text-secondary">
+                      {decision.id} · overturned · applied {decision.chosen ?? decision.default} ·
+                      default {decision.default}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : undefined
+          }
         />
-        {applied.length > 0 && (
-          // The overturned decisions close the panel as dimmed rows, after the
-          // reviewed agent decisions.
-          <ul aria-label="Applied decisions" className="-mx-3 -mb-3 border-t border-border">
-            {applied.map((decision) => (
-              <li
-                key={decision.id}
-                data-testid={`decision-applied-${decision.id}`}
-                className="border-b border-border px-3 py-1.5 opacity-40 last:border-b-0"
-              >
-                <p className="break-words font-mono text-11 text-text-secondary">
-                  {decision.id} · overturned · applied {decision.chosen ?? decision.default} ·
-                  default {decision.default}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </DeliveryPanel>
   );

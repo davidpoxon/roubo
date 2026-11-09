@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button as AriaButton, Label, TextArea, TextField } from "react-aria-components";
 import type { DeliveryControl } from "@roubo/shared/delivery-control-contract";
 import type { DeliveryDecision, DeliveryGate } from "@roubo/shared/delivery-observation-contract";
@@ -547,6 +547,7 @@ export default function ReviewPile({
   sessionLive = false,
   onSittingOpened,
   raiseRequest,
+  trailingRows,
 }: {
   projectId: string;
   benchId: number;
@@ -560,6 +561,9 @@ export default function ReviewPile({
   // link of the since-you-left digest (SB-FR-012); each new request raises
   // once, and only a decision on the review stack.
   raiseRequest?: { decisionId: string; nonce: number } | null | undefined;
+  // Rows that close the panel after the reviewed decisions, such as the
+  // decision pile's applied decisions.
+  trailingRows?: ReactNode;
 }) {
   const review = useReviewAction(projectId, benchId);
   const threadMessage = useThreadMessage(projectId, benchId);
@@ -600,7 +604,8 @@ export default function ReviewPile({
     return () => clearTimeout(timer);
   }, [leaving]);
 
-  if (stack.length === 0 && reviewed.length === 0 && leaving.length === 0) return null;
+  const hasPile = stack.length > 0 || reviewed.length > 0 || leaving.length > 0;
+  if (!hasPile && trailingRows === undefined) return null;
 
   const topCard = stack.find((card) => cardKey(card) === raisedId) ?? stack[0];
   const lower = stack.filter((card) => card !== topCard);
@@ -648,129 +653,139 @@ export default function ReviewPile({
   };
 
   return (
-    <section
-      data-testid="delivery-review-pile"
-      aria-label="Agent decisions to review"
-      className="space-y-2"
-    >
-      <div role="status" aria-live="polite" className="sr-only" data-testid="review-announcer">
-        {announcement}
-      </div>
-      {leaving.map((decision) => (
-        <div
-          key={`leaving-${decision.id}`}
-          data-testid={`review-leaving-${decision.id}`}
-          aria-hidden="true"
-          className="animate-drop-away rounded-card border border-border border-l-2 border-l-accent bg-bg-surface p-3"
+    <>
+      {hasPile && (
+        <section
+          data-testid="delivery-review-pile"
+          aria-label="Agent decisions to review"
+          className="space-y-2"
         >
-          <p className="text-13 font-medium text-text-primary">{decision.question}</p>
-        </div>
-      ))}
-      {review.isError && (
-        <Callout role="alert" title="The review action was not sent">
-          {review.error.message}
-        </Callout>
-      )}
-      {threadMessage.isError && (
-        <Callout role="alert" title="The message was not sent">
-          {threadMessage.error.message}
-        </Callout>
-      )}
-      {topCard !== undefined && (
-        <ul aria-label="Review pile" className="flex flex-col">
-          <li key={`top-${cardKey(topCard)}`}>
-            {top !== undefined && (
-              <TopCard
-                key={top.id}
-                decision={top}
-                word={reviewWord(reviewOpen, topQueued)}
-                queued={topQueued}
-                readsAtText={readsAt(snapshot)}
-                reviewOpen={reviewOpen}
-                isSending={review.isPending}
-                onAction={act}
-                thread={topThread.entries}
-                waiting={topThread.waiting}
-                sessionLive={sessionLive}
-                isSendingMessage={threadMessage.isPending}
-                onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
-                takeFocus={raisedId === cardKey(topCard)}
-              />
-            )}
-            {topGate !== undefined && (
-              <GateTopCard
-                key={topGate.id}
-                gate={topGate}
-                isOpening={sittingStage.isPending}
-                openError={sittingStage.isError ? sittingStage.error.message : undefined}
-                onOpenSitting={() => openSitting(topGate.id)}
-                takeFocus={raisedId === cardKey(topCard)}
-              />
-            )}
-          </li>
-          {lower.map((card) => (
-            <li key={cardKey(card)} className={PILE_LOWER_ITEM}>
-              <AriaButton
-                data-testid={`review-card-${card.id}`}
-                data-position="lower"
-                data-kind={card.kind}
-                onPress={() => setRaisedId(cardKey(card))}
-                className={PILE_LOWER_BAR}
-              >
-                <span className="sr-only">Raise this review card </span>
-                {card.kind === "decision" ? (
-                  <>
-                    <Badge
-                      decision={card.decision}
-                      word={reviewWord(reviewOpen, queuedAction(snapshot.controls, card.id))}
-                    />
-                    <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
-                      {originText(card.decision)}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <GateBadge gate={card.gate} />
-                    <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
-                      {gateOriginText(card.gate)}
-                    </span>
-                  </>
-                )}
-              </AriaButton>
-            </li>
-          ))}
-        </ul>
-      )}
-      {reviewed.length > 0 && (
-        // The reviewed decisions follow the cards as rows whose head line is dimmed;
-        // a discussion summary stays at full contrast, so it stays readable.
-        <ul aria-label="Reviewed agent decisions" className="-mx-3 -mb-3 border-t border-border">
-          {reviewed.map((decision) => (
-            <li
-              key={decision.id}
-              data-testid={`review-reviewed-${decision.id}`}
-              className="space-y-1 border-b border-border px-3 py-1.5 last:border-b-0"
+          <div role="status" aria-live="polite" className="sr-only" data-testid="review-announcer">
+            {announcement}
+          </div>
+          {leaving.map((decision) => (
+            <div
+              key={`leaving-${decision.id}`}
+              data-testid={`review-leaving-${decision.id}`}
+              aria-hidden="true"
+              className="animate-drop-away rounded-card border border-border border-l-2 border-l-accent bg-bg-surface p-3"
             >
-              <p className="break-words font-mono text-11 text-text-secondary opacity-40">
-                {decision.id} · {decision.review?.status} · chose {decision.chosen}
-              </p>
-              {decision.review?.summary !== undefined && (
-                <>
-                  <p className="font-mono text-11 font-medium text-text-secondary">
-                    discussion summary
-                  </p>
-                  <p
-                    data-testid={`review-summary-${decision.id}`}
-                    className="whitespace-pre-wrap break-words text-13 text-text-body"
-                  >
-                    {decision.review.summary}
-                  </p>
-                </>
-              )}
-            </li>
+              <p className="text-13 font-medium text-text-primary">{decision.question}</p>
+            </div>
           ))}
-        </ul>
+          {review.isError && (
+            <Callout role="alert" title="The review action was not sent">
+              {review.error.message}
+            </Callout>
+          )}
+          {threadMessage.isError && (
+            <Callout role="alert" title="The message was not sent">
+              {threadMessage.error.message}
+            </Callout>
+          )}
+          {topCard !== undefined && (
+            <ul aria-label="Review pile" className="flex flex-col">
+              <li key={`top-${cardKey(topCard)}`}>
+                {top !== undefined && (
+                  <TopCard
+                    key={top.id}
+                    decision={top}
+                    word={reviewWord(reviewOpen, topQueued)}
+                    queued={topQueued}
+                    readsAtText={readsAt(snapshot)}
+                    reviewOpen={reviewOpen}
+                    isSending={review.isPending}
+                    onAction={act}
+                    thread={topThread.entries}
+                    waiting={topThread.waiting}
+                    sessionLive={sessionLive}
+                    isSendingMessage={threadMessage.isPending}
+                    onSendMessage={(text, sent) => sendMessage(top.id, text, sent)}
+                    takeFocus={raisedId === cardKey(topCard)}
+                  />
+                )}
+                {topGate !== undefined && (
+                  <GateTopCard
+                    key={topGate.id}
+                    gate={topGate}
+                    isOpening={sittingStage.isPending}
+                    openError={sittingStage.isError ? sittingStage.error.message : undefined}
+                    onOpenSitting={() => openSitting(topGate.id)}
+                    takeFocus={raisedId === cardKey(topCard)}
+                  />
+                )}
+              </li>
+              {lower.map((card) => (
+                <li key={cardKey(card)} className={PILE_LOWER_ITEM}>
+                  <AriaButton
+                    data-testid={`review-card-${card.id}`}
+                    data-position="lower"
+                    data-kind={card.kind}
+                    onPress={() => setRaisedId(cardKey(card))}
+                    className={PILE_LOWER_BAR}
+                  >
+                    <span className="sr-only">Raise this review card </span>
+                    {card.kind === "decision" ? (
+                      <>
+                        <Badge
+                          decision={card.decision}
+                          word={reviewWord(reviewOpen, queuedAction(snapshot.controls, card.id))}
+                        />
+                        <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
+                          {originText(card.decision)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <GateBadge gate={card.gate} />
+                        <span className="min-w-0 break-words font-mono text-11 text-text-secondary">
+                          {gateOriginText(card.gate)}
+                        </span>
+                      </>
+                    )}
+                  </AriaButton>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
-    </section>
+      {(reviewed.length > 0 || trailingRows !== undefined) && (
+        // The reviewed decisions, then the trailing rows, close the panel as
+        // full-width rows under a hairline. A reviewed row dims its head line; a
+        // discussion summary stays at full contrast, so it stays readable.
+        <div className="-mx-3 -mb-3">
+          {reviewed.length > 0 && (
+            <ul aria-label="Reviewed agent decisions" className="border-t border-border">
+              {reviewed.map((decision) => (
+                <li
+                  key={decision.id}
+                  data-testid={`review-reviewed-${decision.id}`}
+                  className="space-y-1 border-b border-border px-3 py-1.5 last:border-b-0"
+                >
+                  <p className="break-words font-mono text-11 text-text-secondary opacity-40">
+                    {decision.id} · {decision.review?.status} · chose {decision.chosen}
+                  </p>
+                  {decision.review?.summary !== undefined && (
+                    <>
+                      <p className="font-mono text-11 font-medium text-text-secondary">
+                        discussion summary
+                      </p>
+                      <p
+                        data-testid={`review-summary-${decision.id}`}
+                        className="whitespace-pre-wrap break-words text-13 text-text-body"
+                      >
+                        {decision.review.summary}
+                      </p>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {trailingRows}
+        </div>
+      )}
+    </>
   );
 }

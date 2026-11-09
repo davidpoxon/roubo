@@ -195,6 +195,11 @@ describe("ReviewPile", () => {
     );
     await waitFor(() => expect(screen.getByTestId("review-summary-D-1")).toBeInTheDocument());
     expect(screen.getByTestId("review-summary-D-1").textContent).toBe(summary);
+    // The reviewed row dims its head line only: the summary keeps full contrast
+    // (#1622).
+    const row = screen.getByTestId("review-reviewed-D-1");
+    expect(row.firstElementChild).toHaveClass("opacity-40");
+    expect(screen.getByTestId("review-summary-D-1").closest(".opacity-40")).toBeNull();
     expect(container.querySelector("script, img, a, iframe")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
     expect(pwned.__sbPwned).toBeUndefined();
