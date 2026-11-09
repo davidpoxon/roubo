@@ -44,7 +44,7 @@ vi.mock("./SetupGuided", () => ({
   ),
 }));
 
-import { useProjects, useRegisterProject, useReloadProjectConfig } from "../../hooks/useProjects";
+import { useProjects, useRegisterProject } from "../../hooks/useProjects";
 import {
   useScanRepo,
   useValidateConfig,
@@ -56,7 +56,6 @@ import {
 
 const mockUseProjects = vi.mocked(useProjects);
 const mockUseRegisterProject = vi.mocked(useRegisterProject);
-const mockUseReloadProjectConfig = vi.mocked(useReloadProjectConfig);
 const mockUseScanRepo = vi.mocked(useScanRepo);
 const mockUseValidateConfig = vi.mocked(useValidateConfig);
 const mockUseSaveConfig = vi.mocked(useSaveConfig);
@@ -77,7 +76,6 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockUseProjects.mockReturnValue({ data: [] } as never);
   mockUseRegisterProject.mockReturnValue(makeMutationMock());
-  mockUseReloadProjectConfig.mockReturnValue(makeMutationMock());
   mockUseScanRepo.mockReturnValue({
     data: undefined,
     isLoading: false,

@@ -167,4 +167,37 @@ describe("InputChangeNotices", () => {
     );
     expect(LAST_GOOD_LINE).toMatch(/last good/i);
   });
+
+  // The summaries below are what the server's rejectedConfigSummary writes for
+  // a roubo.yaml save that is not applied.
+  it("HR-TC-038 renders the server's rejected roubo.yaml summary once, with the path, the first error and one last-good line", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    const first = "components.web.command must be a string or array";
+    const summary = `Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: ${first}. Last good config is still live.`;
+    act(() =>
+      publishInputChanged(
+        rejected({ projectId: "lantern", summary, error: { path: ".roubo/roubo.yaml", first } }),
+      ),
+    );
+    const text = notices()[0].querySelector("p")?.textContent ?? "";
+    expect(text).toBe(summary);
+    expect(text.split(".roubo/roubo.yaml").length - 1).toBe(1);
+    expect(text.split(first).length - 1).toBe(1);
+    expect(text.match(/last good/gi)).toHaveLength(1);
+    expect(text).not.toContain(LAST_GOOD_LINE);
+  });
+
+  it("HR-TC-004 a rejected roubo.yaml of a project with no last good config does not claim one is live", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    const first = "components.web.command must be a string or array";
+    const summary = `Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: ${first}.`;
+    act(() =>
+      publishInputChanged(
+        rejected({ projectId: "lantern", summary, error: { path: ".roubo/roubo.yaml", first } }),
+      ),
+    );
+    const text = notices()[0].querySelector("p")?.textContent ?? "";
+    expect(text).toBe(summary);
+    expect(text).not.toMatch(/last good/i);
+  });
 });
