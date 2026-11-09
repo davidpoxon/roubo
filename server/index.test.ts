@@ -83,6 +83,13 @@ vi.mock("./services/plugin-manager.js", () => ({
   // installed here, so the warm loop is a no-op.
   getAgentManifests: vi.fn(() => []),
 }));
+// HR-FR-006: startServer arms the ~/.roubo/plugins watch and disposes it at
+// shutdown.
+vi.mock("./services/plugin-dir-watch.js", () => ({
+  onPluginSetChanged: vi.fn(() => () => {}),
+  startPluginDirWatch: vi.fn(() => Promise.resolve()),
+  stopPluginDirWatch: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("./services/catalog-client.js", () => ({
   prefetch: vi.fn(() => Promise.resolve()),
 }));
@@ -284,6 +291,11 @@ describe("startServer", { concurrent: false }, () => {
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
         getAgentManifests: vi.fn(() => []),
+      }));
+      vi.doMock("./services/plugin-dir-watch.js", () => ({
+        onPluginSetChanged: vi.fn(() => () => {}),
+        startPluginDirWatch: vi.fn(() => Promise.resolve()),
+        stopPluginDirWatch: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/catalog-client.js", () => ({
         prefetch: vi.fn(() => Promise.resolve()),

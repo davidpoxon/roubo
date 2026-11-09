@@ -15,6 +15,8 @@ vi.mock("../services/plugin-manager.js", () => ({
   invoke: vi.fn(),
   getConnectionStatus: vi.fn(),
   invalidateConnectionStatus: vi.fn(),
+  startAfterConsent: vi.fn(),
+  benchesUsingPlugin: vi.fn(() => []),
 }));
 
 vi.mock("../services/integration-overrides.js", async () => {
@@ -43,7 +45,24 @@ vi.mock("../services/plugin-activation.js", () => ({
 vi.mock("../services/plugin-consent-state.js", () => ({
   getConsent: vi.fn(),
   upsertConsent: vi.fn(),
+  hasConsent: vi.fn(() => true),
 }));
+
+const dirWatch = vi.hoisted(() => ({ applied: [] as unknown[] }));
+vi.mock("../services/plugin-dir-watch.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/plugin-dir-watch.js")>();
+  return {
+    ...actual,
+    // The app write runs as it is; what it reports is recorded, not logged.
+    runAppPluginWrite: vi.fn(
+      async <T>(write: () => Promise<T>, outcome: (value: T) => unknown): Promise<T> => {
+        const value = await write();
+        dirWatch.applied.push(outcome(value));
+        return value;
+      },
+    ),
+  };
+});
 
 vi.mock("../services/plugin-installer.js", async () => {
   class InstallError extends Error {
@@ -61,6 +80,7 @@ vi.mock("../services/plugin-installer.js", async () => {
     previewFromLocalPath: vi.fn(),
     commit: vi.fn(),
     cancel: vi.fn(),
+    isStagedUpdate: vi.fn(() => false),
   };
 });
 
@@ -237,6 +257,20 @@ describe("DELETE /:id", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ id: "github-com", removed: true });
     expect(pluginManager.uninstall).toHaveBeenCalledWith("github-com");
+  });
+
+  it("HR-TC-018 runs the uninstall as one app write of the plugin directory, reported as an unregister", async () => {
+    dirWatch.applied = [];
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(200);
+    expect(dirWatch.applied).toEqual([
+      {
+        dir: "/p/github-com",
+        action: "unregister",
+        pluginId: "github-com",
+        summary: "Plugin github-com removed.",
+      },
+    ]);
   });
 
   it("HR-TC-017 returns 409 with code plugin-in-use and the bench ids while a bench uses the plugin", async () => {
@@ -569,6 +603,59 @@ describe("POST /install/:token/confirm", () => {
     const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("unknown-token");
+  });
+
+  it("HR-TC-022 runs the install as one app write of the plugin directory, reported once as a register", async () => {
+    dirWatch.applied = [];
+    vi.mocked(pluginInstaller.isStagedUpdate).mockReturnValue(false);
+    vi.mocked(pluginConsentState.hasConsent).mockReturnValue(true);
+    vi.mocked(pluginInstaller.commit).mockResolvedValue(
+      stubRecord({ id: "database", source: "user", pluginDir: "/p/database" }),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(201);
+    expect(dirWatch.applied).toEqual([
+      {
+        dir: "/p/database",
+        action: "register",
+        pluginId: "database",
+        summary: "Plugin database installed.",
+      },
+    ]);
+  });
+
+  it("HR-TC-012 reports a marketplace update with the version and the benches that kept their components", async () => {
+    dirWatch.applied = [];
+    vi.mocked(pluginInstaller.isStagedUpdate).mockReturnValue(true);
+    vi.mocked(pluginManager.benchesUsingPlugin).mockReturnValue([2]);
+    vi.mocked(pluginInstaller.commit).mockResolvedValue(
+      record({
+        id: "database",
+        source: "user",
+        pluginDir: "/p/database",
+        manifest: {
+          version: "1.2.0",
+          permissions: {
+            network: { hosts: [] },
+            credentials: { slots: [] },
+            filesystem: { paths: [] },
+            processes: false,
+          },
+        } as never,
+      }),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(201);
+    expect(dirWatch.applied).toEqual([
+      {
+        dir: "/p/database",
+        action: "swap",
+        pluginId: "database",
+        summary: "Plugin database updated to 1.2.0. 1 bench kept its components.",
+      },
+    ]);
+    vi.mocked(pluginInstaller.isStagedUpdate).mockReturnValue(false);
+    vi.mocked(pluginManager.benchesUsingPlugin).mockReturnValue([]);
   });
 });
 
@@ -1010,5 +1097,37 @@ describe("POST /:id/consent (#656, CP-FR-012, AC4)", () => {
       "docker",
     ]);
     expect(res.body.pluginId).toBe("github-com");
+  });
+
+  it("HR-TC-014 starts a plugin left inert for want of consent once consent is granted", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ manifest: manifestWithDocker() }),
+    ]);
+    vi.mocked(pluginManager.startAfterConsent).mockClear();
+    const res = await request(app)
+      .post("/github-com/consent")
+      .send({ acknowledgedCategories: ["docker"] });
+    expect(res.status).toBe(200);
+    expect(pluginManager.startAfterConsent).toHaveBeenCalledWith("github-com");
+    expect(
+      vi.mocked(pluginConsentState.upsertConsent).mock.invocationCallOrder.at(-1),
+    ).toBeLessThan(vi.mocked(pluginManager.startAfterConsent).mock.invocationCallOrder[0]);
+  });
+});
+
+describe("the stale flag (HR-FR-009)", () => {
+  it("GET / serves the stale flag beside the status of each plugin", async () => {
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      record({ id: "database", status: "enabled", stale: true }),
+      record({ id: "process", status: "enabled", stale: false }),
+    ]);
+    const res = await request(app).get("/");
+    expect(res.status).toBe(200);
+    expect(
+      res.body.plugins.map((p: PluginRecord) => ({ id: p.id, status: p.status, stale: p.stale })),
+    ).toEqual([
+      { id: "database", status: "enabled", stale: true },
+      { id: "process", status: "enabled", stale: false },
+    ]);
   });
 });
