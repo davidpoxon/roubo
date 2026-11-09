@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   BenchNotification,
+  PersistedBench,
   RouboConfig,
   ComponentConfig,
   ResourceOwnershipEntry,
@@ -9098,6 +9099,36 @@ describe("createBench global cap", () => {
     expect(capWarnCount()).toBe(1);
   });
 
+  it("HR-TC-034 keeps the cap of the last good settings when settings.json no longer parses", () => {
+    seed(2);
+    // settings.json held benches.maxGlobal 2, then was hand-edited to '{': the
+    // throwing read fails, and the fail-open read serves the last good settings.
+    vi.mocked(stateService.loadSettings).mockImplementation(
+      (opts?: { throwOnCorrupt?: boolean }) => {
+        if (opts?.throwOnCorrupt) {
+          throw new SyntaxError("Expected property name or '}' in JSON at position 1");
+        }
+        return {
+          theme: "dark",
+          benches: {
+            enforceIssueDependencies: false,
+            autoStartComponents: false,
+            maxGlobal: 2,
+          },
+        } as any;
+      },
+    );
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+    expect(benchManager.getBenches()).toHaveLength(2);
+  });
+
   it("treats a missing settings.json as unlimited and does not warn (GBL-TC-030)", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
@@ -10846,13 +10877,21 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     two.status = "active";
   }
 
+  // The record that state.json holds for a bench, as the app last wrote it, with
+  // the fields a hand edit changed.
+  function record(id: number, edits: Partial<PersistedBench>): PersistedBench {
+    const bench = benchManager.getBench("test-project", id);
+    if (!bench) throw new Error(`expected bench ${id}`);
+    return { ...stateService.toPersistedBench(bench), ...edits };
+  }
+
   it("HR-TC-029 merges an edited branch into an idle bench", () => {
     loadBenches();
 
     const edit = benchManager.applyStateFileEdit({
       benches: [
-        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
-        makePersistedBench({ id: 3, branch: "feature/new", ports: { backend: 5003 } }),
+        record(2, { branch: "bench-2", ports: { backend: 5002 } }),
+        record(3, { branch: "feature/new", ports: { backend: 5003 } }),
       ],
     });
 
@@ -10866,8 +10905,8 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
 
     const edit = benchManager.applyStateFileEdit({
       benches: [
-        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 6002 } }),
-        makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+        record(2, { branch: "bench-2", ports: { backend: 6002 } }),
+        record(3, { branch: "bench-3", ports: { backend: 5003 } }),
       ],
     });
 
@@ -10878,6 +10917,64 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
     const two = benchManager.getBench("test-project", 2);
     expect(two?.ports).toEqual({ backend: 5002 });
     expect(two?.status).toBe("active");
+  });
+
+  it("HR-TC-029 writes a refused bench back to state.json, so the refused ports never load at the next launch", () => {
+    loadBenches();
+
+    benchManager.applyStateFileEdit({
+      benches: [
+        record(2, { branch: "bench-2", ports: { backend: 6002 } }),
+        record(3, { branch: "bench-3", ports: { backend: 5003 } }),
+      ],
+    });
+
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "test-project", id: 2, ports: { backend: 5002 } }),
+    );
+  });
+
+  it("HR-TC-029 writes an applied bench back when the edit also changed a field that is not hand-editable", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [
+        record(2, { branch: "bench-2", ports: { backend: 5002 } }),
+        record(3, {
+          branch: "feature/new",
+          ports: { backend: 5003 },
+          workspacePath: "/somewhere/else",
+        }),
+      ],
+    });
+
+    expect(edit).toEqual({ applied: [{ projectId: "test-project", benchId: 3 }], refused: [] });
+    const three = benchManager.getBench("test-project", 3);
+    expect(three?.branch).toBe("feature/new");
+    expect(three?.workspacePath).not.toBe("/somewhere/else");
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 3,
+        branch: "feature/new",
+        workspacePath: three?.workspacePath,
+      }),
+    );
+  });
+
+  it("HR-TC-029 writes a bench back when the edit changed only its setup state, which is not hand-editable", () => {
+    loadBenches();
+
+    const edit = benchManager.applyStateFileEdit({
+      benches: [record(2, {}), record(3, { benchSetupComplete: false })],
+    });
+
+    expect(edit).toEqual({ applied: [], refused: [] });
+    expect(stateService.updateBench).toHaveBeenCalledTimes(1);
+    expect(stateService.updateBench).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 3, benchSetupComplete: true }),
+    );
   });
 
   it.each(["idle", "error"] as const)(
@@ -10898,8 +10995,8 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
 
       const edit = benchManager.applyStateFileEdit({
         benches: [
-          makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
-          makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 6003 } }),
+          record(2, { branch: "bench-2", ports: { backend: 5002 } }),
+          record(3, { branch: "bench-3", ports: { backend: 6003 } }),
         ],
       });
 
@@ -10919,13 +11016,14 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
 
     const edit = benchManager.applyStateFileEdit({
       benches: [
-        makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
-        makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+        record(2, { branch: "bench-2", ports: { backend: 5002 } }),
+        record(3, { branch: "bench-3", ports: { backend: 5003 } }),
         makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
       ],
     });
 
     expect(edit).toEqual({ applied: [], refused: [] });
     expect(benchManager.getBench("test-project", 9)).toBeUndefined();
+    expect(stateService.updateBench).not.toHaveBeenCalled();
   });
 });
