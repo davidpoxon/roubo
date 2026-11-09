@@ -59,6 +59,8 @@ vi.mock("./services/plugin-installer.js", () => {
     previewFromLocalPath: vi.fn(),
     commit: vi.fn(),
     cancel: vi.fn(),
+    // A fresh install, not an update of an installed plugin.
+    isStagedUpdate: vi.fn(() => false),
   };
 });
 
