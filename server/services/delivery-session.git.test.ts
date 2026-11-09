@@ -855,6 +855,9 @@ describe("Event ingest", () => {
 
   it("SB-TC-099: A malformed decision-mode event is rejected with a 400 that names the field", async () => {
     const { bench, token } = await benchWithRecord();
+    // A second bench, for a token that is valid but is not this bench's: the
+    // events route must refuse a real token of another bench, not only a
+    // made-up one.
     const { token: otherToken } = await benchWithRecord();
 
     // Step 1: a review.outcome with no decision id.

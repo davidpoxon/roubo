@@ -246,22 +246,30 @@ describe("reconcile and teardown consult the variant host", () => {
     const verify = vi.fn(specbenchVariantHost.verifyVariantState);
     registerVariantHost("specbench", { ...specbenchVariantHost, verifyVariantState: verify });
 
-    // The bench workspace is a repository with two commits. The gate pin does
-    // not exist yet: the gate pin service makes it.
+    // The project checkout is a repository with two commits, and the bench
+    // workspace is a worktree of it, so reconcile finds the workspace tracked.
+    // The gate pin does not exist yet: the gate pin service makes it.
     const git = (cwd: string, ...args: string[]) =>
       execFileSync(
         "git",
         ["-c", "user.name=fixture", "-c", "user.email=fixture@example.com", ...args],
         { cwd, encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
       ).trim();
-    git(workspace, "init", "-q", "-b", "main");
-    git(workspace, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "gate commit");
-    const gateCommit = git(workspace, "rev-parse", "HEAD");
-    git(workspace, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "later commit");
-    const laterCommit = git(workspace, "rev-parse", "HEAD");
+    const repo = path.join(tmp, "repo");
+    fs.mkdirSync(repo);
+    git(repo, "init", "-q", "-b", "main");
+    git(repo, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "gate commit");
+    const gateCommit = git(repo, "rev-parse", "HEAD");
+    git(repo, "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "later commit");
+    const laterCommit = git(repo, "rev-parse", "HEAD");
+    fs.rmSync(workspace, { recursive: true, force: true });
     fs.rmSync(root, { recursive: true, force: true });
-    const specFolder = path.join(tmp, "repo", ".specifications", "fixture-spec");
-    fs.mkdirSync(specFolder, { recursive: true });
+    git(repo, "worktree", "add", "-q", "-b", "bench-1", workspace);
+    // The focused spec folder in the checkout, and the one in the workspace
+    // that holds the sitting's test-results.json.
+    fs.mkdirSync(path.join(repo, ".specifications", "fixture-spec"), { recursive: true });
+    const resultsSpecPath = path.join(workspace, ".specifications", "fixture-spec");
+    fs.mkdirSync(resultsSpecPath, { recursive: true });
     vi.mocked(dockerService.getContainerStatuses).mockResolvedValue(
       new Map([["roubo-demo-bench-1/db", { status: "running", id: "c1" }]]),
     );
@@ -281,7 +289,7 @@ describe("reconcile and teardown consult the variant host", () => {
     const sitting = await openGatePin(liveBench(), {
       gateId: "gate-after-a",
       commit: gateCommit,
-      resultsSpecPath: specFolder,
+      resultsSpecPath,
     });
     expect(sitting).toMatchObject({ state: "open", commit: gateCommit });
     expect(git(root, "rev-parse", "HEAD")).toBe(gateCommit);

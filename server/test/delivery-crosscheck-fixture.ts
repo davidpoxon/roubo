@@ -16,7 +16,7 @@ import {
 } from "@roubo/shared/testbench-contracts";
 import { computePlanHash } from "../lib/testbench-store.js";
 
-export const UPDATED_AT = "2026-10-16T09:30:00Z";
+const UPDATED_AT = "2026-10-16T09:30:00Z";
 export const BEFORE_UPDATE = "2026-10-16T09:00:00Z";
 export const AFTER_UPDATE = "2026-10-16T10:00:00Z";
 export const BRANCH = { A: "fx/0-a", B: "fx/1-b", C: "fx/2-c", D: "fx/0-d" } as const;
@@ -30,7 +30,7 @@ export type UnitId = keyof typeof BRANCH;
 export const UNITS: UnitId[] = ["A", "B", "C", "D"];
 export const CASES = ["FX-TC-001", "FX-TC-002", "FX-TC-003"];
 
-export const CROSS_CHECK_PLAN: TestCasesPlan = {
+const CROSS_CHECK_PLAN: TestCasesPlan = {
   $schema: TEST_CASES_SCHEMA_ID,
   schemaVersion: "1.2.0",
   specSlug: "fixture-spec",
@@ -51,7 +51,7 @@ export const CROSS_CHECK_PLAN: TestCasesPlan = {
 export const CROSS_CHECK_PLAN_HASH = computePlanHash(CROSS_CHECK_PLAN);
 
 /** The delivery record of the fixture, with the given plan hash and gates. */
-export function crossCheckRecord(planHash: string, gates: unknown[]): unknown {
+function crossCheckRecord(planHash: string, gates: unknown[]): unknown {
   const stackOf: Record<UnitId, string> = { A: "A", B: "A", C: "A", D: "D" };
   const layerOf: Record<UnitId, number> = { A: 0, B: 1, C: 2, D: 0 };
   return {
