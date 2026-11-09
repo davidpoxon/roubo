@@ -23,6 +23,11 @@ import {
   runIntegrationTest,
 } from "../services/integration-test.js";
 import { forgetPluginActivation } from "../services/plugin-activation.js";
+import {
+  appInstallOutcome,
+  removedNotice,
+  runAppPluginWrite,
+} from "../services/plugin-dir-watch.js";
 import { filterAdvancedAgainstManifest } from "../services/plugin-config-filter.js";
 
 const router = Router();
@@ -122,18 +127,34 @@ router.post("/install/:token/confirm", async (req, res) => {
     return;
   }
   try {
-    const plugin = await pluginInstaller.commit(token);
-    // Record the consumer's consent for the just-installed plugin (#991,
-    // CPHMTP-FR-008). The install flow's PermissionsScreen already displayed every
-    // declared permission category and the user acknowledged them by confirming, so
-    // the confirm IS the consent step: persist a ConsentRecord acknowledging the
-    // full declared set. Without this the component-start consent gate
-    // (component-plugin-registry) refuses the just-installed plugin, so the resumed
-    // bench start dead-ends at `not-consented` (CPHMTP-TC-077 S003-O02). A record
-    // that carries no manifest can declare no permissions, so it is skipped.
-    if (plugin.manifest) {
-      upsertConsent(plugin.id, declaredCategories(plugin.manifest.permissions));
-    }
+    const update = pluginInstaller.isStagedUpdate(token);
+    // The install writes ~/.roubo/plugins/<id>, which the plugin directory
+    // watch also sees: run it as an app write, so the two converge on one
+    // registration, one notice and one applied line (HR-TC-022).
+    const plugin = await runAppPluginWrite(
+      async () => {
+        const committed = await pluginInstaller.commit(token);
+        // Record the consumer's consent for the just-installed plugin (#991,
+        // CPHMTP-FR-008). The install flow's PermissionsScreen already displayed
+        // every declared permission category and the user acknowledged them by
+        // confirming, so the confirm IS the consent step: persist a ConsentRecord
+        // acknowledging the full declared set. Without this the component-start
+        // consent gate (component-plugin-registry) refuses the just-installed
+        // plugin, so the resumed bench start dead-ends at `not-consented`
+        // (CPHMTP-TC-077 S003-O02). A record that carries no manifest can declare
+        // no permissions, so it is skipped.
+        if (committed.manifest) {
+          upsertConsent(committed.id, declaredCategories(committed.manifest.permissions));
+        }
+        return committed;
+      },
+      (committed) =>
+        appInstallOutcome(
+          committed,
+          update,
+          update ? pluginManager.benchesUsingPlugin(committed.id).length : 0,
+        ),
+    );
     res.status(201).json({ plugin });
   } catch (err) {
     sendInstallError(res, err);
@@ -224,7 +245,10 @@ router.post("/:id/reinstall-shared", async (req, res) => {
     return;
   }
   try {
-    const record = await pluginManager.reinstallIntoUserRoot(id);
+    const record = await runAppPluginWrite(
+      () => pluginManager.reinstallIntoUserRoot(id),
+      (installed) => appInstallOutcome(installed, false),
+    );
     res.status(200).json(record);
   } catch (err) {
     res.status(409).json({ error: (err as Error).message });
@@ -242,7 +266,16 @@ router.delete("/:id", async (req, res) => {
     return;
   }
   try {
-    await pluginManager.uninstall(id);
+    const pluginDir = pluginManager.listInstalled().find((r) => r.id === id)?.pluginDir;
+    // An app write of the plugin directory, like an install (HR-TC-022): the
+    // watch dedupes the removal rather than unregistering a second time.
+    await runAppPluginWrite(
+      () => pluginManager.uninstall(id),
+      () =>
+        pluginDir === undefined
+          ? null
+          : { dir: pluginDir, action: "unregister", pluginId: id, summary: removedNotice(id) },
+    );
     res.status(200).json({ id, removed: true });
   } catch (err) {
     // HR-FR-010: a bench still uses the plugin. `error` and `notice` name the
@@ -334,7 +367,7 @@ router.get("/:id/consent", (req, res) => {
   });
 });
 
-router.post("/:id/consent", (req, res) => {
+router.post("/:id/consent", async (req, res) => {
   const id = req.params.id;
   if (badId(id)) {
     res.status(400).json({ error: "Invalid plugin id" });
@@ -366,6 +399,14 @@ router.post("/:id/consent", (req, res) => {
   }
 
   const saved = upsertConsent(id, parsed.data.acknowledgedCategories);
+  // A component or agent plugin found on disk with no consent stays inert,
+  // held as "awaiting-consent" (HR-FR-008): lift the hold and start it now.
+  // One already running, or that the user disabled, is left as it is.
+  try {
+    await pluginManager.startAfterConsent(id);
+  } catch (err) {
+    console.warn(`plugin ${id} did not start after consent: ${(err as Error).message}`);
+  }
   res.status(200).json(saved);
 });
 

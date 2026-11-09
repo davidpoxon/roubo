@@ -46,7 +46,7 @@ import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
 import type { PluginEnableState } from "@roubo/shared";
-import { declaredCategories } from "@roubo/shared";
+import { declaredCategories, isConsentGatedKind } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 // 1.3.0 (#646): the `component` plugin kind lands, alongside the `ports`
@@ -490,8 +490,50 @@ function isPluginEnabled(pluginId: string): boolean {
   const value = enableStateCache.plugins[pluginId];
   // Missing entries also default to "enabled" so a newly installed plugin (e.g.
   // installed via the install pipeline before its first toggle) is not silently
-  // held back.
-  return value !== "disabled";
+  // held back. A plugin awaiting consent (HR-FR-008) is not enabled either.
+  return value !== "disabled" && value !== "awaiting-consent";
+}
+
+/**
+ * Whether `pluginId` was registered from disk with no ConsentRecord and still
+ * has none (HR-FR-008): it must not be started. A legacy install with no
+ * ConsentRecord and no `"awaiting-consent"` value is not held.
+ */
+function isAwaitingConsent(pluginId: string): boolean {
+  return (
+    enableStateCache?.plugins[pluginId] === "awaiting-consent" &&
+    !pluginConsentState.hasConsent(pluginId)
+  );
+}
+
+/**
+ * Whether enable() or restart() must refuse to start `entry` for want of
+ * consent (HR-FR-008): it awaits consent, or it is a component or agent plugin
+ * with no ConsentRecord that is not enabled, such as a held plugin that the
+ * user disabled. A legacy install that is enabled is not held.
+ */
+function needsConsentToStart(entry: PluginEntry): boolean {
+  const pluginId = entry.record.id;
+  if (isAwaitingConsent(pluginId)) return true;
+  return (
+    isConsentGatedKind(entry.record.manifest?.kind) &&
+    !isPluginEnabled(pluginId) &&
+    !pluginConsentState.hasConsent(pluginId)
+  );
+}
+
+/** Drop `pluginId` from the in-process enable-state copy, as removePlugin does on disk. */
+function forgetCachedEnableValue(pluginId: string): void {
+  if (!enableStateCache || !(pluginId in enableStateCache.plugins)) return;
+  const { [pluginId]: _dropped, ...rest } = enableStateCache.plugins;
+  void _dropped;
+  enableStateCache = { ...enableStateCache, plugins: rest };
+}
+
+function awaitingConsentError(pluginId: string): Error {
+  return new Error(
+    `Plugin "${pluginId}" has no consent yet. Grant consent in Settings > Plugins to enable it.`,
+  );
 }
 
 function bundledPluginsRoot(): string | null {
@@ -1896,6 +1938,7 @@ export async function enable(pluginId: string): Promise<void> {
   if (entry.record.status === "incompatible") {
     throw new Error(`Plugin "${pluginId}" is incompatible with this host`);
   }
+  if (needsConsentToStart(entry)) throw awaitingConsentError(pluginId);
   if (entry.process) {
     // Already running. Record the user's intent and return; the on-disk file
     // converges with the runtime here even if it had drifted (e.g. a prior
@@ -1984,6 +2027,9 @@ export async function enable(pluginId: string): Promise<void> {
 export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  // Also for a plugin awaiting consent: "disabled" survives a later grant of
+  // consent, and enable() and restart() still refuse it while it has no
+  // ConsentRecord (HR-FR-008).
   enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
   // FR-004 / NFR-001 (per Spike 553, #576): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
@@ -2005,6 +2051,10 @@ export async function restart(pluginId: string): Promise<void> {
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   if (!entry.record.manifest) {
     throw new Error(`Plugin "${pluginId}" has no valid manifest`);
+  }
+  // A running plugin restarts as before; a stopped one starts only as enable() would.
+  if (isAwaitingConsent(pluginId) || (!entry.process && needsConsentToStart(entry))) {
+    throw awaitingConsentError(pluginId);
   }
   if (entry.process) {
     await stopPluginProcess(entry);
@@ -2073,12 +2123,15 @@ export class PluginSwapRefusedError extends Error {
   readonly code = "plugin-swap-refused";
   readonly pluginId: string;
   readonly reason: SwapRefusalReason;
+  /** Why, without the plugin name: "its kind changed from component to agent". */
+  readonly detail: string;
 
   constructor(pluginId: string, reason: SwapRefusalReason, detail: string) {
     super(`Plugin "${pluginId}" was not swapped: ${detail}`);
     this.name = "PluginSwapRefusedError";
     this.pluginId = pluginId;
     this.reason = reason;
+    this.detail = detail;
   }
 }
 
@@ -2359,18 +2412,65 @@ export async function uninstall(pluginId: string): Promise<void> {
   }
 
   await stopPluginProcess(entry);
-
-  if (entry.logStream) {
-    const stream = entry.logStream;
-    entry.logStream = null;
-    await new Promise<void>((resolve) => stream.end(resolve));
-  }
-
+  await closeLogStream(entry);
   await rm(entry.record.pluginDir, { recursive: true, force: true });
+  dropUninstalled(entry);
+}
+
+/**
+ * Unregister a user plugin whose directory was removed from disk (HR-FR-007):
+ * stop its process and drop it and its bookkeeping as `uninstall` does. The
+ * directory is already gone, so nothing is removed from disk, and the
+ * active-integration guard does not apply: the plugin cannot keep running
+ * from a directory that no longer exists once its process stops.
+ *
+ * Throws a PluginInUseError, before anything is stopped, while a bench uses
+ * the plugin (HR-FR-010): its process keeps running and the benches keep their
+ * resources until the user clears them.
+ */
+export async function unregisterRemoved(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
+  if (entry.record.source === "bundled") {
+    throw new Error(`Bundled plugins cannot be uninstalled: ${pluginId}`);
+  }
+  const benchIds = benchesUsingPlugin(pluginId);
+  if (benchIds.length > 0) {
+    throw new PluginInUseError(pluginId, benchIds);
+  }
+  await stopPluginProcess(entry);
+  await closeLogStream(entry);
+  dropUninstalled(entry);
+}
+
+/**
+ * Drop the entry of a user plugin that never had a valid manifest (status
+ * `invalid` or `incompatible`, so no process), so its directory can be
+ * registered again once it is fixed. Does nothing for any other entry.
+ */
+export async function forgetInvalidEntry(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry || entry.record.source !== "user" || entry.process) return;
+  if (entry.record.status !== "invalid" && entry.record.status !== "incompatible") return;
+  await closeLogStream(entry);
+  plugins.delete(pluginId);
+}
+
+async function closeLogStream(entry: PluginEntry): Promise<void> {
+  if (!entry.logStream) return;
+  const stream = entry.logStream;
+  entry.logStream = null;
+  await new Promise<void>((resolve) => stream.end(resolve));
+}
+
+/** The bookkeeping of an uninstall, once the process is stopped. */
+function dropUninstalled(entry: PluginEntry): void {
+  const pluginId = entry.record.id;
   plugins.delete(pluginId);
   // IP-WU-046: keep plugins-state.json in sync so a re-installed plugin id
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
+  forgetCachedEnableValue(pluginId);
   // #884 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
   // does not survive an uninstall. A re-installed id must re-acknowledge its
   // declared permissions before the component-plugin registry consent gate
@@ -2448,6 +2548,7 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
 
   plugins.delete(pluginId);
   pluginEnableState.removePlugin(pluginId);
+  forgetCachedEnableValue(pluginId);
   issueSnapshotCache.clearSnapshot(pluginId);
   cutListQueryService.evictPlugin(pluginId);
 }
@@ -2458,8 +2559,19 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
  * directory into `~/.roubo/plugins/<id>/`. The caller is responsible for
  * having ruled out duplicate ids before invoking this: we throw if the id
  * is already known.
+ *
+ * With `inertUntilConsent` (a plugin found on disk, HR-FR-008) a component or
+ * agent plugin with no ConsentRecord is registered but not started, and its
+ * enable value is written `"awaiting-consent"` (unless the user disabled it), so
+ * neither a relaunch nor enable() or restart() starts it before
+ * `startAfterConsent`. Any other plugin
+ * found on disk, an integration plugin or a consented one, is started unless
+ * the user disabled it. Registration never grants consent.
  */
-export async function registerInstalled(pluginDir: string): Promise<PluginRecord> {
+export async function registerInstalled(
+  pluginDir: string,
+  options: { inertUntilConsent?: boolean } = {},
+): Promise<PluginRecord> {
   const fallbackId = path.basename(pluginDir);
   const built = await buildEntryFromDir(pluginDir, "user", fallbackId);
   if (!built) {
@@ -2477,7 +2589,24 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   const updateBenches = pendingUpdates.get(built.idForMap);
   pendingUpdates.delete(built.idForMap);
 
-  if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
+  const id = built.idForMap;
+  const fromDisk = options.inertUntilConsent === true && !updateBenches;
+  const consented = fromDisk && pluginConsentState.hasConsent(id);
+  const awaitingConsent =
+    fromDisk &&
+    built.entry.record.manifest !== null &&
+    isConsentGatedKind(built.entry.record.manifest.kind) &&
+    !consented;
+  if (awaitingConsent && enableStateCache?.plugins[id] !== "disabled") {
+    // A plugin the user disabled stays "disabled": a grant of consent then
+    // leaves it as it is, and enable() still refuses it until consent.
+    enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
+  } else if (fromDisk && consented && enableStateCache?.plugins[id] === "awaiting-consent") {
+    // A leftover hold whose consent has since been recorded.
+    enableStateCache = pluginEnableState.setPluginEnabled(id, true);
+  }
+  const inert = awaitingConsent || (fromDisk && !isPluginEnabled(id));
+  if (built.entry.record.status === "disabled" && built.entry.record.manifest && !inert) {
     if (updateBenches) {
       built.entry.swapping = true;
       try {
@@ -2492,6 +2621,49 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   if (updateBenches) swapState.closeSwapGap(built.idForMap);
 
   return copyRecord(built.entry);
+}
+
+/** What a plugin directory holds, read and validated as discovery reads it. */
+export interface PluginDirInspection {
+  /** The manifest id, or the directory name when the manifest does not parse. */
+  id: string;
+  manifest: PluginManifest | null;
+  /** Why the directory cannot be registered, or null when it can. */
+  error: PluginError | null;
+}
+
+/**
+ * Read and validate the plugin directory `pluginDir` without registering it.
+ * Null when it holds no manifest file at all.
+ */
+export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInspection | null> {
+  const built = await buildEntryFromDir(pluginDir, "user", path.basename(pluginDir));
+  if (!built) return null;
+  const record = built.entry.record;
+  return {
+    id: built.idForMap,
+    manifest: built.manifest,
+    error: record.status === "disabled" && record.manifest ? null : record.lastError,
+  };
+}
+
+/**
+ * Start a registered plugin that was left inert for want of consent, once it
+ * has a ConsentRecord (HR-FR-008): its `"awaiting-consent"` value turns
+ * `"enabled"`. A plugin that is running, has no valid manifest, is not
+ * consented, or that the user disabled, also while it awaited consent, is left
+ * as it is.
+ */
+export async function startAfterConsent(pluginId: string): Promise<void> {
+  const entry = plugins.get(pluginId);
+  if (!entry || entry.process || !entry.record.manifest) return;
+  if (entry.record.status !== "disabled") return;
+  if (!pluginConsentState.hasConsent(pluginId)) return;
+  if (enableStateCache?.plugins[pluginId] === "awaiting-consent") {
+    enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
+  }
+  if (!isPluginEnabled(pluginId)) return;
+  await spawnPlugin(entry);
 }
 
 /**

@@ -4,12 +4,15 @@
  *
  * A surface arms a watch with one `watchInput` call and gets, for free:
  *
- * - the allowlist: only a path inside the Roubo state dir or a registered
+ * - the allowlist: only a path inside the Roubo state dir, a directory Roubo
+ *   owns (`addOwnedWatchRoot`, such as the user plugins root) or a registered
  *   project root can be watched, symlinks resolved, else `WatchRootError`; the
  *   directory is checked again before every arm, symlinked entries are not
  *   followed, and an input that resolves out of every root is refused unread;
  * - a trailing settle window for each input (`settleMs`);
  * - an optional completeness gate (`settled`) before a directory is hashed;
+ * - an optional hold (`hold`) that lets the surface's own write of an input end
+ *   first, so the run that write causes is deduped;
  * - hash dedupe against the last applied content;
  * - self-write suppression through the tokens that `atomicWrite` leaves;
  * - one `[input-watcher] ...` key=value log line for every outcome, which never
@@ -76,8 +79,16 @@ export interface InputEventDetail {
   error?: { path: string; first: string };
 }
 
+/**
+ * What a handler returns. `"ignored"` says the input is not one the surface
+ * acts on, such as a directory under the plugins root that holds no plugin:
+ * its hash is recorded so the same content does not run the handler again,
+ * and nothing is logged or sent.
+ */
 export type HandlerResult =
-  HandlerOutcome | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
+  | HandlerOutcome
+  | "ignored"
+  | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
 
 export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 
@@ -122,6 +133,13 @@ export interface WatchInputOptions {
    * clear its notice.
    */
   target?: { projectId?: string; pluginId?: string };
+  /**
+   * Awaited at the start of each run, before the input is read. A surface that
+   * also writes its inputs itself, such as the plugin installer, holds the run
+   * here until its own write has ended and been marked applied, so the run sees
+   * the finished input and is deduped rather than applied a second time.
+   */
+  hold?: (absPath: string) => Promise<void>;
 }
 
 export interface Disposable {
@@ -164,7 +182,9 @@ interface RejectedContent {
 /** Thrown by `watchInput` for a path outside every allowed root. */
 export class WatchRootError extends Error {
   constructor(target: string) {
-    super(`watchInput: ${target} is outside the Roubo state dir and every registered project root`);
+    super(
+      `watchInput: ${target} is outside the Roubo state dir, every directory Roubo owns and every registered project root`,
+    );
     this.name = "WatchRootError";
   }
 }
@@ -307,13 +327,31 @@ function realpathLoose(p: string): string {
   }
 }
 
+// Directories that Roubo owns outside its state dir, such as the user plugins
+// root, which stays ~/.roubo/plugins under a dev run whose state dir is not
+// ~/.roubo. Only server code adds one; no input of a watch can.
+const ownedRoots = new Set<string>();
+
 /**
- * The roots a watch may live under: the Roubo state dir and each registered
- * project root. They come from the state-dir resolver, so a dev run and a
- * packaged run differ only by directory.
+ * Allow watches under `dir`, a directory that Roubo itself owns outside the
+ * state dir. Returns a function that takes the allowance back.
+ */
+export function addOwnedWatchRoot(dir: string): () => void {
+  const abs = path.resolve(dir);
+  ownedRoots.add(abs);
+  return () => {
+    ownedRoots.delete(abs);
+  };
+}
+
+/**
+ * The roots a watch may live under: the Roubo state dir, each directory added
+ * through `addOwnedWatchRoot`, and each registered project root. They come
+ * from the state-dir resolver, so a dev run and a packaged run differ only by
+ * directory.
  */
 export function getWatchRoots(): string[] {
-  const roots = [getRouboDir()];
+  const roots = [getRouboDir(), ...ownedRoots];
   try {
     for (const project of loadProjects().projects) {
       if (project.repoPath) roots.push(project.repoPath);
@@ -395,6 +433,16 @@ function hashUnit(
     return `${rel}\0${digest}\n`;
   });
   return hashContent(lines.join(""));
+}
+
+/**
+ * The hash a watch gives the directory input `unit` when its completeness gate
+ * lists `files` (paths relative to the input, or absolute), or every file below
+ * it when `files` is null. Null when the input is absent. A surface that writes
+ * an input itself passes it to `markApplied`, so the watch dedupes that write.
+ */
+export function hashInputFiles(unit: string, files: readonly string[] | null): string | null {
+  return hashUnit(unit, files, getWatchRoots());
 }
 
 type RunMode = "event" | "quiet" | "seed";
@@ -504,6 +552,14 @@ export function watchInput(
 
   async function run(unit: string, mode: RunMode): Promise<void> {
     if (disposed) return;
+    if (options.hold) {
+      try {
+        await options.hold(unit);
+      } catch {
+        // A failed hold only ends the wait; the run reads the input as it is.
+      }
+      if (disposed) return;
+    }
     // The watched directory itself is gone: the lifecycle check re-arms it and
     // rescans, so a run now would only churn the surface.
     if (!fs.existsSync(dir)) return;
@@ -596,6 +652,10 @@ export function watchInput(
     let reason: string | undefined;
     try {
       const result = await handler({ path: unit, hash });
+      if (result === "ignored") {
+        lastApplied.set(unit, hash);
+        return;
+      }
       const value = typeof result === "string" ? result : result?.outcome;
       if (value === "applied" || value === "rejected" || value === "refused") outcome = value;
       if (typeof result === "object" && result !== null) {
