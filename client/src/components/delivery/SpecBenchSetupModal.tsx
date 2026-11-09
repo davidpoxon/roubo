@@ -37,10 +37,10 @@ function plural(count: number, noun: string): string {
 // Launch a delivery: the Specification menu, the chosen spec's folder and the
 // units and gates of its summary, who decides in the delivery (SB-FR-031:
 // attended by default), and a line saying the bench's workspace and ports are
-// assigned at create. Attach to a record: the same menu, the path of the record
-// the bench joins, and what the summary found in it: the progress and
-// lifecycle state of the delivery record committed where the bench's worktree
-// will start, or that there is none. Confirm calls onConfirm with the spec
+// assigned at create. Attach to a record: the same menu, the record's place in
+// the spec folder (the bench joins the copy of it committed where its worktree
+// will start, not the checkout's file), and what the summary found there: the
+// progress and lifecycle state of that committed record, or that there is none. Confirm calls onConfirm with the spec
 // folder, the tab's mode and the decision mode, and the host owns the create
 // call. Dismissal never calls onConfirm.
 export default function SpecBenchSetupModal({
@@ -111,10 +111,20 @@ export default function SpecBenchSetupModal({
           placeholder="Choose a specification"
           value={selectedPath ?? ""}
           onChange={(next) => setSelectedPath(next === "" ? null : next)}
-          items={specs.map((spec) => ({
-            value: spec.path,
-            label: `${spec.slug} · ${plural(spec.caseCount, "case")}`,
-          }))}
+          items={specs.map((spec) => {
+            const cases = `· ${plural(spec.caseCount, "case")}`;
+            return {
+              value: spec.path,
+              label: `${spec.slug} ${cases}`,
+              // A long slug truncates, and the case count stays in view.
+              renderLabel: (
+                <span className="flex min-w-0 gap-1">
+                  <span className="min-w-0 truncate">{spec.slug}</span>{" "}
+                  <span className="shrink-0">{cases}</span>
+                </span>
+              ),
+            };
+          })}
         />
       )}
       {selected && (

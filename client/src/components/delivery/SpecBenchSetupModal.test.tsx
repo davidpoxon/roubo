@@ -166,4 +166,38 @@ describe("SpecBenchSetupModal tabs", () => {
       "attended",
     );
   });
+
+  it("enables Confirm once a spec is picked, with no tab pressed, and launches attended", async () => {
+    useSummary(summary);
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(<SpecBenchSetupModal isOpen onClose={vi.fn()} projectId="demo" onConfirm={onConfirm} />);
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /specification/i }));
+    await user.click(await screen.findByRole("option", { name: /^fixture-spec · 12 cases$/ }));
+    const confirm = within(dialog).getByRole("button", { name: "Confirm" });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(onConfirm).toHaveBeenCalledWith(
+      "/repos/demo/.specifications/fixture-spec",
+      "launch",
+      "attended",
+    );
+  });
+
+  it("keeps the picked spec and the decision mode across the tabs", async () => {
+    useSummary(summary);
+    const dialog = await pick(/^launch/i);
+    const user = userEvent.setup();
+    await user.click(within(dialog).getByRole("radio", { name: "Auto" }));
+    await user.click(within(dialog).getByRole("tab", { name: /^attach/i }));
+    expect(within(dialog).getByTestId("specbench-setup-record")).toHaveTextContent(
+      "/repos/demo/.specifications/fixture-spec/delivery-observation.json",
+    );
+    await user.click(within(dialog).getByRole("tab", { name: /^launch/i }));
+    expect(within(dialog).getByRole("button", { name: /specification/i })).toHaveTextContent(
+      "fixture-spec · 12 cases",
+    );
+    expect(within(dialog).getByRole("radio", { name: "Auto" })).toBeChecked();
+  });
 });
