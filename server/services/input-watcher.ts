@@ -27,7 +27,9 @@
  * The handler receives `{ path, hash }` only. It reads its input itself and
  * resolves to `'applied' | 'rejected' | 'refused'` (or `{ outcome, action, event }`
  * on a surface that reports an action or the target ids, summary and first
- * error of its event). A thrown error counts as `rejected`.
+ * error of its event). A thrown error counts as `rejected`. The watch's
+ * `target` ids go on every event, and a rejected or refused event with no
+ * error of the handler's gets the input path and a generic first error.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -112,6 +114,14 @@ export interface WatchInputOptions {
   loadedHash?: (absPath: string) => string | null | undefined;
   /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
+  /**
+   * The target ids of every `input-changed` event of this watch. A handler's
+   * own `projectId` or `pluginId` wins over them, but an outcome the watcher
+   * reaches itself (a refusal, an incomplete directory, a thrown handler)
+   * still names its target, so a later applied event of the same target can
+   * clear its notice.
+   */
+  target?: { projectId?: string; pluginId?: string };
 }
 
 export interface Disposable {
@@ -167,28 +177,61 @@ export function defaultInputSummary(surface: string, outcome: HandlerOutcome): s
   return `${surfaceThing(surface)} change ${outcome}`;
 }
 
+/** The first error of a rejected or refused outcome whose handler gave none. */
+export const DEFAULT_OUTCOME_REASONS = {
+  /** The handler threw. Its message can quote the input, so it is not sent. */
+  threw: "the change could not be read or validated",
+  /** The completeness gate said the directory input is not complete. */
+  incomplete: "the input is not complete",
+  /** The input resolves out of every allowed root, so it was not read. */
+  outside: "the input resolves outside every allowed root",
+  /** The handler said rejected with no error of its own. */
+  rejected: "the change was rejected",
+  /** The handler said refused with no error of its own. */
+  refused: "the change was refused",
+} as const;
+
 /**
  * Send the `input-changed` event of one handler outcome (HR-FR-015). Only the
  * six known surfaces are sent, since a client maps nothing else; deduped and
- * self-write outcomes never reach here.
+ * self-write outcomes never reach here. The handler's detail wins over the
+ * watch's static target ids, and a rejected or refused outcome with no error
+ * gets `fallbackError`, so its notice always names a path and a first error.
  */
 function sendInputChanged(
   surface: string,
   outcome: HandlerOutcome,
   detail: InputEventDetail | undefined,
+  target: WatchInputOptions["target"],
+  fallbackError: { path: string; first: string },
 ): void {
   if (!isInputSurface(surface)) return;
+  const projectId = detail?.projectId ?? target?.projectId;
+  const pluginId = detail?.pluginId ?? target?.pluginId;
+  const error = detail?.error ?? (outcome === "applied" ? undefined : fallbackError);
   broadcastInputChanged({
     surface,
     outcome,
-    ...(detail?.projectId === undefined ? {} : { projectId: detail.projectId }),
-    ...(detail?.pluginId === undefined ? {} : { pluginId: detail.pluginId }),
+    ...(projectId === undefined ? {} : { projectId }),
+    ...(pluginId === undefined ? {} : { pluginId }),
     ...(detail?.benchIds === undefined ? {} : { benchIds: [...detail.benchIds] }),
     summary: detail?.summary ?? defaultInputSummary(surface, outcome),
-    ...(detail?.error === undefined
-      ? {}
-      : { error: { path: detail.error.path, first: detail.error.first } }),
+    ...(error === undefined ? {} : { error: { path: error.path, first: error.first } }),
   });
+}
+
+/**
+ * The path of `unit` relative to the deepest allowed root that holds it, so an
+ * event names `roubo.yaml` rather than an absolute path. A unit under no root
+ * is named by its basename.
+ */
+function pathFromWatchRoot(unit: string, roots: readonly string[]): string {
+  let best: string | null = null;
+  for (const root of roots) {
+    if (isWithin(unit, root) && (best === null || root.length > best.length)) best = root;
+  }
+  const rel = best === null ? "" : path.relative(best, unit);
+  return rel === "" ? path.basename(unit) : rel;
 }
 
 function hash8Of(hash: string | null): string {
@@ -419,11 +462,13 @@ export function watchInput(
     // rescans, so a run now would only churn the surface.
     if (!fs.existsSync(dir)) return;
     const start = performance.now();
+    const roots = getWatchRoots();
     const emit = (
       outcome: ApplyOutcome,
       hash: string | null,
       action?: string,
       detail?: InputEventDetail,
+      reason?: string,
     ) => {
       logApply({
         surface,
@@ -435,15 +480,19 @@ export function watchInput(
       });
       // Deduped and self-write outcomes are logged only, never sent.
       if (outcome === "applied" || outcome === "rejected" || outcome === "refused") {
-        sendInputChanged(surface, outcome, detail);
+        sendInputChanged(surface, outcome, detail, options.target, {
+          path: pathFromWatchRoot(unit, roots),
+          first: reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
+        });
       }
     };
 
     // The input can have become a symlink out of every root since the watch
     // was armed: it is refused unread, and the handler does not run.
-    const roots = getWatchRoots();
     if (!realpathAllowed(unit, roots)) {
-      if (mode !== "seed") emit("refused", null);
+      if (mode !== "seed") {
+        emit("refused", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.outside);
+      }
       return;
     }
 
@@ -463,7 +512,9 @@ export function watchInput(
       }
       if (disposed) return;
       if (complete === false) {
-        if (mode !== "seed") emit("rejected", null);
+        if (mode !== "seed") {
+          emit("rejected", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.incomplete);
+        }
         return;
       }
       if (Array.isArray(complete)) files = complete;
@@ -488,6 +539,7 @@ export function watchInput(
     let outcome: HandlerOutcome = "rejected";
     let action: string | undefined;
     let detail: InputEventDetail | undefined;
+    let reason: string | undefined;
     try {
       const result = await handler({ path: unit, hash });
       const value = typeof result === "string" ? result : result?.outcome;
@@ -497,13 +549,15 @@ export function watchInput(
         detail = result.event;
       }
     } catch {
-      // The error message can quote the input, so it is not logged.
+      // The error message can quote the input, so it is neither logged nor
+      // sent; the event carries a generic first error instead.
       outcome = "rejected";
+      reason = DEFAULT_OUTCOME_REASONS.threw;
     }
     // The handler ran, so its outcome is recorded and logged even when the
     // watch was disposed while it was awaited.
     if (outcome === "applied") lastApplied.set(unit, hash);
-    emit(outcome, hash, action, detail);
+    emit(outcome, hash, action, detail, reason);
   }
 
   async function scan(initial: boolean): Promise<void> {
