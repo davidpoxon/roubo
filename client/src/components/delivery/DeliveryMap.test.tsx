@@ -120,14 +120,26 @@ describe("Delivery map", () => {
       ),
     ).toEqual(["unit:A>unit:B", "unit:B>unit:C"]);
 
-    for (const [id, layer] of [
-      ["A", 0],
-      ["B", 1],
-      ["C", 2],
+    // Each stack lane has a label and each layer column a header; a node sits
+    // in its stack's lane, at its layer's column.
+    expect(within(graph).getByTestId("delivery-lane-A")).toHaveTextContent("stack A3 units");
+    expect(within(graph).getByTestId("delivery-lane-D")).toHaveTextContent("stack D1 unit");
+    for (const [id, stack, layer] of [
+      ["A", "A", 0],
+      ["B", "A", 1],
+      ["C", "A", 2],
+      ["D", "D", 0],
     ] as const) {
-      expect(screen.getByTestId(`unit-node-${id}`)).toHaveTextContent(`stack A · layer ${layer}`);
+      const node = screen.getByTestId(`unit-node-${id}`);
+      const header = within(graph).getByTestId(`delivery-layer-${layer}`);
+      expect(header).toHaveTextContent(`Layer ${layer}`);
+      expect(node).toHaveAttribute("data-stack", stack);
+      expect(node).toHaveAttribute("data-layer", String(layer));
+      expect(node.style.left).toBe(header.style.left);
     }
-    expect(screen.getByTestId("unit-node-D")).toHaveTextContent("stack D · layer 0");
+    expect(parseFloat(screen.getByTestId("unit-node-D").style.top)).toBeGreaterThan(
+      parseFloat(screen.getByTestId("unit-node-A").style.top),
+    );
 
     const markers = screen.getAllByTestId(/^gate-marker-/);
     expect(markers).toHaveLength(2);
@@ -137,11 +149,20 @@ describe("Delivery map", () => {
     ]) {
       const marker = screen.getByTestId(`gate-marker-${gateId}`);
       const unit = screen.getByTestId(`unit-node-${unitId}`);
-      // After the unit in reading order and on the canvas, in the unit's lane.
+      // After the unit in reading order, in the column after it, in the gate
+      // lane below the stacks.
       expect(unit.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(parseFloat(marker.style.left)).toBeGreaterThan(parseFloat(unit.style.left));
-      expect(parseFloat(marker.style.top)).toBeGreaterThanOrEqual(parseFloat(unit.style.top));
+      expect(parseFloat(marker.style.top)).toBeGreaterThan(
+        parseFloat(screen.getByTestId("unit-node-D").style.top),
+      );
     }
+    expect(within(graph).getByTestId("delivery-gate-lane")).toHaveTextContent(
+      "verify gates2 gates",
+    );
+    expect(within(graph).getByTestId("delivery-graph-legend")).toHaveTextContent(
+      "depends onmergedlive pathgates the next batch",
+    );
     expect(screen.getByTestId("gate-marker-gate-after-b")).toHaveTextContent("pending");
     expect(screen.getByTestId("gate-marker-gate-after-c")).toHaveTextContent("passed");
 
