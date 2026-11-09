@@ -19,7 +19,12 @@ import { displayIssueRef } from "../lib/issue-id";
 import { stepIcon, stepTextColor } from "../lib/provisioning";
 import { isDirtyBenchError } from "../lib/api";
 import ClearBenchDirtyDialog from "./ClearBenchDirtyDialog";
-import StaleBenchMarker from "./StaleBenchMarker";
+import { TooltipTrigger } from "react-aria-components";
+import StaleBenchMarker, {
+  RESTART_WITH_CONFIG_LABEL,
+  RESTART_WITH_CONFIG_TOOLTIP,
+} from "./StaleBenchMarker";
+import Tooltip from "./ui/Tooltip";
 import { useToast } from "../hooks/useToast";
 import Button from "./ui/Button";
 import IconButton from "./ui/IconButton";
@@ -255,28 +260,33 @@ export default function BenchCard({
 
             {bench.stale === true && !bench.error && (
               <div onClick={(e) => e.stopPropagation()} className="mt-2 shrink-0">
-                <Button
-                  isDisabled={isBusy || restartWithConfig.isPending}
-                  onPress={() =>
-                    restartWithConfig.mutate(
-                      { projectId: bench.projectId, benchId: bench.id },
-                      {
-                        onError: (err) =>
-                          addToast(
-                            err instanceof Error && err.message ? err.message : "Restart failed",
-                            { duration: 8000 },
-                          ),
-                      },
-                    )
-                  }
-                  className="w-full outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                >
-                  <RefreshCw
-                    size={12}
-                    className={restartWithConfig.isPending ? "animate-spin" : ""}
-                  />
-                  {restartWithConfig.isPending ? "Restarting..." : "Restart with new config"}
-                </Button>
+                <TooltipTrigger delay={500}>
+                  <Button
+                    isDisabled={isBusy || restartWithConfig.isPending}
+                    onPress={() =>
+                      restartWithConfig.mutate(
+                        { projectId: bench.projectId, benchId: bench.id },
+                        {
+                          onError: (err) =>
+                            addToast(
+                              err instanceof Error && err.message ? err.message : "Restart failed",
+                              { duration: 8000 },
+                            ),
+                        },
+                      )
+                    }
+                    className="w-full outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={restartWithConfig.isPending ? "animate-spin" : ""}
+                    />
+                    {restartWithConfig.isPending ? "Restarting..." : RESTART_WITH_CONFIG_LABEL}
+                  </Button>
+                  <Tooltip data-testid="bench-card-restart-with-config-tooltip">
+                    {RESTART_WITH_CONFIG_TOOLTIP}
+                  </Tooltip>
+                </TooltipTrigger>
               </div>
             )}
 
