@@ -953,7 +953,8 @@ describe("BenchCard", () => {
       const summary = await screen.findByText("2 decisions waiting");
       const card = summary.closest('[data-testid="specbench-card-summary"]') as HTMLElement;
       expect(card).toHaveTextContent("fixture-spec");
-      expect(card).toHaveTextContent("3 of 10 cases met");
+      expect(card).toHaveTextContent("fixture-spec 3 of 10 cases met USD 0.42");
+      expect(card).toHaveTextContent("2 decisions waiting A running fresh");
       expect(card).toHaveTextContent("USD 0.42");
       expect(screen.getByTestId("specbench-card-meter")).toHaveStyle({ width: "30%" });
       expect(screen.getByTestId("specbench-card-live")).toHaveTextContent("A running");

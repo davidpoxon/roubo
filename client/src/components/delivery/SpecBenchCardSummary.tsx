@@ -32,6 +32,8 @@ import { readErrorTitle } from "./delivery-read-error";
 // the summary and the lines above them scroll only if they cannot fit.
 const ROOT_CLASS = "flex h-full min-h-0 flex-col gap-2 pb-1.5";
 const INFO_CLASS = "min-h-0 flex-1 space-y-1.5 overflow-y-auto";
+// The spans of a line are separate words to a screen reader too, so a space
+// sits between each pair; the gap draws the space you see.
 const LINE_CLASS = "flex min-w-0 flex-wrap gap-x-3 gap-y-0.5 text-12 text-text-secondary";
 const KEY_CLASS = "min-w-0 break-all text-text-body";
 
@@ -63,7 +65,7 @@ export default function SpecBenchCardSummary({ bench }: { bench: Bench }) {
     <div data-testid="specbench-card-summary" className={ROOT_CLASS}>
       <div className={INFO_CLASS}>
         <p className={LINE_CLASS}>
-          <span className={KEY_CLASS}>{slug}</span>
+          <span className={KEY_CLASS}>{slug}</span>{" "}
           {delivery.isPending && <span>Reading the delivery record...</span>}
           {delivery.isError && (
             <span
@@ -115,10 +117,10 @@ function SnapshotSummary({
     <div data-testid="specbench-card-summary" className={ROOT_CLASS}>
       <div className={INFO_CLASS}>
         <p className={LINE_CLASS}>
-          <span className={KEY_CLASS}>{slug}</span>
+          <span className={KEY_CLASS}>{slug}</span>{" "}
           <span>
             {cases.met} of {cases.total} cases met
-          </span>
+          </span>{" "}
           <span>{unitCostLabel(spentUsd)}</span>
         </p>
         <span aria-hidden="true" className="block h-1 w-full rounded-full bg-bg-hover">
@@ -133,11 +135,13 @@ function SnapshotSummary({
             {open.length === 0
               ? "no decision waiting"
               : `${open.length} ${open.length === 1 ? "decision" : "decisions"} waiting`}
-          </span>
+          </span>{" "}
           {live !== undefined && (
-            <span data-testid="specbench-card-live">
-              {live.id} {live.status}
-            </span>
+            <>
+              <span data-testid="specbench-card-live">
+                {live.id} {live.status}
+              </span>{" "}
+            </>
           )}
           <span data-testid="specbench-card-health" data-health={health.word}>
             {healthLabel(health)}
