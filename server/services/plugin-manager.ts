@@ -2653,17 +2653,21 @@ export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInsp
  * `"enabled"`. A plugin that is running, has no valid manifest, is not
  * consented, or that the user disabled, also while it awaited consent, is left
  * as it is.
+ *
+ * Resolves true only when this call started the plugin's process, so a caller
+ * can name the plugins that a grant of consent actually started.
  */
-export async function startAfterConsent(pluginId: string): Promise<void> {
+export async function startAfterConsent(pluginId: string): Promise<boolean> {
   const entry = plugins.get(pluginId);
-  if (!entry || entry.process || !entry.record.manifest) return;
-  if (entry.record.status !== "disabled") return;
-  if (!pluginConsentState.hasConsent(pluginId)) return;
+  if (!entry || entry.process || !entry.record.manifest) return false;
+  if (entry.record.status !== "disabled") return false;
+  if (!pluginConsentState.hasConsent(pluginId)) return false;
   if (enableStateCache?.plugins[pluginId] === "awaiting-consent") {
     enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
   }
-  if (!isPluginEnabled(pluginId)) return;
+  if (!isPluginEnabled(pluginId)) return false;
   await spawnPlugin(entry);
+  return entry.process !== null && entry.process !== undefined;
 }
 
 /** What a reload of plugins-state.json changed in the running plugins. */
