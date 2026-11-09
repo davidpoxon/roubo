@@ -77,6 +77,19 @@ connection.listen();
 
 const EXITS_AT_START = `"use strict";\nprocess.exit(1);\n`;
 
+// Starts and passes the start check, then exits with code 1 on its first
+// `translate`: a real crash of the new process during the swap's re-bind.
+const EXITS_ON_TRANSLATE = `"use strict";
+const rpc = require(${JSON.stringify(JSONRPC_PATH)});
+const connection = rpc.createMessageConnection(
+  new rpc.StreamMessageReader(process.stdin),
+  new rpc.StreamMessageWriter(process.stdout),
+);
+connection.onRequest("ping", () => "pong");
+connection.onRequest("translate", () => { process.exit(1); });
+connection.listen();
+`;
+
 interface ManifestOptions {
   version?: string;
   contractVersion?: number;
@@ -207,6 +220,25 @@ afterEach(async () => {
   root = null;
 });
 
+// The re-bind hook as the host runs it: a translate round trip on the new
+// process, then a component status per bench. Records how each call ended.
+function rebindThatTranslates(calls: string[]) {
+  return async (pluginId: string) => {
+    await pluginManager
+      .invoke(pluginId, "translate", { context: { benchId: 2 } })
+      .then(() => calls.push("translate ok"))
+      .catch((err: { code?: string }) => calls.push(`translate ${err.code}`));
+    await waitFor(() => record().pid === null, 5_000);
+    const started = Date.now();
+    await pluginManager
+      .invoke(pluginId, "componentStatus", { benchId: 2 })
+      .then(() => calls.push("status ok"))
+      .catch((err: { code?: string }) => calls.push(`status ${err.code}`));
+    calls.push(Date.now() - started < 5_000 ? "status answered at once" : "status waited");
+    throw new Error("the new process is gone");
+  };
+}
+
 describe("swapProcess (HR-FR-009)", () => {
   it("HR-TC-021 re-binds every ledger entry to the new plugin process", async () => {
     ledgerFake.entries = twoBenches();
@@ -273,6 +305,64 @@ describe("swapProcess (HR-FR-009)", () => {
     expect(swapState.isBenchStaleFromSwap("lantern", 3)).toBe(false);
     // Bench numbers are per project: bench 2 of another project is not marked.
     expect(swapState.isBenchStaleFromSwap("harbour", 2)).toBe(false);
+  }, 30_000);
+
+  it("HR-TC-056 marks the plugin errored and stale, and keeps the bench resources, when the new process exits during the re-bind", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    const before = structuredClone(ledgerFake.entries);
+    const calls: string[] = [];
+    swapped.mockImplementation(rebindThatTranslates(calls));
+    await startDatabase();
+
+    await writePlugin({ version: "1.0.1" }, EXITS_ON_TRANSLATE);
+    await pluginManager.swapProcess("database");
+
+    // The exit closed the swap gap, so the re-bind's next call failed at once
+    // rather than waiting for the gap's timeout.
+    expect(calls).toEqual([
+      "translate rpc-error",
+      "status plugin-not-enabled",
+      "status answered at once",
+    ]);
+    expect(swapState.isInSwapGap("database")).toBe(false);
+    // Wait past the first restart backoff (500 ms): a crash read of the exit
+    // would have fired the pre-restart teardown and scheduled a respawn by now.
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(preRestart).not.toHaveBeenCalled();
+    expect(restarted).not.toHaveBeenCalled();
+    expect(ledgerFake.entries).toEqual(before);
+
+    const r = record();
+    expect(r.status).toBe("errored");
+    expect(r.lastError?.code).toBe("swap-process-exited");
+    expect(r.lastError?.message).toMatch(/still running/);
+    expect(r.restartHistory).toEqual([]);
+    expect(r.pid).toBeNull();
+    expect(r.stale).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(true);
+  }, 30_000);
+
+  it("HR-TC-056 does not end the swap as a success for a plugin no bench uses when the new process exits during the re-bind", async () => {
+    const calls: string[] = [];
+    swapped.mockImplementation(async (pluginId: string) => {
+      await pluginManager
+        .invoke(pluginId, "translate", { context: { benchId: 0 } })
+        .catch((err: { code?: string }) => calls.push(`translate ${err.code}`));
+      await waitFor(() => record().pid === null, 5_000);
+    });
+    await startDatabase();
+
+    await writePlugin({ version: "1.0.1" }, EXITS_ON_TRANSLATE);
+    await pluginManager.swapProcess("database");
+
+    expect(calls).toEqual(["translate rpc-error"]);
+    const r = record();
+    expect(r.status).toBe("errored");
+    expect(r.lastError?.code).toBe("swap-process-exited");
+    expect(r.stale).toBe(true);
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(preRestart).not.toHaveBeenCalled();
+    expect(record().restartHistory).toEqual([]);
   }, 30_000);
 
   it("HR-TC-056 clears the stale mark and re-binds when restart() brings the plugin up", async () => {
@@ -412,6 +502,34 @@ describe("an in-place update keeps the ledger (HR-FR-009)", () => {
     expect(ledgerFake.entries).toEqual(before);
     await new Promise((r) => setTimeout(r, 700));
     expect(preRestart).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("HR-TC-056 marks the updated plugin errored and stale when its new process exits during the re-bind", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    const before = structuredClone(ledgerFake.entries);
+    const calls: string[] = [];
+    swapped.mockImplementation(rebindThatTranslates(calls));
+    await startDatabase();
+
+    await pluginManager.uninstallForUpdate("database");
+    await writePlugin({ version: "1.1.0" }, EXITS_ON_TRANSLATE);
+    await pluginManager.registerInstalled(pluginDir);
+
+    expect(calls).toEqual([
+      "translate rpc-error",
+      "status plugin-not-enabled",
+      "status answered at once",
+    ]);
+    expect(swapState.isInSwapGap("database")).toBe(false);
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(preRestart).not.toHaveBeenCalled();
+    expect(ledgerFake.entries).toEqual(before);
+    const r = record();
+    expect(r.status).toBe("errored");
+    expect(r.lastError?.code).toBe("swap-process-exited");
+    expect(r.restartHistory).toEqual([]);
+    expect(r.stale).toBe(true);
+    expect(swapState.isBenchStaleFromSwap("lantern", 2)).toBe(true);
   }, 30_000);
 });
 
