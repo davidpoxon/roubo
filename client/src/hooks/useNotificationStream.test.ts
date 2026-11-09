@@ -507,6 +507,7 @@ describe("useNotificationStream", () => {
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
         { queryKey: ["projects"] },
         { queryKey: ["project-settings", "p1"] },
+        { queryKey: ["raw-config", "p1"] },
         { queryKey: ["benches"] },
         { queryKey: ["bench", "p1", 1] },
         { queryKey: ["bench", "p1", 2] },

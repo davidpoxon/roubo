@@ -32,9 +32,16 @@ function benchKeys(event: InputChangedEvent): QueryKey[] {
  * selection, the scroll position and any unsent form input stay as they are.
  */
 export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent) => QueryKey[]> = {
+  // The raw config editor seeds its text from ["raw-config", projectId] once,
+  // so a refetch refreshes the saved copy without discarding unsent edits.
   "project-config": (event) => [
     ["projects"],
-    ...(event.projectId === undefined ? [] : [["project-settings", event.projectId]]),
+    ...(event.projectId === undefined
+      ? []
+      : [
+          ["project-settings", event.projectId],
+          ["raw-config", event.projectId],
+        ]),
     ["benches"],
     ...benchKeys(event),
   ],
