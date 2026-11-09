@@ -4,10 +4,12 @@ import type {
   ConfigValidationResult,
   ProjectSettings,
   PersistedProjectEntry,
+  PersistedProjects,
 } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS, DEFAULT_BENCH_SETTINGS } from "@roubo/shared";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { parseConfig } from "./config-parser.js";
 import { validateComponentBindings } from "./component-binding-validator.js";
 import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
@@ -248,6 +250,26 @@ export function initialize() {
     loadedConfigHashes.set(entry.id, loadedHash);
     emitConfigLoaded(project);
   }
+}
+
+/**
+ * Apply a projects.json edited outside the app (HR-FR-012): each registered
+ * project whose record now carries other settings takes them, and its id is
+ * returned. A record for a project that is not registered, and a project with
+ * no record, are left as they are: registering and unregistering a project
+ * stay with the app, which checks the config and the benches first.
+ */
+export function applyProjectsFileEdit(persisted: PersistedProjects): string[] {
+  const changed: string[] = [];
+  for (const entry of persisted.projects) {
+    const project = projects.get(entry.id);
+    if (!project) continue;
+    const settings = resolveSettings(entry);
+    if (isDeepStrictEqual(settings, project.settings)) continue;
+    project.settings = settings;
+    changed.push(entry.id);
+  }
+  return changed;
 }
 
 export function registerProject(repoPath: string): RegisteredProject {

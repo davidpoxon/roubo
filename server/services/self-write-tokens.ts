@@ -8,7 +8,8 @@
  * matching token instead of running the surface handler.
  *
  * Tokens are held as a multiset for each path: two quick writes of the same
- * content leave two tokens, and each match consumes the oldest one. Every token
+ * content leave two tokens, and each match consumes the oldest one, or, through
+ * `consumeSelfWrites`, every write that one merged change accounts for. Every token
  * expires after `SELF_WRITE_TTL_MS`, so a write whose event never arrives does
  * not mask a later hand edit for long.
  *
@@ -83,6 +84,28 @@ export function consumeSelfWrite(absPath: string, contentHash: string): boolean 
   list.splice(index, 1);
   if (list.length === 0) tokens.delete(key);
   return true;
+}
+
+/**
+ * Consume the self-write tokens that the content `contentHash` of `absPath`
+ * accounts for, and return their hashes, oldest first. Empty when the change
+ * is not the server's own write.
+ *
+ * `atomicWrite` marks a token and renames in one synchronous step, so when the
+ * newest live token matches what is on disk, every live token of the path is a
+ * write that has already landed: back-to-back writes whose events the settle
+ * window merged into one run. Each is consumed, so each write is counted once
+ * and none is left to mask a later hand edit (HR-TC-031). Otherwise only the
+ * oldest matching token is consumed, as `consumeSelfWrite` does.
+ */
+export function consumeSelfWrites(absPath: string, contentHash: string): string[] {
+  const key = canonicalInputPath(absPath);
+  const list = live(key, Date.now());
+  if (list.length > 0 && list[list.length - 1].hash === contentHash) {
+    tokens.delete(key);
+    return list.map((t) => t.hash);
+  }
+  return consumeSelfWrite(absPath, contentHash) ? [contentHash] : [];
 }
 
 /** Drop every token. For tests. */

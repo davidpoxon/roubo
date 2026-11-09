@@ -38,7 +38,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import { getRouboDir, loadProjects } from "./state.js";
-import { consumeSelfWrite, hashContent } from "./self-write-tokens.js";
+import { consumeSelfWrites, hashContent } from "./self-write-tokens.js";
 import { broadcastInputChanged } from "./sse.js";
 import { INPUT_SURFACES, type InputSurface } from "@roubo/shared";
 
@@ -95,6 +95,12 @@ export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 export interface WatchInputOptions {
   /** The surface name written on every log line, such as `settings`. */
   surface: string;
+  /**
+   * The surface of one input, for a watch whose inputs feed different
+   * surfaces, such as the state dir. Its log lines and events carry it. Falls
+   * back to `surface` when absent or when it gives nothing.
+   */
+  surfaceOf?: (absPath: string) => string | undefined;
   /** The trailing settle window for each input, in milliseconds. */
   settleMs: number;
   /**
@@ -479,7 +485,7 @@ export function watchInput(
     depth = 0;
   }
 
-  const { surface, settleMs } = options;
+  const { settleMs } = options;
   // The hash of each input's last applied content, or what was rejected when
   // its last handler run did not apply.
   const lastApplied = new Map<string, string | null | RejectedContent>();
@@ -552,6 +558,7 @@ export function watchInput(
 
   async function run(unit: string, mode: RunMode): Promise<void> {
     if (disposed) return;
+    const surface = options.surfaceOf?.(unit) ?? options.surface;
     if (options.hold) {
       try {
         await options.hold(unit);
@@ -629,12 +636,14 @@ export function watchInput(
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
-    if (hash !== null && consumeSelfWrite(unit, hash)) {
+    const selfWrites = hash === null ? [] : consumeSelfWrites(unit, hash);
+    if (selfWrites.length > 0) {
       // An app write the surface rejected stays rejected (see markRejected).
       // One it applied was recorded through markApplied, which dropped any
       // earlier rejected record of the same content, so it stays applied.
       if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
-      emit("self-write", hash);
+      // One line for each app write the merged change accounts for.
+      for (const written of selfWrites) emit("self-write", written);
       return;
     }
     // A rescan finds the content that was last rejected unchanged: the handler
@@ -749,7 +758,7 @@ export function watchInput(
     });
     w.on("error", (err) => {
       const code = (err as NodeJS.ErrnoException).code ?? "unknown";
-      console.warn(`${LOG_PREFIX} watch error surface=${surface} path=${dir} code=${code}`);
+      console.warn(`${LOG_PREFIX} watch error surface=${options.surface} path=${dir} code=${code}`);
     });
     watcher = w;
     return ready;

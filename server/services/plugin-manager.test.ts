@@ -3028,6 +3028,74 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
   });
 
+  it("HR-TC-028 reloadEnableState stops a running plugin that a hand edit of plugins-state.json disables", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").pid).not.toBeNull();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: ["echo"], enabled: [] });
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("disabled");
+    expect(echo.pid).toBeNull();
+    expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("echo");
+    // The file already holds the edit: nothing is written back.
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+  });
+
+  it("reloadEnableState starts a stopped plugin that a hand edit of plugins-state.json enables", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").pid).toBeNull();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: [], enabled: ["echo"] });
+    expect(findRecord(mgr.listInstalled(), "echo").pid).not.toBeNull();
+  });
+
+  it("reloadEnableState leaves a plugin whose value did not change as it is", async () => {
+    const same: PluginEnableState = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    };
+    enableStateMocks.loadEnableState.mockReturnValueOnce(same);
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const pid = findRecord(mgr.listInstalled(), "echo").pid;
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce(same);
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: [], enabled: [] });
+    expect(findRecord(mgr.listInstalled(), "echo").pid).toBe(pid);
+  });
+
   // A disabled component or agent plugin that was never held for consent,
   // such as an e2e fixture that /test/__reset disables, enables and restarts
   // before it is consented, as it did before the hold existed (HR-FR-008).

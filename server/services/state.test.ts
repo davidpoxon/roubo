@@ -190,6 +190,36 @@ describe("loadSettings", () => {
     });
   });
 
+  it("HR-TC-034 keeps serving the last settings that parsed when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light", benches: { maxGlobal: 4 } }));
+    const good = stateModule.loadSettings();
+
+    readFileSync.mockReturnValue("{");
+    const served = stateModule.loadSettings();
+
+    expect(served).toEqual(good);
+    expect(served.theme).toBe("light");
+    expect(served.benches?.maxGlobal).toBe(4);
+    // A caller that mutates what it was served does not change the last good copy.
+    served.theme = "dark";
+    expect(stateModule.loadSettings().theme).toBe("light");
+    // The opt-in corruption signal is unchanged.
+    expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow();
+  });
+
+  it("HR-TC-034 serves the built-in defaults for an unparseable settings.json only when no read has parsed yet", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("{");
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light" }));
+    stateModule.loadSettings();
+    stateModule.resetLastGoodSettings();
+    readFileSync.mockReturnValue("{");
+    expect(stateModule.loadSettings().theme).toBe("dark");
+  });
+
   it("throws on malformed JSON when throwOnCorrupt is set, but stays fail-open by default", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue("not valid json{{{");
