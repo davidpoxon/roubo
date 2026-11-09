@@ -193,7 +193,7 @@ describe("DeliveryGraph", () => {
     ).toBeTruthy();
   });
 
-  it("names a unit's pull request in its head, and a held unit's draft instead", () => {
+  it("names a unit's pull request number in its head", () => {
     const record = fourUnitRecord();
     render(
       <DeliveryGraph
@@ -211,6 +211,34 @@ describe("DeliveryGraph", () => {
     expect(screen.getByTestId("unit-pr-number-A")).toHaveTextContent("#42");
     expect(screen.queryByTestId("unit-pr-number-B")).toBeNull();
     expect(screen.queryByTestId("unit-pr-A")).toBeNull();
+  });
+
+  it("shows a held unit's draft and not its pull request number", () => {
+    const record = fourUnitRecord();
+    const layout = layoutOf({
+      ...record,
+      units: record.units.map((unit) =>
+        unit.id === "A" ? { ...unit, pr_url: "https://github.com/demo/demo/pull/42" } : unit,
+      ),
+    });
+    // The provisional-gate state that holds a unit is covered by the
+    // ProvisionalGate tests; this one only checks what a held node shows.
+    const held = {
+      ...layout,
+      items: layout.items.map((item) =>
+        item.kind === "unit" && item.unit.id === "A" ? { ...item, held: true } : item,
+      ),
+    };
+    render(
+      <DeliveryGraph
+        layout={held}
+        selectedKey={null}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("unit-pr-A")).toHaveTextContent("draft · held");
+    expect(screen.queryByTestId("unit-pr-number-A")).toBeNull();
   });
 
   it("scrolls the live unit into view when it opens past the visible width", () => {
