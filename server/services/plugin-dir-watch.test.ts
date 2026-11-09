@@ -355,6 +355,23 @@ describe("a plugin directory added by hand", () => {
     expect(record("off-integration")?.pid).toBeNull();
   }, 20_000);
 
+  it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled rather than awaiting consent", async () => {
+    hoisted.enableState = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "off-agent": "disabled" },
+    };
+    await pluginManager.shutdown();
+    await pluginManager.initialize();
+    await startWatch();
+    dropPlugin("off-agent", { kind: "agent" });
+
+    await waitFor(() => outcomeLines("off-agent", "applied").length === 1);
+    expect(record("off-agent")?.pid).toBeNull();
+    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
+    await expect(pluginManager.enable("off-agent")).rejects.toThrow(/no consent yet/);
+  }, 20_000);
+
   it("HR-TC-015 never spawns an un-consented plugin found on disk and logs action=register", async () => {
     await startWatch();
     const marker = path.join(base, "started.marker");
@@ -390,15 +407,50 @@ describe("a plugin directory added by hand", () => {
 
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
     await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
-    await pluginManager.disable("held-plugin");
-    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
-    await sleep(500);
     expect(record("held-plugin")?.pid).toBeNull();
     expect(fs.existsSync(marker)).toBe(false);
 
     // Consent lifts the hold.
     hoisted.consented.add("held-plugin");
     await pluginManager.startAfterConsent("held-plugin");
+    expect(typeof record("held-plugin")?.pid).toBe("number");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
+    await waitFor(() => fs.existsSync(marker));
+  }, 20_000);
+
+  it("HR-TC-014 keeps a plugin disabled while it awaited consent disabled after consent, across a relaunch", async () => {
+    await startWatch();
+    const marker = path.join(base, "disabled-held.marker");
+    dropPlugin("held-plugin", { kind: "agent", marker });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    // Disable during the hold: recorded, and enable and restart still refuse it.
+    await pluginManager.disable("held-plugin");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+
+    // A relaunch neither starts it nor turns the disable back into a hold.
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    await pluginManager.initialize();
+    await sleep(500);
+    expect(record("held-plugin")?.pid).toBeNull();
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+
+    // A grant of consent leaves the disabled plugin as it is.
+    hoisted.consented.add("held-plugin");
+    await pluginManager.startAfterConsent("held-plugin");
+    await sleep(500);
+    expect(record("held-plugin")?.status).toBe("disabled");
+    expect(record("held-plugin")?.pid).toBeNull();
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    expect(fs.existsSync(marker)).toBe(false);
+
+    // Once consented, the user can enable it.
+    await pluginManager.enable("held-plugin");
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
