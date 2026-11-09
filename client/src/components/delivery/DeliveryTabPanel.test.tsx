@@ -771,6 +771,31 @@ describe("The Delivery tab's views (#1620)", () => {
     expect(link).toHaveFocus();
   });
 
+  it("reads attached in the cost view's health line while the attached bench holds no session (#1623)", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openCostView();
+    expect(screen.getByTestId("delivery-health-line")).toHaveAttribute("data-health", "attached");
+  });
+
+  it("opens a jammed unit's drill-in from its callout in the cost view (#1623)", async () => {
+    const jammed = record();
+    jammed.units = jammed.units.map((unit) =>
+      unit.id === "B" ? { ...unit, status: "jammed" } : unit,
+    );
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      createDeliveryReducer().fold({ record: jammed, events: [] }),
+    );
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openCostView();
+    const jam = screen.getByTestId("delivery-jam-row-B");
+
+    await userEvent.click(within(jam).getByRole("button", { name: "Open B" }));
+    expect(screen.getByTestId("delivery-cost-health-controls")).not.toBeVisible();
+    expect(screen.getByRole("region", { name: "Unit B" })).toBeVisible();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/B");
+  });
+
   it("opens a gate's drill-in as a view, and Close returns to the map with the focus on the gate", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     renderWithProviders(<DeliveryTabPanel bench={bench} />);

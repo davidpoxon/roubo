@@ -37,8 +37,13 @@ const crossCheck: DeliveryCrossCheckResponse = {
   sourceError: null,
 };
 
-function renderView(events: DeliveryEvent[] = [], onOpenUnit = vi.fn()) {
+function renderView(
+  events: DeliveryEvent[] = [],
+  onOpenUnit = vi.fn(),
+  lifecycle: { ended_at?: string } = {},
+) {
   const record = fourUnitRecord();
+  record.lifecycle = { ...record.lifecycle, ...lifecycle };
   record.budget = {
     ...record.budget,
     by_role: { main: 0.12, "unit-coder": 0.2, "gate-verifier": 0.02 },
@@ -122,6 +127,14 @@ describe("DeliveryCostView", () => {
     );
     expect(screen.getByTestId("delivery-stat-elapsed")).toHaveTextContent(
       "1d 04h since 2026-10-16 09:00 UTC",
+    );
+  });
+
+  it("stops the elapsed time at the end of an ended delivery", () => {
+    vi.useFakeTimers({ now: Date.parse("2026-10-20T00:00:00Z"), toFake: ["Date"] });
+    renderView([], vi.fn(), { ended_at: "2026-10-16T12:15:00Z" });
+    expect(screen.getByTestId("delivery-stat-elapsed")).toHaveTextContent(
+      "3h 15m ended 2026-10-16 12:15 UTC",
     );
   });
 
