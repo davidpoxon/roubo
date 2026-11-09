@@ -934,7 +934,10 @@ describe("BenchCard", () => {
     }
 
     function answer(record: DeliveryRecord) {
-      vi.mocked(api.fetchDelivery).mockResolvedValue(foldDelivery({ record, events: [] }));
+      const snapshot = foldDelivery({ record, events: [] });
+      // Three of ten cases met, so the count and the meter have figures to show.
+      snapshot.progress = { ...snapshot.progress, cases: { met: 3, total: 10 } };
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
     }
 
     afterEach(() => {
@@ -950,9 +953,9 @@ describe("BenchCard", () => {
       const summary = await screen.findByText("2 decisions waiting");
       const card = summary.closest('[data-testid="specbench-card-summary"]') as HTMLElement;
       expect(card).toHaveTextContent("fixture-spec");
-      expect(card).toHaveTextContent(/\d+ of \d+ cases met/);
+      expect(card).toHaveTextContent("3 of 10 cases met");
       expect(card).toHaveTextContent("USD 0.42");
-      expect(screen.getByTestId("specbench-card-meter")).toHaveAttribute("style");
+      expect(screen.getByTestId("specbench-card-meter")).toHaveStyle({ width: "30%" });
       expect(screen.getByTestId("specbench-card-live")).toHaveTextContent("A running");
       expect(screen.getByTestId("specbench-card-health")).toHaveTextContent("fresh");
       expect(screen.getByRole("button", { name: "Open delivery" })).toBeInTheDocument();
@@ -1007,6 +1010,34 @@ describe("BenchCard", () => {
       await userEvent.click(screen.getByRole("button", { name: "Open bench" }));
       expect(mockNavigate).toHaveBeenCalledTimes(1);
       expect(mockNavigate).toHaveBeenCalledWith("/projects/demo/benches/3");
+    });
+
+    it("says a missing record is not there yet, without danger-text, and offers Open bench", async () => {
+      makeDefaultMutations();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new ApiError("no record", 409, "DELIVERY_RECORD_MISSING", {
+          error: "no record",
+          code: "DELIVERY_RECORD_MISSING",
+        }),
+      );
+      renderCard(specBench());
+      const error = await screen.findByTestId("specbench-card-error");
+      expect(error).toHaveTextContent("No delivery record yet");
+      expect(error.className).not.toContain("text-danger-text");
+      expect(screen.queryByText("No controls until the record conforms")).toBeNull();
+      expect(screen.getByRole("button", { name: "Open bench" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open delivery" })).toBeNull();
+    });
+
+    it("does not blame the record when the read fails for another reason", async () => {
+      makeDefaultMutations();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(new Error("Network down"));
+      renderCard(specBench());
+      expect(await screen.findByTestId("specbench-card-error")).toHaveTextContent(
+        "The delivery could not be read",
+      );
+      expect(screen.queryByText("No controls until the record conforms")).toBeNull();
+      expect(screen.getByRole("button", { name: "Open bench" })).toBeInTheDocument();
     });
 
     it("keeps the component list on a plain bench and a TestBench", () => {

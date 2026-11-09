@@ -25,7 +25,8 @@ import { readErrorTitle } from "./delivery-read-error";
 // and a meter of the cases, then the decisions waiting, the live unit and the
 // delivery's health. The card offers "Open delivery", and "Answer" while a
 // decision waits. A record the bench cannot read shows why, and offers
-// "Open bench" only.
+// "Open bench" only: a record that does not conform in danger-text, with the
+// note that the controls wait for it, and a missing record in secondary text.
 
 // The card's height is fixed, so the actions keep their place at the foot of
 // the summary and the lines above them scroll only if they cannot fit.
@@ -73,7 +74,7 @@ export default function SpecBenchCardSummary({ bench }: { bench: Bench }) {
             </span>
           )}
         </p>
-        {delivery.isError && !waiting && (
+        {readError !== undefined && !waiting && (
           <p className={LINE_CLASS}>No controls until the record conforms</p>
         )}
       </div>
