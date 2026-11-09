@@ -237,6 +237,23 @@ async function enableAutoStart(request: APIRequestContext): Promise<void> {
   expect(res.status(), "precondition: PUT /api/settings benches.autoStartComponents").toBe(200);
 }
 
+// Precondition of HR-TC-001 S004's start leg: the 'worker' component is bound to
+// the `process` component plugin. The e2e harness swaps the bundled plugins for
+// its overlays, and the `process` overlay
+// (e2e/fixtures/bundled-overlays/process/) is installed but forced disabled by
+// every /test/__reset, so this test opts in: it enables the overlay and records
+// the consent a user gives before a first start. Like the real plugin, the
+// overlay declares no permission category, so the consent acknowledges none.
+// The next reset disables it again.
+async function enableProcessPlugin(request: APIRequestContext): Promise<void> {
+  const enable = await request.post("/api/plugins/process/enable");
+  expect(enable.status(), "precondition: POST /api/plugins/process/enable").toBe(204);
+  const res = await request.post("/api/plugins/process/consent", {
+    data: { acknowledgedCategories: [] },
+  });
+  expect(res.status(), "precondition: POST /api/plugins/process/consent").toBe(200);
+}
+
 test.beforeEach(async ({ request }) => {
   const res = await request.post("/test/__reset", { data: {} });
   expect(res.status(), "POST /test/__reset").toBe(200);
@@ -351,6 +368,7 @@ test("HR-TC-001: Set up bench sets up a new bench with the new definition and st
 }) => {
   test.setTimeout(90_000);
   await enableAutoStart(request);
+  await enableProcessPlugin(request);
   // A real worktree is provisioned for the bench, so the fixture repo is a git
   // repository pinned to its local HEAD.
   const { repoPath } = await registerFixtureProject(request, {
@@ -384,6 +402,7 @@ test("HR-TC-001: Set up bench sets up a new bench with the new definition and st
       bench === undefined ? "no bench was set up" : `the bench lists: ${names.join(", ")}`,
     );
 
+    // S004-O01 throws when the bench or its worker is missing; this narrows.
     if (bench === undefined || bench.components.worker === undefined) return;
 
     // "...and starts it": the worker reaches running.
@@ -396,26 +415,6 @@ test("HR-TC-001: Set up bench sets up a new bench with the new definition and st
       await sleep(250);
     }
 
-    const plugins = await request.get("/api/plugins");
-    const pluginIds = ((await plugins.json()) as { plugins: { id: string }[] }).plugins.map(
-      (p) => p.id,
-    );
-    if (worker.status !== "running" && !pluginIds.includes("process")) {
-      // The e2e harness swaps the bundled plugins for its own overlays, and none
-      // of them is the `process` component plugin, so no process component can
-      // start here. That is a gap of the harness, not drift of this journey:
-      // record it with the FR-020 attribution rather than pass vacuously.
-      const detail = [
-        "HR-TC-001 S004 start leg not observable: the e2e harness installs no 'process' component plugin.",
-        `  diverged step:   ${STEPS_001.S004.id} ${STEPS_001.S004.instruction}`,
-        "  expected:        the new bench starts 'worker' (status running)",
-        `  actual:          worker status=${worker.status}${worker.error ? ` (${worker.error})` : ""}`,
-        `  owning slice(s): ${STEPS_001.S004.owners.map((o) => o.title).join(", ")}`,
-      ].join("\n");
-      test.info().annotations.push({ type: "blocked-by", description: detail });
-      test.fixme(true, detail);
-      return;
-    }
     observe001(
       STEPS_001.S004,
       "S004-O02",
