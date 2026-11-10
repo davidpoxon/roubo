@@ -690,24 +690,24 @@ describe("handleWebSocket", () => {
     const { createSession, handleWebSocket } = await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
-    const tab = createMockWs();
-    const drillIn = createMockWs();
-    handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
-    tab._sent.length = 0;
-    drillIn._sent.length = 0;
+    const firstWindow = createMockWs();
+    const otherWindow = createMockWs();
+    handleWebSocket(session.id, firstWindow);
+    handleWebSocket(session.id, otherWindow);
+    firstWindow._sent.length = 0;
+    otherWindow._sent.length = 0;
 
-    drillIn._trigger(
+    otherWindow._trigger(
       "message",
       Buffer.from(JSON.stringify({ type: "resize", cols: 52, rows: 20 })),
     );
 
-    expect(tab._sent.map((m) => JSON.parse(m))).toContainEqual({
+    expect(firstWindow._sent.map((m) => JSON.parse(m))).toContainEqual({
       type: "pty-size",
       cols: 52,
       rows: 20,
     });
-    expect(drillIn._sent.map((m) => JSON.parse(m).type)).not.toContain("pty-size");
+    expect(otherWindow._sent.map((m) => JSON.parse(m).type)).not.toContain("pty-size");
   });
 
   it("sends ping at interval", async () => {
