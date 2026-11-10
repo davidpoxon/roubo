@@ -21,15 +21,15 @@ export function surfaceThing(surface: InputSurface): string {
   return SURFACE_THINGS[surface] ?? surface;
 }
 
-function benchKeys(event: InputChangedEvent): QueryKey[] {
-  if (event.projectId === undefined) return [];
-  return (event.benchIds ?? []).map((benchId) => ["bench", event.projectId, benchId]);
-}
-
 /**
  * The React Query keys an input change of each surface refreshes (HR-FR-016).
  * Only these keys are invalidated: the rest of the cache, the screen, the
  * selection, the scroll position and any unsent form input stay as they are.
+ * Each surface takes the keys of the input it reports: a project's roubo.yaml
+ * for `project-config`, a plugin folder for `plugin` (whose consent and
+ * enable-state files refresh `["plugins"]`, a subset of it), settings.json for
+ * `settings`, state.json for `bench`, auth.json for `github` and .env for
+ * `environment`.
  */
 export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent) => QueryKey[]> = {
   // The raw config editor seeds its text from ["raw-config", projectId] once,
@@ -40,24 +40,12 @@ export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent)
     ["projects"],
     ...(event.projectId === undefined ? [] : [["raw-config", event.projectId]]),
     ["benches"],
-    ...benchKeys(event),
   ],
-  plugin: () => [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
+  plugin: () => [["plugins"], ["project-integration"], ["benches"]],
   settings: () => [["settings"]],
-  bench: (event) => [["benches"], ...benchKeys(event)],
-  github: (event) => [
-    ...(event.projectId === undefined
-      ? [["project-integration"]]
-      : [
-          ["project-integration", event.projectId],
-          ["github-derived-sources", event.projectId],
-        ]),
-    ["project-items"],
-    ["settings"],
-    ["issues"],
-  ],
-  // The Setup view lists the .env key names, so a .env edit refreshes them.
-  environment: (event) => [["benches"], ...benchKeys(event), ["env-keys"], ["settings"]],
+  bench: () => [["benches"]],
+  github: () => [["settings"], ["issues"]],
+  environment: () => [["settings"]],
 };
 
 /** The keys to refresh for one event; none for a surface this client does not know. */
