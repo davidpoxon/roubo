@@ -62,6 +62,12 @@ const SCREENSHOT_TYPES = "image/png,image/jpeg,image/webp";
 export const NO_SITTING_NOTICE =
   "No gate sitting is open. The cases can be read now. Marks open with a gate sitting.";
 
+/**
+ * The line above the read-only TestBench while the delivery record cannot be
+ * read. The sitting state is then unknown, so it claims none.
+ */
+export const UNREAD_SITTING_NOTICE = "The cases can be read now. Marks open with a gate sitting.";
+
 type TestBenchView = "sitting" | "all";
 
 /** Hides a view of the tab that is not selected. It stays mounted, and inert. */
@@ -101,8 +107,9 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
         </Callout>
       )}
       {/* The reads of the TestBench do not need the delivery record, so the
-          cases show when the record cannot be read too. With no sitting known,
-          the surface stays read-only. */}
+          cases show when the record cannot be read too. The sitting state is
+          then unknown, so the surface stays read-only and the line claims no
+          sitting state. */}
       {(delivery.isError || (delivery.isSuccess && sitting === undefined)) && (
         <>
           <p
@@ -110,7 +117,7 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
             data-testid="specbench-no-sitting"
             className="text-13 text-text-secondary"
           >
-            {NO_SITTING_NOTICE}
+            {delivery.isError ? UNREAD_SITTING_NOTICE : NO_SITTING_NOTICE}
           </p>
           {allCases}
         </>

@@ -38,7 +38,11 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 
 import * as api from "../../lib/api";
-import SpecBenchTestBench, { GATE_CASES_STAGGER_MS, NO_SITTING_NOTICE } from "./SpecBenchTestBench";
+import SpecBenchTestBench, {
+  GATE_CASES_STAGGER_MS,
+  NO_SITTING_NOTICE,
+  UNREAD_SITTING_NOTICE,
+} from "./SpecBenchTestBench";
 import { specCasesPath } from "./spec-cases-path";
 
 const bench = {
@@ -1237,13 +1241,15 @@ describe("Spec Bench test bench tab", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows the read-only TestBench under the error when the delivery record cannot be read", async () => {
+    it("shows the read-only TestBench under the error when the delivery record cannot be read, with no claim about the sitting", async () => {
       vi.mocked(api.fetchDelivery).mockRejectedValue(
-        new api.ApiError("No delivery record", 409, "DELIVERY_RECORD_MISSING"),
+        new api.ApiError("Delivery record is not valid", 409, "DELIVERY_NONCONFORMANT"),
       );
       renderWithProviders(<SpecBenchTestBench bench={bench} />);
-      expect(await screen.findByRole("alert")).toHaveTextContent("No delivery record");
-      expect(screen.getByTestId("specbench-no-sitting")).toHaveTextContent(NO_SITTING_NOTICE);
+      expect(await screen.findByRole("alert")).toHaveTextContent("Delivery record is not valid");
+      const line = screen.getByTestId("specbench-no-sitting");
+      expect(line).toHaveTextContent(UNREAD_SITTING_NOTICE);
+      expect(line).not.toHaveTextContent("No gate sitting is open");
       expect(screen.getByRole("group", { name: "TestBench view" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Change focused spec" })).toBeNull();
     });
