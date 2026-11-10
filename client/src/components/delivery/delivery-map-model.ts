@@ -269,6 +269,11 @@ const START_ROW = NODE_HEIGHT + GATE_HEIGHT + 3 * NODE_GAP;
 const TICKS = 300;
 // A layout that starts from kept positions only settles: it starts cooler.
 const SETTLE_ALPHA = 0.3;
+// How the overlap removal and the fit to the viewport's shape are bounded.
+const SEPARATE_PASSES = 60;
+const SPREAD_ROUNDS = 40;
+const SPREAD = 1.05;
+const MAX_STRETCH = 2;
 // The room a stack's outline leaves around its units, more at the top for its
 // label.
 const HULL_PAD = 12;
@@ -429,6 +434,9 @@ interface SimNode extends SimulationNodeDatum {
   width: number;
   height: number;
   stack: string | null;
+  // The node's place in the kept layout's pinned list, or -1 when it is not
+  // pinned: of two pinned nodes that overlap, the one pinned later moves.
+  pinRank: number;
 }
 
 // A seeded random source, so the simulation's jiggle is the same every run.
@@ -441,9 +449,19 @@ function seededRandom(): () => number {
 }
 
 // Pushes apart any two nodes whose boxes, grown by the gap, overlap, along
-// the axis that overlaps less. `strength` is the share of the overlap that one
-// call removes. A fixed node does not move; the other one takes the push.
-function separate(nodes: readonly SimNode[], strength: number, onVelocity: boolean): void {
+// the axis that overlaps less once the overlap across is weighted by
+// `aspect`: a wide viewport favours a push sideways, so collisions grow the
+// graph along the viewport's long side. `strength` is the share of the overlap that one
+// call removes. A fixed node does not move; the other one takes the push. Of
+// two fixed nodes, the one pinned later takes it and stays fixed where it
+// lands. Returns whether any pair overlapped.
+function separate(
+  nodes: readonly SimNode[],
+  strength: number,
+  onVelocity: boolean,
+  aspect: number,
+): boolean {
+  let overlapped = false;
   for (let i = 0; i < nodes.length; i += 1) {
     const a = nodes[i];
     if (a === undefined) continue;
@@ -459,14 +477,15 @@ function separate(nodes: readonly SimNode[], strength: number, onVelocity: boole
       const overlapX = (a.width + b.width) / 2 + NODE_GAP - Math.abs(dx);
       const overlapY = (a.height + b.height) / 2 + NODE_GAP - Math.abs(dy);
       if (overlapX <= 0 || overlapY <= 0) continue;
+      overlapped = true;
       const aFixed = a.fx !== undefined && a.fx !== null;
       const bFixed = b.fx !== undefined && b.fx !== null;
-      if (aFixed && bFixed) continue;
-      const shareA = aFixed ? 0 : bFixed ? 1 : 0.5;
+      const shareA =
+        aFixed && bFixed ? (a.pinRank > b.pinRank ? 1 : 0) : aFixed ? 0 : bFixed ? 1 : 0.5;
       const shareB = 1 - shareA;
-      // Along x when the boxes overlap less that way, else along y; a tie of
-      // centres is broken by the order of the nodes.
-      const alongX = overlapX < overlapY;
+      // Along x when the boxes overlap less that way, as weighted, else along
+      // y; a tie of centres is broken by the order of the nodes.
+      const alongX = overlapX < overlapY * aspect;
       const sign = (alongX ? dx : dy) > 0 ? 1 : (alongX ? dx : dy) < 0 ? -1 : i % 2 === 0 ? 1 : -1;
       const push = (alongX ? overlapX : overlapY) * strength * sign;
       const axis = alongX ? "x" : "y";
@@ -477,15 +496,68 @@ function separate(nodes: readonly SimNode[], strength: number, onVelocity: boole
       } else {
         a[axis] = (a[axis] ?? 0) - push * shareA;
         b[axis] = (b[axis] ?? 0) + push * shareB;
+        if (aFixed) {
+          a.fx = a.x;
+          a.fy = a.y;
+        }
+        if (bFixed) {
+          b.fx = b.x;
+          b.fy = b.y;
+        }
       }
+    }
+  }
+  return overlapped;
+}
+
+// Takes out every overlap the forces left. Pairwise pushes can push a node
+// into a third one, so it repeats them until no pair overlaps; when a dense
+// cluster does not settle that way, it spreads the free nodes away from the
+// middle a little and tries again.
+function removeOverlaps(nodes: readonly SimNode[], aspect: number): void {
+  for (let round = 0; round < SPREAD_ROUNDS; round += 1) {
+    for (let pass = 0; pass < SEPARATE_PASSES; pass += 1) {
+      if (!separate(nodes, 1, false, aspect)) return;
+    }
+    const free = nodes.filter((node) => node.fx === undefined || node.fx === null);
+    if (free.length === 0) return;
+    const middle = {
+      x: free.reduce((sum, node) => sum + (node.x ?? 0), 0) / free.length,
+      y: free.reduce((sum, node) => sum + (node.y ?? 0), 0) / free.length,
+    };
+    for (const node of free) {
+      node.x = middle.x + ((node.x ?? 0) - middle.x) * SPREAD;
+      node.y = middle.y + ((node.y ?? 0) - middle.y) * SPREAD;
     }
   }
 }
 
-function rectangleCollision(): Force<SimNode, undefined> {
+// Stretches a fresh layout along its short side, up to MAX_STRETCH, toward
+// the viewport's shape. The forces only pull toward it, and a unit with many
+// dependents draws them into a round cluster whatever the shape. A stretch
+// along one axis only moves boxes apart, so it makes no overlap.
+function fitToAspect(nodes: readonly SimNode[], aspect: number): void {
+  if (nodes.length < 2) return;
+  const xs = nodes.map((node) => node.x ?? 0);
+  const ys = nodes.map((node) => node.y ?? 0);
+  const width = Math.max(...xs) - Math.min(...xs) + NODE_WIDTH;
+  const height = Math.max(...ys) - Math.min(...ys) + NODE_HEIGHT;
+  const stretchX = Math.min(MAX_STRETCH, Math.max(1, (aspect * height) / width));
+  const stretchY = Math.min(MAX_STRETCH, Math.max(1, width / (aspect * height)));
+  const middle = {
+    x: xs.reduce((sum, x) => sum + x, 0) / nodes.length,
+    y: ys.reduce((sum, y) => sum + y, 0) / nodes.length,
+  };
+  for (const node of nodes) {
+    node.x = middle.x + ((node.x ?? 0) - middle.x) * stretchX;
+    node.y = middle.y + ((node.y ?? 0) - middle.y) * stretchY;
+  }
+}
+
+function rectangleCollision(aspect: number): Force<SimNode, undefined> {
   let nodes: SimNode[] = [];
   const force = () => {
-    separate(nodes, 0.5, true);
+    separate(nodes, 0.5, true, aspect);
   };
   force.initialize = (next: SimNode[]) => {
     nodes = next;
@@ -630,15 +702,16 @@ function seedPositions(topology: GraphTopology, aspect: number): Map<string, Gra
 
 // Places every unit and gate of a delivery: node centres in graph space, by
 // map key. `kept` holds the positions a node drag kept: the simulation then
-// starts from them and only settles, the pinned nodes stay where they are,
-// and a node the kept layout does not know starts beside the nodes it links.
+// starts from them and only settles, the pinned nodes stay where they are
+// (but for one dropped onto another, which is moved off it), and a node the
+// kept layout does not know starts beside the nodes it links.
 export function simulateDeliveryGraph(
   topology: GraphTopology,
   options: { aspect?: number; kept?: KeptGraphLayout | undefined } = {},
 ): Map<string, GraphPoint> {
   const aspect = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, options.aspect ?? DEFAULT_GRAPH_ASPECT));
   const kept = options.kept;
-  const pinned = new Set(kept?.pinned ?? []);
+  const pinned = new Map((kept?.pinned ?? []).map((key, rank) => [key, rank]));
   const nodes: SimNode[] = [];
   const byKey = new Map<string, SimNode>();
   const keptAt = (key: string): GraphPoint | undefined =>
@@ -651,6 +724,7 @@ export function simulateDeliveryGraph(
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
       stack: unit.stack,
+      pinRank: -1,
       ...at,
     };
     nodes.push(node);
@@ -663,6 +737,7 @@ export function simulateDeliveryGraph(
       width: GATE_WIDTH,
       height: GATE_HEIGHT,
       stack: null,
+      pinRank: -1,
       ...at,
     };
     nodes.push(node);
@@ -691,9 +766,11 @@ export function simulateDeliveryGraph(
       node.x = at.x;
       node.y = at.y;
       keptCount += 1;
-      if (pinned.has(node.key)) {
+      const rank = pinned.get(node.key);
+      if (rank !== undefined) {
         node.fx = at.x;
         node.fy = at.y;
+        node.pinRank = rank;
       }
     }
     for (const node of nodes) {
@@ -731,12 +808,13 @@ export function simulateDeliveryGraph(
     .force("x", forceX<SimNode>(0).strength(pull / aspect))
     .force("y", forceY<SimNode>(0).strength(pull * aspect))
     .force("stack", stackCohesion(0.02))
-    .force("collide", rectangleCollision())
+    .force("collide", rectangleCollision(aspect))
     .stop();
   if (keptCount > 0 && keptCount === nodes.length) simulation.alpha(SETTLE_ALPHA);
   simulation.tick(TICKS);
-  // Whatever overlap the forces left, take out.
-  for (let pass = 0; pass < 50; pass += 1) separate(nodes, 1, false);
+  // A kept layout is the operator's shape; only a fresh one is fitted.
+  if (kept === undefined) fitToAspect(nodes, aspect);
+  removeOverlaps(nodes, aspect);
 
   return new Map(nodes.map((node) => [node.key, { x: node.x ?? 0, y: node.y ?? 0 }]));
 }
@@ -1026,6 +1104,11 @@ export function placeDeliveryGraph(
 // out again without running the simulation.
 const SIMULATION_CACHE_SIZE = 8;
 const simulations = new Map<string, Map<string, GraphPoint>>();
+
+// Empties the cache, so a test can time the simulation itself.
+export function clearDeliveryGraphCache(): void {
+  simulations.clear();
+}
 
 export function simulateDeliveryGraphCached(
   topology: GraphTopology,

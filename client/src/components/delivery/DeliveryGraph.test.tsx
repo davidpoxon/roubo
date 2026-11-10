@@ -95,6 +95,40 @@ function chainRecord(count: number): DeliveryRecord {
   };
 }
 
+// One root unit with `count` dependents spread over `stacks` stacks, and,
+// when `gated`, one gate after every dependent: the hub shape that draws its
+// dependents into a round cluster.
+function fanOutRecord(count: number, stacks: number, gated = false): DeliveryRecord {
+  const record = fourUnitRecord();
+  const ids = Array.from({ length: count }, (_, index) => `F${String(index)}`);
+  const stackOf = (index: number) => `S${String(index % stacks)}`;
+  const members: Record<string, string[]> = { S0: ["R"] };
+  ids.forEach((id, index) => {
+    const list = members[stackOf(index)] ?? [];
+    list.push(id);
+    members[stackOf(index)] = list;
+  });
+  return {
+    ...record,
+    stack: {
+      ...record.stack,
+      stacks: members,
+      gates: gated ? [{ id: "gate-fan", after: ids, status: "pending", cases: [] }] : [],
+    },
+    units: [
+      { id: "R", title: "Root", status: "pending", stack: "S0", layer: 1, depends_on: [] },
+      ...ids.map((id, index) => ({
+        id,
+        title: `Fan ${String(index)}`,
+        status: "pending",
+        stack: stackOf(index),
+        layer: 2,
+        depends_on: ["R"],
+      })),
+    ],
+  };
+}
+
 function box(item: PlacedItem) {
   const width = item.kind === "unit" ? NODE_WIDTH : GATE_WIDTH;
   const height = item.kind === "unit" ? NODE_HEIGHT : GATE_HEIGHT;
@@ -158,6 +192,27 @@ describe("DeliveryGraph layout", () => {
     }
   });
 
+  it("leaves no two nodes on top of each other around a unit with many dependents, at any shape", () => {
+    for (const record of [fanOutRecord(40, 5), fanOutRecord(30, 1, true)]) {
+      for (const aspect of [0.42, 1, 1.68, 2.83, 4]) {
+        expect(overlaps(layoutOf(record, { aspect }))).toEqual([]);
+      }
+    }
+  });
+
+  it("moves the node pinned later off a node pinned earlier", () => {
+    const record = fourUnitRecord();
+    const positions = Object.fromEntries(positionsOf(record));
+    const spot = positions["unit:A"] ?? { x: 0, y: 0 };
+    const kept: KeptGraphLayout = {
+      positions: { ...positions, "unit:D": spot },
+      pinned: ["unit:A", "unit:D"],
+    };
+    const layout = layoutOf(record, { kept });
+    expect(overlaps(layout)).toEqual([]);
+    expect(positionsOf(record, { kept }).get("unit:A")).toEqual(spot);
+  });
+
   it("draws one outline per stack around all of its units, with its label", () => {
     const layout = layoutOf(sharedCellRecord());
     expect(layout.hulls.map((hull) => [hull.stack, hull.unitCount])).toEqual([
@@ -198,6 +253,17 @@ describe("DeliveryGraph layout", () => {
     const tall = layoutOf(chainRecord(24), { aspect: 0.5 });
     expect(wide.width / wide.height).toBeGreaterThan(tall.width / tall.height);
     expect(tall.height).toBeGreaterThan(tall.width);
+  });
+
+  it("takes the shape of a wide or a tall viewport around a unit with many dependents", () => {
+    for (const record of [fanOutRecord(12, 2), fanOutRecord(40, 3, true)]) {
+      const wide = layoutOf(record, { aspect: 4 });
+      const tall = layoutOf(record, { aspect: 0.42 });
+      expect(wide.width).toBeGreaterThan(tall.width);
+      expect(wide.width / wide.height).toBeGreaterThan(tall.width / tall.height);
+      expect(wide.width).toBeGreaterThan(wide.height);
+      expect(tall.height).toBeGreaterThan(tall.width);
+    }
   });
 
   it("keeps a node the operator placed where it was dropped, and starts the rest where they were", () => {
@@ -396,6 +462,29 @@ describe("DeliveryGraph view", () => {
     expect(at.bottom).toBeLessThanOrEqual(300);
   });
 
+  it("stays on the unit it opened on when another unit goes live", () => {
+    viewportSize(400, 300);
+    const record = fiftyUnitRecord();
+    const withLive = (index: number) => {
+      const id = record.units[index]?.id ?? "";
+      return layoutOf({
+        ...record,
+        units: record.units.map((unit) => (unit.id === id ? { ...unit, status: "running" } : unit)),
+      });
+    };
+    const { rerender } = renderGraph(withLive(30));
+    const before = canvasTransform();
+    rerender(
+      <DeliveryGraph
+        layout={withLive(5)}
+        selectedKey={null}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+      />,
+    );
+    expect(canvasTransform()).toEqual(before);
+  });
+
   it("zooms with the controls and the keys, and fits the graph again", async () => {
     viewportSize(1600, 1000);
     renderGraph(layoutOf(fourUnitRecord()));
@@ -502,6 +591,45 @@ describe("DeliveryGraph node drag", () => {
     expect(key).toBe("unit:B");
     expect(centre.x).toBeCloseTo(before.x + NODE_WIDTH / 2 + 60);
     expect(centre.y).toBeCloseTo(before.y + NODE_HEIGHT / 2 - 40);
+  });
+
+  it("keeps the view where it was when a drop lays the graph out again", () => {
+    viewportSize(1600, 1000);
+    const record = fourUnitRecord();
+    const layout = layoutOf(record);
+    const props = { onMoveNode: vi.fn() };
+    const { rerender } = renderGraph(layout, props);
+    const before = canvasTransform();
+    dragNode(screen.getByTestId("unit-node-D"), 60, 40);
+    // The graph the drop gives is far larger: an untouched view would fit it.
+    const positions = Object.fromEntries(positionsOf(record));
+    const far = { x: (positions["unit:D"]?.x ?? 0) + 4000, y: positions["unit:D"]?.y ?? 0 };
+    rerender(
+      <DeliveryGraph
+        layout={layoutOf(record, {
+          kept: { positions: { ...positions, "unit:D": far }, pinned: ["unit:D"] },
+        })}
+        selectedKey={null}
+        onSelect={() => undefined}
+        onOpen={() => undefined}
+        {...props}
+      />,
+    );
+    expect(canvasTransform().k).toBe(before.k);
+  });
+
+  it("neither moves a node nor swallows the next click when the press is cancelled", () => {
+    viewportSize(1600, 1000);
+    const onMoveNode = vi.fn();
+    const onOpen = vi.fn();
+    renderGraph(layoutOf(fourUnitRecord()), { onMoveNode, onOpen });
+    const node = screen.getByTestId("unit-node-B");
+    fireEvent.pointerDown(node, { button: 0, pointerId: 2, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(node, { pointerId: 2, clientX: 70, clientY: 50 });
+    fireEvent.pointerCancel(node, { pointerId: 2, clientX: 70, clientY: 50 });
+    expect(onMoveNode).not.toHaveBeenCalled();
+    fireEvent.click(node);
+    expect(onOpen).toHaveBeenCalledWith({ kind: "unit", id: "B" });
   });
 
   it("opens a node pressed with less movement than a drag", () => {

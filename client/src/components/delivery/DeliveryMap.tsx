@@ -140,7 +140,9 @@ export default function DeliveryMap({
     next[key] = { x: centre.x, y: centre.y };
     viewState.setDeliveryGraphLayout({
       positions: next,
-      pinned: [...new Set([...(kept?.pinned ?? []), key])],
+      // The node dropped last goes last: of two pinned nodes that overlap,
+      // it is the one moved aside.
+      pinned: [...(kept?.pinned ?? []).filter((other) => other !== key), key],
     });
   };
   const resetLayout =

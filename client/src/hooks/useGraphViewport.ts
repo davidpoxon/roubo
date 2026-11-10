@@ -37,8 +37,8 @@ import {
 //
 // Until the operator moves the view, it follows the layout and the viewport's
 // size: the whole graph, or the live unit at a readable zoom when the whole
-// graph would be too small to read (see initialView). Once they move it, it
-// stays as they left it.
+// graph would be too small to read (see initialView). Once they move it, or
+// drop a node (hold), it stays as it is.
 
 const KEY_PAN = 48;
 
@@ -59,6 +59,8 @@ export interface GraphViewport {
   zoomIn: () => void;
   zoomOut: () => void;
   fit: () => void;
+  // Keeps the view as it is now, so it no longer follows the layout.
+  hold: () => void;
   // Pans the least amount that brings a graph-space box into view.
   reveal: (box: GraphBounds) => void;
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
@@ -161,6 +163,9 @@ export function useGraphViewport(
     const current = latest.current;
     setMoved(fitView(current.bounds, current.size));
   }, []);
+  const hold = useCallback(() => {
+    setMoved((last) => last ?? latest.current.view);
+  }, []);
   const reveal = useCallback((box: GraphBounds) => {
     const current = latest.current;
     if (current.size.width === 0 || current.size.height === 0) return;
@@ -237,6 +242,7 @@ export function useGraphViewport(
     zoomIn,
     zoomOut,
     fit,
+    hold,
     reveal,
     onPointerDown,
     onPointerMove,

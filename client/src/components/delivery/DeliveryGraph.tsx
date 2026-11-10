@@ -126,6 +126,7 @@ export interface NodeDragHandlers {
   onPointerDown: (event: PointerEvent<HTMLButtonElement>, item: PlacedItem) => void;
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLButtonElement>) => void;
   // True once for the click that ends a drag, which must not open the node.
   takeClick: () => boolean;
 }
@@ -145,8 +146,13 @@ export default function DeliveryGraph({
   const viewportRef = useRef<HTMLDivElement>(null);
   const { origin } = layout;
   const bounds = { x: origin.x, y: origin.y, width: layout.width, height: layout.height };
+  // The view opens on the unit that was live when the map opened, and does
+  // not follow the live unit after that.
+  const [liveKey] = useState(
+    () => layout.items.find((item) => item.kind === "unit" && isLiveUnit(item.unit))?.key ?? null,
+  );
   const live = layout.items.find(
-    (item): item is PlacedUnit => item.kind === "unit" && isLiveUnit(item.unit),
+    (item): item is PlacedUnit => item.kind === "unit" && item.key === liveKey,
   );
   const focus =
     live === undefined
@@ -161,6 +167,7 @@ export default function DeliveryGraph({
   const endedDrag = useRef(false);
   const drag: NodeDragHandlers = {
     onPointerDown: (event, item) => {
+      endedDrag.current = false;
       if (event.button !== 0 || onMoveNode === undefined) return;
       press.current = {
         key: item.key,
@@ -193,6 +200,9 @@ export default function DeliveryGraph({
       event.currentTarget.releasePointerCapture?.(event.pointerId);
       if (!current.dragging) return;
       endedDrag.current = true;
+      // The drop lays the graph out again; the view stays where it is, so
+      // the dropped node stays under the pointer.
+      viewport.hold();
       const item = layout.items.find((candidate) => candidate.key === current.key);
       const size = item === undefined ? { width: 0, height: 0 } : itemSize(item);
       const x = current.itemX + (event.clientX - current.startX) / view.k;
@@ -202,6 +212,13 @@ export default function DeliveryGraph({
         x: x + origin.x + size.width / 2,
         y: y + origin.y + size.height / 2,
       });
+    },
+    // A cancelled press neither moves the node nor swallows the next click.
+    onPointerCancel: (event) => {
+      const current = press.current;
+      if (current === null || current.pointerId !== event.pointerId) return;
+      press.current = null;
+      setDragged(null);
     },
     takeClick: () => {
       if (!endedDrag.current) return false;
@@ -504,7 +521,7 @@ function UnitNode({
         onPointerDown={(event) => drag.onPointerDown(event, item)}
         onPointerMove={drag.onPointerMove}
         onPointerUp={drag.onPointerUp}
-        onPointerCancel={drag.onPointerUp}
+        onPointerCancel={drag.onPointerCancel}
         style={{ left: item.x, top: item.y, width: NODE_WIDTH, height: NODE_HEIGHT }}
         className={`${FRAME_CLASSES} gap-1 rounded-control border bg-bg-base px-2.5 py-2 text-text-body hover:bg-bg-hover active:bg-bg-pressed ${
           selected ? "border-accent-border" : "border-border-strong"
@@ -616,7 +633,7 @@ function GateMarker({
         onPointerDown={(event) => drag.onPointerDown(event, item)}
         onPointerMove={drag.onPointerMove}
         onPointerUp={drag.onPointerUp}
-        onPointerCancel={drag.onPointerUp}
+        onPointerCancel={drag.onPointerCancel}
         style={{ left: item.x, top: item.y, width: GATE_WIDTH, height: GATE_HEIGHT }}
         className={`${FRAME_CLASSES} gap-1 rounded-control border ${marker.ground} px-2.5 py-1.5 text-text-body hover:bg-bg-hover active:bg-bg-pressed ${
           selected ? "border-accent-border" : marker.border
