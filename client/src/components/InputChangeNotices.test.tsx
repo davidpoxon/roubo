@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import type { InputChangedEvent } from "@roubo/shared";
 import InputChangeNotices from "./InputChangeNotices";
-import { INPUT_NOTICE_TIMEOUT_MS, LAST_GOOD_LINE, publishInputChanged } from "../lib/input-changed";
+import {
+  INPUT_NOTICE_TIMEOUT_MS,
+  LAST_GOOD_LINE,
+  inputNoticeText,
+  publishInputChanged,
+} from "../lib/input-changed";
 
 function applied(overrides?: Partial<InputChangedEvent>): InputChangedEvent {
   return {
@@ -131,7 +136,7 @@ describe("InputChangeNotices", () => {
       }),
     );
     expect(notices()[0].querySelector("p")?.textContent).toBe(
-      `Project change rejected: roubo.yaml: the change could not be read or validated. ${LAST_GOOD_LINE}`,
+      "Project change rejected. roubo.yaml: the change could not be read or validated. Last good config is still live.",
     );
 
     act(() => publishInputChanged(applied()));
@@ -163,9 +168,63 @@ describe("InputChangeNotices", () => {
     render(<Screen onSetUp={vi.fn()} />);
     act(() => publishInputChanged(rejected()));
     expect(notices()[0].querySelector("p")?.textContent).toBe(
-      `Project config rejected: roubo.yaml: benches.max: expected a number. ${LAST_GOOD_LINE}`,
+      "Project config rejected. roubo.yaml: benches.max: expected a number. Last good config is still live.",
     );
-    expect(LAST_GOOD_LINE).toMatch(/last good/i);
+    expect(LAST_GOOD_LINE).toBe("Last good config is still live.");
+  });
+
+  it("writes a rejected notice with no error as the summary and the last-good line", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    act(() =>
+      publishInputChanged(rejected({ summary: "Project config rejected.", error: undefined })),
+    );
+    expect(notices()[0].querySelector("p")?.textContent).toBe(
+      "Project config rejected. Last good config is still live.",
+    );
+  });
+
+  // The server can send the summary alone, with the path and the first error
+  // in `error`; the client then writes the rest of the sentence itself.
+  it.each([
+    ["with", 'components.web: Unrecognized key: "command".'],
+    ["without", 'components.web: Unrecognized key: "command"'],
+  ])(
+    "HR-TC-004 HR-TC-038 writes the whole rejected roubo.yaml sentence from a bare summary, a first error %s its full stop",
+    (_, first) => {
+      const text = inputNoticeText(
+        rejected({
+          projectId: "lantern",
+          summary: "Project lantern: roubo.yaml not applied.",
+          error: { path: ".roubo/roubo.yaml", first },
+        }),
+      );
+      expect(text).toBe(
+        'Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: components.web: Unrecognized key: "command". Last good config is still live.',
+      );
+      expect(text).not.toContain(".:");
+      expect(text).not.toContain("..");
+    },
+  );
+
+  it("HR-TC-004 HR-TC-038 renders the server's whole rejected roubo.yaml sentence as it is", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    const summary =
+      'Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: components.web: Unrecognized key: "command". Last good config is still live.';
+    act(() =>
+      publishInputChanged(
+        rejected({
+          projectId: "lantern",
+          summary,
+          error: {
+            path: ".roubo/roubo.yaml",
+            first: 'components.web: Unrecognized key: "command".',
+          },
+        }),
+      ),
+    );
+    expect(notices()[0].querySelector("p")?.textContent).toBe(
+      'Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: components.web: Unrecognized key: "command". Last good config is still live.',
+    );
   });
 
   // The summaries below are what the server's rejectedConfigSummary writes for
@@ -173,7 +232,8 @@ describe("InputChangeNotices", () => {
   it("HR-TC-038 renders the server's rejected roubo.yaml summary once, with the path, the first error and one last-good line", () => {
     render(<Screen onSetUp={vi.fn()} />);
     const first = "components.web.command must be a string or array";
-    const summary = `Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: ${first}. Last good config is still live.`;
+    const summary =
+      "Project lantern: roubo.yaml not applied. .roubo/roubo.yaml: components.web.command must be a string or array. Last good config is still live.";
     act(() =>
       publishInputChanged(
         rejected({ projectId: "lantern", summary, error: { path: ".roubo/roubo.yaml", first } }),
@@ -184,7 +244,6 @@ describe("InputChangeNotices", () => {
     expect(text.split(".roubo/roubo.yaml").length - 1).toBe(1);
     expect(text.split(first).length - 1).toBe(1);
     expect(text.match(/last good/gi)).toHaveLength(1);
-    expect(text).not.toContain(LAST_GOOD_LINE);
   });
 
   it("HR-TC-004 a rejected roubo.yaml of a project with no last good config does not claim one is live", () => {

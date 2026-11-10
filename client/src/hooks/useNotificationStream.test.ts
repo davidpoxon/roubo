@@ -10,7 +10,7 @@ import {
   type BenchNotification,
   type InputChangedEvent,
 } from "@roubo/shared";
-import { SURFACE_QUERY_KEYS, subscribeInputChanged } from "../lib/input-changed";
+import { subscribeInputChanged } from "../lib/input-changed";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import * as api from "../lib/api";
 
@@ -516,9 +516,27 @@ describe("useNotificationStream", () => {
       expect(seen).toEqual([event]);
     });
 
-    it("invalidates exactly the SURFACE_QUERY_KEYS of each surface and nothing else", () => {
+    // The literal keys each surface refreshes, written out here rather than
+    // read from the client's own map, so a change to the map fails this test.
+    const EXPECTED_KEYS: Record<InputChangedEvent["surface"], unknown[][]> = {
+      "project-config": [["projects"], ["raw-config", "p1"], ["benches"], ["bench", "p1", 4]],
+      plugin: [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
+      settings: [["settings"]],
+      bench: [["benches"], ["bench", "p1", 4]],
+      github: [
+        ["project-integration", "p1"],
+        ["github-derived-sources", "p1"],
+        ["project-items"],
+        ["settings"],
+        ["issues"],
+      ],
+      environment: [["benches"], ["bench", "p1", 4], ["env-keys"], ["settings"]],
+    };
+
+    it("invalidates exactly the listed keys of each surface and nothing else", () => {
+      expect(Object.keys(EXPECTED_KEYS).sort()).toEqual([...INPUT_SURFACES].sort());
       for (const surface of INPUT_SURFACES) {
-        const event: InputChangedEvent = {
+        const { invalidateSpy, others } = fireAndCollect({
           type: "input-changed",
           surface,
           outcome: "applied",
@@ -526,15 +544,28 @@ describe("useNotificationStream", () => {
           pluginId: "plug",
           benchIds: [4],
           summary: "change applied",
-        };
-        const { invalidateSpy, others } = fireAndCollect(event);
-        const expected = SURFACE_QUERY_KEYS[surface](event);
-        expect(expected.length).toBeGreaterThan(0);
+        });
         expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
-          expected.map((queryKey) => ({ queryKey })),
+          EXPECTED_KEYS[surface].map((queryKey) => ({ queryKey })),
         );
         for (const spy of others) expect(spy).not.toHaveBeenCalled();
       }
+    });
+
+    it("invalidates the unscoped integration key, settings and issues on a github change with no project", () => {
+      const { invalidateSpy, others } = fireAndCollect({
+        type: "input-changed",
+        surface: "github",
+        outcome: "applied",
+        summary: "GitHub sign-in applied",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+        { queryKey: ["project-integration"] },
+        { queryKey: ["project-items"] },
+        { queryKey: ["settings"] },
+        { queryKey: ["issues"] },
+      ]);
+      for (const spy of others) expect(spy).not.toHaveBeenCalled();
     });
 
     it("never invalidates the whole cache or the delivery keys on an input change", () => {

@@ -5,7 +5,7 @@ import type { InputChangedEvent, InputSurface } from "@roubo/shared";
 export const INPUT_NOTICE_TIMEOUT_MS = 8_000;
 
 /** The line a rejected notice ends with: the change did not replace the running one. */
-export const LAST_GOOD_LINE = "Last good configuration still in effect.";
+export const LAST_GOOD_LINE = "Last good config is still live.";
 
 const SURFACE_THINGS: Record<InputSurface, string> = {
   "project-config": "Project",
@@ -42,7 +42,7 @@ export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent)
     ["benches"],
     ...benchKeys(event),
   ],
-  plugin: () => [["plugins"], ["agent-plugins"], ["project-integration"]],
+  plugin: () => [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
   settings: () => [["settings"]],
   bench: (event) => [["benches"], ...benchKeys(event)],
   github: (event) => [
@@ -53,9 +53,11 @@ export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent)
           ["github-derived-sources", event.projectId],
         ]),
     ["project-items"],
+    ["settings"],
+    ["issues"],
   ],
   // The Setup view lists the .env key names, so a .env edit refreshes them.
-  environment: (event) => [["benches"], ...benchKeys(event), ["env-keys"]],
+  environment: (event) => [["benches"], ...benchKeys(event), ["env-keys"], ["settings"]],
 };
 
 /** The keys to refresh for one event; none for a surface this client does not know. */
@@ -64,9 +66,16 @@ export function inputChangedQueryKeys(event: InputChangedEvent): QueryKey[] {
   return keys ? keys(event) : [];
 }
 
+/** `text` with every trailing full stop taken off. */
+function withoutStop(text: string): string {
+  return text.trim().replace(/\.+$/, "");
+}
+
 /**
- * The one line of a notice. It starts with the surface's thing; a rejection
- * adds the file path, the first validation error and the last-good line. A
+ * The one line of a notice. It starts with the surface's thing. A rejection
+ * reads `<summary>. <path>: <first error>. Last good config is still live.`,
+ * with one full stop after the summary and one after the first error, or
+ * `<summary>. Last good config is still live.` when it carries no error. A
  * summary that already names the path and the first error is the whole
  * notice: its sender wrote the sentence, and says the last good config is
  * live only when the target has one, so nothing is added to it.
@@ -76,9 +85,12 @@ export function inputNoticeText(event: InputChangedEvent): string {
   const summary = event.summary.trim();
   const head = summary.startsWith(thing) ? summary : `${thing} ${summary}`.trim();
   if (event.outcome !== "rejected") return head;
-  if (event.error && head.includes(`${event.error.path}: ${event.error.first}`)) return head;
-  const where = event.error ? `: ${event.error.path}: ${event.error.first}` : "";
-  return `${head}${where}. ${LAST_GOOD_LINE}`;
+  const where = event.error ? `${event.error.path}: ${withoutStop(event.error.first)}` : undefined;
+  if (where !== undefined && head.includes(where)) return head;
+  const parts = [`${withoutStop(head)}.`];
+  if (where !== undefined) parts.push(`${where}.`);
+  parts.push(LAST_GOOD_LINE);
+  return parts.join(" ");
 }
 
 /** Whether two events are about the same target of the same surface. */
