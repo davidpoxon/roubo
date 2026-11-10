@@ -456,6 +456,13 @@ let connectionStatusInvoker: ConnectionStatusInvoker = (pluginId, method, params
 // plugin is treated as implicitly "enabled" per architecture.md:1097.
 let enableStateCache: PluginEnableState | null = null;
 
+// The plugins held for want of consent (HR-FR-008): each one whose enable
+// value was `"awaiting-consent"` while it had no ConsentRecord. The mark
+// survives a disable during the hold, which writes `"disabled"` over that
+// value, so enable() and restart() still refuse the plugin until it has a
+// ConsentRecord. A plugin that was never held is not in it.
+const consentHolds = new Set<string>();
+
 // IP-WU-063: when ROUBO_E2E=1, Playwright specs can pin the stubbed plugin to a
 // specific scenario pack and frozen-now ISO. POST /test/__reset writes these
 // via __test.setE2EConfig; spawnPlugin appends them to argv. Outside the e2e
@@ -506,20 +513,27 @@ function isAwaitingConsent(pluginId: string): boolean {
   );
 }
 
+/** Mark `pluginId` held for want of consent when its enable value says so now. */
+function noteConsentHold(pluginId: string): void {
+  if (isAwaitingConsent(pluginId)) consentHolds.add(pluginId);
+}
+
 /**
  * Whether enable() or restart() must refuse to start `entry` for want of
- * consent (HR-FR-008): it awaits consent, or it is a component or agent plugin
- * with no ConsentRecord that is not enabled, such as a held plugin that the
- * user disabled. A legacy install that is enabled is not held.
+ * consent (HR-FR-008): it awaits consent, or it was held for consent and the
+ * user disabled it during the hold, and it still has no ConsentRecord. A
+ * plugin that was never held, such as a disabled component or agent plugin
+ * that a user enables before they consent it, is not refused here.
  */
 function needsConsentToStart(entry: PluginEntry): boolean {
   const pluginId = entry.record.id;
   if (isAwaitingConsent(pluginId)) return true;
-  return (
-    isConsentGatedKind(entry.record.manifest?.kind) &&
-    !isPluginEnabled(pluginId) &&
-    !pluginConsentState.hasConsent(pluginId)
-  );
+  if (!consentHolds.has(pluginId)) return false;
+  if (pluginConsentState.hasConsent(pluginId)) {
+    consentHolds.delete(pluginId);
+    return false;
+  }
+  return true;
 }
 
 /** Drop `pluginId` from the in-process enable-state copy, as removePlugin does on disk. */
@@ -2029,7 +2043,9 @@ export async function disable(pluginId: string): Promise<void> {
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
   // Also for a plugin awaiting consent: "disabled" survives a later grant of
   // consent, and enable() and restart() still refuse it while it has no
-  // ConsentRecord (HR-FR-008).
+  // ConsentRecord (HR-FR-008). The hold is marked first, since "disabled"
+  // replaces the "awaiting-consent" value that shows it.
+  noteConsentHold(pluginId);
   enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
   // FR-004 / NFR-001 (per Spike 553, #576): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
@@ -2471,6 +2487,7 @@ function dropUninstalled(entry: PluginEntry): void {
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
   forgetCachedEnableValue(pluginId);
+  consentHolds.delete(pluginId);
   // #884 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
   // does not survive an uninstall. A re-installed id must re-acknowledge its
   // declared permissions before the component-plugin registry consent gate
@@ -2549,6 +2566,7 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
   plugins.delete(pluginId);
   pluginEnableState.removePlugin(pluginId);
   forgetCachedEnableValue(pluginId);
+  consentHolds.delete(pluginId);
   issueSnapshotCache.clearSnapshot(pluginId);
   cutListQueryService.evictPlugin(pluginId);
 }
@@ -2597,6 +2615,7 @@ export async function registerInstalled(
     built.entry.record.manifest !== null &&
     isConsentGatedKind(built.entry.record.manifest.kind) &&
     !consented;
+  if (awaitingConsent) consentHolds.add(id);
   if (awaitingConsent && enableStateCache?.plugins[id] !== "disabled") {
     // A plugin the user disabled stays "disabled": a grant of consent then
     // leaves it as it is, and enable() still refuses it until consent.
@@ -2662,6 +2681,7 @@ export async function startAfterConsent(pluginId: string): Promise<boolean> {
   if (!entry || entry.process || !entry.record.manifest) return false;
   if (entry.record.status !== "disabled") return false;
   if (!pluginConsentState.hasConsent(pluginId)) return false;
+  consentHolds.delete(pluginId);
   if (enableStateCache?.plugins[pluginId] === "awaiting-consent") {
     enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
   }
@@ -2691,7 +2711,11 @@ export interface EnableStateReload {
  */
 export async function reloadEnableState(): Promise<EnableStateReload> {
   const before = new Map<string, boolean>();
-  for (const id of plugins.keys()) before.set(id, isPluginEnabled(id));
+  for (const id of plugins.keys()) {
+    before.set(id, isPluginEnabled(id));
+    // A hand edit that writes over a hold, such as "disabled", keeps it.
+    noteConsentHold(id);
+  }
   enableStateCache = pluginEnableState.loadEnableState();
   const result: EnableStateReload = { disabled: [], enabled: [] };
   for (const [id, entry] of plugins) {
@@ -2709,6 +2733,7 @@ export async function reloadEnableState(): Promise<EnableStateReload> {
       // hold that the edit removed no longer shows in it.
       if (isConsentGatedKind(entry.record.manifest.kind) && !pluginConsentState.hasConsent(id)) {
         enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
+        consentHolds.add(id);
         continue;
       }
       await spawnPlugin(entry);
@@ -3200,6 +3225,7 @@ export const __test = {
     hostApiVersionOverride = null;
     pendingUpdates.clear();
     swapState.resetForTests();
+    consentHolds.clear();
   },
   // #1269: simulate a host below a manifest's declared `roubo` floor, so the
   // version-named refusal is asserted by a fixture test rather than resting on
