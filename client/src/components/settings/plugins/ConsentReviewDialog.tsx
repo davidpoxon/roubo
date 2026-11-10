@@ -41,6 +41,8 @@ const STRINGS = {
   cancel: "Cancel",
   confirm: "Grant consent",
   granting: "Granting…",
+  startTargetPrefix: "Needed to start component ",
+  startTargetOn: " on ",
 };
 
 interface Props {
@@ -57,6 +59,12 @@ interface Props {
    * consent gate blocked; the Settings caller omits it and just closes.
    */
   onGranted?: () => void;
+  /**
+   * The component start the consent gate blocked, named so the prompt says which
+   * component and bench it is for (#1657). The bench page passes it; the
+   * Settings caller omits it.
+   */
+  startTarget?: { component: string; benchLabel: string };
 }
 
 export default function ConsentReviewDialog({
@@ -67,6 +75,7 @@ export default function ConsentReviewDialog({
   version,
   onClose,
   onGranted,
+  startTarget,
 }: Props) {
   const [acknowledged, setAcknowledged] = useState(false);
   const isVerified = trustTreatmentOf(provenance) === "verified";
@@ -123,6 +132,17 @@ export default function ConsentReviewDialog({
               <span className="font-mono">{pluginId}</span> · component plugin
               {version ? ` · v${version}` : ""}
             </p>
+            {startTarget && (
+              <p
+                data-testid="consent-review-start-target"
+                className="mt-1 text-12 text-text-secondary"
+              >
+                {STRINGS.startTargetPrefix}
+                <span className="font-mono text-text-body">{startTarget.component}</span>
+                {STRINGS.startTargetOn}
+                <span className="text-text-body">{startTarget.benchLabel}</span>.
+              </p>
+            )}
           </div>
 
           <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">

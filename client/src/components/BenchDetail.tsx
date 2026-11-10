@@ -198,6 +198,7 @@ function ComponentsTab({
   showSteps,
   hasDatabaseComponent,
   databaseComponentName,
+  onStartComponent,
 }: {
   bench: Bench;
   projectId: string;
@@ -206,51 +207,13 @@ function ComponentsTab({
   showSteps: boolean;
   hasDatabaseComponent: boolean;
   databaseComponentName: string | null;
+  /** Starts a component and opens its recovery prompt if the start fails. */
+  onStartComponent: (target: ComponentStartTarget) => void;
 }) {
-  const startComponent = useStartComponent();
   const stopComponent = useStopComponent();
   const unassign = useUnassignContainer();
   const [openLogs, setOpenLogs] = useState<Set<string>>(new Set());
   const [assignModal, setAssignModal] = useState<string | null>(null);
-  // The component whose start failed on an uninstalled-but-installable bound
-  // plugin, plus where it can be installed from (CPHMTP-FR-008, #978). Only
-  // an ACTIONABLE resolution lands here (isMissingPluginError narrows to
-  // single-source / ambiguous), so an id no source serves never opens the dialog
-  // and keeps the plain component-status error it already had (CPHMTP-TC-082).
-  // Each recovery records the bench whose start failed. When the user moves to
-  // a bench that is already loaded, this tab stays mounted, and the resumed
-  // start must not act on the bench now on screen (#1654).
-  const [missingPlugin, setMissingPlugin] = useState<{
-    target: ComponentStartTarget;
-    resolution: MissingPluginResolution;
-  } | null>(null);
-  // The component whose resumed start still dead-ended at the consent gate: the
-  // bound plugin is installed but its permissions were never acknowledged (issue
-  // #991, AC3). Defensive fallback so the bench page surfaces an actionable consent
-  // prompt instead of a silent stop with the dialog closed. The plugin record (for
-  // the declared permissions + provenance the prompt needs) is read from the shared
-  // plugins query below.
-  const [consentPrompt, setConsentPrompt] = useState<{
-    target: ComponentStartTarget;
-    pluginId: string;
-  } | null>(null);
-  const plugins = usePlugins();
-  const consentPluginRecord = consentPrompt
-    ? (plugins.data?.plugins.find((p) => p.id === consentPrompt.pluginId) ?? null)
-    : null;
-
-  const startComponentWithRecovery = (target: ComponentStartTarget) => {
-    startComponent.mutate(target, {
-      onError: (err) => {
-        if (isMissingPluginError(err)) {
-          setMissingPlugin({ target, resolution: err.details.resolution });
-        } else if (isConsentError(err)) {
-          setConsentPrompt({ target, pluginId: err.details.consent.pluginId });
-        }
-      },
-    });
-  };
-
   const toggleLogs = (component: string) => {
     setOpenLogs((prev) => {
       const next = new Set(prev);
@@ -311,7 +274,7 @@ function ComponentsTab({
                     isDisabled={isBusyComponent}
                     onPress={() => {
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
-                      else startComponentWithRecovery({ projectId, benchId, component: name });
+                      else onStartComponent({ projectId, benchId, component: name });
                     }}
                     className="px-2.5 py-1 rounded-control text-12 text-text-secondary not-disabled:hover:text-text-primary not-disabled:hover:bg-bg-pressed disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
@@ -351,41 +314,6 @@ function ComponentsTab({
           onOpenChange={(open) => {
             if (!open) setAssignModal(null);
           }}
-        />
-      )}
-
-      {missingPlugin && (
-        <MissingPluginDialog
-          projectId={missingPlugin.target.projectId}
-          pluginId={missingPlugin.resolution.pluginId}
-          pluginSource={undefined}
-          resolution={missingPlugin.resolution}
-          componentName={missingPlugin.target.component}
-          onClose={() => setMissingPlugin(null)}
-          onSkip={() => setMissingPlugin(null)}
-          // Resume the start the missing plugin blocked, now that it is installed
-          // (CPHMTP-TC-077 S003-O02). Retrying the SAME component start is the
-          // resume: the binding now resolves, so it provisions instead of throwing.
-          onInstalled={() => startComponentWithRecovery(missingPlugin.target)}
-        />
-      )}
-
-      {/*
-        Defensive consent fallback (#991, AC3): the resumed start still hit the
-        consent gate, so surface the same PermissionsScreen-style acknowledgement the
-        install flow uses (declared permissions + provenance off the installed
-        record). On grant, resume the SAME component start: the ConsentRecord now
-        exists, so the gate passes instead of throwing.
-      */}
-      {consentPrompt && consentPluginRecord?.manifest && (
-        <ConsentReviewDialog
-          pluginId={consentPluginRecord.id}
-          pluginName={consentPluginRecord.manifest.name ?? consentPluginRecord.id}
-          declared={consentPluginRecord.manifest.permissions}
-          provenance={recordProvenance(consentPluginRecord)}
-          version={consentPluginRecord.manifest.version}
-          onGranted={() => startComponentWithRecovery(consentPrompt.target)}
-          onClose={() => setConsentPrompt(null)}
         />
       )}
     </>
@@ -537,6 +465,8 @@ export default function BenchDetail() {
   const { addToast } = useToast();
   const { mutate: dismissBenchNotifications } = useDismissBenchNotifications();
   const { mutate: dismissNotification } = useDismissNotification();
+  const startComponent = useStartComponent();
+  const plugins = usePlugins();
 
   const [showTeardown, setShowTeardown] = useState(false);
   const [removeWorkspace, setRemoveWorkspace] = useState(true);
@@ -549,11 +479,50 @@ export default function BenchDetail() {
   // to another bench.
   const tearingDownBenchRef = useRef<string | null>(null);
 
+  // A component start that failed on a bound plugin that is not installed but
+  // can be, plus where it can be installed from (CPHMTP-FR-008, #978). Only an
+  // ACTIONABLE resolution lands here (isMissingPluginError narrows to
+  // single-source / ambiguous), so an id no source serves never opens the
+  // dialog and keeps the plain component-status error it already had
+  // (CPHMTP-TC-082).
+  const [missingPlugin, setMissingPlugin] = useState<{
+    target: ComponentStartTarget;
+    resolution: MissingPluginResolution;
+  } | null>(null);
+  // A component start that failed at the consent gate: the bound plugin is
+  // installed but its permissions were never acknowledged (#991, AC3). The
+  // plugin record, for the declared permissions and provenance the prompt
+  // needs, is read from the shared plugins query.
+  const [consentPrompt, setConsentPrompt] = useState<{
+    target: ComponentStartTarget;
+    pluginId: string;
+  } | null>(null);
+  const consentPluginRecord = consentPrompt
+    ? (plugins.data?.plugins.find((p) => p.id === consentPrompt.pluginId) ?? null)
+    : null;
+
+  // Both recovery prompts record the bench whose start failed, and live here
+  // rather than on the Components tab: the user may have moved to another
+  // bench, and the loading and not-found pages render no Components tab
+  // (#1654, #1657). The start waits on the request's own promise, not on a
+  // mutate callback, because React Query skips those callbacks once the caller
+  // unmounts and for every call but the latest.
+  const startComponentWithRecovery = (target: ComponentStartTarget) => {
+    startComponent.mutateAsync(target).catch((err: unknown) => {
+      if (isMissingPluginError(err)) {
+        setMissingPlugin({ target, resolution: err.details.resolution });
+      } else if (isConsentError(err)) {
+        setConsentPrompt({ target, pluginId: err.details.consent.pluginId });
+      }
+    });
+  };
+
   // The route keeps this component mounted when only the bench changes, so
   // state from one bench would otherwise carry over to the next. Close the
   // dialogs that act on the bench on screen, and restore the defaults, the
-  // moment the bench changes. The dirty-bench prompt is not reset here: it
-  // carries its own target and still belongs to the bench it names.
+  // moment the bench changes. The dirty-bench and start recovery prompts are
+  // not reset here: each carries its own target and still belongs to the bench
+  // it names.
   const benchKey = `${projectId}:${benchId}`;
   const [shownBenchKey, setShownBenchKey] = useState(benchKey);
   if (shownBenchKey !== benchKey) {
@@ -564,11 +533,18 @@ export default function BenchDetail() {
   }
 
   const project = projects?.find((a) => a.id === projectId);
-  const dirtyTargetProjectName =
-    dirtyTarget && dirtyTarget.projectId !== projectId
-      ? (projects?.find((p) => p.id === dirtyTarget.projectId)?.config?.project.displayName ??
-        dirtyTarget.projectId)
+  // A prompt for a bench of another project names that project too, since
+  // bench numbers repeat across projects.
+  const projectNameIfOther = (target: BenchRef) =>
+    target.projectId !== projectId
+      ? (projects?.find((p) => p.id === target.projectId)?.config?.project.displayName ??
+        target.projectId)
       : undefined;
+  const benchLabelOf = (target: BenchRef) => {
+    const projectName = projectNameIfOther(target);
+    return `Bench ${target.benchId}${projectName ? ` (${projectName})` : ""}`;
+  };
+  const dirtyTargetProjectName = dirtyTarget ? projectNameIfOther(dirtyTarget) : undefined;
   const isRunning = bench?.status === "active";
   const isBusy = bench?.status === "preparing" || bench?.status === "clearing";
   const isProvisioning = bench?.status === "preparing";
@@ -705,9 +681,54 @@ export default function BenchDetail() {
     if (gateSittingKey !== undefined) setActiveTab("testbench");
   }, [gateSittingKey, setActiveTab]);
 
-  // Rendered on every path, the loading and not-found pages included: a
-  // refusal can arrive after the user has moved to a bench that is not
-  // shown yet, and the prompt belongs to the bench it names.
+  // The dirty-bench and start recovery prompts render on every path, the
+  // loading and not-found pages included: a refusal can arrive after the user
+  // has moved to a bench that is not shown yet, and each prompt belongs to the
+  // bench it names.
+  const startRecoveryDialogs = (
+    <>
+      {missingPlugin && (
+        <MissingPluginDialog
+          projectId={missingPlugin.target.projectId}
+          pluginId={missingPlugin.resolution.pluginId}
+          pluginSource={undefined}
+          resolution={missingPlugin.resolution}
+          componentName={missingPlugin.target.component}
+          benchLabel={benchLabelOf(missingPlugin.target)}
+          onClose={() => setMissingPlugin(null)}
+          onSkip={() => setMissingPlugin(null)}
+          // Resume the start the missing plugin blocked, now that it is installed
+          // (CPHMTP-TC-077 S003-O02). Retrying the SAME component start is the
+          // resume: the binding now resolves, so it provisions instead of throwing.
+          onInstalled={() => startComponentWithRecovery(missingPlugin.target)}
+        />
+      )}
+
+      {/*
+        Defensive consent fallback (#991, AC3): the resumed start still hit the
+        consent gate, so surface the same PermissionsScreen-style acknowledgement the
+        install flow uses (declared permissions + provenance off the installed
+        record). On grant, resume the SAME component start: the ConsentRecord now
+        exists, so the gate passes instead of throwing.
+      */}
+      {consentPrompt && consentPluginRecord?.manifest && (
+        <ConsentReviewDialog
+          pluginId={consentPluginRecord.id}
+          pluginName={consentPluginRecord.manifest.name ?? consentPluginRecord.id}
+          declared={consentPluginRecord.manifest.permissions}
+          provenance={recordProvenance(consentPluginRecord)}
+          version={consentPluginRecord.manifest.version}
+          startTarget={{
+            component: consentPrompt.target.component,
+            benchLabel: benchLabelOf(consentPrompt.target),
+          }}
+          onGranted={() => startComponentWithRecovery(consentPrompt.target)}
+          onClose={() => setConsentPrompt(null)}
+        />
+      )}
+    </>
+  );
+
   const dirtyDialog = (
     <ClearBenchDirtyDialog
       isOpen={dirtyTarget !== null}
@@ -758,6 +779,7 @@ export default function BenchDetail() {
           Loading bench...
         </div>
         {dirtyDialog}
+        {startRecoveryDialogs}
       </div>
     );
   }
@@ -773,6 +795,7 @@ export default function BenchDetail() {
           Go back
         </Button>
         {dirtyDialog}
+        {startRecoveryDialogs}
       </div>
     );
   }
@@ -1083,6 +1106,7 @@ export default function BenchDetail() {
               showSteps={showSteps}
               hasDatabaseComponent={hasDatabaseComponent}
               databaseComponentName={databaseComponentName}
+              onStartComponent={startComponentWithRecovery}
             />
           </TabPanel>
 
@@ -1244,6 +1268,7 @@ export default function BenchDetail() {
       </ConfirmDialog>
 
       {dirtyDialog}
+      {startRecoveryDialogs}
     </div>
   );
 }

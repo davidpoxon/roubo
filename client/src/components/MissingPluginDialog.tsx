@@ -49,6 +49,7 @@ const STRINGS = {
   // Marketplace-resolved missing plugin (CPHMTP-FR-008, #978).
   componentTitle: "Plugin needed for this component",
   componentDescriptionPrefix: "Component ",
+  componentDescriptionOn: " on ",
   componentDescriptionBinds: " binds plugin ",
   singleSourceSuffix:
     ", which isn't installed locally. It's available from the marketplace source below.",
@@ -100,9 +101,9 @@ function errorMessage(err: unknown, fallback: string): string {
  * the catalog's own preview endpoint. Only the consent step (`PermissionsScreen`)
  * is shared, which is the one part that really is identical.
  *
- * `componentName` names the component whose binding pulled the plugin in, and
- * `onInstalled` is the resume-bench-start hook the caller supplies (CPHMTP-TC-077
- * S003-O02).
+ * `componentName` names the component whose binding pulled the plugin in,
+ * `benchLabel` names the bench whose start failed (#1657), and `onInstalled` is
+ * the resume-bench-start hook the caller supplies (CPHMTP-TC-077 S003-O02).
  */
 export default function MissingPluginDialog({
   projectId,
@@ -110,6 +111,7 @@ export default function MissingPluginDialog({
   pluginSource,
   resolution,
   componentName,
+  benchLabel,
   onClose,
   onSkip,
   onInstalled,
@@ -119,6 +121,7 @@ export default function MissingPluginDialog({
   pluginSource: string | undefined;
   resolution?: MissingPluginResolution;
   componentName?: string;
+  benchLabel?: string;
   onClose: () => void;
   onSkip: () => void;
   onInstalled?: () => void;
@@ -130,6 +133,7 @@ export default function MissingPluginDialog({
       pluginSource={pluginSource}
       resolution={resolution}
       componentName={componentName}
+      benchLabel={benchLabel}
       onClose={onClose}
       onSkip={onSkip}
       onInstalled={onInstalled}
@@ -143,6 +147,7 @@ function MissingPluginDialogContent({
   pluginSource,
   resolution,
   componentName,
+  benchLabel,
   onClose,
   onSkip,
   onInstalled,
@@ -152,6 +157,7 @@ function MissingPluginDialogContent({
   pluginSource: string | undefined;
   resolution?: MissingPluginResolution;
   componentName?: string;
+  benchLabel?: string;
   onClose: () => void;
   onSkip: () => void;
   onInstalled?: () => void;
@@ -326,6 +332,7 @@ function MissingPluginDialogContent({
             <MarketplaceSourceScreen
               pluginId={effectivePluginId}
               componentName={componentName}
+              benchLabel={benchLabel}
               resolution={resolution}
               error={state.error}
               installing={marketplacePreviewMutation.isPending}
@@ -402,6 +409,7 @@ function offeredSources(resolution: MissingPluginResolution): MissingPluginSourc
 function MarketplaceSourceScreen({
   pluginId,
   componentName,
+  benchLabel,
   resolution,
   error,
   installing,
@@ -412,6 +420,7 @@ function MarketplaceSourceScreen({
 }: {
   pluginId: string;
   componentName: string | undefined;
+  benchLabel: string | undefined;
   resolution: MissingPluginResolution;
   error: string | null;
   installing: boolean;
@@ -434,6 +443,12 @@ function MarketplaceSourceScreen({
             <>
               {STRINGS.componentDescriptionPrefix}
               <span className="font-mono text-text-body">{componentName}</span>
+              {benchLabel && (
+                <>
+                  {STRINGS.componentDescriptionOn}
+                  <span className="text-text-body">{benchLabel}</span>
+                </>
+              )}
               {STRINGS.componentDescriptionBinds}
             </>
           ) : (

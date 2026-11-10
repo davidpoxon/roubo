@@ -78,6 +78,38 @@ describe("ConsentReviewDialog: declared permissions (#938)", () => {
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 
+  // #1657: the bench page names the component start the consent gate blocked.
+  it("names the component and bench of a blocked start when given one", () => {
+    render(
+      <ConsentReviewDialog
+        pluginId="database"
+        pluginName="Database"
+        declared={dockerPerms}
+        provenance={firstParty()}
+        version="1.0.0"
+        startTarget={{ component: "db", benchLabel: "Bench 3" }}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("consent-review-start-target")).toHaveTextContent(
+      "Needed to start component db on Bench 3.",
+    );
+  });
+
+  it("names no start when the caller passes none", () => {
+    render(
+      <ConsentReviewDialog
+        pluginId="database"
+        pluginName="Database"
+        declared={dockerPerms}
+        provenance={firstParty()}
+        version="1.0.0"
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("consent-review-start-target")).toBeNull();
+  });
+
   it("renders the trust banner and each declared permission category", () => {
     render(
       <ConsentReviewDialog
