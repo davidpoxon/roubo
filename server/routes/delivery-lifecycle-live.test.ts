@@ -460,7 +460,7 @@ describe("Record loading over the live path", () => {
 });
 
 describe("Role matrix over the live path", () => {
-  it("SB-TC-049 a model change PUTs the role, shows pending, is listed on the controls endpoint, and shows current after roles.applied", async () => {
+  it("SB-TC-049 a model and effort change PUTs the role, shows pending, is listed on the controls endpoint, and shows current after roles.applied", async () => {
     renderTab();
     await snapshotShown();
     // The role matrix is in the cost view (#1620).
@@ -468,17 +468,26 @@ describe("Role matrix over the live path", () => {
     const row = () => screen.getByTestId("role-row-unit-coder");
     expect(row()).toHaveAttribute("data-state", "current");
 
-    // Step 1: change the coder's model and save.
+    // Step 1: change the coder's model and effort, and save. The record names
+    // no effort for the coder, so the effort menu starts on its placeholder.
     const user = userEvent.setup();
+    const effortMenu = () => screen.getByRole("combobox", { name: "Effort of unit-coder" });
+    expect(effortMenu()).toHaveValue("");
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Model of unit-coder" }),
       "large",
     );
-    await user.click(screen.getByRole("button", { name: "Save the model of unit-coder" }));
+    await user.selectOptions(effortMenu(), "high");
+    await user.click(
+      screen.getByRole("button", { name: "Save the model and effort of unit-coder" }),
+    );
     await requestAnswered("PUT", "roles", 202);
     await waitFor(() => expect(row()).toHaveAttribute("data-state", "pending"), { timeout: 3000 });
-    expect(screen.getByTestId("role-pending-unit-coder")).toHaveTextContent("pending · large");
+    expect(screen.getByTestId("role-pending-unit-coder")).toHaveTextContent(
+      "pending · large · high · next boundary",
+    );
     expect(screen.getByRole("combobox", { name: "Model of unit-coder" })).toHaveValue("fast");
+    expect(effortMenu()).toHaveValue("");
 
     // Step 2: the tooling reads the role control from the controls endpoint.
     const read = await readControls();
@@ -487,13 +496,22 @@ describe("Role matrix over the live path", () => {
       control_seq: 1,
       kind: "role-change",
       target_id: "unit-coder",
-      body: { tier: "large" },
+      body: { tier: "large", effort: "high" },
     });
 
-    // Step 3: the session applies it, and the row shows the new model as current.
-    await post([event("roles.applied", { role: "unit-coder", tier: "large", control_seq: 1 })]);
+    // Step 3: the session applies it, and the row shows the new model and
+    // effort as current.
+    await post([
+      event("roles.applied", {
+        role: "unit-coder",
+        tier: "large",
+        effort: "high",
+        control_seq: 1,
+      }),
+    ]);
     await waitFor(() => expect(row()).toHaveAttribute("data-state", "current"), { timeout: 3000 });
     expect(screen.getByRole("combobox", { name: "Model of unit-coder" })).toHaveValue("large");
+    expect(effortMenu()).toHaveValue("high");
     expect(screen.queryByTestId("role-pending-unit-coder")).not.toBeInTheDocument();
     expect(bench.deliveryControlQueue?.[0]?.status).toBe("applied");
   });
@@ -514,6 +532,20 @@ describe("PUT /delivery/roles", () => {
     });
   });
 
+  it("SB-TC-049 (#1615) carries an effort into the role-change control's body", async () => {
+    const res = await operator("PUT", "roles", {
+      role: "unit-coder",
+      tier: "fast",
+      effort: "max",
+    });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({
+      kind: "role-change",
+      target_id: "unit-coder",
+      body: { tier: "fast", effort: "max" },
+    });
+  });
+
   it.each([
     ["no role", { tier: "large" }, "role"],
     ["a role the delivery does not have", { role: "reviewer", tier: "large" }, "role"],
@@ -521,6 +553,9 @@ describe("PUT /delivery/roles", () => {
     ["no tier", { role: "unit-coder" }, "tier"],
     ["a blank tier", { role: "unit-coder", tier: "  " }, "tier"],
     ["a tier that is not a string", { role: "unit-coder", tier: 3 }, "tier"],
+    ["a blank effort", { role: "unit-coder", tier: "large", effort: " " }, "effort"],
+    ["an effort that is not a string", { role: "unit-coder", tier: "large", effort: 2 }, "effort"],
+    ["a null effort", { role: "unit-coder", tier: "large", effort: null }, "effort"],
   ])("SB-TC-049 refuses a change with %s and issues nothing", async (_label, body, field) => {
     const res = await operator("PUT", "roles", body);
     expect(res.status).toBe(400);

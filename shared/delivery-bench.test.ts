@@ -138,8 +138,8 @@ describe("checkDeliveryRecord", () => {
   it("reads a later minor of the same major as the version it knows", () => {
     const check = checkDeliveryRecord({
       ...fixture(),
-      $schema: "https://roubo.dev/schema/delivery-record/v1.2.0.json",
-      schemaVersion: "1.2.0",
+      $schema: "https://roubo.dev/schema/delivery-record/v1.9.0.json",
+      schemaVersion: "1.9.0",
       added_in_a_minor: { kept: true },
     });
     expect(check.ok).toBe(true);
@@ -155,6 +155,20 @@ describe("checkDeliveryRecord", () => {
     if (!check.ok) return;
     expect(check.record.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
     expect(check.record.budget.by_role).toBeUndefined();
+  });
+
+  it("reads a 1.1.0 record, whose roles carry a tier and no effort, as the version it knows (#1615)", () => {
+    const record = fixture();
+    record.roles = { main: { tier: "balanced" }, "unit-coder": { tier: "fast" } };
+    const check = checkDeliveryRecord({
+      ...record,
+      $schema: "https://roubo.dev/schema/delivery-record/v1.1.0.json",
+      schemaVersion: "1.1.0",
+    });
+    expect(check.ok).toBe(true);
+    if (!check.ok) return;
+    expect(check.record.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
+    expect(check.record.roles["unit-coder"]).toEqual({ tier: "fast" });
   });
 
   it("checks the version before the sections, and the sections before the fields", () => {

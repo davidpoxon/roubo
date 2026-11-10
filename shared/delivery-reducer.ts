@@ -415,12 +415,13 @@ export interface DeliveryPlannedPayload {
 
 export type LifecycleChangedPayload = Partial<DeliveryLifecycle>;
 
-// The tooling applied a change of one role's tier (SB-FR-021): one role per
-// event, named by the payload key `role`, as the role-change control's
-// `target_id` names it, and `control_seq` names that control.
+// The tooling applied a change of one role's tier, effort or both (SB-FR-021):
+// one role per event, named by the payload key `role`, as the role-change
+// control's `target_id` names it, and `control_seq` names that control.
 export interface RolesAppliedPayload extends ReadBackPayload {
   role?: string;
   tier?: string;
+  effort?: string;
 }
 
 export type UnitChangedPayload = Partial<Omit<DeliveryUnit, "id">>;
@@ -719,15 +720,24 @@ const onLifecycleChanged: EventHandler = (state, event) => {
   return { ...state, lifecycle: merge(state.lifecycle, patch) };
 };
 
-// A `roles.applied` makes the payload's tier the role's current tier, keeping
-// the role's other keys. A role the record does not carry yet is added, since
-// the tooling applied it. A payload without a role or a tier is skipped.
+// A `roles.applied` makes the payload's tier and effort the role's current
+// ones, each only when the payload carries it, keeping the role's other keys.
+// A role the record does not carry yet is added, since the tooling applied it,
+// but only from a payload with a tier: a role in the record always has one. A
+// payload without a role, or with neither a tier nor an effort, is skipped.
 const onRolesApplied: EventHandler = (state, event) => {
   const payload = event.payload as RolesAppliedPayload;
-  if (!isString(payload.role) || !isString(payload.tier)) return state;
+  if (!isString(payload.role)) return state;
   const current = ownValue(state.roles, payload.role);
+  const tier = isString(payload.tier) ? payload.tier : current?.tier;
+  if (tier === undefined) return state;
+  if (!isString(payload.tier) && !isString(payload.effort)) return state;
   const roles: Record<string, DeliveryRole> = { ...state.roles };
-  setOwnValue(roles, payload.role, { ...current, tier: payload.tier });
+  setOwnValue(roles, payload.role, {
+    ...current,
+    tier,
+    ...(isString(payload.effort) && { effort: payload.effort }),
+  });
   return { ...state, roles };
 };
 

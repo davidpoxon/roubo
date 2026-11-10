@@ -285,19 +285,20 @@
 //                                                        contract
 //                                                    404 and 409 as the snapshot read
 //   PUT  /:projectId/benches/:id/delivery/roles
-//        body {role, tier}                    -> 202 DeliveryOutboxControl: a
+//        body {role, tier, effort?}           -> 202 DeliveryOutboxControl: a
 //                                                    role-change control with target_id
-//                                                    the role and body {tier}, issued as
-//                                                    an answer is (SB-FR-021); the
-//                                                    session reads it back with a
-//                                                    roles.applied {role, tier,
+//                                                    the role and body {tier, effort?},
+//                                                    issued as an answer is (SB-FR-021);
+//                                                    the session reads it back with a
+//                                                    roles.applied {role, tier, effort?,
 //                                                    control_seq}, which makes the tier
-//                                                    the role's current one
+//                                                    and effort the role's current ones
 //                                                    400 INVALID_BODY + field: `role` is
 //                                                        not a role of the folded record,
 //                                                        `tier` is not a non-blank string,
-//                                                        or the control fails the control
-//                                                        contract
+//                                                        `effort` is there and not a
+//                                                        non-blank string, or the control
+//                                                        fails the control contract
 //                                                    404 and 409 as the snapshot read
 //   PUT  /:projectId/benches/:id/delivery/mode
 //        body {mode}                          -> 202 DeliveryOutboxControl: a
@@ -1628,7 +1629,7 @@ router.put(
   async (req, res) => {
     const bench = specBenchOf(req, res);
     if (!bench) return;
-    const body = req.body as { role?: unknown; tier?: unknown } | undefined;
+    const body = req.body as { role?: unknown; tier?: unknown; effort?: unknown } | undefined;
     const role = body?.role;
     if (typeof role !== "string" || role.length === 0) {
       sendInvalidBody(res, "role", "role must name a role of the delivery");
@@ -1639,13 +1640,21 @@ router.put(
       sendInvalidBody(res, "tier", "tier must be a non-blank string");
       return;
     }
+    const effort = body?.effort;
+    if (effort !== undefined && (typeof effort !== "string" || effort.trim().length === 0)) {
+      sendInvalidBody(res, "effort", "effort, when given, must be a non-blank string");
+      return;
+    }
     const context = await controlContext(bench, res);
     if (!context) return;
     if (ownValue(context.snapshot.roles, role) === undefined) {
       sendInvalidBody(res, "role", `role must name a role of the delivery, and ${role} is none`);
       return;
     }
-    issueControl(res, context, "role-change", role, { tier });
+    issueControl(res, context, "role-change", role, {
+      tier,
+      ...(effort !== undefined && { effort }),
+    });
   },
 );
 

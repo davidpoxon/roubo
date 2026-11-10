@@ -9,26 +9,51 @@ import { DeliveryPanel } from "./DeliveryPanel";
 
 // The role matrix of the Delivery tab (SB-FR-021): a "Role matrix" panel with
 // one DESIGN.md Role matrix row per role of the delivery, as a dense hairline
-// row (#1623): the mono role name, its model tier as a menu on the field
-// ground, its spend so far and its share of the spend, and an accent badge while a
-// change waits for the session. Changing the tier and saving writes a
-// role-change control (PUT .../delivery/roles); the row shows pending from the
-// outbox the snapshot carries, until the session's `roles.applied` reads the
-// control back and makes the tier the role's current one. The record carries
-// no effort per role, so the row has no effort menu (#1615).
+// row (#1623): the mono role name, its model tier and its effort as two menus
+// on the field ground (#1615), its spend so far and its share of the spend, and
+// an accent badge while a change waits for the session. Changing the tier, the
+// effort or both and saving writes one role-change control (PUT
+// .../delivery/roles); the row shows pending from the outbox the snapshot
+// carries, until the session's `roles.applied` reads the control back and
+// makes the tier and effort the role's current ones.
 
-// The tier aliases the menu always offers. The contract gives a tier no
+// The tier aliases the model menu always offers. The contract gives a tier no
 // vocabulary, so every tier the delivery already names is offered too.
 const ROLE_TIER_OPTIONS: readonly string[] = ["fast", "balanced", "large"];
 
-function tierOptions(rows: readonly RoleMatrixRow[]): string[] {
-  const options = [...ROLE_TIER_OPTIONS];
-  for (const row of rows) {
-    for (const tier of [row.tier, row.pendingTier]) {
-      if (tier !== null && !options.includes(tier)) options.push(tier);
-    }
+// The efforts the effort menu always offers. The contract gives an effort no
+// vocabulary either, so every effort the delivery already names is offered too.
+const ROLE_EFFORT_OPTIONS: readonly string[] = ["low", "medium", "high", "xhigh", "max"];
+
+function optionsOf(base: readonly string[], named: readonly (string | null)[]): string[] {
+  const options = [...base];
+  for (const value of named) {
+    if (value !== null && !options.includes(value)) options.push(value);
   }
   return options;
+}
+
+function tierOptions(rows: readonly RoleMatrixRow[]): string[] {
+  return optionsOf(
+    ROLE_TIER_OPTIONS,
+    rows.flatMap((row) => [row.tier, row.pendingTier]),
+  );
+}
+
+function effortOptions(rows: readonly RoleMatrixRow[]): string[] {
+  return optionsOf(
+    ROLE_EFFORT_OPTIONS,
+    rows.flatMap((row) => [row.effort, row.pendingEffort]),
+  );
+}
+
+// The value of the effort menu while the role has no effort: the record of a
+// delivery tooling that names none. It is never sent.
+const NO_EFFORT = "";
+
+interface RoleChange {
+  tier: string;
+  effort?: string;
 }
 
 const SELECT_CLASS = `rounded-control border border-border-control bg-bg-field px-3 py-1.5 text-13 text-text-body transition-colors hover:bg-bg-hover active:bg-bg-pressed disabled:cursor-default disabled:opacity-40 ${focusRing}`;
@@ -36,6 +61,7 @@ const SELECT_CLASS = `rounded-control border border-border-control bg-bg-field p
 function RoleRow({
   row,
   options,
+  efforts,
   spentUsd,
   disabled,
   saving,
@@ -43,16 +69,22 @@ function RoleRow({
 }: {
   row: RoleMatrixRow;
   options: readonly string[];
+  efforts: readonly string[];
   // The spend of the whole delivery, which the row's share is of.
   spentUsd: number;
   disabled: boolean;
   saving: boolean;
-  onSave: (tier: string) => void;
+  onSave: (change: RoleChange) => void;
 }) {
-  // The draft starts at the tier in effect; the row is keyed by the tier and
-  // the pending tier, so a read-back starts it again from the new tier.
+  // The drafts start at the tier and effort in effect; the row is keyed by
+  // both and by the pending pair, so a read-back starts them again from the
+  // new values.
   const [draft, setDraft] = useState(row.tier);
+  const [effortDraft, setEffortDraft] = useState(row.effort ?? NO_EFFORT);
   const pending = row.pendingTier !== null;
+  const unchanged = draft === row.tier && effortDraft === (row.effort ?? NO_EFFORT);
+  const asPending =
+    pending && draft === row.pendingTier && effortDraft === (row.pendingEffort ?? NO_EFFORT);
   return (
     <li
       data-testid={`role-row-${row.role}`}
@@ -78,10 +110,31 @@ function RoleRow({
           </option>
         ))}
       </select>
+      <select
+        data-testid={`role-effort-${row.role}`}
+        aria-label={`Effort of ${row.role}`}
+        value={effortDraft}
+        disabled={disabled}
+        onChange={(event) => setEffortDraft(event.target.value)}
+        className={SELECT_CLASS}
+      >
+        {effortDraft === NO_EFFORT && (
+          <option value={NO_EFFORT} disabled>
+            no effort
+          </option>
+        )}
+        {efforts.map((effort) => (
+          <option key={effort} value={effort}>
+            {effort}
+          </option>
+        ))}
+      </select>
       <Button
-        onPress={() => onSave(draft)}
-        isDisabled={disabled || saving || draft === row.tier || draft === row.pendingTier}
-        aria-label={`Save the model of ${row.role}`}
+        onPress={() =>
+          onSave({ tier: draft, ...(effortDraft !== NO_EFFORT && { effort: effortDraft }) })
+        }
+        isDisabled={disabled || saving || unchanged || asPending}
+        aria-label={`Save the model and effort of ${row.role}`}
       >
         Save
       </Button>
@@ -100,7 +153,8 @@ function RoleRow({
           data-testid={`role-pending-${row.role}`}
           className="rounded-chip bg-accent-muted px-1.5 py-0.5 text-11 font-medium text-accent-text"
         >
-          pending · {row.pendingTier} · next boundary
+          pending · {row.pendingTier}
+          {row.pendingEffort !== null && ` · ${row.pendingEffort}`} · next boundary
         </span>
       )}
     </li>
@@ -121,6 +175,7 @@ export default function RoleMatrix({
 }) {
   const rows = selectRoleMatrix(snapshot);
   const options = tierOptions(rows);
+  const efforts = effortOptions(rows);
   const change = useRoleChange(projectId, benchId);
   return (
     <DeliveryPanel
@@ -135,13 +190,16 @@ export default function RoleMatrix({
         <ul aria-label="Role matrix">
           {rows.map((row) => (
             <RoleRow
-              key={`${row.role}:${row.tier}:${row.pendingTier ?? ""}`}
+              key={`${row.role}:${row.tier}:${row.effort ?? ""}:${row.pendingTier ?? ""}:${
+                row.pendingEffort ?? ""
+              }`}
               row={row}
               options={options}
+              efforts={efforts}
               spentUsd={snapshot.budget.spent_usd}
               disabled={disabled}
               saving={change.isPending}
-              onSave={(tier) => change.mutate({ role: row.role, tier })}
+              onSave={(roleChange) => change.mutate({ role: row.role, ...roleChange })}
             />
           ))}
         </ul>

@@ -2,7 +2,7 @@
 // for the published, versioned shape of one operator CONTROL (SB-FR-014,
 // SB-US-005). A control is one line of the control outbox: the bench writes it
 // when the operator answers a decision, overturns one, adds a steering note,
-// changes a role's tier, pauses, winds down, resumes, approves, switches the
+// changes a role's tier or effort, pauses, winds down, resumes, approves, switches the
 // mode, accepts an agent decision or writes on a decision's thread, and the
 // delivery tooling reads and applies it. The outbox is the inverse of the event
 // stream in delivery-observation-contract.ts: events flow from the tooling to
@@ -14,7 +14,7 @@
 // keeps the committed JSON equal to the zod source.
 //
 // Agent-agnostic by construction (SB-NFR-001): a control names a role, a tier,
-// a decision or a unit by id, never a vendor, a model or a tool.
+// an effort, a decision or a unit by id, never a vendor, a model or a tool.
 //
 // Compatibility posture (SB-NFR-007): closed enums per field, widened by a
 // minor bump. `kind` and `status` are CLOSED enums: a reader that applies a
@@ -38,18 +38,23 @@
 // .../delivery/decisions/:decisionId/accept issues a `review_accept`, and POST
 // .../delivery/decisions/:decisionId/thread a `thread_message`, and PUT
 // .../delivery/mode a `mode_switch` (see server/routes/delivery.ts).
+//
+// 1.1.0 (SB-FR-021, #1615) adds an optional `effort` to the `role-change`
+// body, beside its `tier`: a role's tier and its reasoning effort change in
+// one control. A reader that knows only `tier` applies the tier and keeps the
+// key it does not know.
 
 import { z } from "zod";
 import { DELIVERY_TEXT_MAX_LENGTH, DeliveryModeValueSchema } from "./delivery-observation-contract";
 
 // ── Versioned schema identifier ──
 
-export const DELIVERY_CONTROL_SCHEMA_ID = "https://roubo.dev/schema/delivery-control/v1.0.0.json";
-export const DELIVERY_CONTROL_SCHEMA_VERSION = "1.0.0";
+export const DELIVERY_CONTROL_SCHEMA_ID = "https://roubo.dev/schema/delivery-control/v1.1.0.json";
+export const DELIVERY_CONTROL_SCHEMA_VERSION = "1.1.0";
 // The control read response is its own generated artifact at the same
 // contract version (see "The control read response" below).
 export const DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID =
-  "https://roubo.dev/schema/delivery-control-read-response/v1.0.0.json";
+  "https://roubo.dev/schema/delivery-control-read-response/v1.1.0.json";
 
 // ── Shared scalars ──
 
@@ -57,7 +62,7 @@ export const DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID =
 const TimestampSchema = z.iso.datetime({ offset: true });
 // A non-empty identifier: a delivery id, a decision id, a unit id, a role name.
 const IdSchema = z.string().min(1);
-// A non-empty text: an option, a note, a tier alias, a reason.
+// A non-empty text: an option, a note, a tier alias, an effort, a reason.
 const TextSchema = z.string().min(1);
 
 // ── status ──
@@ -172,10 +177,13 @@ export const SteeringNoteBodySchema = z
 export type SteeringNoteBody = z.infer<typeof SteeringNoteBodySchema>;
 
 // Move the role `target_id` names to the tier alias the delivery tooling
-// names; the contract gives the alias no vocabulary.
+// names and, when `effort` (1.1.0) is there, to that reasoning effort; the
+// contract gives neither a vocabulary. `tier` is always there: a change of the
+// effort alone carries the role's tier as it stands.
 export const RoleChangeBodySchema = z
   .object({
     tier: TextSchema,
+    effort: TextSchema.optional(),
   })
   .loose();
 export type RoleChangeBody = z.infer<typeof RoleChangeBodySchema>;

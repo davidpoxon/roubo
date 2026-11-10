@@ -442,10 +442,16 @@ export function selectSteeringNotes(snapshot: DeliverySnapshot): SteeringNoteVie
 }
 
 // One item queued for the next unit boundary: a steering note, or a change of
-// a role's tier.
+// a role's tier and effort (`effort` null when the change names none).
 export type BoundaryQueueItem =
   | { kind: "steering-note"; controlSeq: number; note: string; appliesAt: string | null }
-  | { kind: "role-change"; controlSeq: number; role: string; tier: string };
+  | {
+      kind: "role-change";
+      controlSeq: number;
+      role: string;
+      tier: string;
+      effort: string | null;
+    };
 
 // The boundary panel: the next unit boundary, and everything queued for it.
 export interface BoundaryPanelView {
@@ -468,12 +474,13 @@ export function selectBoundaryPanel(snapshot: DeliverySnapshot): BoundaryPanelVi
         ...steeringNoteOf(control),
       });
     } else if (control.kind === "role-change") {
-      const tier = (control.body as { tier?: unknown }).tier;
+      const { tier, effort } = control.body as { tier?: unknown; effort?: unknown };
       queued.push({
         kind: "role-change",
         controlSeq: control.control_seq,
         role: control.target_id ?? "",
         tier: typeof tier === "string" ? tier : "",
+        effort: typeof effort === "string" ? effort : null,
       });
     }
   }
@@ -630,13 +637,17 @@ export function selectLifecycleAction(
 }
 
 // One row of the role matrix (DESIGN.md Role matrix row): the role, the tier
-// in effect, the tier a change asked for while its role-change control waits
-// for the session's read-back (null when none waits), and the role's spend so
-// far from the budget's `by_role` (null when the budget names none).
+// and effort in effect (effort null when the record names none), the tier and
+// effort a change asked for while its role-change control waits for the
+// session's read-back (null when none waits, and pendingEffort null too when
+// the change names no effort), and the role's spend so far from the budget's
+// `by_role` (null when the budget names none).
 export interface RoleMatrixRow {
   role: string;
   tier: string;
+  effort: string | null;
   pendingTier: string | null;
+  pendingEffort: string | null;
   pendingControlSeq: number | null;
   spentUsd: number | null;
 }
@@ -644,14 +655,18 @@ export interface RoleMatrixRow {
 // Every role of the delivery in the record's key order, each with the last
 // outstanding role-change control that targets it. The control stops waiting
 // on its read-back (a `roles.applied` that names its control_seq), which also
-// makes its tier the role's current one.
+// makes its tier and effort the role's current ones.
 export function selectRoleMatrix(snapshot: DeliverySnapshot): RoleMatrixRow[] {
-  const pending = new Map<string, { tier: string; controlSeq: number }>();
+  const pending = new Map<string, { tier: string; effort: string | null; controlSeq: number }>();
   for (const control of snapshot.controls) {
     if (control.kind !== "role-change" || !isOutstandingControl(control)) continue;
-    const tier = (control.body as { tier?: unknown }).tier;
+    const { tier, effort } = control.body as { tier?: unknown; effort?: unknown };
     if (control.target_id === undefined || typeof tier !== "string") continue;
-    pending.set(control.target_id, { tier, controlSeq: control.control_seq });
+    pending.set(control.target_id, {
+      tier,
+      effort: typeof effort === "string" ? effort : null,
+      controlSeq: control.control_seq,
+    });
   }
   const byRole = snapshot.budget.by_role ?? {};
   return Object.entries(snapshot.roles).map(([role, value]) => {
@@ -660,7 +675,9 @@ export function selectRoleMatrix(snapshot: DeliverySnapshot): RoleMatrixRow[] {
     return {
       role,
       tier: value.tier,
+      effort: typeof value.effort === "string" ? value.effort : null,
       pendingTier: waiting?.tier ?? null,
+      pendingEffort: waiting?.effort ?? null,
       pendingControlSeq: waiting?.controlSeq ?? null,
       spentUsd: typeof spent === "number" ? spent : null,
     };

@@ -168,7 +168,8 @@ export function DecisionSummaryPanel({
 }
 
 function queuedText(item: BoundaryQueueItem): string {
-  return item.kind === "steering-note" ? item.note : `${item.role}: ${item.tier}`;
+  if (item.kind === "steering-note") return item.note;
+  return `${item.role}: ${item.tier}${item.effort !== null ? ` · ${item.effort}` : ""}`;
 }
 
 // The header's "steer" link opens the decisions view on the Steering panel,

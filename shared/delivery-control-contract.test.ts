@@ -129,7 +129,7 @@ const bodies: Record<DeliveryControlKind, Record<string, unknown>> = {
   "decision-answer": { option: "one file per unit" },
   overturn: { option: "one file per stack", reason: "the cache is per stack" },
   "steering-note": { note: "Keep the schema loose.", unit_ids: ["demo-unit-2"] },
-  "role-change": { tier: "fast" },
+  "role-change": { tier: "fast", effort: "high" },
   pause: {},
   "wind-down": { reason: "budget" },
   resume: {},
@@ -178,9 +178,9 @@ function controlOf(kind: DeliveryControlKind, control_seq = 1): Record<string, u
 const minimalControl = controlOf("decision-answer");
 
 describe("delivery control contract: generated schema", () => {
-  it("is zod in shared with a versioned $id at 1.0.0 and its committed JSON equals a fresh render", async () => {
-    expect(DELIVERY_CONTROL_SCHEMA_VERSION).toBe("1.0.0");
-    expect(DELIVERY_CONTROL_SCHEMA_ID).toMatch(/\/v1\.0\.0\.json$/);
+  it("is zod in shared with a versioned $id at 1.1.0 and its committed JSON equals a fresh render", async () => {
+    expect(DELIVERY_CONTROL_SCHEMA_VERSION).toBe("1.1.0");
+    expect(DELIVERY_CONTROL_SCHEMA_ID).toMatch(/\/v1\.1\.0\.json$/);
     expect(DeliveryControlSchema.meta()?.$id).toBe(DELIVERY_CONTROL_SCHEMA_ID);
 
     // The generator lists it, and the committed artifact under schema/ is
@@ -233,7 +233,10 @@ describe("delivery control contract: generated schema", () => {
       "note",
       "unit_ids",
     ]);
-    expect(Object.keys(optionProps(roleChange).body.properties as JsonSchema)).toEqual(["tier"]);
+    expect(Object.keys(optionProps(roleChange).body.properties as JsonSchema)).toEqual([
+      "tier",
+      "effort",
+    ]);
     expect(Object.keys(optionProps(pause).body.properties as JsonSchema)).toEqual(["reason"]);
     const [modeSwitch, reviewAccept, threadMessage] = options(live).slice(8);
     const modeProps = optionProps(modeSwitch).body.properties as Record<string, JsonSchema>;
@@ -464,7 +467,7 @@ describe("delivery control contract: validation", () => {
     }
   });
 
-  it("rejects an empty option, note, tier or unit id and a non-string reason", () => {
+  it("rejects an empty option, note, tier, effort or unit id and a non-string reason", () => {
     const cases: [DeliveryControlKind, Record<string, unknown>, string][] = [
       ["decision-answer", { option: "" }, "body.option:"],
       ["overturn", { option: "" }, "body.option:"],
@@ -473,6 +476,8 @@ describe("delivery control contract: validation", () => {
       ["steering-note", { note: "n", unit_ids: [""] }, "body.unit_ids.0:"],
       ["steering-note", { note: "n", unit_ids: "demo-unit-2" }, "body.unit_ids:"],
       ["role-change", { tier: "" }, "body.tier:"],
+      ["role-change", { tier: "fast", effort: "" }, "body.effort:"],
+      ["role-change", { tier: "fast", effort: 3 }, "body.effort:"],
       ["pause", { reason: null }, "body.reason:"],
       ["approval", { reason: ["x"] }, "body.reason:"],
     ];
@@ -577,7 +582,9 @@ describe("delivery control contract: compatibility", () => {
   it("the live schema obeys the semver rule against its published baseline", async () => {
     const report = checkContractCompatibility(baselineSchema(), await liveSchema());
     expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
-    expect(report.message).toBe("no change at 1.0.0");
+    // 1.1.0 adds the optional effort of a role change (#1615).
+    expect(report.message).toBe("additive change, version 1.0.0 to 1.1.0");
+    expect(report.reasons).toEqual(["<root>.oneOf.role-change.body.effort: new optional property"]);
   });
 
   it("a twelfth kind, as a twelfth option on the root oneOf, is additive and needs a minor bump", () => {
@@ -673,10 +680,10 @@ describe("delivery control contract: compatibility", () => {
 });
 
 describe("delivery control read response: generated artifact", () => {
-  it("sb_tc_098 the read response is a generated artifact with a versioned $id at 1.0.0", async () => {
+  it("sb_tc_098 the read response is a generated artifact with a versioned $id at the control's version", async () => {
     const live = await liveSchema(READ_RESPONSE_FILE);
     expect(live.$id).toBe(DELIVERY_CONTROL_READ_RESPONSE_SCHEMA_ID);
-    expect(parseSchemaVersion(live.$id)).toEqual({ major: 1, minor: 0, patch: 0 });
+    expect(parseSchemaVersion(live.$id)).toEqual(parseSchemaVersion(DELIVERY_CONTROL_SCHEMA_ID));
     const [reply, superseded] = live.anyOf as JsonSchema[];
     expect(reply.required).toEqual(["controls", "latestSeq"]);
     expect(superseded.required).toEqual(["controls", "superseded"]);
@@ -709,7 +716,12 @@ describe("delivery control read response: generated artifact", () => {
       await liveSchema(READ_RESPONSE_FILE),
     );
     expect(report.ok, `${report.message}\n${report.reasons.join("\n")}`).toBe(true);
-    expect(report.message).toBe("no change at 1.0.0");
+    // 1.1.0 embeds the 1.1.0 control: the effort of a role change (#1615), and
+    // each control's stamp moved within its major.
+    expect(report.message).toBe("additive change, version 1.0.0 to 1.1.0");
+    expect(report.reasons).toContain(
+      "<root>.anyOf.*.controls[].oneOf.role-change.body.effort: new optional property",
+    );
   });
 
   it("sb_tc_098 requiring latestSeq of the superseded reply is breaking and needs a major bump", () => {
