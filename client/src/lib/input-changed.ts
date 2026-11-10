@@ -64,6 +64,15 @@ export function changedInputOf(event: InputChangedEvent): ChangedInput | undefin
   }
 }
 
+/** The plugin whose credential slot a token put in auth.json goes into. */
+const GITHUB_PLUGIN_ID = "github-com";
+
+/** The detail keys of the benches an event names, or the prefix of them all when it names none. */
+function benchKeys(event: InputChangedEvent): QueryKey[] {
+  if (event.projectId === undefined || event.benchIds === undefined) return [["bench"]];
+  return event.benchIds.map((benchId) => ["bench", event.projectId, benchId]);
+}
+
 /**
  * The React Query keys a change of each input refreshes (HR-FR-016). Only
  * these keys are invalidated: the rest of the cache, the screen, the
@@ -79,14 +88,30 @@ export const INPUT_QUERY_KEYS: Record<ChangedInput, (event: InputChangedEvent) =
     ...(event.projectId === undefined ? [] : [["raw-config", event.projectId]]),
     ["benches"],
   ],
-  plugin: () => [["plugins"], ["project-integration"], ["benches"]],
+  // ["agent-plugins"] is the AI Agents tab and the default-agent picker: a
+  // plugin folder adds or swaps an agent plugin, and consent and the enable
+  // state decide whether one is available, so each of those inputs refreshes it.
+  plugin: () => [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
   settings: () => [["settings"]],
   projects: () => [["projects"], ["benches"], ["issues"]],
-  "bench-state": () => [["benches"]],
-  auth: () => [["settings"], ["issues"]],
-  consent: () => [["plugins"]],
-  "plugin-state": () => [["plugins"]],
-  env: () => [["settings"]],
+  // A bench's detail view reads ["bench", projectId, benchId], which
+  // ["benches"] does not prefix-match.
+  "bench-state": (event) => [["benches"], ...benchKeys(event)],
+  // A token put in auth.json goes into the github-com credential slot: the
+  // connection status and the repos and projects the token can see change.
+  // ["project-integration"] is not here: it reads the project's integration
+  // config and the plugin's process status, never the token. The event names
+  // no project, so every project's derived sources are refreshed.
+  auth: () => [
+    ["settings"],
+    ["issues"],
+    ["plugin-connection-status", GITHUB_PLUGIN_ID],
+    ["github-derived-sources"],
+  ],
+  consent: () => [["plugins"], ["agent-plugins"]],
+  "plugin-state": () => [["plugins"], ["agent-plugins"]],
+  // The Setup view lists the .env key names from ["env-keys"].
+  env: () => [["settings"], ["env-keys"]],
 };
 
 /** The keys to refresh for one event; none for a surface this client does not know. */
