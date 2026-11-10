@@ -190,6 +190,72 @@ describe("loadEnvFile", () => {
   });
 });
 
+describe("loadEnvFile called again", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(async () => {
+    process.env = { ...originalEnv };
+    delete process.env.ROUBO_TEST_RELOAD;
+    delete process.env.ROUBO_PORT;
+    vi.resetAllMocks();
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    const { resetEnvFileLoads } = await import("./env.js");
+    resetEnvFileLoads();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  async function load(contents: string): Promise<string[]> {
+    vi.mocked(fs.readFileSync).mockReturnValue(contents);
+    const { loadEnvFile } = await import("./env.js");
+    return loadEnvFile();
+  }
+
+  it("HR-TC-024 applies a changed value and returns the keys it changed", async () => {
+    expect(await load("ROUBO_TEST_RELOAD=1")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(await load("ROUBO_TEST_RELOAD=1\n# a comment")).toEqual([]);
+    expect(await load("ROUBO_TEST_RELOAD='2'")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("2");
+  });
+
+  it("HR-TC-024 removes a key the file no longer has", async () => {
+    await load("ROUBO_TEST_RELOAD=1");
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBeUndefined();
+  });
+
+  it("HR-TC-024 never changes or removes a value something else set since", async () => {
+    await load("ROUBO_TEST_RELOAD=1");
+    process.env.ROUBO_TEST_RELOAD = "set-by-the-app";
+    expect(await load("ROUBO_TEST_RELOAD=2")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("set-by-the-app");
+  });
+
+  it("applies ROUBO_PORT on the first load only, since the server binds it once", async () => {
+    await load("ROUBO_PORT=4000");
+    expect(process.env.ROUBO_PORT).toBe("4000");
+    expect(await load("ROUBO_PORT=5000")).toEqual([]);
+    expect(process.env.ROUBO_PORT).toBe("4000");
+  });
+
+  it("HR-TC-025 readEnvValue reads the file per call, and explicit env wins", async () => {
+    const { readEnvValue } = await import("./env.js");
+    vi.mocked(fs.readFileSync).mockReturnValue("ROUBO_TEST_RELOAD=first");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("first");
+    vi.mocked(fs.readFileSync).mockReturnValue('ROUBO_TEST_RELOAD="second"');
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("second");
+    // A value the loader put in process.env still follows the file.
+    await load("ROUBO_TEST_RELOAD=loaded");
+    vi.mocked(fs.readFileSync).mockReturnValue("ROUBO_TEST_RELOAD=edited");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("edited");
+    process.env.ROUBO_TEST_RELOAD = "explicit";
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("explicit");
+  });
+});
+
 describe("importLoginShellEnv", () => {
   const originalEnv = { ...process.env };
 

@@ -60,13 +60,13 @@ No action is needed to configure scopes on the OAuth App itself; they are reques
 
 #### Step 3. Point Roubo at your OAuth App
 
-Set the client ID before starting the server:
+Set the client ID as `GITHUB_CLIENT_ID`, either in `~/.roubo/.env`:
 
 ```bash
-export GITHUB_CLIENT_ID=<your client id>
+GITHUB_CLIENT_ID=<your client id>
 ```
 
-It is read once at startup in `server/services/github-oauth.ts`. No other credential is needed.
+or in the environment before starting the server (`export GITHUB_CLIENT_ID=<your client id>`), which wins over `.env`. `server/services/github-oauth.ts` reads it each time a sign-in flow starts, so an edit of `.env` takes effect at the next sign-in with no relaunch. No other credential is needed.
 
 ### Verify the flow
 

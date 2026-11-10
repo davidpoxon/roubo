@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import * as credentialStore from "./credential-store.js";
+import { readEnvValue } from "./env.js";
 
 // Plugin-scoped OAuth helper for the bundled github-com integration plugin.
 // The plugin reads its token from credentialStore.get("github-com",
@@ -12,7 +13,17 @@ import * as credentialStore from "./credential-store.js";
 export const GITHUB_PLUGIN_ID = "github-com";
 export const GITHUB_TOKEN_SLOT = "github-token";
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID ?? "Ov23li8FytWzZPHmc7fm";
+/** The client id of Roubo's own OAuth App, used when GITHUB_CLIENT_ID is unset. */
+export const DEFAULT_GITHUB_CLIENT_ID = "Ov23li8FytWzZPHmc7fm";
+
+/**
+ * The OAuth client id, read per call rather than at module load (HR-FR-011):
+ * GITHUB_CLIENT_ID from the environment or from $ROUBO_DIR/.env as the file
+ * holds it now, so an edit of .env reaches the next sign-in with no relaunch.
+ */
+export function githubClientId(): string {
+  return readEnvValue("GITHUB_CLIENT_ID") || DEFAULT_GITHUB_CLIENT_ID;
+}
 // IP-WU-036: exported so the host route can log `scopesRequested` when a flow
 // starts without duplicating the scope set. Architecture addendum line 952.
 export const REQUIRED_SCOPES = ["repo", "read:org", "read:project", "security_events"] as const;
@@ -31,6 +42,9 @@ interface PendingFlow {
   // The device code is a bearer for the token GitHub issues once the user
   // approves. It never leaves this process: the renderer polls by flowId.
   deviceCode: string;
+  // The client id the flow started with. GitHub issues a device code to one
+  // client, so each poll sends this one even after GITHUB_CLIENT_ID changes.
+  clientId: string;
   intervalS: number;
   expiresAt: number;
   nextPollAt: number;
@@ -94,8 +108,9 @@ export interface DeviceFlowStart {
 // Do NOT log the result or pass it to any plugin-process log surface. The
 // renderer receives it directly from the route and shows it to the user.
 export async function startDeviceFlow(): Promise<DeviceFlowStart> {
+  const clientId = githubClientId();
   const data = (await postGitHub(DEVICE_CODE_URL, {
-    client_id: GITHUB_CLIENT_ID,
+    client_id: clientId,
     scope: SCOPES,
   })) as DeviceCodeResponse;
 
@@ -117,6 +132,7 @@ export async function startDeviceFlow(): Promise<DeviceFlowStart> {
   const flowId = crypto.randomBytes(32).toString("hex");
   pendingFlows.set(flowId, {
     deviceCode: data.device_code,
+    clientId,
     intervalS,
     expiresAt: now + data.expires_in * 1000,
     nextPollAt: now + intervalS * 1000,
@@ -162,7 +178,7 @@ export async function pollDeviceFlow(flowId: string): Promise<DeviceFlowPoll> {
   let data: AccessTokenResponse;
   try {
     data = (await postGitHub(ACCESS_TOKEN_URL, {
-      client_id: GITHUB_CLIENT_ID,
+      client_id: flow.clientId,
       device_code: flow.deviceCode,
       grant_type: DEVICE_GRANT_TYPE,
     })) as AccessTokenResponse;
@@ -230,6 +246,7 @@ export const __test = {
     const now = Date.now();
     pendingFlows.set(flowId, {
       deviceCode: "device-code",
+      clientId: DEFAULT_GITHUB_CLIENT_ID,
       intervalS: DEFAULT_INTERVAL_S,
       expiresAt: now + 15 * 60 * 1000,
       nextPollAt: now,

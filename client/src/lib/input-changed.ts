@@ -54,7 +54,8 @@ export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent)
         ]),
     ["project-items"],
   ],
-  environment: (event) => [["benches"], ...benchKeys(event)],
+  // The Setup view lists the .env key names, so a .env edit refreshes them.
+  environment: (event) => [["benches"], ...benchKeys(event), ["env-keys"]],
 };
 
 /** The keys to refresh for one event; none for a surface this client does not know. */
