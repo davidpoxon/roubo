@@ -341,6 +341,15 @@ describe("loadEnvFile called again", () => {
     expect(await load("")).toEqual([]);
     expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
   });
+
+  it("keeps NODE_ENV as boot set it, since plugin discovery picks its mode once", async () => {
+    delete process.env.NODE_ENV;
+    await load("NODE_ENV=production");
+    expect(process.env.NODE_ENV).toBe("production");
+    expect(await load("NODE_ENV=test")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.NODE_ENV).toBe("production");
+  });
 });
 
 describe("importLoginShellEnv", () => {
