@@ -19,6 +19,9 @@ import {
 } from "./state-recipe-replay.js";
 import { runCommand } from "./exec.js";
 
+// The checkout lives inside a parent folder that the test owns, so an escape
+// to "../x" is checked in a folder that no other process writes to.
+let parent: string;
 let checkout: string;
 
 function recipe(steps: StateRecipe["steps"]): StateRecipe {
@@ -45,11 +48,13 @@ function deps(status = 200): StateRecipeReplayDeps & {
 }
 
 beforeEach(() => {
-  checkout = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "roubo-replay-")));
+  parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "roubo-replay-")));
+  checkout = path.join(parent, "checkout");
+  fs.mkdirSync(checkout);
 });
 
 afterEach(() => {
-  fs.rmSync(checkout, { recursive: true, force: true });
+  fs.rmSync(parent, { recursive: true, force: true });
 });
 
 describe("replayStateRecipe", () => {
@@ -144,15 +149,18 @@ describe("replayStateRecipe", () => {
       checkout,
       deps(),
     );
+    expect(fs.existsSync(path.join(parent, "x"))).toBe(false);
     expect(toEscapes.ok).toBe(false);
     expect(toEscapes.report.steps[0]).toMatchObject({ status: "failed" });
     expect(toEscapes.report.steps[0].detail).toContain("escapes root");
-    expect(fs.existsSync(path.join(path.dirname(checkout), "x"))).toBe(false);
+    // A file outside the checkout that an unchecked "../a.txt" would read.
+    fs.writeFileSync(path.join(parent, "a.txt"), "outside");
     const fromEscapes = await replayStateRecipe(
       recipe([{ kind: "copy-file", from: "../a.txt", to: "b.txt" }]),
       checkout,
       deps(),
     );
+    expect(fs.existsSync(path.join(checkout, "b.txt"))).toBe(false);
     expect(fromEscapes.report.steps[0]).toMatchObject({ status: "failed" });
     expect(fromEscapes.report.steps[0].detail).toContain("escapes root");
   });
