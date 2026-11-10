@@ -459,6 +459,17 @@ describe("DeliveryTabPanel", () => {
       expect(screen.queryByTestId(`delivery-case-${ids[3]}`)).not.toBeInTheDocument();
     });
 
+    it("says a gating case that is not met has no unit that met it yet", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      await userEvent.click(await screen.findByTestId(`delivery-case-${ids[3]}`));
+      const record = screen.getByTestId(`delivery-verify-record-${ids[3]}`);
+      expect(record).toHaveTextContent("No unit has met this case yet.");
+      expect(record).not.toHaveTextContent("No gate names this case");
+    });
+
     it("shows the case id and its verify record when the test plan cannot be read", async () => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
       renderWithProviders(<DeliveryTabPanel bench={bench} />);

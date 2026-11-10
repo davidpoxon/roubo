@@ -319,6 +319,9 @@ function VerifyRecord({ entry }: { entry: DeliveryCaseProgress }) {
 }
 
 function PullRequestLink({ entry }: { entry: DeliveryCaseProgress }) {
+  if (!entry.met) {
+    return <p className="text-text-secondary">No unit has met this case yet.</p>;
+  }
   if (entry.metBy === null) {
     return <p className="text-text-secondary">No gate names this case, so no unit met it.</p>;
   }
