@@ -873,10 +873,22 @@ function setupDialog(): HTMLElement {
   return dialog;
 }
 
+// Picks a spec in the setup dialog's Specification menu (#1625): opens the
+// menu, then chooses the spec's option, which the menu's popover holds.
+async function pickSpec(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+  slug: string,
+): Promise<void> {
+  await user.click(await within(dialog).findByRole("button", { name: /specification/i }));
+  await user.click(await screen.findByRole("option", { name: new RegExp(`^${slug} `) }));
+}
+
 // A choice in the setup dialog, whichever control offers it.
 function choice(dialog: HTMLElement, name: RegExp): HTMLElement {
   const scope = within(dialog);
   const found =
+    scope.queryByRole("tab", { name }) ??
     scope.queryByRole("radio", { name }) ??
     scope.queryByRole("option", { name }) ??
     scope.queryByRole("button", { name }) ??
@@ -988,7 +1000,7 @@ describe("Spec Bench auto mode journey", { timeout: JOURNEY_TIMEOUT_MS }, () => 
       "the bench is set up in launch mode with the session launched in auto mode, and the delivery shell names auto mode",
       owners(["setUpMode"], ["launch", "deliveryTab"]),
       async () => {
-        await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+        await pickSpec(user, setupDialog(), SPEC_SLUG);
         await user.click(choice(setupDialog(), /^launch/i));
         await waitFor(
           () =>

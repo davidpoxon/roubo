@@ -640,10 +640,22 @@ async function findSetUpSpecBench(user: ReturnType<typeof userEvent.setup>): Pro
   );
 }
 
+// Picks a spec in the setup dialog's Specification menu (#1625): opens the
+// menu, then chooses the spec's option, which the menu's popover holds.
+async function pickSpec(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+  slug: string,
+): Promise<void> {
+  await user.click(await within(dialog).findByRole("button", { name: /specification/i }));
+  await user.click(await screen.findByRole("option", { name: new RegExp(`^${slug} `) }));
+}
+
 // A choice in the setup dialog, whichever control offers it.
 function choice(dialog: HTMLElement, name: RegExp): HTMLElement {
   const scope = within(dialog);
   const found =
+    scope.queryByRole("tab", { name }) ??
     scope.queryByRole("radio", { name }) ??
     scope.queryByRole("option", { name }) ??
     scope.queryByRole("button", { name }) ??
@@ -752,34 +764,26 @@ describe("Spec Bench setup journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
       "the dialog shows the spec fixture-spec, the mode Launch and a summary of 4 units and 2 gates",
       OWNERS.setup,
       async () => {
-        await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+        await pickSpec(user, setupDialog(), SPEC_SLUG);
         await user.click(choice(setupDialog(), /^launch/i));
         await waitFor(() => {
           const dialog = setupDialog();
-          // The spec list and the mode buttons show the slug and the word
-          // Launch before any pick, so the checks read the Summary section,
-          // which reflects only what the operator picked and chose.
-          const summary = within(dialog).queryByRole("region", { name: "Summary" });
-          if (!summary) {
-            throw new Error(
-              `the dialog shows no Summary section; it reads "${dialog.textContent}"`,
-            );
-          }
-          const shown = `the Summary reads "${summary.textContent ?? ""}"`;
-          const scope = within(summary);
-          expect(scope.getByTestId("specbench-setup-summary-spec"), shown).toHaveTextContent(
-            new RegExp(`^${SPEC_SLUG}$`),
-          );
-          expect(scope.getByTestId("specbench-setup-summary-mode"), shown).toHaveTextContent(
-            /^Launch$/,
-          );
-          const plan = scope.getByTestId("specbench-setup-summary");
+          // The Specification menu names the picked spec, the selected tab
+          // is the mode, and the plan line under the menu reads the summary.
+          const shown = `the dialog reads "${dialog.textContent ?? ""}"`;
+          expect(
+            within(dialog).getByRole("button", { name: /specification/i }),
+            shown,
+          ).toHaveTextContent(new RegExp(`^${SPEC_SLUG} `));
+          const plan = within(dialog).getByTestId("specbench-setup-summary");
           expect(plan, shown).toHaveTextContent(/\b4 units\b/i);
           expect(plan, shown).toHaveTextContent(/\b2 gates\b/i);
           const launch = choice(dialog, /^launch/i);
           const pressed =
-            launch.getAttribute("aria-checked") ?? launch.getAttribute("aria-pressed");
-          expect(pressed, "the Launch toggle is not the chosen mode").toBe("true");
+            launch.getAttribute("aria-selected") ??
+            launch.getAttribute("aria-checked") ??
+            launch.getAttribute("aria-pressed");
+          expect(pressed, "the Launch tab is not the chosen mode").toBe("true");
         });
       },
     );
@@ -850,15 +854,18 @@ describe("Spec Bench setup journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
       "true",
     );
     expect(note).toHaveTextContent(/^The agent decides\./);
-    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await pickSpec(user, setupDialog(), SPEC_SLUG);
     await user.click(choice(setupDialog(), /^launch/i));
     await waitFor(() =>
       expect(within(setupDialog()).getByTestId("specbench-setup-summary")).toHaveTextContent(
         /\b4 units\b/,
       ),
     );
-    const summaryDecisions = within(setupDialog()).getByTestId("specbench-setup-summary-decisions");
-    expect(summaryDecisions).toHaveTextContent("Auto");
+    // Picking the spec keeps the chosen mode.
+    expect(within(decisions).getByRole("radio", { name: "Auto" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     await user.click(choice(setupDialog(), /confirm|set up/i));
     await waitFor(() => expect(server.benches).toHaveLength(1), { timeout: 3000 });
     expect(server.createRequests.at(-1)).toMatchObject({
@@ -879,7 +886,7 @@ describe("Spec Bench setup journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
 
     await user.click(await findSetUpSpecBench(user));
     await waitFor(() => setupDialog());
-    await user.click(await within(setupDialog()).findByText(SPEC_SLUG));
+    await pickSpec(user, setupDialog(), SPEC_SLUG);
     await user.click(choice(setupDialog(), /^launch/i));
     await waitFor(() =>
       expect(within(setupDialog()).getByTestId("specbench-setup-summary")).toHaveTextContent(
