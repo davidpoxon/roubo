@@ -56,6 +56,25 @@ export const ImplementsSchema = z
   .strict();
 export type Implements = z.infer<typeof ImplementsSchema>;
 
+// ── design_reference (UI units only; absent on every other unit) ──
+//
+// Names the prototype screens and components a UI unit builds, so its delivery
+// can be checked against the prototype. All four keys are required once the
+// object is present.
+export const DesignReferenceSchema = z
+  .object({
+    // Path of the prototype, relative to the spec folder.
+    prototype: z.string(),
+    // Path of the screen inventory file, relative to the spec folder.
+    inventory: z.string(),
+    // Screen ids of the inventory file that this unit builds.
+    screens: z.array(z.string()),
+    // Names of the components that this unit builds.
+    components: z.array(z.string()),
+  })
+  .strict();
+export type DesignReference = z.infer<typeof DesignReferenceSchema>;
+
 // ── Unit ──
 //
 // `.strict()` so the generated JSON Schema emits `additionalProperties: false`
@@ -86,6 +105,8 @@ export const UnitSchema = z
     target_path: z.string().optional(),
     // Doc-unit only: which doc-standard rule fired.
     trigger_reason: z.string().optional(),
+    // UI-unit only: the prototype screens and components the unit builds.
+    design_reference: DesignReferenceSchema.optional(),
     // The tracker manifestation. Absent before the unit is filed.
     tracker: TrackerSchema.optional(),
   })
