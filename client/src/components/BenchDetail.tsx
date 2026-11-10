@@ -498,6 +498,18 @@ function AssignedIssueTransition({
   );
 }
 
+type BenchRef = { projectId: string; benchId: number };
+
+// A Clear the server refused because the bench holds uncommitted work. It
+// records the bench it was started on, because the user may have moved to
+// another bench by the time the refusal arrives, and "Clear anyway" must
+// force-clear the bench the prompt names.
+type DirtyClearTarget = BenchRef & {
+  branch: string;
+  removeWorkspace: boolean;
+  reasons: DirtyReason[];
+};
+
 export default function BenchDetail() {
   const { projectId = "", benchId: benchIdStr = "" } = useParams<{
     projectId: string;
@@ -527,13 +539,34 @@ export default function BenchDetail() {
 
   const [showTeardown, setShowTeardown] = useState(false);
   const [removeWorkspace, setRemoveWorkspace] = useState(true);
-  const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
-  const [dirtyReasons, setDirtyReasons] = useState<DirtyReason[] | null>(null);
+  const [retryTarget, setRetryTarget] = useState<BenchRef | null>(null);
+  const [dirtyTarget, setDirtyTarget] = useState<DirtyClearTarget | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
   const [expandedErrorKey, setExpandedErrorKey] = useState<string | null>(null);
-  const wasTearingDownRef = useRef(false);
+  // The bench whose teardown this page has watched start, so that only that
+  // bench's disappearance navigates away.
+  const tearingDownBenchRef = useRef<string | null>(null);
+
+  // The route keeps this component mounted when only the bench changes, so
+  // state from one bench would otherwise carry over to the next. Close the
+  // dialogs that act on the bench on screen, and restore the defaults, the
+  // moment the bench changes. The dirty-bench prompt is not reset here: it
+  // carries its own target and still belongs to the bench it names.
+  const benchKey = `${projectId}:${benchId}`;
+  const [shownBenchKey, setShownBenchKey] = useState(benchKey);
+  if (shownBenchKey !== benchKey) {
+    setShownBenchKey(benchKey);
+    setShowTeardown(false);
+    setRemoveWorkspace(true);
+    setRetryTarget(null);
+  }
 
   const project = projects?.find((a) => a.id === projectId);
+  const dirtyTargetProjectName =
+    dirtyTarget && dirtyTarget.projectId !== projectId
+      ? (projects?.find((p) => p.id === dirtyTarget.projectId)?.config?.project.displayName ??
+        dirtyTarget.projectId)
+      : undefined;
   const isRunning = bench?.status === "active";
   const isBusy = bench?.status === "preparing" || bench?.status === "clearing";
   const isProvisioning = bench?.status === "preparing";
@@ -542,9 +575,9 @@ export default function BenchDetail() {
   // workspace is confirmed with a warning first.
   const warnsOfRecordLoss = bench !== undefined && holdsDeliveryRecord(bench);
 
-  const runCleanupAndRetry = () =>
+  const runCleanupAndRetry = (target: BenchRef) =>
     cleanupAndRetry.mutate(
-      { projectId, benchId },
+      { projectId: target.projectId, benchId: target.benchId },
       {
         onError: (err) =>
           addToast(err instanceof Error && err.message ? err.message : "Cleanup failed", {
@@ -565,14 +598,14 @@ export default function BenchDetail() {
 
   // Track when bench enters teardown state and auto-navigate when deleted
   useEffect(() => {
-    if (isTearingDown) wasTearingDownRef.current = true;
-  }, [isTearingDown]);
+    if (isTearingDown) tearingDownBenchRef.current = benchKey;
+  }, [isTearingDown, benchKey]);
 
   useEffect(() => {
-    if (wasTearingDownRef.current && (isError || !bench)) {
+    if (tearingDownBenchRef.current === benchKey && (isError || !bench)) {
       navigate(projectId ? `/projects/${projectId}` : "/");
     }
-  }, [isError, bench, navigate, projectId]);
+  }, [isError, bench, navigate, projectId, benchKey]);
 
   const errorExpanded = bench?.error != null && expandedErrorKey === bench.error;
   const isLongError = !!bench?.error && (bench.error.length > 200 || bench.error.includes("\n"));
@@ -833,8 +866,8 @@ export default function BenchDetail() {
           <Button
             isDisabled={cleanupAndRetry.isPending}
             onPress={() => {
-              if (warnsOfRecordLoss) setRetryConfirmOpen(true);
-              else runCleanupAndRetry();
+              if (warnsOfRecordLoss) setRetryTarget({ projectId, benchId });
+              else runCleanupAndRetry({ projectId, benchId });
             }}
             className="flex items-center gap-1.5 mt-3 px-3 py-1.5 text-12 font-medium border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-control transition-colors outline-none disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
@@ -1086,16 +1119,27 @@ export default function BenchDetail() {
                   <Button
                     isDisabled={teardown.isPending}
                     onPress={() => {
+                      // Capture the bench now: the user may move to another
+                      // bench before the server answers.
+                      const target = {
+                        projectId,
+                        benchId,
+                        branch: bench.branch,
+                        removeWorkspace: isProvisioning ? true : removeWorkspace,
+                      };
                       teardown.mutate(
                         {
-                          projectId,
-                          benchId,
-                          removeWorkspace: isProvisioning ? true : removeWorkspace,
+                          projectId: target.projectId,
+                          benchId: target.benchId,
+                          removeWorkspace: target.removeWorkspace,
                         },
                         {
-                          onSuccess: () => registerTeardown(projectId, benchId, bench.branch),
+                          onSuccess: () =>
+                            registerTeardown(target.projectId, target.benchId, target.branch),
                           onError: (err) => {
-                            if (isDirtyBenchError(err)) setDirtyReasons(err.details.reasons);
+                            if (isDirtyBenchError(err)) {
+                              setDirtyTarget({ ...target, reasons: err.details.reasons });
+                            }
                           },
                         },
                       );
@@ -1113,8 +1157,10 @@ export default function BenchDetail() {
       </ModalOverlay>
 
       <ConfirmDialog
-        isOpen={retryConfirmOpen}
-        onOpenChange={setRetryConfirmOpen}
+        isOpen={retryTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRetryTarget(null);
+        }}
         isDismissable
         widthClassName="max-w-sm"
         title="Cleanup & Retry"
@@ -1133,7 +1179,7 @@ export default function BenchDetail() {
               </Button>
               <Button
                 onPress={() => {
-                  runCleanupAndRetry();
+                  if (retryTarget) runCleanupAndRetry(retryTarget);
                   close();
                 }}
                 className="px-4 py-1.5 text-13 font-medium text-on-danger bg-danger not-disabled:hover:bg-danger-hover disabled:opacity-40 rounded-control transition-colors outline-none not-disabled:active:bg-danger-active focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -1146,31 +1192,35 @@ export default function BenchDetail() {
       </ConfirmDialog>
 
       <ClearBenchDirtyDialog
-        isOpen={dirtyReasons !== null}
+        isOpen={dirtyTarget !== null}
         onClose={() => {
-          setDirtyReasons(null);
+          setDirtyTarget(null);
           setForceError(null);
         }}
-        benchId={benchId}
-        reasons={dirtyReasons ?? []}
+        benchId={dirtyTarget?.benchId ?? benchId}
+        projectName={dirtyTargetProjectName}
+        reasons={dirtyTarget?.reasons ?? []}
         isPending={teardown.isPending}
         forceError={forceError}
         onConfirmForce={() => {
+          // Act on the bench the prompt names, never on the bench on screen.
+          const target = dirtyTarget;
+          if (!target) return;
           teardown.mutate(
             {
-              projectId,
-              benchId,
-              removeWorkspace: isProvisioning ? true : removeWorkspace,
+              projectId: target.projectId,
+              benchId: target.benchId,
+              removeWorkspace: target.removeWorkspace,
               force: true,
             },
             {
               onSuccess: () => {
-                registerTeardown(projectId, benchId, bench.branch);
-                setDirtyReasons(null);
+                registerTeardown(target.projectId, target.benchId, target.branch);
+                setDirtyTarget(null);
               },
               onError: (err) => {
                 if (isDirtyBenchError(err)) {
-                  setDirtyReasons(err.details.reasons);
+                  setDirtyTarget({ ...target, reasons: err.details.reasons });
                   setForceError(null);
                 } else {
                   setForceError("Clear failed. Please try again.");

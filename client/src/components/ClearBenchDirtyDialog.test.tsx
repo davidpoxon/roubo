@@ -34,6 +34,15 @@ describe("ClearBenchDirtyDialog", () => {
     expect(screen.getByRole("heading", { name: /Clear Bench 7/i })).toBeInTheDocument();
   });
 
+  it("names the project in the heading when one is given", () => {
+    renderDialog({ projectName: "Other App" });
+    expect(
+      screen.getByRole("heading", {
+        name: "Clear Bench 7 (Other App): uncommitted work detected",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('mentions "uncommitted work detected" in the heading', () => {
     renderDialog();
     expect(screen.getByRole("heading", { name: /uncommitted work detected/i })).toBeInTheDocument();

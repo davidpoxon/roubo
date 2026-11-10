@@ -15,6 +15,7 @@ export default function ClearBenchDirtyDialog({
   isOpen,
   onClose,
   benchId,
+  projectName,
   reasons,
   onConfirmForce,
   isPending,
@@ -23,6 +24,9 @@ export default function ClearBenchDirtyDialog({
   isOpen: boolean;
   onClose: () => void;
   benchId: number;
+  // Set when the bench belongs to a project other than the one on screen, so
+  // that the bench number alone is not ambiguous.
+  projectName?: string;
   reasons: DirtyReason[];
   onConfirmForce: () => void;
   isPending?: boolean;
@@ -56,7 +60,8 @@ export default function ClearBenchDirtyDialog({
             <>
               <div className="px-5 py-4 border-b border-border">
                 <Heading slot="title" className="text-16 font-semibold text-text-primary">
-                  Clear Bench {benchId}: uncommitted work detected
+                  Clear Bench {benchId}
+                  {projectName ? ` (${projectName})` : ""}: uncommitted work detected
                 </Heading>
               </div>
 
