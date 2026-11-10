@@ -4035,6 +4035,9 @@ export interface BenchStateEdit {
    * bench is kept, and its record was put back in the file. A bench that is
    * being set up or cleared is not one, since the app writes its record only
    * once its setup is under way, and removes it before the bench leaves memory.
+   * Nor is a bench that the file did not hold before the edit either, such as
+   * one whose setup failed before its record was written: it stays out of the
+   * file.
    */
   removed: BenchStateEditRef[];
 }
@@ -4074,7 +4077,8 @@ const HAND_EDITABLE_FIELD_SET: ReadonlySet<string> = new Set(HAND_EDITABLE_BENCH
  * such as the workspace path or the setup state, is reported reverted with the
  * fields it undid. A record with no bench in memory, and a bench whose record
  * the edit removed, are reported unmatched and removed: an edit neither
- * creates nor clears a bench.
+ * creates nor clears a bench. A bench with no record in the known content is
+ * not one the edit removed, so it is not reported and not written.
  *
  * When the edit has any of these, the file is written back from memory: the
  * record of a refused or reverted bench is written from the bench, a removed
@@ -4134,8 +4138,12 @@ export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
     const key = benchKey(bench.projectId, bench.id);
     if (recorded.has(key)) continue;
     if (bench.status === "preparing" || bench.status === "clearing") continue;
+    // A bench the file did not hold before the edit either, such as one whose
+    // setup failed before its record was written, was not removed by it.
+    const prior = known.get(key);
+    if (prior === undefined) continue;
     result.removed.push({ projectId: bench.projectId, benchId: bench.id });
-    restored.push(known.get(key) ?? stateService.toPersistedBench(bench));
+    restored.push(prior);
   }
   const writeBack =
     result.refused.length > 0 ||

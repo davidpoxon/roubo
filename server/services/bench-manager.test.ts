@@ -11122,4 +11122,31 @@ describe("applyStateFileEdit (HR-FR-013)", () => {
       expect(stateService.saveState).not.toHaveBeenCalled();
     },
   );
+
+  it("does not report a bench that state.json never held as removed, and never writes a record of it", () => {
+    loadBenches();
+    // Bench 3 failed before its record was written: it is in memory with
+    // status error, and neither the file nor the known content holds it.
+    const three = benchManager.getBench("test-project", 3);
+    if (!three) throw new Error("expected bench 3");
+    three.status = "error";
+    const onlyTwo = { benches: [bootRecords()[0]] };
+    stateFile = JSON.stringify(onlyTwo, null, 2);
+    known = structuredClone(onlyTwo);
+
+    // An edit that changes no bench reports nothing and writes nothing.
+    const edit = handEdit([record(2, {})]);
+    expect(edit).toEqual(none);
+    expect(stateService.saveState).not.toHaveBeenCalled();
+
+    // An unrelated edit that is written back writes no record of bench 3.
+    const added = handEdit([
+      record(2, {}),
+      makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
+    ]);
+    expect(added).toEqual({ ...none, unmatched: [{ projectId: "test-project", benchId: 9 }] });
+    expect(stateService.saveState).toHaveBeenCalledTimes(1);
+    expect(readStateFile()).toEqual(onlyTwo);
+    expect(benchManager.getBench("test-project", 3)).toBeDefined();
+  });
 });
