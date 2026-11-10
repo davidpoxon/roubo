@@ -1911,8 +1911,19 @@ describe("BenchDetail", () => {
 
     it("names the project when the start failed on another project's bench", async () => {
       const { rejects } = deferredStartMutation();
+      // A different display name, so the label must name the target's project.
       mockUseProjects.mockReturnValue({
-        data: [baseProject, { ...baseProject, id: "proj-2" }],
+        data: [
+          baseProject,
+          {
+            ...baseProject,
+            id: "proj-2",
+            config: {
+              ...baseProject.config,
+              project: { name: "other-app", displayName: "Other App" },
+            },
+          },
+        ],
       } as never);
       mockBenches("loading");
       renderHarness();

@@ -387,14 +387,17 @@ describe("MissingPluginDialog", () => {
         componentName: "apps-script",
         benchLabel: "Bench 3",
       });
-      expect(screen.getByText("Bench 3")).toBeInTheDocument();
-      expect(screen.getByText(/Plugin needed for this component/)).toBeInTheDocument();
+      expect(screen.getByText("apps-script").closest("p")).toHaveTextContent(
+        /^Component apps-script on Bench 3 binds plugin google-clasp,/,
+      );
     });
 
     it("names no bench when the caller passes none", () => {
       setupMutations();
       renderDialog({ resolution: singleSource(), componentName: "apps-script" });
-      expect(screen.queryByText(/ on Bench/)).not.toBeInTheDocument();
+      expect(screen.getByText("apps-script").closest("p")).toHaveTextContent(
+        /^Component apps-script binds plugin google-clasp,/,
+      );
     });
 
     it("marks a registered source as registered (TC-077 S001-O01)", () => {
