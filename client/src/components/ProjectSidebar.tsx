@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Layers, Settings, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Layers, FolderGit2, Settings, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useProjects } from "../hooks/useProjects";
 import { useAllBenches } from "../hooks/useBenches";
 import { useSidebarCollapsed } from "../hooks/useSidebarCollapsed";
@@ -49,18 +49,26 @@ export default function ProjectSidebar() {
     location.pathname === `/projects/${projectId}/benches/${benchId}`;
 
   if (collapsed) {
-    // Icon-only rail: All Projects, an expand control, and Settings. The project
-    // list is hidden to free horizontal space (#525).
+    // Icon-only rail: All Benches, Projects, an expand control, and Settings.
+    // The project list is hidden to free horizontal space (#525).
     return (
       <aside className="w-12 h-full flex flex-col items-center border-r border-border bg-bg-base shrink-0">
         <div className="flex-1 px-1.5 pt-3 flex flex-col items-center gap-1">
           <NavItem
             onPress={() => navigate("/")}
-            aria-label="All Projects"
+            aria-label="All Benches"
             isSelected={isActive("/")}
             className="justify-center w-9 h-9 px-0 py-0"
           >
             <Layers size={16} />
+          </NavItem>
+          <NavItem
+            onPress={() => navigate("/projects")}
+            aria-label="Projects"
+            isSelected={isActive("/projects")}
+            className="justify-center w-9 h-9 px-0 py-0"
+          >
+            <FolderGit2 size={16} />
           </NavItem>
           <IconButton
             onPress={() => setCollapsed(false)}
@@ -96,39 +104,49 @@ export default function ProjectSidebar() {
         >
           <span className="flex items-center gap-2">
             <Layers size={14} />
-            All Projects
+            All Benches
           </span>
           <NotificationIndicator notifications={collectActionNeeded(allBenches ?? [])} />
         </NavItem>
 
-        {(projects?.length ?? 0) > 0 && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between px-3 pb-2">
-              <p className="text-11 font-semibold uppercase tracking-label text-text-secondary">
-                Projects
-              </p>
+        <div className="mt-6">
+          {/* The section label doubles as the destination for the projects
+              overview, so it keeps the section-header type role. */}
+          <div className="flex items-center justify-between gap-1 pb-2">
+            <NavItem
+              onPress={() => navigate("/projects")}
+              isSelected={isActive("/projects")}
+              className="flex-1"
+            >
+              <span className="text-11 font-semibold uppercase tracking-label">Projects</span>
+            </NavItem>
+            {(projects?.length ?? 0) > 0 && (
               <IconButton onPress={openRegisterModal} label="Register project" className="p-0.5">
                 <Plus size={14} />
               </IconButton>
-            </div>
-            <div className="space-y-0.5">
-              {projects?.map((project) => (
-                <ProjectSidebarRow
-                  key={project.id}
-                  project={project}
-                  projectBenches={benchesByProject.get(project.id) ?? []}
-                  isProjectActive={isProjectActive(project.id)}
-                  isBenchActive={isBenchActive}
-                  navigate={navigate}
-                />
-              ))}
-            </div>
-            <NavItem onPress={openRegisterModal} className="w-full gap-2 mt-0.5 text-12">
-              <Plus size={12} />
-              Register project
-            </NavItem>
+            )}
           </div>
-        )}
+          {(projects?.length ?? 0) > 0 && (
+            <>
+              <div className="space-y-0.5">
+                {projects?.map((project) => (
+                  <ProjectSidebarRow
+                    key={project.id}
+                    project={project}
+                    projectBenches={benchesByProject.get(project.id) ?? []}
+                    isProjectActive={isProjectActive(project.id)}
+                    isBenchActive={isBenchActive}
+                    navigate={navigate}
+                  />
+                ))}
+              </div>
+              <NavItem onPress={openRegisterModal} className="w-full gap-2 mt-0.5 text-12">
+                <Plus size={12} />
+                Register project
+              </NavItem>
+            </>
+          )}
+        </div>
       </nav>
 
       <div className="px-3 py-3 border-t border-border flex items-center gap-1">

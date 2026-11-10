@@ -467,7 +467,7 @@ export default function BenchDashboard() {
     ],
   );
 
-  // All-projects view (/ route) and fallback when project data is loading.
+  // Projects overview (/projects route) and fallback when project data is loading.
   // Registered-but-errored projects (no config) still render the single-project
   // layout below so the user can reach Settings and unregister.
   if (!projectId || !currentProject) {
@@ -475,7 +475,7 @@ export default function BenchDashboard() {
       <div className="p-8 max-w-[1200px]">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h2 className="text-20 font-semibold text-text-primary">All Projects</h2>
+            <h2 className="text-20 font-semibold text-text-primary">Projects</h2>
             <p className="text-12 text-text-secondary mt-1">
               Registered projects. Click one to view its benches and settings.
             </p>
@@ -525,10 +525,10 @@ export default function BenchDashboard() {
       <div className="flex flex-col h-full">
         <nav aria-label="Breadcrumb" className="px-8 pt-5 text-12 text-text-secondary">
           <Link
-            to="/"
+            to="/projects"
             className="hover:text-text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           >
-            All Projects
+            Projects
           </Link>
           <span aria-hidden="true" className="mx-2 text-text-secondary">
             /

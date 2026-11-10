@@ -472,7 +472,7 @@ function stubDefaults({
   };
 }
 
-function renderDashboard(path = "/") {
+function renderDashboard(path = "/projects") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -485,7 +485,7 @@ function renderDashboard(path = "/") {
             <Route path="settings/*" element={<ProjectSettingsTab />} />
             <Route path="*" element={<Navigate to=".." relative="path" replace />} />
           </Route>
-          <Route path="/" element={<BenchDashboard />} />
+          <Route path="/projects" element={<BenchDashboard />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -504,7 +504,7 @@ function renderWithNavigation(initialPath: string) {
           { path: "*", element: <Navigate to=".." relative="path" replace /> },
         ],
       },
-      { path: "/", element: <BenchDashboard /> },
+      { path: "/projects", element: <BenchDashboard /> },
     ],
     { initialEntries: [initialPath] },
   );
@@ -520,7 +520,7 @@ function renderWithNavigation(initialPath: string) {
 }
 
 describe("BenchDashboard", () => {
-  describe("All Projects view (no projectId)", () => {
+  describe("Projects overview (no projectId)", () => {
     it("shows loading indicator while data is loading", () => {
       stubDefaults({ projectsLoading: true });
       renderDashboard();
@@ -547,10 +547,10 @@ describe("BenchDashboard", () => {
       expect(screen.getByTestId("register-project-tile")).toBeInTheDocument();
     });
 
-    it("renders All Projects title when no projectId", () => {
+    it("renders the Projects title when no projectId", () => {
       stubDefaults({ projects: [], benches: [] });
       renderDashboard();
-      expect(screen.getByText("All Projects")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument();
     });
 
     it("renders Register project primary button in header", () => {
@@ -1115,7 +1115,7 @@ describe("BenchDashboard", () => {
     });
   });
 
-  describe("All Projects view button interactions", () => {
+  describe("Projects overview button interactions", () => {
     it("Register project header button is present in all states", () => {
       stubDefaults({ projects: [], benches: [] });
       renderDashboard();
@@ -1530,7 +1530,7 @@ describe("BenchDashboard", () => {
       return screen.getByRole("navigation", { name: "Breadcrumb" });
     }
 
-    it("renders All Projects and project name on the single-project layout, without the integration name", () => {
+    it("renders Projects and project name on the single-project layout, without the integration name", () => {
       stubDefaults({
         projects: [makeProject()],
         benches: [],
@@ -1538,9 +1538,19 @@ describe("BenchDashboard", () => {
       });
       renderDashboard("/projects/proj-1");
       const crumb = getBreadcrumb();
-      expect(crumb).toHaveTextContent("All Projects");
+      expect(crumb).toHaveTextContent("Projects");
       expect(crumb).toHaveTextContent("My Project");
       expect(crumb).not.toHaveTextContent("GitHub.com");
+    });
+
+    it("links the Projects crumb to the projects overview", () => {
+      stubDefaults({
+        projects: [makeProject()],
+        benches: [],
+        integration: githubIntegration,
+      });
+      renderDashboard("/projects/proj-1");
+      expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("href", "/projects");
     });
 
     it("marks the project-name crumb as the current page", () => {
@@ -1553,7 +1563,7 @@ describe("BenchDashboard", () => {
       expect(screen.getByText("My Project")).toHaveAttribute("aria-current", "page");
     });
 
-    it("is not rendered on the multi-project landing layout", () => {
+    it("is not rendered on the projects overview", () => {
       stubDefaults({ projects: [makeProject()], benches: [] });
       renderDashboard();
       expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();

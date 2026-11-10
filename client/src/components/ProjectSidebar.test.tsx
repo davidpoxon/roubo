@@ -77,17 +77,90 @@ beforeEach(() => {
 });
 
 describe("ProjectSidebar", () => {
-  it("renders All Projects and Settings nav items", () => {
+  it("renders All Benches, Projects and Settings nav items", () => {
     stubNoData();
     renderSidebar();
-    expect(screen.getByText("All Projects")).toBeInTheDocument();
+    expect(screen.getByText("All Benches")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Projects" })).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
-  it("renders an inactive All Projects link in the text-body token for both themes (#1275)", () => {
+  it("marks All Benches as the current page on the root path", () => {
+    stubNoData();
+    renderSidebar("/");
+    expect(screen.getByText("All Benches").closest("button")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("button", { name: "Projects" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("navigates to the All Benches view when All Benches is pressed", async () => {
     stubNoData();
     renderSidebar("/settings");
-    const link = screen.getByText("All Projects").closest("button");
+    await userEvent.click(screen.getByText("All Benches"));
+    expect(screen.getByText("All Benches").closest("button")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  describe("Projects header", () => {
+    it("navigates to the projects overview when pressed", async () => {
+      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
+        RegisteredProject[]
+      >);
+      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
+      renderSidebar("/");
+      const header = screen.getByRole("button", { name: "Projects" });
+      expect(header).not.toHaveAttribute("aria-current");
+      await userEvent.click(header);
+      expect(screen.getByRole("button", { name: "Projects" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByText("All Benches").closest("button")).not.toHaveAttribute("aria-current");
+    });
+
+    it("is selected on the projects overview but not on a single project", () => {
+      mockedUseProjects.mockReturnValue({ data: [makeProject()] } as unknown as UseQueryResult<
+        RegisteredProject[]
+      >);
+      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
+      const { unmount } = renderSidebar("/projects");
+      expect(screen.getByRole("button", { name: "Projects" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      unmount();
+      renderSidebar("/projects/proj-1");
+      expect(screen.getByRole("button", { name: "Projects" })).not.toHaveAttribute("aria-current");
+    });
+
+    it("keeps the section-header type role", () => {
+      stubNoData();
+      renderSidebar();
+      const label = screen.getByText("Projects");
+      expect(label.className).toContain("text-11");
+      expect(label.className).toContain("uppercase");
+      expect(label.className).toContain("tracking-label");
+    });
+
+    it("renders even when no projects are registered", () => {
+      mockedUseProjects.mockReturnValue({ data: [] } as unknown as UseQueryResult<
+        RegisteredProject[]
+      >);
+      mockedUseAllBenches.mockReturnValue({ data: [] } as unknown as UseQueryResult<Bench[]>);
+      renderSidebar();
+      expect(screen.getByRole("button", { name: "Projects" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Register project")).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders an inactive All Benches link in the text-body token for both themes (#1275)", () => {
+    stubNoData();
+    renderSidebar("/settings");
+    const link = screen.getByText("All Benches").closest("button");
     // DESIGN.md Nav item: an unselected label is text-body, one utility for both themes.
     expect(link?.className).toContain("text-text-body");
     expect(link?.className).not.toMatch(/dark:/);
@@ -464,11 +537,27 @@ describe("ProjectSidebar", () => {
       // Expanded: the project list and a collapse control are present.
       expect(screen.getByText("My Project")).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
-      // Collapsed: the project list is gone; icon-only All Projects and Settings remain.
+      // Collapsed: the project list is gone; icon-only All Benches, Projects and
+      // Settings remain.
       expect(screen.queryByText("My Project")).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "All Projects" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "All Benches" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Projects" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    });
+
+    it("navigates to the projects overview from the collapsed Projects icon", async () => {
+      stubWithProject();
+      renderSidebar("/");
+      await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+      await userEvent.click(screen.getByRole("button", { name: "Projects" }));
+      expect(screen.getByRole("button", { name: "Projects" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByRole("button", { name: "All Benches" })).not.toHaveAttribute(
+        "aria-current",
+      );
     });
 
     it("restores the full sidebar when expanded", async () => {
