@@ -295,6 +295,10 @@ describe("Delivery map", () => {
     await userEvent.click(await screen.findByTestId("gate-marker-gate-after-c"));
 
     const drillIn = screen.getByRole("region", { name: "Gate gate-after-c" });
+    // The gate drill-in is headed at level 2, as the unit drill-in is.
+    expect(
+      within(drillIn).getByRole("heading", { level: 2, name: "Gate gate-after-c" }),
+    ).toHaveFocus();
     expect(within(drillIn).getByText("FX-TC-002")).toBeInTheDocument();
     expect(within(drillIn).getByText("passed")).toBeInTheDocument();
     await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));

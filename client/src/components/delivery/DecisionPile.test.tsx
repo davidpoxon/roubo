@@ -344,6 +344,71 @@ describe("DecisionPile", () => {
     expect(announcer).toHaveTextContent("decision-a overturned: one file per stack is applied.");
   });
 
+  it("raises nothing for a request naming an overturned decision, so the raised card stays on top", () => {
+    const THIRD = raised(10, "decision-c", "2026-10-16T10:10:00Z");
+    const open = [FIRST, SECOND, THIRD];
+    const { rerender } = renderWithProviders(
+      <DecisionPile
+        projectId="demo"
+        benchId={3}
+        snapshot={snapshotOf(open)}
+        raiseRequest={{ decisionId: "decision-a", nonce: 1 }}
+      />,
+    );
+    expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
+
+    // decision-b is overturned and applied, so it leaves the cards. A request
+    // that names it raises nothing: decision-a stays on top, not the newest card.
+    rerender(
+      <DecisionPile
+        projectId="demo"
+        benchId={3}
+        snapshot={snapshotOf([
+          ...open,
+          decisionEvent(11, "decision.defaulted", { decision_id: "decision-b" }),
+          decisionEvent(12, "decision.overturned", {
+            decision_id: "decision-b",
+            option: OPTIONS[1],
+          }),
+        ])}
+        raiseRequest={{ decisionId: "decision-b", nonce: 2 }}
+      />,
+    );
+    expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
+    expect(screen.getByTestId("decision-card-decision-c")).toHaveAttribute(
+      "data-position",
+      "lower",
+    );
+    expect(screen.queryByTestId("decision-card-decision-b")).not.toBeInTheDocument();
+    expect(screen.getByTestId("decision-applied-decision-b")).toBeInTheDocument();
+  });
+
+  it("closes the panel with the applied decisions after the reviewed agent decisions, in one wrapper", () => {
+    renderPile([
+      FIRST,
+      SECOND,
+      decisionEvent(10, "decision.defaulted", { decision_id: "decision-b" }),
+      decisionEvent(11, "decision.overturned", { decision_id: "decision-b", option: OPTIONS[1] }),
+      decisionEvent(12, "decision.decided", {
+        decision_id: "decision-x",
+        question: "Which layout for decision-x?",
+        options: OPTIONS,
+        default: OPTIONS[0],
+        chosen: OPTIONS[1],
+        rationale: "Rationale of decision-x.",
+        affected_units: ["B"],
+        decided_at: "2026-10-16T10:10:00Z",
+      }),
+      decisionEvent(13, "review.outcome", { decision_id: "decision-x", status: "accepted" }),
+    ]);
+    const reviewed = screen.getByRole("list", { name: "Reviewed agent decisions" });
+    const applied = screen.getByRole("list", { name: "Applied decisions" });
+    expect(within(reviewed).getByTestId("review-reviewed-decision-x")).toBeInTheDocument();
+    expect(within(applied).getByTestId("decision-applied-decision-b")).toBeInTheDocument();
+    expect(reviewed.compareDocumentPosition(applied)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(applied.parentElement).toBe(reviewed.parentElement);
+  });
+
   it("shows the error when a decision control is refused", async () => {
     const user = userEvent.setup();
     vi.mocked(api.answerDeliveryDecision).mockRejectedValueOnce(

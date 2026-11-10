@@ -219,6 +219,9 @@ describe("Since-you-left digest", () => {
       ),
     );
     expect(screen.getByTestId("delivery-decision-pile-target")).toHaveFocus();
+    // The decision link shows the decisions view in place of the map.
+    expect(screen.getByRole("region", { name: "Decisions and steering" })).toBeVisible();
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
   });
 
   it("SB-TC-023 a dismissed digest does not reappear until new events arrive", async () => {
@@ -305,6 +308,12 @@ describe("Since-you-left digest", () => {
       expect(screen.getByTestId("review-card-decision-5")).toHaveAttribute("data-position", "top"),
     );
     await waitFor(() => expect(screen.getByTestId("review-card-decision-5")).toHaveFocus());
+    // The raised card keeps the focus once the decisions view has shown: the
+    // switch from the map does not move it elsewhere.
+    expect(screen.getByRole("region", { name: "Decisions and steering" })).toBeVisible();
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByTestId("review-card-decision-5")).toHaveFocus();
   });
 
   it("SB-TC-023 a drift entry brings the drift ledger into view and focus", async () => {
@@ -335,6 +344,9 @@ describe("Since-you-left digest", () => {
       within(digest).getByRole("button", { name: "Show drift entry A requirement was reworded" }),
     );
     expect(screen.getByTestId("delivery-drift-ledger-target")).toHaveFocus();
+    // The drift link shows the cost view in place of the map.
+    expect(screen.getByRole("region", { name: "Cost, health and controls" })).toBeVisible();
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
   });
 
   it("SB-TC-023 a digest read from the record says so", async () => {

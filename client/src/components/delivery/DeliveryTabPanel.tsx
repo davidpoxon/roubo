@@ -33,7 +33,8 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 // (#1620), with no route of its own: the map, which opens first, or one of
 // three views that each carry a breadcrumb back to it, a unit's or a gate's
 // drill-in, decisions and steering, and cost, health and controls. A unit
-// node or row and a digest link to a unit or a gate open a drill-in. The
+// node or row, a gate marker on the map and a digest link to a unit or a gate
+// open a drill-in. The
 // rail's Decisions panel, a digest link to a decision and a link to the
 // decision pile open the decisions view. The rail's Cost, health and controls
 // link and a digest link to the drift ledger open the cost view. A return to

@@ -1010,6 +1010,28 @@ describe("BenchCard", () => {
       expect(mockNavigate).toHaveBeenLastCalledWith("/projects/demo/benches/3#decisions");
     });
 
+    it("opens the Delivery tab once on Enter on Open delivery, not also through the card's own Enter", async () => {
+      makeDefaultMutations();
+      mockNavigate.mockClear();
+      answer(withDecisions());
+      renderCard(specBench());
+      const user = userEvent.setup();
+      const open = await screen.findByRole("button", { name: "Open delivery" });
+      open.focus();
+      await user.keyboard("{Enter}");
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      expect(mockNavigate).toHaveBeenCalledWith("/projects/demo/benches/3");
+    });
+
+    it("reads attached in its health for an attach-mode Spec Bench with no session", async () => {
+      makeDefaultMutations();
+      answer(fourUnitRecord());
+      renderCard(specBench({ deliveryBindMode: "attach" }));
+      const health = await screen.findByTestId("specbench-card-health");
+      expect(health).toHaveAttribute("data-health", "attached");
+      expect(health).toHaveTextContent("attached");
+    });
+
     it("offers no Answer button while no decision waits", async () => {
       makeDefaultMutations();
       answer(fourUnitRecord());

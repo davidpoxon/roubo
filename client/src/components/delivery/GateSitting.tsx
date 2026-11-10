@@ -56,6 +56,9 @@ export default function GateSitting({
   const failed = sitting.smokeCheck !== undefined && !sitting.smokeCheck.passed;
   const blockers = sitting.fixUnitBlockers ?? [];
   const Title = titleAs;
+  const blockerLine = `Blocked by ${blockers.length === 1 ? "a fix unit" : `${blockers.length} fix units`} filed for cases marked Not met: ${blockers.map((blocker) => `${blocker.fixRef} (${blocker.caseId})`).join(", ")}`;
+  const titleLine = `${blocked ? "Sitting blocked · " : ""}Gate ${sitting.gateId} · ${sittingLabel(sitting)}`;
+  const statusLine = blocked ? `${titleLine}. ${blockerLine}` : titleLine;
   return (
     <section
       aria-label={`Gate ${sitting.gateId} sitting`}
@@ -64,8 +67,12 @@ export default function GateSitting({
       data-blocked={blocked ? "true" : undefined}
       className={`flex flex-wrap items-center gap-x-5 gap-y-2 rounded-control border px-4 py-3 text-13 ${classes.frame}`}
     >
+      {/* One status line announces the phase and the blocker, so the heading
+          is not inside a live region and a change is announced once. */}
+      <p role="status" data-testid="delivery-gate-sitting-status" className="sr-only">
+        {statusLine}
+      </p>
       <div
-        role="status"
         className={`flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-13 font-medium ${classes.title}`}
       >
         {blocked && <span>Sitting blocked ·</span>}{" "}
@@ -100,14 +107,14 @@ export default function GateSitting({
       )}
       {facts}
       {blocked && (
+        // The status line above already carries the blocker, so a screen
+        // reader does not read it twice.
         <p
-          role="status"
+          aria-hidden="true"
           data-testid="delivery-gate-sitting-blocked"
           className="min-w-0 text-text-body"
         >
-          Blocked by {blockers.length === 1 ? "a fix unit" : `${blockers.length} fix units`} filed
-          for cases marked Not met:{" "}
-          {blockers.map((blocker) => `${blocker.fixRef} (${blocker.caseId})`).join(", ")}
+          {blockerLine}
         </p>
       )}
       <span className="flex flex-wrap items-center gap-2">

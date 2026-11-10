@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useState, type FormEvent } from "react";
-import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
@@ -269,6 +269,30 @@ function SittingCounts({
 
 type CaseFilter = "escalated" | "gating";
 
+// What the case's Stage control answered, or that it is still staging.
+type StageOutcome =
+  | { status: "pending" }
+  | { status: "success"; report: api.StageCaseReport }
+  | { status: "error"; error: Error };
+
+// What a case keeps while another case is chosen: only the chosen case's
+// panel is mounted, so its staged state, its Not met evidence draft, a mark
+// still in flight and the error of its last mark are held here, by case id.
+interface CaseMemory {
+  stage?: StageOutcome;
+  evidenceOpen: boolean;
+  note: string;
+  file?: File | undefined;
+  markPending: boolean;
+  markError?: string | undefined;
+}
+
+const EMPTY_CASE_MEMORY: CaseMemory = { evidenceOpen: false, note: "", markPending: false };
+
+function asError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
 function SittingCases({
   bench,
   snapshot,
@@ -293,6 +317,41 @@ function SittingCases({
   const reducedMotion = usePrefersReducedMotion();
   const [filter, setFilter] = useState<CaseFilter>("escalated");
   const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [memory, setMemory] = useState<ReadonlyMap<string, CaseMemory>>(new Map());
+  const setStatus = useSetStatusOverride();
+  const remember = useCallback((caseId: string, change: Partial<CaseMemory>) => {
+    setMemory((all) => {
+      const next = new Map(all);
+      next.set(caseId, { ...(all.get(caseId) ?? EMPTY_CASE_MEMORY), ...change });
+      return next;
+    });
+  }, []);
+  // The case's Stage control (SB-FR-025): replays its state recipe in the
+  // pinned checkout through the stage route. The answer is kept by case id, so
+  // it survives a switch to another case while the replay runs.
+  const stageCase = (caseId: string) => {
+    remember(caseId, { stage: { status: "pending" } });
+    void api.stageTestbenchCase(bench.projectId, bench.id, caseId).then(
+      (report) => remember(caseId, { stage: { status: "success", report } }),
+      (err: unknown) => remember(caseId, { stage: { status: "error", error: asError(err) } }),
+    );
+  };
+  // A mark from the Mark row or the Not met evidence form. A Not met mark with
+  // evidence that is written closes and clears the case's evidence draft.
+  const markCase = (caseId: string, override: CaseStatus, evidence?: api.CaseMarkEvidence) => {
+    remember(caseId, { markPending: true, markError: undefined });
+    const vars = { projectId: bench.projectId, benchId: bench.id, caseId, override };
+    void setStatus.mutateAsync(evidence === undefined ? vars : { ...vars, evidence }).then(
+      () =>
+        remember(
+          caseId,
+          evidence === undefined
+            ? { markPending: false }
+            : { markPending: false, evidenceOpen: false, note: "", file: undefined },
+        ),
+      (err: unknown) => remember(caseId, { markPending: false, markError: asError(err).message }),
+    );
+  };
   if (plan.isPending) {
     return (
       <p role="status" className="text-13 text-text-secondary">
@@ -369,37 +428,45 @@ function SittingCases({
             ))}
           </Tabs>
         </DeliveryPanel>
-        {/* One Case panel per case of the gate, the chosen one shown: a case
-            keeps its staged state, its evidence draft and its errors while
-            another case is chosen. */}
-        {cases.map((testCase) => (
-          <div key={testCase.id} hidden={testCase.id !== selected?.id} className="min-w-0">
+        {selected === undefined ? (
+          <DeliveryPanel title="Case">
+            <p data-testid="sitting-case-none" className="px-3 py-2.5 text-13 text-text-secondary">
+              No case is escalated. Choose a case from Gating set to see it here.
+            </p>
+          </DeliveryPanel>
+        ) : (
+          <div className="min-w-0">
             <DeliveryPanel
               title="Case"
-              label={`Case ${testCase.id}`}
+              label={`Case ${selected.id}`}
               meta={
                 <span className="font-mono">
-                  {testCase.id} · L{testCase.level}
+                  {selected.id} · L{selected.level}
                 </span>
               }
             >
               <div className="p-3">
                 <SittingCase
+                  key={selected.id}
                   projectId={bench.projectId}
                   benchId={bench.id}
-                  testCase={testCase}
+                  testCase={selected}
                   open={open}
                   writable={writable}
-                  result={ownValue(caseResults, testCase.id)}
-                  fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
-                  fixUnitError={ownValue(fixUnitErrors, testCase.id)}
-                  provisional={provisionalCases.find((entry) => entry.case === testCase.id)}
+                  result={ownValue(caseResults, selected.id)}
+                  fixRef={blockers.find((blocker) => blocker.caseId === selected.id)?.fixRef}
+                  fixUnitError={ownValue(fixUnitErrors, selected.id)}
+                  provisional={provisionalCases.find((entry) => entry.case === selected.id)}
+                  memory={memory.get(selected.id) ?? EMPTY_CASE_MEMORY}
+                  onRemember={(change) => remember(selected.id, change)}
+                  onStage={() => stageCase(selected.id)}
+                  onMark={(override, evidence) => markCase(selected.id, override, evidence)}
                   onMarked={onMarked}
                 />
               </div>
             </DeliveryPanel>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -455,7 +522,8 @@ function CaseRow({
 // same case status route as the status control; Not met opens the evidence of
 // a Not met mark, a note and a screenshot, that the same route takes. The
 // provisional mark's Confirm writes the agent's mark through that route, with
-// the operator as author.
+// the operator as author. The case's staged state, evidence draft and mark
+// state come from SittingCases, which keeps them while another case is chosen.
 function SittingCase({
   projectId,
   benchId,
@@ -466,6 +534,10 @@ function SittingCase({
   fixRef,
   fixUnitError,
   provisional,
+  memory,
+  onRemember,
+  onStage,
+  onMark,
   onMarked,
 }: {
   projectId: string;
@@ -478,19 +550,17 @@ function SittingCase({
   fixRef: string | undefined;
   fixUnitError: string | undefined;
   provisional: ProvisionalCase | undefined;
+  memory: CaseMemory;
+  onRemember: (change: Partial<CaseMemory>) => void;
+  onStage: () => void;
+  onMark: (override: CaseStatus, evidence?: api.CaseMarkEvidence) => void;
   onMarked: () => void;
 }) {
   const evidencePanelId = useId();
-  const setStatus = useSetStatusOverride();
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
-  // The case's Stage control (SB-FR-025): replays its state recipe in the
-  // pinned checkout through the stage route.
-  const stage = useMutation<api.StageCaseReport, Error>({
-    mutationFn: () => api.stageTestbenchCase(projectId, benchId, testCase.id),
-  });
-  const mark = (override: CaseStatus) =>
-    setStatus.mutate({ projectId, benchId, caseId: testCase.id, override });
-  const markDisabled = !writable || setStatus.isPending;
+  const { evidenceOpen, markPending, markError } = memory;
+  const stagePending = memory.stage?.status === "pending";
+  const mark = (override: CaseStatus) => onMark(override);
+  const markDisabled = !writable || markPending;
   return (
     <div data-testid="testbench-case-surface" data-case-id={testCase.id} className="space-y-4">
       <CaseDetail
@@ -507,15 +577,11 @@ function SittingCase({
                 Stage replays the case&apos;s state recipe in the pinned checkout, or opens the case
                 cold when it has none.
               </span>
-              <Button
-                variant="primary"
-                onPress={() => stage.mutate()}
-                isDisabled={!writable || stage.isPending}
-              >
+              <Button variant="primary" onPress={onStage} isDisabled={!writable || stagePending}>
                 Stage <span className="sr-only">{testCase.id}</span>
               </Button>
             </div>
-            <CaseStageOutcome caseId={testCase.id} stage={stage} />
+            <CaseStageOutcome caseId={testCase.id} stage={memory.stage} />
           </div>
         }
       />
@@ -539,7 +605,7 @@ function SittingCase({
           <Button
             aria-expanded={evidenceOpen}
             aria-controls={evidencePanelId}
-            onPress={() => setEvidenceOpen((shown) => !shown)}
+            onPress={() => onRemember({ evidenceOpen: !evidenceOpen })}
             isDisabled={markDisabled}
           >
             <MarkDot tone="error" />
@@ -559,20 +625,19 @@ function SittingCase({
         {evidenceOpen && open && (
           <NotMetEvidenceForm
             caseId={testCase.id}
-            isPending={setStatus.isPending}
-            onCancel={() => setEvidenceOpen(false)}
-            onSubmit={(evidence) =>
-              setStatus.mutate(
-                { projectId, benchId, caseId: testCase.id, override: "failed", evidence },
-                { onSuccess: () => setEvidenceOpen(false) },
-              )
-            }
+            isPending={markPending}
+            note={memory.note}
+            file={memory.file}
+            onNoteChange={(note) => onRemember({ note })}
+            onFileChange={(file) => onRemember({ file })}
+            onCancel={() => onRemember({ evidenceOpen: false, note: "", file: undefined })}
+            onSubmit={(evidence) => onMark("failed", evidence)}
           />
         )}
       </div>
-      {setStatus.isError && (
+      {markError !== undefined && (
         <p role="alert" className="text-12 text-danger-text">
-          {setStatus.error.message}
+          {markError}
         </p>
       )}
       {fixUnitError !== undefined && (
@@ -636,22 +701,17 @@ function StageSteps({ report }: { report: api.StageCaseReport }) {
 // What the case's Stage control answered: the staged state after 200, the
 // opened-cold notice after 404, and the server's message, with the step report
 // of a failed step, after any other refusal.
-function CaseStageOutcome({
-  caseId,
-  stage,
-}: {
-  caseId: string;
-  stage: UseMutationResult<api.StageCaseReport, Error, void>;
-}) {
-  if (stage.isPending) {
+function CaseStageOutcome({ caseId, stage }: { caseId: string; stage: StageOutcome | undefined }) {
+  if (stage === undefined) return null;
+  if (stage.status === "pending") {
     return (
       <p role="status" className="text-12 text-text-secondary">
         Staging {caseId}...
       </p>
     );
   }
-  if (stage.isSuccess) {
-    const report = stage.data;
+  if (stage.status === "success") {
+    const report = stage.report;
     return (
       <section
         aria-label={`Staged state of ${caseId}`}
@@ -679,25 +739,22 @@ function CaseStageOutcome({
       </section>
     );
   }
-  if (stage.isError) {
-    if (api.isRecipeNotFound(stage.error)) {
-      return (
-        <p role="status" data-testid="case-opened-cold" className="text-12 text-text-secondary">
-          {caseId} opened cold: it has no state recipe.
-        </p>
-      );
-    }
-    const report = api.stageFailureReport(stage.error);
+  if (api.isRecipeNotFound(stage.error)) {
     return (
-      <div className="space-y-1">
-        <p role="alert" className="text-12 text-danger-text">
-          {stage.error.message}
-        </p>
-        {report !== undefined && <StageSteps report={report} />}
-      </div>
+      <p role="status" data-testid="case-opened-cold" className="text-12 text-text-secondary">
+        {caseId} opened cold: it has no state recipe.
+      </p>
     );
   }
-  return null;
+  const report = api.stageFailureReport(stage.error);
+  return (
+    <div className="space-y-1">
+      <p role="alert" className="text-12 text-danger-text">
+        {stage.error.message}
+      </p>
+      {report !== undefined && <StageSteps report={report} />}
+    </div>
+  );
 }
 
 function readDataUrl(file: File): Promise<string> {
@@ -713,17 +770,23 @@ function readDataUrl(file: File): Promise<string> {
 function NotMetEvidenceForm({
   caseId,
   isPending,
+  note,
+  file,
+  onNoteChange,
+  onFileChange,
   onCancel,
   onSubmit,
 }: {
   caseId: string;
   isPending: boolean;
+  note: string;
+  file: File | undefined;
+  onNoteChange: (note: string) => void;
+  onFileChange: (file: File | undefined) => void;
   onCancel: () => void;
   onSubmit: (evidence: api.CaseMarkEvidence) => void;
 }) {
   const fileId = useId();
-  const [note, setNote] = useState("");
-  const [file, setFile] = useState<File | undefined>();
   const [readError, setReadError] = useState<string | undefined>();
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -746,7 +809,7 @@ function NotMetEvidenceForm({
       onSubmit={(event) => void submit(event)}
       className="space-y-2"
     >
-      <TextField value={note} onChange={setNote}>
+      <TextField value={note} onChange={onNoteChange}>
         <Label className={FIELD_LABEL_CLASS}>Note</Label>
         <TextArea rows={3} className={inputClass({ className: "w-full" })} />
       </TextField>
@@ -758,9 +821,17 @@ function NotMetEvidenceForm({
           id={fileId}
           type="file"
           accept={SCREENSHOT_TYPES}
-          onChange={(event) => setFile(event.target.files?.[0])}
+          onChange={(event) => onFileChange(event.target.files?.[0])}
           className="text-12 text-text-body"
         />
+        {/* A file input cannot be given a file back, so after a switch to
+            another case and back the input reads empty: this line names the
+            screenshot the draft still holds. */}
+        {file !== undefined && (
+          <p data-testid="not-met-screenshot-chosen" className="text-12 text-text-secondary">
+            Screenshot chosen: {file.name}
+          </p>
+        )}
       </div>
       {readError !== undefined && (
         <p role="alert" className="text-12 text-danger-text">
