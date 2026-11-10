@@ -296,6 +296,9 @@ export function initialize() {
       ...(ps.deliveryDecisionMode !== undefined && {
         deliveryDecisionMode: ps.deliveryDecisionMode,
       }),
+      ...(ps.deliveryAgentPluginId !== undefined && {
+        deliveryAgentPluginId: ps.deliveryAgentPluginId,
+      }),
       ...(ps.gatePin !== undefined && { gatePin: ps.gatePin }),
       ...(ps.deliveryTokenHash !== undefined && { deliveryTokenHash: ps.deliveryTokenHash }),
       ...(ps.deliveryControlQueue !== undefined && {
@@ -1406,6 +1409,13 @@ export function createBench(
     ...(options.variant === "specbench" &&
       options.delivery?.mode === "launch" && {
         deliveryDecisionMode: options.delivery.decisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE,
+      }),
+    // Only a launch-mode bench holds a chosen agent plugin, and only when the
+    // set-up named one: absent means each launch resolves the default (#1616).
+    ...(options.variant === "specbench" &&
+      options.delivery?.mode === "launch" &&
+      options.delivery.agentPluginId !== undefined && {
+        deliveryAgentPluginId: options.delivery.agentPluginId,
       }),
     // Seeded false even when the project defines no `benches.setup`, so that a
     // setup command added to roubo.yaml later still runs once on this bench

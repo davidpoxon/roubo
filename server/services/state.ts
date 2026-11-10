@@ -277,6 +277,9 @@ export function toPersistedBench(bench: Bench): PersistedBench {
     ...(bench.deliveryDecisionMode !== undefined && {
       deliveryDecisionMode: bench.deliveryDecisionMode,
     }),
+    ...(bench.deliveryAgentPluginId !== undefined && {
+      deliveryAgentPluginId: bench.deliveryAgentPluginId,
+    }),
     ...(bench.gatePin !== undefined && { gatePin: bench.gatePin }),
     ...(bench.deliveryTokenHash !== undefined && { deliveryTokenHash: bench.deliveryTokenHash }),
     ...(bench.deliveryControlQueue !== undefined && {

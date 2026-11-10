@@ -47,6 +47,7 @@ export function useCreateBench() {
       focusedSpecPath,
       deliveryMode,
       decisionMode,
+      agentPluginId,
     }: {
       projectId: string;
       branch?: string;
@@ -56,6 +57,7 @@ export function useCreateBench() {
       focusedSpecPath?: string;
       deliveryMode?: SpecBenchBindMode;
       decisionMode?: SpecBenchDecisionMode;
+      agentPluginId?: string;
     }) =>
       api.createBench(projectId, {
         branch,
@@ -65,6 +67,7 @@ export function useCreateBench() {
         focusedSpecPath,
         deliveryMode,
         decisionMode,
+        agentPluginId,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["benches"] });

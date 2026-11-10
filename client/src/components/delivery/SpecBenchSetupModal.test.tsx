@@ -4,18 +4,23 @@
 // record tabs over the Specification menu. The delivery line and attach note
 // (SB-FR-003, SB-TC-007 step 2): an attach names the progress and lifecycle
 // state of the committed delivery record, or says there is none, and says no
-// session will be launched; a launch shows neither.
+// session will be launched; a launch shows neither. The Delivery agent menu
+// (#1616): Launch lists the agent plugins that can run a delivery with the
+// default selected, and Attach has none.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { AgentPluginState } from "@roubo/shared";
 import type { SpecBenchSpecSummary } from "@roubo/shared/delivery-bench";
 import type { DiscoveredSpec } from "../../lib/api";
 
 vi.mock("../../hooks/useTestbenchSpecs", () => ({ useTestbenchSpecs: vi.fn() }));
 vi.mock("../../hooks/useSpecBenchSpecSummary", () => ({ useSpecBenchSpecSummary: vi.fn() }));
+vi.mock("../../hooks/useAgentPlugins", () => ({ useAgentPlugins: vi.fn() }));
 
 import { useTestbenchSpecs } from "../../hooks/useTestbenchSpecs";
 import { useSpecBenchSpecSummary } from "../../hooks/useSpecBenchSpecSummary";
+import { useAgentPlugins } from "../../hooks/useAgentPlugins";
 import SpecBenchSetupModal from "./SpecBenchSetupModal";
 
 const SPEC = {
@@ -24,6 +29,21 @@ const SPEC = {
   caseCount: 12,
   lifecycle: { archived: false, reason: null, supersededBy: null, recordError: null },
 } as unknown as DiscoveredSpec;
+
+function agent(id: string, name: string, unavailable = false): AgentPluginState {
+  return {
+    id,
+    name,
+    unavailable: unavailable ? { reason: "not-installed", message: `${name} is gone` } : null,
+  } as unknown as AgentPluginState;
+}
+
+// Two agent plugins that can run a delivery, and one the registry cannot launch.
+const AGENTS = [
+  agent("agent-one", "Agent One"),
+  agent("agent-two", "Agent Two"),
+  agent("agent-gone", "Agent Gone", true),
+];
 
 function useSummary(data: SpecBenchSpecSummary): void {
   vi.mocked(useSpecBenchSpecSummary).mockReturnValue({
@@ -46,6 +66,9 @@ async function pick(mode: RegExp, onConfirm = vi.fn()): Promise<HTMLElement> {
 }
 
 beforeEach(() => {
+  vi.mocked(useAgentPlugins).mockReturnValue({
+    data: { agents: AGENTS },
+  } as unknown as ReturnType<typeof useAgentPlugins>);
   vi.mocked(useTestbenchSpecs).mockReturnValue({
     data: { specs: [SPEC], invalid: [] },
     isLoading: false,
@@ -154,6 +177,7 @@ describe("SpecBenchSetupModal tabs", () => {
       "/repos/demo/.specifications/fixture-spec",
       "launch",
       "auto",
+      null,
     );
   });
 
@@ -174,6 +198,7 @@ describe("SpecBenchSetupModal tabs", () => {
       "/repos/demo/.specifications/fixture-spec",
       "attach",
       "attended",
+      null,
     );
   });
 
@@ -192,6 +217,7 @@ describe("SpecBenchSetupModal tabs", () => {
       "/repos/demo/.specifications/fixture-spec",
       "launch",
       "attended",
+      null,
     );
   });
 
@@ -229,6 +255,71 @@ describe("SpecBenchSetupModal tabs", () => {
       "fixture-spec · 12 cases",
     );
     expect(within(dialog).getByRole("radio", { name: "Auto" })).toBeChecked();
+  });
+});
+
+describe("SpecBenchSetupModal Delivery agent menu", () => {
+  const summary: SpecBenchSpecSummary = { slug: SPEC.slug, units: 4, gates: 2 };
+
+  it("lists the agent plugins that can run a delivery on Launch, with the default selected", async () => {
+    useSummary(summary);
+    const dialog = await pick(/^launch/i);
+    const menu = within(dialog).getByRole("button", { name: /delivery agent/i });
+    expect(menu).toHaveTextContent("Default agent plugin");
+    await userEvent.setup().click(menu);
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options).toEqual(["Default agent plugin", "Agent One", "Agent Two"]);
+  });
+
+  it("launches with the chosen agent plugin", async () => {
+    useSummary(summary);
+    const onConfirm = vi.fn();
+    const dialog = await pick(/^launch/i, onConfirm);
+    const user = userEvent.setup();
+    await user.click(within(dialog).getByRole("button", { name: /delivery agent/i }));
+    await user.click(await screen.findByRole("option", { name: "Agent Two" }));
+    expect(within(dialog).getByRole("button", { name: /delivery agent/i })).toHaveTextContent(
+      "Agent Two",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    expect(onConfirm).toHaveBeenCalledWith(
+      "/repos/demo/.specifications/fixture-spec",
+      "launch",
+      "attended",
+      "agent-two",
+    );
+  });
+
+  it("shows no agent menu on Attach, and an attach names no agent even after a choice on Launch", async () => {
+    useSummary(summary);
+    const onConfirm = vi.fn();
+    const dialog = await pick(/^launch/i, onConfirm);
+    const user = userEvent.setup();
+    await user.click(within(dialog).getByRole("button", { name: /delivery agent/i }));
+    await user.click(await screen.findByRole("option", { name: "Agent One" }));
+    await user.click(within(dialog).getByRole("tab", { name: /^attach/i }));
+    expect(within(dialog).queryByRole("button", { name: /delivery agent/i })).toBeNull();
+    expect(dialog).not.toHaveTextContent("Delivery agent");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    expect(onConfirm).toHaveBeenCalledWith(
+      "/repos/demo/.specifications/fixture-spec",
+      "attach",
+      "attended",
+      null,
+    );
+  });
+
+  it("offers only the default while the agent plugins are still loading", async () => {
+    vi.mocked(useAgentPlugins).mockReturnValue({
+      data: undefined,
+    } as unknown as ReturnType<typeof useAgentPlugins>);
+    useSummary(summary);
+    const onConfirm = vi.fn();
+    const dialog = await pick(/^launch/i, onConfirm);
+    const user = userEvent.setup();
+    await user.click(within(dialog).getByRole("button", { name: /delivery agent/i }));
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options).toEqual(["Default agent plugin"]);
   });
 });
 

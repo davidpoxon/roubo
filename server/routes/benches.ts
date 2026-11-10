@@ -22,6 +22,11 @@ import { isAlertExternalId } from "../services/alert-external-id.js";
 import { assignedIssueFetchId } from "../services/issue-formatting.js";
 import { bindDeliveryOnCreate } from "../services/delivery-session-launcher.js";
 import {
+  describeAgentNotAvailable,
+  isAgentNotAvailable,
+  resolveAgent,
+} from "../services/agent-plugin-registry.js";
+import {
   BENCH_VARIANTS,
   DEFAULT_SPEC_BENCH_DECISION_MODE,
   SPEC_BENCH_BIND_MODES,
@@ -143,8 +148,10 @@ router.post("/:projectId/benches", async (req, res) => {
       return;
     }
     // The decision mode the session starts in (SB-FR-031): attended unless the
-    // request asks for auto. Only a launch hands it to a session, so attach
-    // ignores it; an unknown value is refused before any bench is claimed.
+    // request asks for auto, and the agent plugin it launches with: the default
+    // unless the request names one (#1616). Only a launch hands them to a
+    // session, so attach ignores both; an unknown value is refused before any
+    // bench is claimed.
     let deliveryRequest: SpecBenchDeliveryRequest = { mode: mode as SpecBenchBindMode };
     if (mode === "launch") {
       const decisionMode = (delivery as { decisionMode?: unknown }).decisionMode;
@@ -155,9 +162,28 @@ router.post("/:projectId/benches", async (req, res) => {
         });
         return;
       }
+      const agentPluginId = (delivery as { agentPluginId?: unknown }).agentPluginId;
+      if (agentPluginId !== undefined) {
+        if (typeof agentPluginId !== "string" || agentPluginId.length === 0) {
+          res.status(400).json({
+            error: "delivery.agentPluginId must be a non-empty string",
+            code: "INVALID_AGENT",
+          });
+          return;
+        }
+        const resolved = resolveAgent(agentPluginId);
+        if (isAgentNotAvailable(resolved)) {
+          res.status(400).json({
+            error: describeAgentNotAvailable(resolved),
+            code: "INVALID_AGENT",
+          });
+          return;
+        }
+      }
       deliveryRequest = {
         mode: "launch",
         decisionMode: decisionMode ?? DEFAULT_SPEC_BENCH_DECISION_MODE,
+        ...(agentPluginId !== undefined && { agentPluginId }),
       };
     }
     try {

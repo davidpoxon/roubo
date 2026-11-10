@@ -22,7 +22,9 @@
 //
 // The executor is a port. The default one starts an AI coding agent session
 // through the terminal service with the descriptor in its environment; a test,
-// or a later launch path, swaps it with setDeliveryLaunchExecutor.
+// or a later launch path, swaps it with setDeliveryLaunchExecutor. Every launch
+// of a bench runs the agent plugin chosen at set-up, when one was (#1616), and
+// otherwise the default agent plugin, resolved at that launch.
 import type { Bench, SpecBenchDecisionMode } from "@roubo/shared";
 import { DEFAULT_SPEC_BENCH_DECISION_MODE } from "@roubo/shared";
 import {
@@ -35,6 +37,11 @@ import * as stateService from "./state.js";
 import * as terminalService from "./terminal.js";
 import { createNotification } from "./notification.js";
 import { resolveLaunchAgentId } from "./agent-launch-pipeline.js";
+import {
+  describeAgentNotAvailable,
+  isAgentNotAvailable,
+  resolveAgent,
+} from "./agent-plugin-registry.js";
 import { toLaunchPermissions } from "./agent-permissions.js";
 import { mintDeliveryToken } from "./delivery-token-registry.js";
 import { forgetDeliveryEventLog } from "./delivery-event-log.js";
@@ -49,6 +56,8 @@ export interface DeliveryLaunchRequest {
   // The `.specifications/<slug>` folder name of the delivered spec.
   specSlug: string;
   descriptor: DeliveryLaunchDescriptor;
+  // The agent plugin chosen at set-up. Absent means the default agent plugin.
+  agentPluginId?: string;
 }
 
 export interface DeliveryLaunchResult {
@@ -107,15 +116,32 @@ export function deliveryLaunchPrompt(request: DeliveryLaunchRequest): string {
   return lines.join(" ");
 }
 
+// The agent plugin a launch runs. The one chosen at set-up is used as chosen:
+// when it is no longer available the launch fails and says why, rather than
+// running a different agent than the operator asked for. With no choice, the
+// default agent plugin is resolved as for any launch.
+function deliveryAgentPluginId(request: DeliveryLaunchRequest): string | undefined {
+  if (request.agentPluginId !== undefined) {
+    const resolved = resolveAgent(request.agentPluginId);
+    if (isAgentNotAvailable(resolved)) {
+      throw new DeliveryLaunchError(
+        `The agent plugin chosen for the delivery cannot run it. ${describeAgentNotAvailable(resolved)}`,
+      );
+    }
+    return request.agentPluginId;
+  }
+  const settings = stateService.loadSettings();
+  return resolveLaunchAgentId({
+    ...(settings.jigs?.defaultAgentPluginId !== undefined && {
+      defaultAgentPluginId: settings.jigs.defaultAgentPluginId,
+    }),
+  });
+}
+
 export const defaultDeliveryLaunchExecutor: DeliveryLaunchExecutor = {
   async launch(request) {
     const project = projectRegistry.getProject(request.projectId);
-    const settings = stateService.loadSettings();
-    const agentPluginId = resolveLaunchAgentId({
-      ...(settings.jigs?.defaultAgentPluginId !== undefined && {
-        defaultAgentPluginId: settings.jigs.defaultAgentPluginId,
-      }),
-    });
+    const agentPluginId = deliveryAgentPluginId(request);
     if (agentPluginId === undefined) {
       throw new DeliveryLaunchError(
         "No AI coding agent is available to run the delivery. Install an agent plugin from Settings > AI Agents.",
@@ -246,6 +272,9 @@ export async function launchDeliverySession(
       descriptor: descriptorFor(bench, token, {
         resume: options.resume,
         decisionMode: launchDecisionMode(bench, options.resume),
+      }),
+      ...(bench.deliveryAgentPluginId !== undefined && {
+        agentPluginId: bench.deliveryAgentPluginId,
       }),
     });
     bench.deliverySessionId = result.sessionId;

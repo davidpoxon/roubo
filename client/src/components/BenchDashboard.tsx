@@ -354,11 +354,19 @@ export default function BenchDashboard() {
       focusedSpecPath: string,
       deliveryMode: SpecBenchBindMode,
       decisionMode: SpecBenchDecisionMode,
+      agentPluginId: string | null,
     ) => {
       if (!projectId) return;
       setSpecBenchSetupError(null);
       createBench.mutate(
-        { projectId, variant: "specbench", focusedSpecPath, deliveryMode, decisionMode },
+        {
+          projectId,
+          variant: "specbench",
+          focusedSpecPath,
+          deliveryMode,
+          decisionMode,
+          ...(agentPluginId !== null && { agentPluginId }),
+        },
         {
           onSuccess: () => {
             setShowSpecBenchSetup(false);

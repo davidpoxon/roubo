@@ -7,6 +7,7 @@ import { DELIVERY_RECORD_FILE } from "@roubo/shared/delivery-bench";
 import { stampAriaModal } from "../../lib/aria-modal";
 import { useTestbenchSpecs } from "../../hooks/useTestbenchSpecs";
 import { useSpecBenchSpecSummary } from "../../hooks/useSpecBenchSpecSummary";
+import { useAgentPlugins } from "../../hooks/useAgentPlugins";
 import type { DiscoveredSpec } from "../../lib/api";
 import Select from "../Select";
 import Spinner from "../Spinner";
@@ -22,6 +23,10 @@ const MODES: Array<{ id: SpecBenchBindMode; label: string }> = [
 
 // The dialog opens on the Launch tab.
 const DEFAULT_MODE: SpecBenchBindMode = "launch";
+
+// The Delivery agent menu's value for "launch with the default agent plugin":
+// the request then names no agent, and the launch resolves the default.
+const DEFAULT_AGENT_VALUE = "__default_agent__";
 
 // The spec folder a Spec Bench binds to: the folder of the discovered spec's
 // test-cases.json.
@@ -43,15 +48,19 @@ function plural(count: number, noun: string): string {
 // The Set up Spec Bench dialog (SB-FR-001, SB-US-001), as two tabs (#1625).
 // Launch a delivery: the Specification menu, the chosen spec's folder and the
 // units and gates of its summary, a line naming the delivery record committed
-// for the spec when the summary finds one (Attach to a record joins it), who
-// decides in the delivery (SB-FR-031: attended by default), and a line saying
-// the bench's workspace and ports are assigned at create. Attach to a record:
+// for the spec when the summary finds one (Attach to a record joins it), the
+// agent plugin the delivery session launches with (#1616: the default agent
+// plugin unless another available one is chosen), who decides in the delivery
+// (SB-FR-031: attended by default), and a line saying the bench's workspace
+// and ports are assigned at create. Attach to a record:
 // the same menu, the record's place in the spec folder (the bench joins the
 // copy of it committed where its worktree will start, not the checkout's
 // file), and what the summary found there: the progress and lifecycle state
-// of that committed record, or that there is none. Confirm calls onConfirm
-// with the spec folder, the tab's mode and the decision mode, and the host
-// owns the create call. Dismissal never calls onConfirm.
+// of that committed record, or that there is none. It launches nothing, so it
+// has no agent menu. Confirm calls onConfirm with the spec folder, the tab's
+// mode, the decision mode and, on Launch, the chosen agent plugin id (null for
+// the default), and the host owns the create call. Dismissal never calls
+// onConfirm.
 export default function SpecBenchSetupModal({
   isOpen,
   onClose,
@@ -67,6 +76,7 @@ export default function SpecBenchSetupModal({
     focusedSpecPath: string,
     mode: SpecBenchBindMode,
     decisionMode: SpecBenchDecisionMode,
+    agentPluginId: string | null,
   ) => void;
   isCreating?: boolean;
   error?: string | null;
@@ -80,11 +90,19 @@ export default function SpecBenchSetupModal({
   );
   const selected = specs.find((spec) => spec.path === selectedPath) ?? null;
   const summary = useSpecBenchSpecSummary(projectId, isOpen && selected ? selected.slug : null);
+  // The agent plugins that can run a delivery: the installed ones the registry
+  // can launch, the same rule as the jig agent binding. A choice that stops
+  // being available falls back to the default.
+  const agentsQuery = useAgentPlugins();
+  const agents = (agentsQuery.data?.agents ?? []).filter((agent) => agent.unavailable === null);
+  const [agentChoice, setAgentChoice] = useState<string | null>(null);
+  const chosenAgentId = agents.some((agent) => agent.id === agentChoice) ? agentChoice : null;
 
   const handleClose = () => {
     setSelectedPath(null);
     setMode(DEFAULT_MODE);
     setDecisionMode(DEFAULT_SPEC_BENCH_DECISION_MODE);
+    setAgentChoice(null);
     onClose();
   };
 
@@ -212,6 +230,23 @@ export default function SpecBenchSetupModal({
                     {summary.data.delivery.lifecycleState}. Attach to a record joins it.
                   </p>
                 )}
+                <div className="space-y-1.5">
+                  <p aria-hidden="true" className="text-13 font-medium text-text-primary">
+                    Delivery agent
+                  </p>
+                  <Select
+                    ariaLabel="Delivery agent"
+                    value={chosenAgentId ?? DEFAULT_AGENT_VALUE}
+                    onChange={(next) => setAgentChoice(next === DEFAULT_AGENT_VALUE ? null : next)}
+                    items={[
+                      { value: DEFAULT_AGENT_VALUE, label: "Default agent plugin" },
+                      ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                    ]}
+                  />
+                  <p className="text-12 text-text-secondary">
+                    The agent plugin maps the bench&apos;s event endpoint and token into its launch.
+                  </p>
+                </div>
                 <ModeSwitch value={decisionMode} onChange={setDecisionMode} />
                 <p
                   data-testid="specbench-setup-workspace"
@@ -294,7 +329,14 @@ export default function SpecBenchSetupModal({
             </Button>
             <Button
               onPress={() => {
-                if (selected) onConfirm(specFolderOf(selected), mode, decisionMode);
+                if (selected) {
+                  onConfirm(
+                    specFolderOf(selected),
+                    mode,
+                    decisionMode,
+                    mode === "launch" ? chosenAgentId : null,
+                  );
+                }
               }}
               isDisabled={!canConfirm}
               className="flex items-center gap-1.5 px-4 py-1.5 text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface not-disabled:active:bg-accent-active"
