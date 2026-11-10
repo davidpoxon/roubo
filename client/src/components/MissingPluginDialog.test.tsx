@@ -172,6 +172,7 @@ function renderDialog(
             pluginSource={props.pluginSource}
             resolution={props.resolution}
             componentName={props.componentName}
+            benchLabel={props.benchLabel}
             onClose={onClose}
             onSkip={onSkip}
             onInstalled={onInstalled}
@@ -375,6 +376,25 @@ describe("MissingPluginDialog", () => {
       // traceable back to the roubo.yaml that caused it.
       expect(screen.getByText("apps-script")).toBeInTheDocument();
       expect(screen.getByText("google-clasp")).toBeInTheDocument();
+    });
+
+    // #1657: the prompt can open after the user has moved to another bench, so
+    // it names the bench whose start failed when the caller passes one.
+    it("names the bench whose start failed when given one", () => {
+      setupMutations();
+      renderDialog({
+        resolution: singleSource(),
+        componentName: "apps-script",
+        benchLabel: "Bench 3",
+      });
+      expect(screen.getByText("Bench 3")).toBeInTheDocument();
+      expect(screen.getByText(/Plugin needed for this component/)).toBeInTheDocument();
+    });
+
+    it("names no bench when the caller passes none", () => {
+      setupMutations();
+      renderDialog({ resolution: singleSource(), componentName: "apps-script" });
+      expect(screen.queryByText(/ on Bench/)).not.toBeInTheDocument();
     });
 
     it("marks a registered source as registered (TC-077 S001-O01)", () => {

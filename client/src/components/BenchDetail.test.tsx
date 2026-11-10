@@ -6,9 +6,15 @@ import { MemoryRouter, Routes, Route, useNavigate } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DirtyReason } from "@roubo/shared";
 import BenchDetail from "./BenchDetail";
-import { ApiError } from "../lib/api";
+import { ApiError, startComponent as apiStartComponent } from "../lib/api";
 
 vi.mock("../hooks/useBenches");
+// Only the component start request is replaced, so a test can run the real
+// useStartComponent against React Query and settle the request itself (#1657).
+vi.mock("../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/api")>()),
+  startComponent: vi.fn(),
+}));
 vi.mock("../hooks/useProjects");
 vi.mock("../hooks/useProjectIntegration", () => ({
   useProjectIntegration: vi.fn(() => ({ data: undefined })),
@@ -44,17 +50,20 @@ vi.mock("./MissingPluginDialog", () => ({
   default: ({
     pluginId,
     componentName,
+    benchLabel,
     resolution,
     onInstalled,
   }: {
     pluginId: string;
     componentName?: string;
+    benchLabel?: string;
     resolution?: { state: string };
     onInstalled?: () => void;
   }) => (
     <div data-testid="missing-plugin-dialog">
       <span data-testid="missing-plugin-dialog-id">{pluginId}</span>
       <span data-testid="missing-plugin-dialog-component">{componentName}</span>
+      <span data-testid="missing-plugin-dialog-bench">{benchLabel}</span>
       <span data-testid="missing-plugin-dialog-state">{resolution?.state}</span>
       <button data-testid="missing-plugin-dialog-installed" onClick={() => onInstalled?.()}>
         installed
@@ -70,17 +79,22 @@ vi.mock("./settings/plugins/ConsentReviewDialog", () => ({
   default: ({
     pluginId,
     pluginName,
+    startTarget,
     onGranted,
     onClose,
   }: {
     pluginId: string;
     pluginName?: string;
+    startTarget?: { component: string; benchLabel: string };
     onGranted?: () => void;
     onClose?: () => void;
   }) => (
     <div data-testid="consent-review-dialog">
       <span data-testid="consent-review-dialog-id">{pluginId}</span>
       <span data-testid="consent-review-dialog-name">{pluginName}</span>
+      <span data-testid="consent-review-dialog-target">
+        {startTarget ? `${startTarget.component} on ${startTarget.benchLabel}` : ""}
+      </span>
       <button data-testid="consent-review-dialog-grant" onClick={() => onGranted?.()}>
         grant
       </button>
@@ -170,7 +184,11 @@ beforeEach(() => {
   vi.mocked(useStopBench).mockReturnValue(makeMutation());
   vi.mocked(useTeardownBench).mockReturnValue(makeMutation());
   vi.mocked(useCleanupAndRetryBench).mockReturnValue(makeMutation());
-  vi.mocked(useStartComponent).mockReturnValue(makeMutation());
+  vi.mocked(useStartComponent).mockReturnValue({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(() => Promise.resolve()),
+    isPending: false,
+  } as never);
   vi.mocked(useStopComponent).mockReturnValue(makeMutation());
   vi.mocked(useDismissBenchNotifications).mockReturnValue(makeMutation());
   vi.mocked(useDismissNotification).mockReturnValue(makeMutation());
@@ -1527,12 +1545,11 @@ describe("BenchDetail", () => {
     });
 
     it("resumes a component start on the bench it failed on, not the bench now on screen", async () => {
-      const pending: MutateOptions[] = [];
-      const startMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
-        pending.push(options);
-      });
+      const rejects: ((err: unknown) => void)[] = [];
+      const startMutate = vi.fn(() => new Promise((_resolve, reject) => void rejects.push(reject)));
       vi.mocked(useStartComponent).mockReturnValue({
-        mutate: startMutate,
+        mutate: vi.fn(),
+        mutateAsync: startMutate,
         isPending: false,
       } as never);
       renderSwitchable(() => ({
@@ -1543,8 +1560,8 @@ describe("BenchDetail", () => {
 
       await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
       switchTo(2);
-      act(() =>
-        pending[0].onError?.(
+      await act(async () =>
+        rejects[0](
           new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", {
             resolution: {
               pluginId: "google-clasp",
@@ -1556,10 +1573,11 @@ describe("BenchDetail", () => {
       );
       await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
 
-      expect(startMutate).toHaveBeenLastCalledWith(
-        { projectId: "proj-1", benchId: 1, component: "server" },
-        expect.anything(),
-      );
+      expect(startMutate).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
     });
 
     it("closes the Clear dialog when the bench changes underneath it", async () => {
@@ -1719,6 +1737,231 @@ describe("BenchDetail", () => {
       );
 
       expect(screen.getByText("Project page")).toBeInTheDocument();
+    });
+  });
+
+  // The start recovery prompts belong to the bench whose start failed. The
+  // route keeps BenchDetail mounted while the bench changes, but the loading
+  // and not-found pages render no Components tab, so the prompts must not live
+  // there (#1657).
+  describe("component start recovery across a bench switch (#1657)", () => {
+    const stoppedComponents = {
+      components: {
+        server: { status: "stopped", startedAt: null, phases: [], setupComplete: true },
+      },
+    };
+    const missingPluginError = () =>
+      new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", {
+        resolution: {
+          pluginId: "google-clasp",
+          state: "single-source",
+          source: { sourceId: "acme-1a2b", label: "ACME workplace", registered: true },
+        },
+      });
+    const consentError = () =>
+      new ApiError("has not been consented", 400, "COMPONENT_NOT_BOUND", {
+        code: "COMPONENT_NOT_BOUND",
+        consent: { pluginId: "google-clasp" },
+      });
+    const claspRecord = {
+      id: "google-clasp",
+      manifest: {
+        id: "google-clasp",
+        name: "Google Clasp",
+        version: "1.2.3",
+        permissions: {
+          network: { hosts: [] },
+          credentials: { slots: [] },
+          filesystem: { paths: [] },
+          processes: true,
+        },
+      },
+      source: "user",
+      status: "enabled",
+    };
+
+    let navigateTo: (path: string) => void = () => {};
+    function Harness() {
+      const navigate = useNavigate();
+      navigateTo = (path) => void navigate(path);
+      return (
+        <Routes>
+          <Route path="/projects/:projectId/benches/:benchId" element={<BenchDetail />} />
+          <Route path="/projects/:projectId" element={<div>Project page</div>} />
+        </Routes>
+      );
+    }
+    const switchTo = (id: number) => act(() => navigateTo(`/projects/proj-1/benches/${id}`));
+
+    /** Bench 1 and 2 are loaded, bench 9 is in `otherState`. */
+    function mockBenches(otherState: "loading" | "not-found") {
+      mockUseBenchDetail.mockImplementation((_projectId, benchId) => {
+        if (benchId === 9) {
+          return (
+            otherState === "loading"
+              ? { data: undefined, isLoading: true, isError: false }
+              : { data: undefined, isLoading: false, isError: true }
+          ) as never;
+        }
+        return {
+          data: { ...baseBench, id: benchId as number, ...stoppedComponents },
+          isLoading: false,
+          isError: false,
+        } as never;
+      });
+    }
+
+    function renderHarness() {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+            <Harness />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    }
+
+    /** A mocked start mutation whose requests the test settles one by one. */
+    function deferredStartMutation() {
+      const rejects: ((err: unknown) => void)[] = [];
+      const mutateAsync = vi.fn(() => new Promise((_resolve, reject) => void rejects.push(reject)));
+      vi.mocked(useStartComponent).mockReturnValue({
+        mutate: vi.fn(),
+        mutateAsync,
+        isPending: false,
+      } as never);
+      return { mutateAsync, rejects };
+    }
+
+    /** The real useStartComponent, with the start request settled by the test. */
+    async function realStartMutation() {
+      const actual =
+        await vi.importActual<typeof import("../hooks/useBenches")>("../hooks/useBenches");
+      vi.mocked(useStartComponent).mockImplementation(actual.useStartComponent);
+      const rejects: ((err: unknown) => void)[] = [];
+      vi.mocked(apiStartComponent).mockImplementation(
+        () => new Promise((_resolve, reject) => void rejects.push(reject)),
+      );
+      return rejects;
+    }
+
+    it("opens the missing-plugin prompt on a loading bench and resumes on the failed bench", async () => {
+      const { mutateAsync, rejects } = deferredStartMutation();
+      mockBenches("loading");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      switchTo(9);
+      expect(screen.getByText("Loading bench...")).toBeInTheDocument();
+      await act(async () => rejects[0](missingPluginError()));
+
+      expect(screen.getByTestId("missing-plugin-dialog-component")).toHaveTextContent("server");
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent("Bench 1");
+      await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
+    });
+
+    it("opens the consent prompt on a loading bench and resumes on the failed bench", async () => {
+      const { mutateAsync, rejects } = deferredStartMutation();
+      vi.mocked(usePlugins).mockReturnValue({
+        data: { hostApiVersion: "1.0.0", plugins: [claspRecord] },
+      } as never);
+      mockBenches("loading");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      switchTo(9);
+      await act(async () => rejects[0](consentError()));
+
+      expect(screen.getByTestId("consent-review-dialog-id")).toHaveTextContent("google-clasp");
+      expect(screen.getByTestId("consent-review-dialog-target")).toHaveTextContent(
+        "server on Bench 1",
+      );
+      await userEvent.click(screen.getByTestId("consent-review-dialog-grant"));
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
+    });
+
+    it("opens the missing-plugin prompt on a bench that is not found", async () => {
+      const { mutateAsync, rejects } = deferredStartMutation();
+      mockBenches("not-found");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      switchTo(9);
+      expect(screen.getByText("Bench not found.")).toBeInTheDocument();
+      await act(async () => rejects[0](missingPluginError()));
+
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent("Bench 1");
+      await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
+    });
+
+    it("names the project when the start failed on another project's bench", async () => {
+      const { rejects } = deferredStartMutation();
+      mockUseProjects.mockReturnValue({
+        data: [baseProject, { ...baseProject, id: "proj-2" }],
+      } as never);
+      mockBenches("loading");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      // Bench 1 of another project: the same number, a different bench.
+      act(() => navigateTo("/projects/proj-2/benches/1"));
+      await act(async () => rejects[0](missingPluginError()));
+
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent(
+        "Bench 1 (My App)",
+      );
+    });
+
+    // The mocked mutations above cannot show the cause: React Query does not run
+    // a mutate call's own callbacks once the component that made it unmounts.
+    it("opens the prompt with the real start mutation after a move to a loading bench", async () => {
+      const rejects = await realStartMutation();
+      mockBenches("loading");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(apiStartComponent).toHaveBeenCalledWith("proj-1", 1, "server");
+      switchTo(9);
+      await act(async () => rejects[0](missingPluginError()));
+
+      expect(await screen.findByTestId("missing-plugin-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent("Bench 1");
+      await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
+      expect(apiStartComponent).toHaveBeenLastCalledWith("proj-1", 1, "server");
+    });
+
+    // React Query runs a mutate call's own callbacks only for the latest call,
+    // so a second start must not swallow the first start's failure.
+    it("keeps the first start's prompt when another start follows before it fails", async () => {
+      const rejects = await realStartMutation();
+      mockBenches("loading");
+      renderHarness();
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      switchTo(2);
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(apiStartComponent).toHaveBeenLastCalledWith("proj-1", 2, "server");
+      await act(async () => rejects[0](missingPluginError()));
+
+      expect(await screen.findByTestId("missing-plugin-dialog")).toBeInTheDocument();
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent("Bench 1");
+      await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
+      expect(apiStartComponent).toHaveBeenLastCalledWith("proj-1", 1, "server");
     });
   });
 
@@ -1905,15 +2148,19 @@ describe("BenchDetail", () => {
 
     /** Fail the next component start with `body` as the error response. */
     function failStartWith(body: Record<string, unknown> | null) {
-      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
-        cb.onError?.(
+      const mutateAsync = vi.fn(() =>
+        Promise.reject(
           body === null
             ? new Error("network down")
             : new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", body),
-        );
-      });
-      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
-      return mutate;
+        ),
+      );
+      vi.mocked(useStartComponent).mockReturnValue({
+        mutate: vi.fn(),
+        mutateAsync,
+        isPending: false,
+      } as never);
+      return mutateAsync;
     }
 
     it("opens the dialog with the resolved source when start hits a missing plugin", async () => {
@@ -1927,6 +2174,7 @@ describe("BenchDetail", () => {
       expect(screen.getByTestId("missing-plugin-dialog-id")).toHaveTextContent("google-clasp");
       expect(screen.getByTestId("missing-plugin-dialog-component")).toHaveTextContent("server");
       expect(screen.getByTestId("missing-plugin-dialog-state")).toHaveTextContent("single-source");
+      expect(screen.getByTestId("missing-plugin-dialog-bench")).toHaveTextContent("Bench 1");
     });
 
     // CPHMTP-TC-077 S003-O02 (AC1): the install resumes the start it blocked, by
@@ -1941,32 +2189,35 @@ describe("BenchDetail", () => {
 
       await user.click(screen.getByTestId("missing-plugin-dialog-installed"));
       expect(mutate).toHaveBeenCalledTimes(2);
-      expect(mutate).toHaveBeenLastCalledWith(
-        { projectId: "proj-1", benchId: 1, component: "server" },
-        expect.anything(),
-      );
+      expect(mutate).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
     });
 
     // CPHMTP-TC-082 S002-O01 (AC3): an id no source serves offers nothing. The
     // plain error stands and no install affordance appears.
     it("does not open the dialog for an unresolvable id", async () => {
       const user = userEvent.setup();
-      failStartWith({
+      const mutateAsync = failStartWith({
         code: "COMPONENT_NOT_BOUND",
         resolution: { pluginId: "nowhere", state: "unresolvable" },
       });
       renderBench(stoppedBench as never);
 
       await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("missing-plugin-dialog")).not.toBeInTheDocument();
     });
 
     it("does not open the dialog for an unrelated start failure", async () => {
       const user = userEvent.setup();
-      failStartWith(null);
+      const mutateAsync = failStartWith(null);
       renderBench(stoppedBench as never);
 
       await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("missing-plugin-dialog")).not.toBeInTheDocument();
     });
   });
@@ -2002,16 +2253,20 @@ describe("BenchDetail", () => {
 
     /** Fail the next component start with a consent-gate 400 for `pluginId`. */
     function failStartWithConsent(pluginId: string) {
-      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
-        cb.onError?.(
+      const mutateAsync = vi.fn(() =>
+        Promise.reject(
           new ApiError("has not been consented", 400, "COMPONENT_NOT_BOUND", {
             code: "COMPONENT_NOT_BOUND",
             consent: { pluginId },
           }),
-        );
-      });
-      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
-      return mutate;
+        ),
+      );
+      vi.mocked(useStartComponent).mockReturnValue({
+        mutate: vi.fn(),
+        mutateAsync,
+        isPending: false,
+      } as never);
+      return mutateAsync;
     }
 
     it("opens the consent prompt when start hits the consent gate", async () => {
@@ -2027,6 +2282,9 @@ describe("BenchDetail", () => {
       expect(screen.getByTestId("consent-review-dialog")).toBeInTheDocument();
       expect(screen.getByTestId("consent-review-dialog-id")).toHaveTextContent("google-clasp");
       expect(screen.getByTestId("consent-review-dialog-name")).toHaveTextContent("Google Clasp");
+      expect(screen.getByTestId("consent-review-dialog-target")).toHaveTextContent(
+        "server on Bench 1",
+      );
     });
 
     // Granting consent resumes the start it blocked, by retrying the SAME component.
@@ -2043,21 +2301,25 @@ describe("BenchDetail", () => {
 
       await user.click(screen.getByTestId("consent-review-dialog-grant"));
       expect(mutate).toHaveBeenCalledTimes(2);
-      expect(mutate).toHaveBeenLastCalledWith(
-        { projectId: "proj-1", benchId: 1, component: "server" },
-        expect.anything(),
-      );
+      expect(mutate).toHaveBeenLastCalledWith({
+        projectId: "proj-1",
+        benchId: 1,
+        component: "server",
+      });
     });
 
     it("does not open the consent prompt for an unrelated start failure", async () => {
       const user = userEvent.setup();
-      const mutate = vi.fn((_vars: unknown, cb: { onError?: (err: unknown) => void }) => {
-        cb.onError?.(new Error("network down"));
-      });
-      vi.mocked(useStartComponent).mockReturnValue({ mutate, isPending: false } as never);
+      const mutateAsync = vi.fn(() => Promise.reject(new Error("network down")));
+      vi.mocked(useStartComponent).mockReturnValue({
+        mutate: vi.fn(),
+        mutateAsync,
+        isPending: false,
+      } as never);
       renderBench(stoppedBench as never);
 
       await user.click(screen.getByRole("button", { name: /^Start$/ }));
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("consent-review-dialog")).not.toBeInTheDocument();
     });
   });
