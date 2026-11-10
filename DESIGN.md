@@ -94,7 +94,7 @@ The palette only reaches programs that print through those sixteen roles. An age
 
 ## Components
 
-Thirty-one components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
+Thirty-two components. Each spec is the contract; none is anchored to a source line, because the code follows the spec.
 
 - **Primary button.** Amber ground, stone-950 label at 9.20:1. At most one per view.
 - **Secondary button.** Surface ground with a `border-strong` outline. The default action style.
@@ -835,9 +835,25 @@ One token layer, one platform. Roubo ships as an Electron desktop app, so `platf
       ]
     },
     {
+      "name": "Case row",
+      "role": "one gating case in the Delivery tab's cases view; the selected row shows its detail beside the list",
+      "states": {"focus": "two-pixel focus ring tight to the row; the arrow keys, Home and End move the selection, which follows the focus", "hover": "ground moves to bg-hover; the selected row keeps the accent-muted ground", "active": "the pressed row takes the bg-pressed wash", "disabled": "no disabled state; a case that is not met reads not met"},
+      "motion_refs": ["motion.colors"],
+      "parts": [
+        {"name": "frame", "archetype": "control", "label": "SB-TC-022", "bindings": {"background": "color.bg-surface", "color": "color.text-body", "border": "color.border", "border_width": "border_width.hairline", "radius": "radius.0", "padding": "space.3"}, "arrangement": {"kind": "column", "gap": "space.1", "align": "start"}, "state_deltas": {"hover": {"background": "color.bg-hover"}, "active": {"background": "color.bg-pressed"}, "focus": {"ring_color": "color.focus-ring", "ring_width": "space.1"}}, "children": [
+          {"name": "head", "archetype": "container", "arrangement": {"kind": "row", "gap": "space.3", "align": "center"}, "children": [
+            {"name": "case-id", "archetype": "text", "sample": "SB-TC-022", "bindings": {"color": "color.text-body", "font_size": "type.scale.0", "font_weight": "type.weights.1", "font_family": "type.fonts.mono"}},
+            {"name": "dot", "archetype": "custom", "label": "met", "bindings": {"background": "color.status-active", "radius": "radius.3"}},
+            {"name": "label", "archetype": "text", "sample": "met", "bindings": {"color": "color.text-secondary", "font_size": "type.scale.0", "font_weight": "type.weights.1"}}
+          ]},
+          {"name": "title", "archetype": "text", "sample": "The header shows the cases met", "bindings": {"color": "color.text-primary", "font_size": "type.scale.1", "font_weight": "type.weights.0"}}
+        ]}
+      ]
+    },
+    {
       "name": "Delivery stat",
       "role": "one figure in the burn and health strip: an eyebrow, a value, a note, and an optional meter",
-      "states": {"focus": "not focusable; it describes the delivery", "hover": "no change", "active": "no change", "disabled": "drops to the disabled opacity while the record is nonconformant"},
+      "states": {"focus": "not focusable while it only describes the delivery; a stat that opens a view, such as the Cases figure, takes an inset two-pixel focus ring", "hover": "no change, except that a stat that opens a view takes the bg-hover wash", "active": "a stat that opens a view takes the bg-pressed wash", "disabled": "drops to the disabled opacity while the record is nonconformant"},
       "motion_refs": ["motion.colors"],
       "parts": [
         {"name": "cell", "archetype": "container", "bindings": {"background": "color.bg-surface", "padding": "space.5"}, "arrangement": {"kind": "column", "gap": "space.2", "align": "start"}, "state_deltas": {"disabled": {"opacity": "opacity.disabled"}}, "children": [

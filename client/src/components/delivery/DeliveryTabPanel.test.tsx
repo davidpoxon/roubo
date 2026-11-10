@@ -417,6 +417,19 @@ describe("DeliveryTabPanel", () => {
       expect(screen.getByTestId("delivery-rail-stat-cases")).toHaveFocus();
     });
 
+    it("opens the cases view from the header's progress and gives the focus back to it", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      expect(await screen.findByTestId("delivery-view-cases")).toHaveFocus();
+      expect(screen.getByTestId("delivery-case-list")).toBeInTheDocument();
+
+      await returnToMap();
+      expect(screen.queryByTestId("delivery-view-cases")).not.toBeInTheDocument();
+      expect(screen.getByTestId("delivery-header-progress")).toHaveFocus();
+    });
+
     it("SB-TC-022 opens a met case's verify record and links the pull request of the unit that met it", async () => {
       const snapshot = progressSnapshot();
       vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
@@ -775,6 +788,11 @@ describe("DeliveryTabPanel gate sitting", () => {
 
     const sitting = await screen.findByTestId("delivery-gate-sitting");
     expect(sitting).toHaveAttribute("data-state", "preparing");
+    // The banner calls the operator to act, so it comes before the map.
+    expect(
+      sitting.compareDocumentPosition(screen.getByTestId("delivery-workspace")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(sitting).toHaveTextContent("gate-after-b");
     expect(within(sitting).getByTestId("delivery-gate-sitting-state")).toHaveTextContent(
       "waiting for build",

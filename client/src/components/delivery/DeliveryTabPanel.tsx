@@ -444,7 +444,14 @@ function DeliverySnapshotView({
   return (
     <div
       data-testid="delivery-snapshot"
-      className={view.kind === "map" ? "flex min-h-[560px] flex-1 flex-col" : "shrink-0 space-y-4"}
+      // The map view fills the tab, so the tab does not scroll while the
+      // window is at least 560px high; below that it keeps a 560px floor and
+      // the tab scrolls instead of squashing the map.
+      className={
+        view.kind === "map"
+          ? "flex min-h-[560px] flex-1 flex-col [@media(min-height:560px)]:min-h-0"
+          : "shrink-0 space-y-4"
+      }
     >
       <div
         ref={mapView}
@@ -523,7 +530,7 @@ function DeliverySnapshotView({
             <aside
               data-testid="delivery-summary-rail"
               aria-label="Delivery summary"
-              className="@container/rail flex min-h-0 min-w-0 flex-col gap-4"
+              className="@container/rail flex min-h-0 min-w-0 flex-col gap-4 @4xl:overflow-y-auto"
             >
               <div className="grid shrink-0 gap-4 @md/rail:grid-cols-2 @3xl/rail:grid-cols-3">
                 <BurnHealthPanel
@@ -540,7 +547,7 @@ function DeliverySnapshotView({
                   crossCheck={crossCheck.data}
                   snapshot={snapshot}
                   onFocusMapTarget={focusMapTarget}
-                  className="flex-1 @md/rail:max-h-[60dvh]"
+                  className="flex-1 @md/rail:max-h-[60dvh] @4xl:min-h-40"
                 />
               )}
             </aside>
