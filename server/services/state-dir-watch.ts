@@ -26,8 +26,8 @@
  *   it, and the notice names the plugins that started.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
  *   edit disables stops, and one it enables starts.
- * - settings.json: read again. A settings.json that does not parse keeps the
- *   last good settings served (HR-TC-034).
+ * - settings.json: read again. A settings.json that does not parse, or whose
+ *   top level is not an object, keeps the last good settings served (HR-TC-034).
  *
  * The state dir is watched as one directory with a basename allowlist rather
  * than file by file, since a single-file watch loses saves that replace the

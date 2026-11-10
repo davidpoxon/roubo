@@ -208,6 +208,25 @@ describe("loadSettings", () => {
     expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow();
   });
 
+  it.each(["[]", '"x"', "1", "true", "null"])(
+    "HR-TC-034 keeps serving the last settings that parsed when settings.json holds %s, not an object",
+    (text) => {
+      existsSync.mockReturnValue(true);
+      readFileSync.mockReturnValue(JSON.stringify({ theme: "light", benches: { maxGlobal: 4 } }));
+      const good = stateModule.loadSettings();
+
+      readFileSync.mockReturnValue(text);
+      expect(stateModule.loadSettings()).toEqual(good);
+      expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow(
+        /must hold a JSON object/,
+      );
+
+      // The rejected read did not become the last good settings either.
+      readFileSync.mockReturnValue("{");
+      expect(stateModule.loadSettings()).toEqual(good);
+    },
+  );
+
   it("HR-TC-034 serves the built-in defaults for an unparseable settings.json only when no read has parsed yet", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue("{");
