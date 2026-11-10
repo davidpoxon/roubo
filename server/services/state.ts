@@ -505,9 +505,10 @@ function defaultSettings(): UserPreferences {
 }
 
 /**
- * The settings of the last read of settings.json that parsed, or null when no
- * read has parsed yet in this process. A hand edit that leaves the file
- * unparseable keeps serving it (HR-TC-034).
+ * The settings of the last read of settings.json that parsed or of the app's
+ * last write of it, whichever came later, or null when neither has happened yet
+ * in this process. A hand edit that leaves the file unparseable keeps serving
+ * it (HR-TC-034).
  */
 let lastGoodSettings: UserPreferences | null = null;
 
@@ -587,7 +588,19 @@ export function saveSettings(data: UserPreferences) {
   // notice before the user has seen it (AP-FR-021, AP-TC-109).
   const legacy = readLegacyAgentSettings();
   const payload = legacy === undefined ? data : { ...data, [LEGACY_AGENT_SETTINGS_KEY]: legacy };
-  atomicWrite(SETTINGS_FILE, JSON.stringify(payload, null, 2));
+  writeSettingsFile(payload);
+}
+
+/**
+ * Write settings.json and make what was written the last good settings, so a
+ * later hand edit that leaves the file unparseable serves this write rather
+ * than the read before it (HR-TC-034). Every writer of settings.json goes
+ * through here.
+ */
+function writeSettingsFile(payload: unknown): void {
+  const text = JSON.stringify(payload, null, 2);
+  atomicWrite(SETTINGS_FILE, text);
+  lastGoodSettings = parseSettings(JSON.parse(text));
 }
 
 /**
@@ -665,14 +678,7 @@ export function writeLegacyAgentSettings(block: Record<string, unknown> | null):
   const next = Object.fromEntries(
     Object.entries(raw).filter(([key]) => key !== LEGACY_AGENT_SETTINGS_KEY),
   );
-  atomicWrite(
-    SETTINGS_FILE,
-    JSON.stringify(
-      block === null ? next : { ...next, [LEGACY_AGENT_SETTINGS_KEY]: block },
-      null,
-      2,
-    ),
-  );
+  writeSettingsFile(block === null ? next : { ...next, [LEGACY_AGENT_SETTINGS_KEY]: block });
 }
 
 export function getPersistedBenches(projectId?: string): PersistedBench[] {
