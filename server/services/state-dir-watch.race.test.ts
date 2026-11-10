@@ -247,6 +247,9 @@ describe("a hand edit followed by an app write inside the settle window", () => 
     expect(recordOf(onDisk, 3)?.baseBranch).toBe("main");
     const known = state.getKnownState() as PersistedState;
     expect(recordOf(known, 2)?.ports).toEqual({ web: 3000 });
+    // The write-back that undoes the edit sends no applied event over the notice.
+    await sleep(400);
+    expect(hoisted.events).toHaveLength(1);
   });
 
   it("HR-TC-029 an active bench edit is refused when the app write is of the same bench", async () => {

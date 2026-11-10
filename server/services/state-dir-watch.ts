@@ -33,10 +33,12 @@
  * than file by file, since a single-file watch loses saves that replace the
  * file. The allowlist also drops the `.tmp` sibling that `atomicWrite` renames
  * from. A file that does not parse is rejected with its parse error, and
- * nothing of it is applied. The next save of that file that is not rejected,
- * a hand edit or an app write that leaves it valid, sends an applied event for
- * the target of each rejected notice of the file, so the notice clears once
- * the file is fixed.
+ * nothing of it is applied. The next save of that file that parses, a hand
+ * edit or an app write that leaves it valid, sends an applied event for the
+ * target of each such rejected notice of the file, so the notice clears once
+ * the file is fixed. A notice about a bench record the edit could not apply
+ * is not cleared that way: the app's write-back that undoes the record is not
+ * a fix of it.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -146,10 +148,23 @@ function firstIssue(issues: readonly { path: PropertyKey[]; message: string }[])
 
 // ── Notice copy ──
 
+/**
+ * The rejections of a file as a whole: one that is missing, does not parse, or
+ * fails its shape or schema. Only these stay open until a later save clears
+ * them. A rejected bench record is not one: its handler has already undone it
+ * in the file, by a write-back that is a self-write.
+ */
+const fileRejections = new WeakSet<object>();
+
 /** "Bench state not applied. state.json: invalid JSON at line 1 column 2." */
 function rejected(file: StateFile, lead: string, first: string, tail = ""): HandlerResult {
   const summary = `${lead} not applied. ${file}: ${first}.${tail === "" ? "" : ` ${tail}`}`;
-  return { outcome: "rejected", event: { summary, error: { path: file, first } } };
+  const result: HandlerResult = {
+    outcome: "rejected",
+    event: { summary, error: { path: file, first } },
+  };
+  fileRejections.add(result);
+  return result;
 }
 
 function applied(event: InputEventDetail): HandlerResult {
@@ -470,8 +485,12 @@ function targetKey(target: NoticeTarget): string {
  * same surface and target, but a file-level rejection (invalid JSON, a schema
  * failure) has no target, the applied event of a fixed file can name one, and
  * a fix that puts back what the app already holds changes nothing, so its
- * handler sends no event. So each file keeps the targets of its open rejected
- * notices. On the next run that is not rejected or refused, an applied event
+ * handler sends no event. So each file keeps the targets of its open
+ * file-level rejected notices. A rejected or refused bench record is never
+ * kept: its handler wrote the file back, and that write-back is a self-write
+ * that would otherwise clear the notice it just sent. Such a run clears the
+ * open targets of the file, since the file parsed. On the next run that is not
+ * rejected or refused, an applied event
  * is sent for each open target that the run's own event does not match: a
  * run that changes nothing is reported applied for the first of them, and the
  * rest are sent here. An app write that leaves the file valid runs no handler,
@@ -512,14 +531,21 @@ function clearingRejections(handler: (change: InputChange) => Promise<HandlerRes
       }
       const outcome = typeof result === "string" ? result : result.outcome;
       const detail = typeof result === "object" ? result.event : undefined;
-      if (outcome === "rejected") {
+      if (outcome === "rejected" && typeof result === "object" && fileRejections.has(result)) {
         const targets = open.get(file) ?? new Map<string, NoticeTarget>();
         const target = targetOf(detail);
         targets.set(targetKey(target), target);
         open.set(file, targets);
         return result;
       }
-      if (outcome === "refused") return result;
+      if (outcome === "rejected" || outcome === "refused") {
+        // A bench record refused or rejected: the file parsed, so each open
+        // file-level rejection is cleared now, before this run's own notice is
+        // sent. This one is not kept open: the handler has undone it in the
+        // file, and the self-write of that undo must not clear its notice.
+        clearOpen(file, surface);
+        return result;
+      }
       const targets = open.get(file);
       if (targets === undefined) return result;
       let own: NoticeTarget;
