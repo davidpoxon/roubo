@@ -9,7 +9,7 @@ import {
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
 import { PROJECT_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
-import { hashContent, markSelfWrite } from "./self-write-tokens.js";
+import { hashContent, markSelfWrite, pendingHandEdit } from "./self-write-tokens.js";
 import type {
   AssignedIssue,
   Bench,
@@ -50,7 +50,13 @@ export function ensureDirs() {
   dirsEnsured = true;
 }
 
-export function atomicWrite(filePath: string, data: string, mode?: number) {
+/**
+ * Write `data` to `filePath` through a tmp sibling and a rename, marked as the
+ * app's own write. `known`, for a write that keeps a hand edit the watch has
+ * not run for yet, is the content without that edit: what the app means the
+ * file to hold, kept as its known content so the edit stays pending.
+ */
+export function atomicWrite(filePath: string, data: string, mode?: number, known?: string) {
   // Defence-in-depth containment: callers are expected to have already validated
   // `filePath`, but re-resolve via path.resolve + relative check so CodeQL sees a
   // sanitizer immediately before the file ops. This is the same shape the default
@@ -65,7 +71,7 @@ export function atomicWrite(filePath: string, data: string, mode?: number) {
   fs.writeFileSync(tmp, data, { encoding: "utf-8", mode: mode ?? 0o666 });
   // Mark the write before the rename, so the InputWatcher event the rename
   // raises is taken as the server's own write and runs no reload handler.
-  markSelfWrite(resolvedFile, hashContent(data));
+  markSelfWrite(resolvedFile, hashContent(data), known ?? data);
   fs.renameSync(tmp, resolvedFile);
 }
 
@@ -185,10 +191,153 @@ export function migratePersistedState(data: PersistedState): PersistedState {
   return data;
 }
 
+/**
+ * Write state.json and record it as the known content.
+ *
+ * Every app write of the file is read-modify-write: `data` is what was read
+ * from disk with the app's change on it. When the file holds a hand edit that
+ * the state dir watch has not run for yet, `data` carries that edit, and
+ * recording it as known would take it in unchecked: a refused change of a live
+ * bench would stay in the file, and an edit of an idle bench would never reach
+ * memory. So the edit is left in the file and kept out of the known content,
+ * which gets the app's change only (see `overHandEdit`). The watch then runs
+ * its handler for the edit, diffing it against the known content.
+ */
 export function saveState(data: PersistedState) {
   ensureDirs();
-  atomicWrite(STATE_FILE, JSON.stringify(data, null, 2));
-  rememberState(data);
+  const merged = overHandEdit(data);
+  if (merged === null) {
+    atomicWrite(STATE_FILE, JSON.stringify(data, null, 2));
+    rememberState(data);
+    return;
+  }
+  atomicWrite(
+    STATE_FILE,
+    JSON.stringify(merged.written, null, 2),
+    undefined,
+    JSON.stringify(merged.known, null, 2),
+  );
+  rememberState(merged.known);
+}
+
+/** A JSON text of `value` with its object keys sorted, for comparing content. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      : v,
+  );
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+function recordKey(record: { projectId: string; id: number }): string {
+  return `${record.projectId}\u0000${record.id}`;
+}
+
+/**
+ * The app's record with each field that the hand edit changed (the disk record
+ * differs from the known one) taken from the disk record, so the edit stays in
+ * the file for the watch to apply or refuse.
+ */
+function keepHandEditedFields(
+  app: PersistedBench,
+  disk: PersistedBench | undefined,
+  known: PersistedBench | undefined,
+): PersistedBench {
+  if (disk === undefined || known === undefined) return app;
+  const diskFields = disk as unknown as Record<string, unknown>;
+  const knownFields = known as unknown as Record<string, unknown>;
+  const edited = new Set(
+    [...Object.keys(diskFields), ...Object.keys(knownFields)].filter(
+      (field) => !sameJson(diskFields[field], knownFields[field]),
+    ),
+  );
+  if (edited.size === 0) return app;
+  const out = Object.entries(app as unknown as Record<string, unknown>).filter(
+    ([field]) => !edited.has(field),
+  );
+  for (const field of edited) {
+    if (Object.hasOwn(diskFields, field)) out.push([field, diskFields[field]]);
+  }
+  return Object.fromEntries(out) as unknown as PersistedBench;
+}
+
+/** The parsed state.json on disk, or null when it is absent or does not parse. */
+function readStateFileForMerge(): PersistedState | null {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const benches = (parsed as { benches?: unknown }).benches;
+    if (!Array.isArray(benches)) return null;
+    return migratePersistedState(parsed as PersistedState);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When state.json holds a hand edit that the watch has not run for yet, what
+ * to write and what to record as known for an app write of `data`; null when
+ * there is no such edit. Each record and top-level key that `data` holds as
+ * the disk does is the app's read of it, not its change: the file keeps the
+ * disk's, and the known content keeps the known one. Each that differs is the
+ * app's change: the known content takes it, and the file takes it too, with
+ * the fields the hand edit changed kept from the disk.
+ */
+function overHandEdit(
+  data: PersistedState,
+): { written: PersistedState; known: PersistedState } | null {
+  if (knownState === null || pendingHandEdit(STATE_FILE) === undefined) return null;
+  const disk = readStateFileForMerge();
+  if (disk === null) return null;
+  const knownBase = knownState;
+  const top = new Set([...Object.keys(data), ...Object.keys(disk), ...Object.keys(knownBase)]);
+  top.delete("benches");
+  const written: Record<string, unknown> = {};
+  const known: Record<string, unknown> = {};
+  const dataFields = data as unknown as Record<string, unknown>;
+  const diskFields = disk as unknown as Record<string, unknown>;
+  const knownFields = knownBase as unknown as Record<string, unknown>;
+  for (const key of top) {
+    const unchanged = sameJson(dataFields[key], diskFields[key]);
+    const writtenValue = unchanged ? diskFields[key] : dataFields[key];
+    const knownValue = unchanged ? knownFields[key] : dataFields[key];
+    if (writtenValue !== undefined) written[key] = writtenValue;
+    if (knownValue !== undefined) known[key] = knownValue;
+  }
+  const diskRecords = new Map(disk.benches.map((r) => [recordKey(r), r]));
+  const knownRecords = new Map(knownBase.benches.map((r) => [recordKey(r), r]));
+  const writtenBenches: PersistedBench[] = [];
+  const knownBenches: PersistedBench[] = [];
+  const held = new Set<string>();
+  for (const record of data.benches) {
+    const key = recordKey(record);
+    held.add(key);
+    const onDisk = diskRecords.get(key);
+    const wasKnown = knownRecords.get(key);
+    if (onDisk !== undefined && sameJson(record, onDisk)) {
+      writtenBenches.push(onDisk);
+      // A record that the hand edit added stays out of the known content.
+      if (wasKnown !== undefined) knownBenches.push(wasKnown);
+    } else {
+      writtenBenches.push(keepHandEditedFields(record, onDisk, wasKnown));
+      knownBenches.push(record);
+    }
+  }
+  for (const [key, record] of knownRecords) {
+    // A known record that the disk no longer holds was removed by the hand
+    // edit, not by the app: the known content keeps it.
+    if (!held.has(key) && !diskRecords.has(key)) knownBenches.push(record);
+  }
+  return {
+    written: { ...written, benches: writtenBenches } as unknown as PersistedState,
+    known: { ...known, benches: knownBenches } as unknown as PersistedState,
+  };
 }
 
 /**

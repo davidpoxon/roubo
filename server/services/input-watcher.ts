@@ -38,7 +38,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import { getRouboDir, loadProjects } from "./state.js";
-import { consumeSelfWrites, hashContent } from "./self-write-tokens.js";
+import {
+  consumeSelfWrites,
+  forgetInputContent,
+  hashContent,
+  noteInputContent,
+} from "./self-write-tokens.js";
 import { broadcastInputChanged } from "./sse.js";
 import { INPUT_SURFACES, type InputSurface } from "@roubo/shared";
 
@@ -146,6 +151,14 @@ export interface WatchInputOptions {
    * the finished input and is deduped rather than applied a second time.
    */
   hold?: (absPath: string) => Promise<void>;
+  /**
+   * Track the content of each input, so an app write that lands on a hand edit
+   * the watch has not run for yet is told apart from a plain self-write: the
+   * handler still runs for the change (see `noteInputContent` in
+   * self-write-tokens.ts). For inputs that are single files the app writes
+   * read-modify-write, such as the state files.
+   */
+  trackHandEdits?: boolean;
 }
 
 export interface Disposable {
@@ -630,22 +643,29 @@ export function watchInput(
     }
 
     const hash = hashUnit(unit, files, roots);
+    // The content this run reads is taken in now, before the handler runs, so
+    // an app write the handler makes, such as a write-back, is not taken for
+    // one that lands on a hand edit.
+    if (options.trackHandEdits) noteInputContent(unit, hash);
     if (mode === "seed") {
       lastApplied.set(unit, hash);
       return;
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
-    const selfWrites = hash === null ? [] : consumeSelfWrites(unit, hash);
-    if (selfWrites.length > 0) {
+    const selfWrites =
+      hash === null ? { hashes: [], carriesHandEdit: false } : consumeSelfWrites(unit, hash);
+    // One line for each app write the merged change accounts for.
+    for (const written of selfWrites.hashes) emit("self-write", written);
+    if (selfWrites.hashes.length > 0 && !selfWrites.carriesHandEdit) {
       // An app write the surface rejected stays rejected (see markRejected).
       // One it applied was recorded through markApplied, which dropped any
       // earlier rejected record of the same content, so it stays applied.
       if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
-      // One line for each app write the merged change accounts for.
-      for (const written of selfWrites) emit("self-write", written);
       return;
     }
+    // An app write that landed on a hand edit the watch had not run for: the
+    // file holds that edit, so the handler runs for it as for any hand edit.
     // A rescan finds the content that was last rejected unchanged: the handler
     // already said no to it, so it does not run again for it.
     if (mode === "quiet" && lastRejected !== null && lastRejected.rejected === hash) return;
@@ -858,6 +878,7 @@ export function watchInput(
       disposed = true;
       if (poll) clearInterval(poll);
       await disarm();
+      if (options.trackHandEdits) for (const unit of lastApplied.keys()) forgetInputContent(unit);
     },
   };
 }

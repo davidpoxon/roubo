@@ -69,6 +69,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
+import { LAST_GOOD_LINE, inputNoticeText } from "../../client/src/lib/input-changed";
 import {
   STATE_FILES,
   benchAppliedNotice,
@@ -84,6 +85,11 @@ import {
 let base: string;
 let dir: string;
 let lines: string[];
+
+/** The text the client's notice list shows for one sent event. */
+function noticeOf(event: Omit<InputChangedEvent, "type">): string {
+  return inputNoticeText({ type: "input-changed", ...event });
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -338,6 +344,9 @@ describe("state dir watch", () => {
       summary: "Bench state not applied: bench 2 on lantern is active. Stop it first.",
       error: { path: "state.json", first: "bench 2 on lantern is active" },
     });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Bench state not applied: bench 2 on lantern is active. Stop it first.",
+    );
     expect(fileLines("state.json", "refused")).toHaveLength(1);
   });
 
@@ -376,12 +385,16 @@ describe("state dir watch", () => {
       outcome: "rejected",
       projectId: "lantern",
       benchIds: [3],
-      summary: "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable.",
+      summary:
+        "Bench state not applied. state.json: workspacePath of bench 3 on lantern is not hand-editable.",
       error: {
         path: "state.json",
         first: "workspacePath of bench 3 on lantern is not hand-editable",
       },
     });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Bench state not applied. state.json: workspacePath of bench 3 on lantern is not hand-editable.",
+    );
     expect(fileLines("state.json", "rejected")).toHaveLength(1);
     expect(fileLines("state.json", "applied")).toHaveLength(0);
   });
@@ -400,9 +413,10 @@ describe("state dir watch", () => {
       outcome: "rejected",
       benchIds: [3, 4],
       summary:
-        "Bench state not applied: createdAt, notifications of bench 4 on lantern are not hand-editable. " +
+        "Bench state not applied. state.json: createdAt, notifications of bench 4 on lantern are not hand-editable. " +
         "Bench state applied: bench 3 on lantern.",
     });
+    expect(noticeOf(hoisted.events[0])).toBe(hoisted.events[0].summary);
   });
 
   it("a state.json record added by hand for no bench is rejected with a notice naming it", async () => {
@@ -419,9 +433,12 @@ describe("state dir watch", () => {
       outcome: "rejected",
       projectId: "lantern",
       benchIds: [9],
-      summary: "Bench state not applied: bench 9 on lantern does not exist.",
+      summary: "Bench state not applied. state.json: bench 9 on lantern does not exist.",
       error: { path: "state.json", first: "bench 9 on lantern does not exist" },
     });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Bench state not applied. state.json: bench 9 on lantern does not exist.",
+    );
   });
 
   it("a state.json record removed by hand is rejected with a notice naming the bench", async () => {
@@ -438,9 +455,12 @@ describe("state dir watch", () => {
       outcome: "rejected",
       projectId: "lantern",
       benchIds: [3],
-      summary: "Bench state not applied: bench 3 on lantern cannot be removed by hand.",
+      summary: "Bench state not applied. state.json: bench 3 on lantern cannot be removed by hand.",
       error: { path: "state.json", first: "bench 3 on lantern cannot be removed by hand" },
     });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Bench state not applied. state.json: bench 3 on lantern cannot be removed by hand.",
+    );
   });
 
   it("a state.json edit that changes no bench sends no notice and logs no applied line", async () => {
@@ -685,7 +705,7 @@ describe("state dir watch notice copy", () => {
         { projectId: "kiln", benchId: 1, fields: ["benchSetupComplete", "createdAt"] },
       ]).summary,
     ).toBe(
-      "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable; " +
+      "Bench state not applied. state.json: workspacePath of bench 3 on lantern is not hand-editable; " +
         "benchSetupComplete, createdAt of bench 1 on kiln are not hand-editable.",
     );
     expect(
@@ -693,10 +713,30 @@ describe("state dir watch notice copy", () => {
         { projectId: "lantern", benchId: 8 },
         { projectId: "lantern", benchId: 9 },
       ]).summary,
-    ).toBe("Bench state not applied: benches 8, 9 on lantern do not exist.");
+    ).toBe("Bench state not applied. state.json: benches 8, 9 on lantern do not exist.");
     expect(benchRemovedNotice([{ projectId: "lantern", benchId: 4 }]).summary).toBe(
-      "Bench state not applied: bench 4 on lantern cannot be removed by hand.",
+      "Bench state not applied. state.json: bench 4 on lantern cannot be removed by hand.",
     );
+  });
+
+  it("each rejected bench-state notice reads as its own sentence in the client, with no clause added", () => {
+    const notices = [
+      benchRevertedNotice([{ projectId: "lantern", benchId: 3, fields: ["workspacePath"] }]),
+      benchUnmatchedNotice([{ projectId: "lantern", benchId: 9 }]),
+      benchRemovedNotice([{ projectId: "lantern", benchId: 4 }]),
+    ];
+    for (const notice of notices) {
+      const text = noticeOf({
+        surface: "bench",
+        outcome: "rejected",
+        projectId: "lantern",
+        summary: notice.summary,
+        error: { path: "state.json", first: notice.first },
+      });
+      expect(text).toBe(notice.summary);
+      expect(text).not.toContain(LAST_GOOD_LINE);
+      expect(text.split(`state.json: ${notice.first}`)).toHaveLength(2);
+    }
   });
 
   it("names the place of a JSON parse error and never the input", () => {

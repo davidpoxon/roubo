@@ -6,6 +6,7 @@ import {
   type PluginEnableState,
   type PluginEnableStateValue,
 } from "@roubo/shared";
+import { pendingHandEdit } from "./self-write-tokens.js";
 import { atomicWrite, ensureDirs, getRouboDir } from "./state.js";
 
 // IP-WU-046 / #164: persistent per-plugin enable state. See:
@@ -98,20 +99,12 @@ export function setPluginEnableValue(
   pluginId: string,
   value: PluginEnableStateValue,
 ): PluginEnableState {
-  const current = loadEnableState() ?? {
-    schemaVersion: PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
-    installInitialized: false,
-    plugins: {},
+  const set = (current: PluginEnableState | null): PluginEnableState => {
+    const base = current ?? seedState();
+    return { ...base, plugins: { ...base.plugins, [pluginId]: value } };
   };
-  const next: PluginEnableState = {
-    ...current,
-    plugins: {
-      ...current.plugins,
-      [pluginId]: value,
-    },
-  };
-  saveEnableState(next);
-  return next;
+  // `set` always returns a state, so the edit always writes one.
+  return editEnableState(set) ?? set(null);
 }
 
 /**
@@ -119,13 +112,71 @@ export function setPluginEnableValue(
  * so the file stays in sync with what's actually discoverable.
  */
 export function removePlugin(pluginId: string): void {
-  const current = loadEnableState();
-  if (!current || !(pluginId in current.plugins)) return;
-  const nextPlugins: Record<string, PluginEnableStateValue> = {};
-  for (const [id, value] of Object.entries(current.plugins)) {
-    if (id !== pluginId) nextPlugins[id] = value;
+  editEnableState((current) => {
+    if (!current || !(pluginId in current.plugins)) return null;
+    const nextPlugins: Record<string, PluginEnableStateValue> = {};
+    for (const [id, value] of Object.entries(current.plugins)) {
+      if (id !== pluginId) nextPlugins[id] = value;
+    }
+    return { ...current, plugins: nextPlugins };
+  });
+}
+
+/** The document a missing file is seeded with on the first write. */
+function seedState(): PluginEnableState {
+  return {
+    schemaVersion: PLUGIN_ENABLE_STATE_SCHEMA_VERSION,
+    installInitialized: false,
+    plugins: {},
+  };
+}
+
+/** The enable state a known file content holds, or null when it is absent or not valid. */
+function parseKnown(raw: string | null): PluginEnableState | null {
+  if (raw === null) return null;
+  try {
+    const result = PluginEnableStateSchema.safeParse(JSON.parse(raw));
+    return result.success ? result.data : null;
+  } catch {
+    return null;
   }
-  saveEnableState({ ...current, plugins: nextPlugins });
+}
+
+/**
+ * Read-modify-write of the file through `change`, which returns null to write
+ * nothing. Returns what the app means the file to hold, or null when nothing
+ * was written.
+ *
+ * When the file holds a hand edit that the state dir watch has not run for
+ * yet, the change is made twice: on the file, which keeps the edit for the
+ * watch to apply, and on the content the app last knew, which is what this
+ * returns and what the plugin manager caches. So the watch's reload still sees
+ * the edit as a change, and a plugin it disables is stopped.
+ */
+function editEnableState(
+  change: (current: PluginEnableState | null) => PluginEnableState | null,
+): PluginEnableState | null {
+  const pending = pendingHandEdit(filePath());
+  const current = loadEnableState();
+  if (pending === undefined || pending.known === undefined) {
+    const next = change(current);
+    if (next !== null) saveEnableState(next);
+    return next;
+  }
+  const knownNext = change(parseKnown(pending.known));
+  const written = change(current);
+  if (written === null) return knownNext;
+  ensureDirs();
+  const validated = PluginEnableStateSchema.parse(written);
+  const known = knownNext === null ? undefined : PluginEnableStateSchema.parse(knownNext);
+  atomicWrite(
+    filePath(),
+    JSON.stringify(validated, null, 2),
+    undefined,
+    known === undefined ? undefined : JSON.stringify(known, null, 2),
+  );
+  lastKnown = validated;
+  return known ?? validated;
 }
 
 function backupAndRecover(p: string, reason: string): PluginEnableState | null {
