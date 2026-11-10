@@ -3,7 +3,11 @@
  * InputWatcher watch of the Roubo state dir at depth 0, whose inputs are the
  * state files the app reads while it runs. A change made outside the app is
  * applied live; the app's own writes go through `atomicWrite`, so the watch
- * takes each of them as a self-write and runs no handler (HR-NFR-002).
+ * takes each of them as a self-write and runs no handler (HR-NFR-002). The
+ * app writes these files read-modify-write, so the watch tracks their content:
+ * an app write that lands on a hand edit the watch has not run for yet keeps
+ * the edit out of what the app records as known, and the watch still runs its
+ * handler for the edit.
  *
  * - projects.json: the settings of each registered project.
  * - state.json: the hand-editable fields of each bench that is not live. An
@@ -50,6 +54,7 @@ import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { broadcastInputChanged } from "./sse.js";
+import { forgetInputContent, noteInputContent } from "./self-write-tokens.js";
 import {
   watchInput,
   type HandlerResult,
@@ -193,11 +198,16 @@ interface NotAppliedNotice {
   first: string;
 }
 
+/**
+ * A rejected bench record's sentence. It names the file and the clause as the
+ * event's error does, `state.json: <first>`, so a client shows the sentence as
+ * the whole notice and adds neither the clause again nor a last-good line.
+ */
 function notApplied(first: string): NotAppliedNotice {
-  return { summary: `Bench state not applied: ${first}.`, first };
+  return { summary: `Bench state not applied. state.json: ${first}.`, first };
 }
 
-/** "Bench state not applied: workspacePath of bench 3 on lantern is not hand-editable." */
+/** "Bench state not applied. state.json: workspacePath of bench 3 on lantern is not hand-editable." */
 export function benchRevertedNotice(
   refs: readonly (BenchStateEditRef & { fields: readonly string[] })[],
 ): NotAppliedNotice {
@@ -212,12 +222,12 @@ export function benchRevertedNotice(
   );
 }
 
-/** "Bench state not applied: bench 5 on lantern does not exist." */
+/** "Bench state not applied. state.json: bench 5 on lantern does not exist." */
 export function benchUnmatchedNotice(refs: readonly BenchStateEditRef[]): NotAppliedNotice {
   return notApplied(`${benchPhrase(refs)} ${refs.length === 1 ? "does" : "do"} not exist`);
 }
 
-/** "Bench state not applied: bench 4 on lantern cannot be removed by hand." */
+/** "Bench state not applied. state.json: bench 4 on lantern cannot be removed by hand." */
 export function benchRemovedNotice(refs: readonly BenchStateEditRef[]): NotAppliedNotice {
   return notApplied(`${benchPhrase(refs)} cannot be removed by hand`);
 }
@@ -523,6 +533,7 @@ export function stateFileSurface(absPath: string): InputSurface | undefined {
 }
 
 let active: InputWatch | null = null;
+let activeDir: string | null = null;
 
 export interface StateDirWatchOptions {
   /** The state dir. Defaults to the Roubo state dir. */
@@ -545,8 +556,9 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
   } catch {
     // A settings file that cannot be read has no last good value to keep.
   }
+  const dir = options.dir ?? state.getRouboDir();
   const watch = watchInput(
-    options.dir ?? state.getRouboDir(),
+    dir,
     {
       surface: STATE_DIR_SURFACE,
       surfaceOf: stateFileSurface,
@@ -554,18 +566,31 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
       depth: 0,
       allow: STATE_FILES,
       settleMs: options.settleMs ?? STATE_DIR_SETTLE_MS,
+      // The app writes these files read-modify-write, so an app write inside
+      // the settle window of a hand edit must not take the edit in as its own.
+      trackHandEdits: true,
       ...(options.rearmPollMs === undefined ? {} : { rearmPollMs: options.rearmPollMs }),
     },
     clearingRejections(handleStateFileChange),
   );
   active = watch;
+  activeDir = dir;
   await watch.ready;
+  // A state file that is absent is known absent, so a file created by hand
+  // and written by the app inside the settle window is told apart too.
+  for (const file of STATE_FILES) {
+    const abs = path.join(dir, file);
+    if (!fs.existsSync(abs)) noteInputContent(abs, null);
+  }
   return watch;
 }
 
 /** Dispose the watch of the state dir. */
 export async function stopStateDirWatch(): Promise<void> {
   const current = active;
+  const dir = activeDir;
   active = null;
+  activeDir = null;
   if (current) await current.dispose();
+  if (dir !== null) for (const file of STATE_FILES) forgetInputContent(path.join(dir, file));
 }
