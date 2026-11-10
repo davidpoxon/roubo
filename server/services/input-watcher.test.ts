@@ -42,8 +42,10 @@ import {
 import {
   SELF_WRITE_TTL_MS,
   consumeSelfWrite,
+  consumeSelfWrites,
   hashContent,
   markSelfWrite,
+  noteInputContent,
   resetSelfWriteTokens,
 } from "./self-write-tokens.js";
 import { addClient, _resetClientsForTest } from "./sse.js";
@@ -336,6 +338,46 @@ describe("watchInput dedupe and self-write", () => {
     markSelfWrite(file, "h3");
     now.mockReturnValue(1_000_000 + SELF_WRITE_TTL_MS + 1);
     expect(consumeSelfWrite(file, "h3")).toBe(false);
+  });
+
+  it("HR-TC-030 a change that matches no token clears the hand edit an earlier token carries", () => {
+    const file = path.join(stateDir, "tracked.json");
+    const write = (content: string) => fs.writeFileSync(file, content);
+    write("seed");
+    noteInputContent(file, hashContent("seed"));
+    // H1, then app write A lands on it and carries the hand edit.
+    write("h1");
+    markSelfWrite(file, hashContent("a"), "a");
+    write("a");
+    // H2 before the run: the run reads H2 and matches no token.
+    write("h2");
+    noteInputContent(file, hashContent("h2"));
+    expect(consumeSelfWrites(file, hashContent("h2"))).toEqual({
+      hashes: [],
+      carriesHandEdit: false,
+    });
+    // App write B: the run takes A and B in as the app's own writes.
+    markSelfWrite(file, hashContent("b"), "b");
+    write("b");
+    expect(consumeSelfWrites(file, hashContent("b"))).toEqual({
+      hashes: [hashContent("a"), hashContent("b")],
+      carriesHandEdit: false,
+    });
+  });
+
+  it("HR-TC-030 an absent input clears the hand edit an earlier token carries", () => {
+    const file = path.join(stateDir, "gone.json");
+    fs.writeFileSync(file, "seed");
+    noteInputContent(file, hashContent("seed"));
+    fs.writeFileSync(file, "h1");
+    markSelfWrite(file, hashContent("a"), "a");
+    fs.writeFileSync(file, "a");
+    fs.rmSync(file);
+    noteInputContent(file, null);
+    expect(consumeSelfWrites(file, null)).toEqual({ hashes: [], carriesHandEdit: false });
+    markSelfWrite(file, hashContent("b"), "b");
+    fs.writeFileSync(file, "b");
+    expect(consumeSelfWrites(file, hashContent("b")).carriesHandEdit).toBe(false);
   });
 });
 

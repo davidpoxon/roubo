@@ -203,22 +203,32 @@ export interface SelfWrites {
  * window merged into one run. Each is consumed, so each write is counted once
  * and none is left to mask a later hand edit (HR-TC-031). Otherwise only the
  * oldest matching token is consumed, as `consumeSelfWrite` does.
+ *
+ * A change that matches no token, an absent input (`contentHash` null)
+ * included, is not the app's own write, so the watch runs its handler for what
+ * the file now holds, and that takes in any hand edit an earlier app write
+ * landed on. The live tokens of the path then carry no hand edit any more: a
+ * token left over from such a write would otherwise make a later plain app
+ * write that consumes it run the handler for the app's own write (HR-TC-030).
  */
-export function consumeSelfWrites(absPath: string, contentHash: string): SelfWrites {
+export function consumeSelfWrites(absPath: string, contentHash: string | null): SelfWrites {
   const key = canonicalInputPath(absPath);
   const list = live(key, Date.now());
-  if (list.length > 0 && list[list.length - 1].hash === contentHash) {
+  if (contentHash !== null && list.length > 0 && list[list.length - 1].hash === contentHash) {
     tokens.delete(key);
     return {
       hashes: list.map((t) => t.hash),
       carriesHandEdit: list.some((t) => t.carriesHandEdit),
     };
   }
-  const index = list.findIndex((t) => t.hash === contentHash);
-  if (index === -1) return { hashes: [], carriesHandEdit: false };
+  const index = contentHash === null ? -1 : list.findIndex((t) => t.hash === contentHash);
+  if (index === -1) {
+    for (const token of list) token.carriesHandEdit = false;
+    return { hashes: [], carriesHandEdit: false };
+  }
   const [token] = list.splice(index, 1);
   if (list.length === 0) tokens.delete(key);
-  return { hashes: [contentHash], carriesHandEdit: token.carriesHandEdit };
+  return { hashes: [token.hash], carriesHandEdit: token.carriesHandEdit };
 }
 
 /** Drop every token and every tracked content. For tests. */

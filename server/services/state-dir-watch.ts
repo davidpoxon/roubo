@@ -33,9 +33,10 @@
  * than file by file, since a single-file watch loses saves that replace the
  * file. The allowlist also drops the `.tmp` sibling that `atomicWrite` renames
  * from. A file that does not parse is rejected with its parse error, and
- * nothing of it is applied. The next save of that file that is not rejected
- * sends an applied event for the target of each rejected notice of the file,
- * so the notice clears once the file is fixed.
+ * nothing of it is applied. The next save of that file that is not rejected,
+ * a hand edit or an app write that leaves it valid, sends an applied event for
+ * the target of each rejected notice of the file, so the notice clears once
+ * the file is fixed.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -473,54 +474,71 @@ function targetKey(target: NoticeTarget): string {
  * notices. On the next run that is not rejected or refused, an applied event
  * is sent for each open target that the run's own event does not match: a
  * run that changes nothing is reported applied for the first of them, and the
- * rest are sent here.
+ * rest are sent here. An app write that leaves the file valid runs no handler,
+ * since the watch takes it as a self-write, so `onSelfWrite` sends an applied
+ * event for every open target of the file then.
  */
-function clearingRejections(
-  handler: (change: InputChange) => Promise<HandlerResult>,
-): (change: InputChange) => Promise<HandlerResult> {
+function clearingRejections(handler: (change: InputChange) => Promise<HandlerResult>): {
+  handler: (change: InputChange) => Promise<HandlerResult>;
+  onSelfWrite: (change: InputChange) => void;
+} {
   const open = new Map<StateFile, Map<string, NoticeTarget>>();
-  return async (change) => {
-    const file = path.basename(change.path) as StateFile;
-    const surface = stateFileSurface(change.path);
-    if (surface === undefined) return handler(change);
-    let result: HandlerResult;
-    try {
-      result = await handler(change);
-    } catch (err) {
-      // The watcher reports a throw as a rejection with no target.
-      const targets = open.get(file) ?? new Map<string, NoticeTarget>();
-      targets.set(targetKey({}), {});
-      open.set(file, targets);
-      throw err;
-    }
-    const outcome = typeof result === "string" ? result : result.outcome;
-    const detail = typeof result === "object" ? result.event : undefined;
-    if (outcome === "rejected") {
-      const targets = open.get(file) ?? new Map<string, NoticeTarget>();
-      const target = targetOf(detail);
-      targets.set(targetKey(target), target);
-      open.set(file, targets);
-      return result;
-    }
-    if (outcome === "refused") return result;
+  const clearOpen = (file: StateFile, surface: InputSurface, ownKey?: string): NoticeTarget[] => {
     const targets = open.get(file);
-    if (targets === undefined) return result;
+    if (targets === undefined) return [];
     open.delete(file);
-    const summary = `${FILE_LEADS[file]} applied.`;
     const pending = [...targets.values()];
-    let own: NoticeTarget | undefined;
-    if (result === "ignored") {
-      own = pending[0];
-      result = { outcome: "applied", event: { ...own, summary } };
-    } else {
-      own = targetOf(detail);
-    }
-    const ownKey = targetKey(own ?? {});
+    const summary = `${FILE_LEADS[file]} applied.`;
     for (const target of pending) {
       if (targetKey(target) === ownKey) continue;
       broadcastInputChanged({ surface, outcome: "applied", ...target, summary });
     }
-    return result;
+    return pending;
+  };
+  return {
+    handler: async (change) => {
+      const file = path.basename(change.path) as StateFile;
+      const surface = stateFileSurface(change.path);
+      if (surface === undefined) return handler(change);
+      let result: HandlerResult;
+      try {
+        result = await handler(change);
+      } catch (err) {
+        // The watcher reports a throw as a rejection with no target.
+        const targets = open.get(file) ?? new Map<string, NoticeTarget>();
+        targets.set(targetKey({}), {});
+        open.set(file, targets);
+        throw err;
+      }
+      const outcome = typeof result === "string" ? result : result.outcome;
+      const detail = typeof result === "object" ? result.event : undefined;
+      if (outcome === "rejected") {
+        const targets = open.get(file) ?? new Map<string, NoticeTarget>();
+        const target = targetOf(detail);
+        targets.set(targetKey(target), target);
+        open.set(file, targets);
+        return result;
+      }
+      if (outcome === "refused") return result;
+      const targets = open.get(file);
+      if (targets === undefined) return result;
+      let own: NoticeTarget;
+      if (result === "ignored") {
+        // The run changes nothing, so it is reported applied for the first
+        // open target, and the rest are sent by clearOpen.
+        own = [...targets.values()][0];
+        result = { outcome: "applied", event: { ...own, summary: `${FILE_LEADS[file]} applied.` } };
+      } else {
+        own = targetOf(detail);
+      }
+      clearOpen(file, surface, targetKey(own));
+      return result;
+    },
+    onSelfWrite: (change) => {
+      const surface = stateFileSurface(change.path);
+      if (surface === undefined) return;
+      clearOpen(path.basename(change.path) as StateFile, surface);
+    },
   };
 }
 
@@ -557,6 +575,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
     // A settings file that cannot be read has no last good value to keep.
   }
   const dir = options.dir ?? state.getRouboDir();
+  const clearing = clearingRejections(handleStateFileChange);
   const watch = watchInput(
     dir,
     {
@@ -569,9 +588,10 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
       // The app writes these files read-modify-write, so an app write inside
       // the settle window of a hand edit must not take the edit in as its own.
       trackHandEdits: true,
+      onSelfWrite: clearing.onSelfWrite,
       ...(options.rearmPollMs === undefined ? {} : { rearmPollMs: options.rearmPollMs }),
     },
-    clearingRejections(handleStateFileChange),
+    clearing.handler,
   );
   active = watch;
   activeDir = dir;

@@ -159,6 +159,14 @@ export interface WatchInputOptions {
    * read-modify-write, such as the state files.
    */
   trackHandEdits?: boolean;
+  /**
+   * Called after a run that takes the change as the app's own write and runs no
+   * handler, when the watch records the input as applied (an app write the
+   * surface rejected stays rejected and does not call it). A surface that keeps
+   * open notices, such as the state dir's rejected files, clears them here: a
+   * valid app write fixes the file as a hand edit would.
+   */
+  onSelfWrite?: (change: InputChange) => void;
 }
 
 export interface Disposable {
@@ -653,15 +661,19 @@ export function watchInput(
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
-    const selfWrites =
-      hash === null ? { hashes: [], carriesHandEdit: false } : consumeSelfWrites(unit, hash);
+    // An absent input matches no token, and still clears the hand edits the
+    // live tokens carry, since the handler runs for what the input now holds.
+    const selfWrites = consumeSelfWrites(unit, hash);
     // One line for each app write the merged change accounts for.
     for (const written of selfWrites.hashes) emit("self-write", written);
     if (selfWrites.hashes.length > 0 && !selfWrites.carriesHandEdit) {
       // An app write the surface rejected stays rejected (see markRejected).
       // One it applied was recorded through markApplied, which dropped any
       // earlier rejected record of the same content, so it stays applied.
-      if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
+      if (lastRejected?.rejected !== hash) {
+        lastApplied.set(unit, hash);
+        options.onSelfWrite?.({ path: unit, hash });
+      }
       return;
     }
     // An app write that landed on a hand edit the watch had not run for: the
