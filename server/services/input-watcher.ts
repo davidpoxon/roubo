@@ -108,8 +108,8 @@ export interface WatchInputOptions {
   surfaceOf?: (absPath: string) => string | undefined;
   /**
    * The name of one input that its events carry as `input`, for a watch whose
-   * inputs share a surface, such as the state files, so a client tells their
-   * notices apart. Absent, or giving nothing, the events carry no `input`.
+   * inputs share a surface but differ in what a client refreshes, such as the
+   * state files. Absent, or giving nothing, the events carry no `input`.
    */
   inputOf?: (absPath: string) => string | undefined;
   /** The trailing settle window for each input, in milliseconds. */
