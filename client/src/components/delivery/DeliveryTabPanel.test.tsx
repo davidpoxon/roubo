@@ -144,7 +144,7 @@ describe("DeliveryTabPanel", () => {
     await waitFor(() => expect(screen.getByTestId("delivery-snapshot")).toBeInTheDocument());
     expect(screen.queryByTestId("delivery-read-error")).not.toBeInTheDocument();
     expect(screen.getByTestId("delivery-lifecycle")).toHaveTextContent("running");
-    expect(screen.getByTestId("delivery-budget")).toHaveTextContent("$0.42 of $5.00");
+    expect(screen.getByTestId("delivery-stat-spent")).toHaveTextContent("0.42 of 5.00 soft budget");
     expect(screen.getByTestId("delivery-decision-controls")).toHaveTextContent(
       "One file per unit or one per stack?",
     );
@@ -744,6 +744,16 @@ describe("The Delivery tab's views (#1620)", () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
     const link = await screen.findByRole("button", { name: "Cost, health and controls" });
+    // The role matrix, the mode switch and the lifecycle buttons live in the
+    // cost view only, never on the map (#1623).
+    const map = screen.getByTestId("delivery-view-map");
+    for (const id of [
+      "delivery-role-controls",
+      "delivery-mode-control",
+      "delivery-lifecycle-controls",
+    ]) {
+      expect(within(map).queryByTestId(id)).not.toBeInTheDocument();
+    }
 
     await userEvent.click(link);
     const view = screen.getByRole("region", { name: "Cost, health and controls" });
@@ -752,12 +762,38 @@ describe("The Delivery tab's views (#1620)", () => {
     expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/Cost, health and controls");
     expect(within(view).getByTestId("delivery-lifecycle-controls")).toBeInTheDocument();
     expect(within(view).getByTestId("delivery-role-controls")).toBeInTheDocument();
+    expect(within(view).getByTestId("delivery-mode-control")).toBeInTheDocument();
     expect(within(view).queryByTestId("delivery-decision-pile-target")).not.toBeInTheDocument();
 
     await userEvent.click(within(breadcrumb()).getByRole("button", { name: "Bench 3" }));
     expect(screen.getByTestId("delivery-view-map")).toBeVisible();
     expect(view).not.toBeVisible();
     expect(link).toHaveFocus();
+  });
+
+  it("reads attached in the cost view's health line while the attached bench holds no session (#1623)", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openCostView();
+    expect(screen.getByTestId("delivery-health-line")).toHaveAttribute("data-health", "attached");
+  });
+
+  it("opens a jammed unit's drill-in from its callout in the cost view (#1623)", async () => {
+    const jammed = record();
+    jammed.units = jammed.units.map((unit) =>
+      unit.id === "B" ? { ...unit, status: "jammed" } : unit,
+    );
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      createDeliveryReducer().fold({ record: jammed, events: [] }),
+    );
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openCostView();
+    const jam = screen.getByTestId("delivery-jam-row-B");
+
+    await userEvent.click(within(jam).getByRole("button", { name: "Open B" }));
+    expect(screen.getByTestId("delivery-cost-health-controls")).not.toBeVisible();
+    expect(screen.getByRole("region", { name: "Unit B" })).toBeVisible();
+    expect(breadcrumb()).toHaveTextContent("Bench 3/Delivery/B");
   });
 
   it("opens a gate's drill-in as a view, and Close returns to the map with the focus on the gate", async () => {

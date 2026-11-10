@@ -45,3 +45,13 @@ export function formatAge(ms: number): string {
   const rest = minutes % 60;
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
+
+// A duration as the burn strip writes it: minutes under an hour, then hours and
+// minutes, then days and hours.
+export function formatElapsed(ms: number): string {
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  if (minutes < 60) return `${String(minutes)}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${String(hours)}h ${String(minutes % 60).padStart(2, "0")}m`;
+  return `${String(Math.floor(hours / 24))}d ${String(hours % 24).padStart(2, "0")}h`;
+}

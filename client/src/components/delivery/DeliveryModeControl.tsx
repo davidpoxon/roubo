@@ -4,8 +4,8 @@ import Callout from "../ui/Callout";
 import { useModeSwitch } from "../../hooks/useDelivery";
 import ModeSwitch from "./ModeSwitch";
 
-// The Mode switch of the delivery's controls (SB-FR-032, SB-US-013), beside the
-// role matrix. Selecting a segment writes a mode_switch control (PUT
+// The Mode switch of the delivery's controls (SB-FR-032, SB-US-013), in the
+// cost view's Decision mode panel, under the role matrix (#1623). Selecting a segment writes a mode_switch control (PUT
 // .../delivery/mode). As a role change does, the switch shows pending from the
 // outbox the snapshot carries: the old segment stays selected beside the
 // pending badge until the session's `mode.changed` names the control's

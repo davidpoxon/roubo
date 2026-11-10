@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 //
 // The controls view of the Delivery tab, by keyboard and screen reader
-// (SB-TC-055; SB-FR-021, SB-FR-022, SB-NFR-004): the role matrix, the
-// lifecycle buttons and the wind-down dialog are reachable and named, the
+// (SB-TC-055; SB-FR-021, SB-FR-022, SB-NFR-004): the lifecycle buttons of the
+// title row, the role matrix and the wind-down dialog are reachable and named, the
 // dialog traps the focus and returns it to Wind down on close, and axe finds
 // no WCAG 2.1 AA violation in either theme.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,8 +29,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
   };
 });
 import * as api from "../../lib/api";
-import LifecycleControls from "./LifecycleControls";
-import RoleMatrix from "./RoleMatrix";
+import DeliveryCostView from "./DeliveryCostView";
 
 const bench = {
   id: 3,
@@ -48,12 +47,21 @@ function snapshot() {
   return foldDelivery({ record, events: [] });
 }
 
+// The whole cost view (#1623), so axe reads its panels too.
 function ControlsView() {
-  const current = snapshot();
   return (
     <section aria-label="Cost, health and controls">
-      <RoleMatrix projectId="demo" benchId={3} snapshot={current} />
-      <LifecycleControls bench={bench} snapshot={current} sessionStartBlocked={false} />
+      <DeliveryCostView
+        bench={bench}
+        snapshot={snapshot()}
+        title="Cost, health and controls"
+        ended={false}
+        attached={false}
+        sessionStartBlocked={false}
+        crossCheck={undefined}
+        driftLedgerRef={() => undefined}
+        onOpenUnit={() => undefined}
+      />
     </section>
   );
 }
@@ -80,15 +88,15 @@ describe("Controls view accessibility", () => {
     );
     expectNoAxeFindings(await axe(container));
 
-    // Step 1: Tab walks the matrix, then the enabled lifecycle buttons. A
-    // Save waits for a change and Approve for the gating cases, so neither
-    // takes the focus yet.
+    // Step 1: Tab walks the enabled lifecycle buttons of the title row, then
+    // the matrix (#1623). A Save waits for a change and Approve for the gating
+    // cases, so neither takes the focus yet.
     const order = [
-      screen.getByRole("combobox", { name: "Model of main" }),
-      screen.getByRole("combobox", { name: "Model of unit-coder" }),
       screen.getByRole("button", { name: "Pause" }),
       screen.getByRole("button", { name: "Wind down" }),
       screen.getByRole("button", { name: "Resume" }),
+      screen.getByRole("combobox", { name: "Model of main" }),
+      screen.getByRole("combobox", { name: "Model of unit-coder" }),
     ];
     for (const control of order) {
       await user.tab();
