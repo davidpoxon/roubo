@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027): the gate
-// sitting's phases, its stage control and the escalated cases on the TestBench
-// case surface, marked through the case status route.
+// sitting's banner for its phase, its stage control, and the Cases list beside
+// the Case panel, which shows the chosen case on the TestBench case surface,
+// marked through the case status route.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -74,6 +75,14 @@ function snapshot(sitting: DeliverySnapshotResponse["sitting"]): DeliverySnapsho
   return { ...foldDelivery({ record, events: [] }), ...(sitting && { sitting }) };
 }
 
+type User = ReturnType<typeof userEvent.setup>;
+
+// Chooses a case in the Cases list and returns the Case panel that shows it.
+async function openCase(user: User, list: HTMLElement, caseId: string): Promise<HTMLElement> {
+  await user.click(within(list).getByRole("button", { name: new RegExp(`^${caseId} ·`) }));
+  return screen.getByRole("region", { name: `Case ${caseId}` });
+}
+
 function setReducedMotion(reduced: boolean): void {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -137,27 +146,39 @@ describe("Spec Bench test bench tab", () => {
     const items = within(list).getAllByTestId("sitting-case");
     expect(items.map((item) => item.getAttribute("data-case-id"))).toEqual(CASES);
 
-    // Each case renders on the TestBench case surface: its detail region, with
-    // the case's title, its steps and observations, and its status control.
-    CASES.forEach((caseId, index) => {
-      const detail = within(items[index]).getByRole("region", {
-        name: `Case detail: Case ${caseId}`,
-      });
+    // The first case shows in the Case panel until another is chosen.
+    expect(screen.getByRole("region", { name: "Case FX-TC-001" })).toBeInTheDocument();
+
+    // Each case, once chosen, renders on the TestBench case surface: its detail
+    // region, with the case's title, its steps and observations, and its
+    // status control. The chosen row is marked current.
+    for (const caseId of CASES) {
+      const panel = await openCase(user, list, caseId);
+      expect(
+        within(list).getByRole("button", { name: new RegExp(`^${caseId} ·`) }),
+      ).toHaveAttribute("aria-current", "true");
+      expect(within(panel).getByTestId("testbench-case-surface")).toHaveAttribute(
+        "data-case-id",
+        caseId,
+      );
+      const detail = within(panel).getByRole("region", { name: `Case detail: Case ${caseId}` });
       expect(within(detail).getByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
       expect(within(detail).getByText(`Open ${caseId}`)).toBeInTheDocument();
       expect(within(detail).getByText(`${caseId} behaves`)).toBeInTheDocument();
       expect(within(detail).getByRole("button", { name: /Case status/ })).toBeInTheDocument();
-    });
+    }
 
     // Met: the case surface's status control sets the override to Passed.
-    await user.click(within(items[0]).getByRole("button", { name: /Case status/ }));
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: /Case status/ }));
     await user.click(await screen.findByRole("option", { name: "Passed" }));
     await waitFor(() =>
       expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-001", "passed"),
     );
 
     // Not met with evidence, through the same case status route.
-    const evidenceToggle = within(items[1]).getByRole("button", {
+    const second = await openCase(user, list, "FX-TC-002");
+    const evidenceToggle = within(second).getByRole("button", {
       name: "Mark FX-TC-002 Not met with evidence",
     });
     expect(evidenceToggle).toHaveAttribute("aria-expanded", "false");
@@ -172,10 +193,12 @@ describe("Spec Bench test bench tab", () => {
       }),
     );
     // A fix unit the server could not file shows as an alert on that case only.
-    expect(await within(items[1]).findByRole("alert")).toHaveTextContent(
+    expect(await within(second).findByRole("alert")).toHaveTextContent(
       "The fix unit could not be filed.",
     );
-    expect(within(items[0]).queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      within(await openCase(user, list, "FX-TC-001")).queryByRole("alert"),
+    ).not.toBeInTheDocument();
   });
 
   it("SB-TC-062 the case surface shows the staged state after the stage route answers 200, and says the case opened cold after 404", async () => {
@@ -209,15 +232,15 @@ describe("Spec Bench test bench tab", () => {
     });
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
     const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
-    const items = within(list).getAllByTestId("sitting-case");
 
     // Step 1: a case with a recipe is staged, and its surface shows the staged
     // state: the commit, the observation to make and the step report.
-    await user.click(within(items[0]).getByRole("button", { name: "Stage FX-TC-001" }));
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: "Stage FX-TC-001" }));
     await waitFor(() =>
       expect(api.stageTestbenchCase).toHaveBeenCalledWith("demo", 3, "FX-TC-001"),
     );
-    const staged = await within(items[0]).findByRole("region", {
+    const staged = await within(first).findByRole("region", {
       name: "Staged state of FX-TC-001",
     });
     expect(staged).toHaveTextContent("FX-TC-001 is staged at commit 0123456789abcdef");
@@ -231,14 +254,13 @@ describe("Spec Bench test bench tab", () => {
     ).toHaveAttribute("href", "http://localhost:5173/benches/3");
 
     // Step 2: a case with no recipe opens cold, and its surface says so.
-    await user.click(within(items[1]).getByRole("button", { name: "Stage FX-TC-002" }));
-    expect(await within(items[1]).findByTestId("case-opened-cold")).toHaveTextContent(
+    const second = await openCase(user, list, "FX-TC-002");
+    await user.click(within(second).getByRole("button", { name: "Stage FX-TC-002" }));
+    expect(await within(second).findByTestId("case-opened-cold")).toHaveTextContent(
       "FX-TC-002 opened cold: it has no state recipe.",
     );
-    expect(
-      within(items[1]).queryByRole("region", { name: /Staged state/ }),
-    ).not.toBeInTheDocument();
-    expect(within(items[1]).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(second).queryByRole("region", { name: /Staged state/ })).not.toBeInTheDocument();
+    expect(within(second).queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("SB-TC-062 shows the server's message naming the pin commit after 409, and the step report after 422", async () => {
@@ -272,16 +294,17 @@ describe("Spec Bench test bench tab", () => {
     });
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
     const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
-    const items = within(list).getAllByTestId("sitting-case");
 
-    await user.click(within(items[0]).getByRole("button", { name: "Stage FX-TC-001" }));
-    expect(await within(items[0]).findByRole("alert")).toHaveTextContent(
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: "Stage FX-TC-001" }));
+    expect(await within(first).findByRole("alert")).toHaveTextContent(
       "not at the pin commit 0123456789",
     );
 
-    await user.click(within(items[1]).getByRole("button", { name: "Stage FX-TC-002" }));
-    expect(await within(items[1]).findByRole("alert")).toHaveTextContent("exited 3");
-    const steps = within(items[1]).getByRole("list", {
+    const second = await openCase(user, list, "FX-TC-002");
+    await user.click(within(second).getByRole("button", { name: "Stage FX-TC-002" }));
+    expect(await within(second).findByRole("alert")).toHaveTextContent("exited 3");
+    const steps = within(second).getByRole("list", {
       name: "Steps of the state recipe of FX-TC-002",
     });
     expect(
@@ -305,31 +328,41 @@ describe("Spec Bench test bench tab", () => {
     );
     vi.mocked(api.openDeliverySitting).mockResolvedValue({ gateId: "gate-after-b" });
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
-    expect(await screen.findByTestId("sitting-gate-blocked")).toHaveTextContent(
-      "example/fixture#77 (FX-TC-001)",
+    const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
+    expect(banner).toHaveAttribute("data-state", "ready");
+    expect(banner).toHaveAttribute("data-blocked", "true");
+    expect(within(banner).getByRole("status")).toHaveTextContent(
+      "Sitting blocked · Gate gate-after-b · ready to sit",
     );
+    expect(within(banner).getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
+      "Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
+    );
+    // A ready sitting offers only Open the sitting, and lists no case yet.
+    expect(screen.queryByRole("button", { name: "Close the sitting" })).not.toBeInTheDocument();
+    expect(screen.getByText("The escalated cases show here once the sitting opens.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Open the sitting" }));
     await waitFor(() =>
       expect(api.openDeliverySitting).toHaveBeenCalledWith("demo", 3, "gate-after-b"),
     );
   });
 
-  it("SB-TC-067 the sitting phases, the case list and the stage control are reachable and named, the stagger does not steal focus and collapses under reduced motion, and axe finds nothing", async () => {
+  it("SB-TC-067 the sitting banner, the case filter, the case list, the Case panel and the stage control are reachable and named, the stagger does not steal focus and collapses under reduced motion, and axe finds nothing", async () => {
     const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       snapshot({ gateId: "gate-after-b", state: "open" }),
     );
     const { container, unmount } = renderWithProviders(<SpecBenchTestBench bench={bench} />);
 
-    // Step 1: the three phases are named, the current one marked, and every
-    // control is reached by Tab with a name.
-    const phases = await screen.findByRole("list", { name: "Sitting phases" });
+    // Step 1: the banner names the gate and its phase, as a heading and a
+    // status line, and every control is reached by Tab with a name.
+    const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
+    expect(banner).toHaveAttribute("data-state", "open");
     expect(
-      within(phases)
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual(["Waiting for build", "Ready to sit", "Sitting open"]);
-    expect(within(phases).getByText("Sitting open")).toHaveAttribute("aria-current", "step");
+      within(banner).getByRole("heading", { level: 2, name: "Gate gate-after-b" }),
+    ).toBeInTheDocument();
+    expect(within(banner).getByRole("status")).toHaveTextContent(
+      "Gate gate-after-b · sitting open",
+    );
     const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
     // The staggered entrance moved no focus.
     expect(document.activeElement).toBe(document.body);
@@ -340,26 +373,31 @@ describe("Spec Bench test bench tab", () => {
     ]);
     items.forEach((item) => expect(item).toHaveClass("animate-rise-in"));
 
-    // Tab order: the stage control, then on each case's TestBench surface its
-    // status control, its observation mark, its lifecycle actions and its notes,
-    // and then its Not met evidence control. Each is found by its name.
-    const expected: HTMLElement[] = [screen.getByRole("button", { name: "Close the sitting" })];
-    CASES.forEach((caseId, index) => {
-      const item = items[index];
-      expected.push(
-        within(item).getByRole("button", { name: /Case status/ }),
-        within(
-          within(item).getByRole("radiogroup", {
-            name: `Mark observation pass or fail: ${caseId} behaves`,
-          }),
-        ).getByRole("radio", { name: "Pass" }),
-        within(item).getByRole("button", { name: "Retire" }),
-        within(item).getByRole("button", { name: "Supersede" }),
-        within(item).getByRole("button", { name: "Notes (0)" }),
-        within(item).getByRole("button", { name: `Mark ${caseId} Not met with evidence` }),
-        within(item).getByRole("button", { name: `Stage ${caseId}` }),
-      );
-    });
+    // Tab order: the stage control, the case filter, each row of the Cases
+    // list, then on the chosen case's TestBench surface its status control,
+    // its observation mark, its lifecycle actions and its notes, then its
+    // Stage control and the Mark row. Each is found by its name.
+    const panel = screen.getByRole("region", { name: "Case FX-TC-001" });
+    const expected: HTMLElement[] = [
+      screen.getByRole("button", { name: "Close the sitting" }),
+      screen.getByRole("tab", { name: "Escalated" }),
+      ...CASES.map((caseId) =>
+        within(list).getByRole("button", { name: new RegExp(`^${caseId} ·`) }),
+      ),
+      within(panel).getByRole("button", { name: /Case status/ }),
+      within(
+        within(panel).getByRole("radiogroup", {
+          name: "Mark observation pass or fail: FX-TC-001 behaves",
+        }),
+      ).getByRole("radio", { name: "Pass" }),
+      within(panel).getByRole("button", { name: "Retire" }),
+      within(panel).getByRole("button", { name: "Supersede" }),
+      within(panel).getByRole("button", { name: "Notes (0)" }),
+      within(panel).getByRole("button", { name: "Stage FX-TC-001" }),
+      within(panel).getByRole("button", { name: "Mark FX-TC-001 Met" }),
+      within(panel).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
+      within(panel).getByRole("button", { name: "Mark FX-TC-001 Still blocked" }),
+    ];
     for (const element of expected) {
       await user.tab();
       expect(document.activeElement).toBe(element);
@@ -369,7 +407,7 @@ describe("Spec Bench test bench tab", () => {
     // the evidence form open too.
     expectNoAxeFindings(await axe(container));
     await user.click(
-      within(items[0]).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
+      within(panel).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
     );
     const form = screen.getByRole("form", { name: "Not met evidence for FX-TC-001" });
     expect(within(form).getByRole("textbox", { name: "Note" })).toBeInTheDocument();
@@ -387,5 +425,140 @@ describe("Spec Bench test bench tab", () => {
       expect(item).not.toHaveClass("animate-rise-in");
       expect(item.style.animationDelay).toBe("");
     }
+  });
+  it("the Mark row marks the chosen case Met and Still blocked through the case status route", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const panel = await openCase(user, list, "FX-TC-002");
+    await user.click(within(panel).getByRole("button", { name: "Mark FX-TC-002 Met" }));
+    await waitFor(() =>
+      expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "passed"),
+    );
+    await user.click(within(panel).getByRole("button", { name: "Mark FX-TC-002 Still blocked" }));
+    await waitFor(() =>
+      expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "blocked"),
+    );
+  });
+
+  it("counts the cases that automation passed, lists the escalated ones by default, and the whole gating set on its tab", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
+      plan,
+      results: {
+        updatedAt: "2026-10-16T10:00:00Z",
+        caseResults: {
+          "FX-TC-001": {
+            observationMarks: {},
+            derivedStatus: "passed",
+            notes: [],
+            verification: {
+              tier: "b",
+              confidence: "high",
+              evidence: ["suite row"],
+              author: { name: "verify", email: "verify@example.test" },
+              timestamp: "2026-10-16T10:00:00Z",
+            },
+          },
+        },
+      },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    expect(await screen.findByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+    const cases = screen.getByRole("region", { name: "Cases" });
+    expect(cases).toHaveTextContent("escalated 1 · all 2");
+    const escalated = within(cases).getByRole("list", {
+      name: "Escalated cases of gate gate-after-b",
+    });
+    expect(
+      within(escalated)
+        .getAllByTestId("sitting-case")
+        .map((item) => item.getAttribute("data-case-id")),
+    ).toEqual(["FX-TC-002"]);
+    expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeInTheDocument();
+
+    await user.click(within(cases).getByRole("tab", { name: "Gating set" }));
+    const gating = within(cases).getByRole("list", { name: "Gating set of gate gate-after-b" });
+    const rows = within(gating).getAllByTestId("sitting-case");
+    expect(rows.map((item) => item.getAttribute("data-case-id"))).toEqual(CASES);
+    // The case that automation passed reads dimmed, with its status.
+    const passedRow = within(rows[0]).getByRole("button");
+    expect(passedRow).toHaveClass("opacity-60");
+    expect(passedRow).toHaveTextContent("passed");
+    expect(within(rows[1]).getByRole("button")).not.toHaveClass("opacity-60");
+  });
+
+  it("says when no case of the gate is escalated", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    const passed = {
+      observationMarks: {},
+      derivedStatus: "passed" as const,
+      notes: [],
+      verification: {
+        tier: "b" as const,
+        confidence: "high" as const,
+        evidence: [],
+        author: { name: "verify", email: "verify@example.test" },
+        timestamp: "2026-10-16T10:00:00Z",
+      },
+    };
+    vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
+      plan,
+      results: {
+        updatedAt: "2026-10-16T10:00:00Z",
+        caseResults: { "FX-TC-001": passed, "FX-TC-002": passed },
+      },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    expect(
+      await screen.findByText("No case of this gate is escalated. Gating set lists all 2."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /^Case FX-TC/ })).not.toBeInTheDocument();
+  });
+
+  it("the banner says the build is coming up while the sitting prepares, and names a failed smoke check", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({
+        gateId: "gate-after-b",
+        state: "preparing",
+        commit: "0123456789abcdef0123456789abcdef01234567",
+        smokeCheck: {
+          passed: false,
+          checkedAt: "2026-10-16T10:00:00Z",
+          detail: "GET / answered 502",
+        },
+      }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
+    expect(banner).toHaveAttribute("data-state", "preparing");
+    expect(banner).not.toHaveAttribute("data-blocked");
+    expect(banner).toHaveTextContent(
+      "The build is coming up at the gate commit 0123456. You are called once it is live and its smoke check passes.",
+    );
+    expect(banner).toHaveTextContent("smoke check failed");
+    expect(within(banner).getByTestId("delivery-gate-sitting-smoke")).toHaveTextContent(
+      "Last smoke check: GET / answered 502",
+    );
+    // Open the sitting waits for a ready build; Close the sitting is offered.
+    expect(screen.getByRole("button", { name: "Open the sitting" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close the sitting" })).toBeEnabled();
+    expect(screen.queryByRole("list", { name: /cases of gate/ })).not.toBeInTheDocument();
   });
 });

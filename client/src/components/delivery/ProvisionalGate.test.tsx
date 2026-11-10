@@ -107,6 +107,17 @@ function postFrame(seq: number) {
   } as MessageEvent);
 }
 
+// Chooses a case in the sitting's Cases list and returns the Case panel that
+// shows it.
+async function openCase(
+  user: ReturnType<typeof userEvent.setup>,
+  list: HTMLElement,
+  caseId: string,
+): Promise<HTMLElement> {
+  await user.click(within(list).getByRole("button", { name: new RegExp(`^${caseId} ·`) }));
+  return screen.getByRole("region", { name: `Case ${caseId}` });
+}
+
 function Harness() {
   useNotificationStream();
   return <DeliveryTabPanel bench={bench} />;
@@ -316,7 +327,10 @@ describe("A provisional gate", () => {
         .getAllByTestId("sitting-case")
         .map((c) => c.dataset.caseId),
     ).toEqual([X, Y]);
-    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Sitting open");
+    expect(screen.getByRole("region", { name: `Gate ${GATE} sitting` })).toHaveAttribute(
+      "data-state",
+      "open",
+    );
     expect(screen.getByTestId("review-announcer")).toHaveTextContent(
       `Opened the sitting of gate ${GATE}.`,
     );
@@ -430,7 +444,7 @@ describe("A provisional gate", () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
     const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
-    const [caseX, caseY] = within(list).getAllByTestId("sitting-case");
+    const caseX = await openCase(user, list, X);
 
     // Step 3: case X shows a neutral badge with the mark and the word
     // provisional, and the agent's evidence.
@@ -459,6 +473,7 @@ describe("A provisional gate", () => {
     // Step 5: case Y, marked not met by the agent, is marked met through the
     // case's own status control: the mark is written as met by the operator,
     // and the badge reads changed.
+    const caseY = await openCase(user, list, Y);
     const badgeY = within(caseY).getByTestId(`provisional-mark-badge-${Y}`);
     expect(badgeY).toHaveTextContent("Not met · provisional");
     await user.click(within(caseY).getByRole("button", { name: /Case status/ }));
@@ -511,8 +526,9 @@ describe("A provisional gate", () => {
     results[X] = operatorResult("passed", markedAt);
     results[Y] = operatorResult("passed", markedAt);
     renderSitting(snapshot);
+    const user = userEvent.setup();
     const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
-    const [caseX, caseY] = within(list).getAllByTestId("sitting-case");
+    const caseX = await openCase(user, list, X);
 
     const badgeX = within(caseX).getByTestId(`provisional-mark-badge-${X}`);
     expect(badgeX).toHaveTextContent("Met · confirmed");
@@ -522,6 +538,7 @@ describe("A provisional gate", () => {
     );
     // No Confirm comes back, so it cannot overwrite the operator's mark.
     expect(within(caseX).queryByRole("button", { name: `Confirm ${X}` })).not.toBeInTheDocument();
+    const caseY = await openCase(user, list, Y);
     const badgeY = within(caseY).getByTestId(`provisional-mark-badge-${Y}`);
     expect(badgeY).toHaveTextContent("Met · changed");
     expect(within(caseY).queryByRole("button", { name: `Confirm ${Y}` })).not.toBeInTheDocument();
@@ -540,13 +557,14 @@ describe("A provisional gate", () => {
     results[X] = operatorResult("blocked", "2026-10-16T10:00:00Z");
     results[Y] = operatorResult("in_progress", "2026-10-16T10:00:00Z");
     renderSitting(snapshot);
+    const user = userEvent.setup();
     const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
-    const [caseX, caseY] = within(list).getAllByTestId("sitting-case");
 
-    for (const [testCase, id, words] of [
-      [caseX, X, "Blocked · changed"],
-      [caseY, Y, "In progress · changed"],
+    for (const [id, words] of [
+      [X, "Blocked · changed"],
+      [Y, "In progress · changed"],
     ] as const) {
+      const testCase = await openCase(user, list, id);
       const badge = within(testCase).getByTestId(`provisional-mark-badge-${id}`);
       expect(badge).toHaveTextContent(words);
       expect(badge).not.toHaveTextContent(/Met/);
@@ -573,7 +591,7 @@ describe("A provisional gate", () => {
     });
     renderSitting(snapshot);
     const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
-    const caseY = within(list).getAllByTestId("sitting-case")[1];
+    const caseY = await openCase(user, list, Y);
     const badgeY = within(caseY).getByTestId(`provisional-mark-badge-${Y}`);
     expect(badgeY).toHaveClass("bg-bg-hover");
 
