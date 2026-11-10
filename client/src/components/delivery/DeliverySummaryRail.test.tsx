@@ -131,12 +131,34 @@ describe("DecisionSummaryPanel", () => {
 });
 
 describe("NextBoundaryPanel", () => {
+  const noop = () => undefined;
+
   it("names the next boundary's unit and its status, and what is queued for it", () => {
-    render(<NextBoundaryPanel snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })} />);
+    render(
+      <NextBoundaryPanel
+        snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })}
+        onOpenSteering={noop}
+      />,
+    );
     const panel = screen.getByRole("region", { name: "Boundary summary" });
     expect(within(panel).getByRole("heading", { name: "Next boundary" })).toBeTruthy();
     expect(within(panel).getByText("A · running")).toBeTruthy();
     expect(within(panel).getByText("Nothing is queued for it")).toBeTruthy();
+  });
+
+  it("links to the steering view from its header, and steers nothing itself", async () => {
+    const onOpen = vi.fn();
+    render(
+      <NextBoundaryPanel
+        snapshot={foldDelivery({ record: fourUnitRecord(), events: [] })}
+        onOpenSteering={onOpen}
+      />,
+    );
+    const panel = screen.getByRole("region", { name: "Boundary summary" });
+    expect(within(panel).getAllByRole("button")).toHaveLength(1);
+    expect(within(panel).queryByRole("textbox")).toBeNull();
+    await userEvent.click(within(panel).getByRole("button", { name: "Write a steering note" }));
+    expect(onOpen).toHaveBeenCalledOnce();
   });
 
   it("lists each note and role change queued for the boundary", () => {
@@ -163,6 +185,7 @@ describe("NextBoundaryPanel", () => {
             control(4, "role-change", { tier: "fast" }, "coder"),
           ],
         })}
+        onOpenSteering={noop}
       />,
     );
     const panel = screen.getByRole("region", { name: "Boundary summary" });
@@ -186,9 +209,16 @@ describe("NextBoundaryPanel", () => {
       ...record,
       units: record.units.map((unit) => ({ ...unit, status: "done" })),
     };
-    render(<NextBoundaryPanel snapshot={foldDelivery({ record: done, events: [] })} />);
+    render(
+      <NextBoundaryPanel
+        snapshot={foldDelivery({ record: done, events: [] })}
+        onOpenSteering={noop}
+      />,
+    );
     const panel = screen.getByRole("region", { name: "Boundary summary" });
     expect(within(panel).getByText("No unit boundary is ahead")).toBeTruthy();
+    // The notes and the composer's reason still show in the view.
+    expect(within(panel).getByRole("button", { name: "Write a steering note" })).toBeTruthy();
   });
 });
 

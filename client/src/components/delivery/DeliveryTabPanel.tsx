@@ -330,6 +330,7 @@ function DeliverySnapshotView({
   const driftLedger = useRef<HTMLDivElement>(null);
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
+  const steeringPanel = useRef<HTMLDivElement>(null);
   const crossCheckPanel = useRef<HTMLElement>(null);
   const casesView = useRef<HTMLElement>(null);
   // Which view of the tab shows, and, while another view shows, the element
@@ -433,6 +434,16 @@ function DeliverySnapshotView({
   // header's cross-check chip brings the rail's Cross-check panel into view.
   const openDecisionPile = () => {
     openView({ kind: "decisions" }, () => decisionPile.current);
+  };
+  // The rail's Next boundary panel opens the same view with the focus in the
+  // steering note, or on the Steering panel while the note is disabled.
+  const openSteering = () => {
+    openView(
+      { kind: "decisions" },
+      () =>
+        steeringPanel.current?.querySelector<HTMLElement>("textarea:not([disabled])") ??
+        steeringPanel.current,
+    );
   };
   const openCrossCheck = () => {
     bringIntoView(crossCheckPanel.current);
@@ -540,7 +551,11 @@ function DeliverySnapshotView({
                   onOpenCases={openCases}
                 />
                 <DecisionSummaryPanel snapshot={snapshot} onOpenDecisions={openDecisionPile} />
-                <NextBoundaryPanel snapshot={snapshot} className="col-span-full" />
+                <NextBoundaryPanel
+                  snapshot={snapshot}
+                  onOpenSteering={openSteering}
+                  className="col-span-full"
+                />
               </div>
               {crossCheck.data !== undefined && (
                 <DeliveryCrossCheck
@@ -607,7 +622,14 @@ function DeliverySnapshotView({
               />
             </div>
 
-            <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+            <div
+              ref={steeringPanel}
+              tabIndex={-1}
+              data-testid="delivery-steering-target"
+              className="min-w-0 focus:outline-none"
+            >
+              <BoundaryPanel projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+            </div>
           </div>
         </div>
       </section>

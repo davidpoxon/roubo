@@ -165,7 +165,7 @@ describe("The cross-check rail by keyboard and screen reader", () => {
     expect(entries).toHaveLength(3);
 
     // Step 1: Tab reaches the rail, and each entry in turn.
-    for (let step = 0; step < 20 && document.activeElement !== entries[0]; step += 1) {
+    for (let step = 0; step < 30 && document.activeElement !== entries[0]; step += 1) {
       await user.tab();
     }
     expect(entries[0]).toHaveFocus();
