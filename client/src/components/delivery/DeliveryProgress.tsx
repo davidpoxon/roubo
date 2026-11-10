@@ -18,9 +18,8 @@ interface DeliveryStatProps {
   fill?: number;
 }
 
-// A Delivery stat (DESIGN.md): a mono eyebrow, set in uppercase as the Spec Bench
-// design prototype sets it, a value, a note and an optional
-// meter whose fill is the only accent on the strip. The space between the value
+// A Delivery stat (DESIGN.md): a mono eyebrow, set in uppercase at the section
+// label tracking, a value, a note and an optional meter whose fill is the only accent on the strip. The space between the value
 // and the note keeps the figure readable as one phrase ("3 of 10 cases met").
 // The burn meter (DeliveryBurn) is one too.
 export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliveryStatProps) {
@@ -30,7 +29,7 @@ export function DeliveryStat({ testId, eyebrow, value, note, fill }: DeliverySta
         {eyebrow}
       </span>
       <span className="font-mono text-16 font-semibold text-text-primary">{value}</span>{" "}
-      <span className="text-11 text-text-secondary">{note}</span>
+      <span className="max-w-full break-words text-11 text-text-secondary">{note}</span>
       {fill !== undefined && (
         <span aria-hidden="true" className="block h-1 w-full rounded-full bg-bg-hover">
           <span

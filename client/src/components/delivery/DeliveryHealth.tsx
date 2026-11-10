@@ -14,12 +14,13 @@ import {
 } from "./delivery-health-model";
 
 // The delivery's health on the Delivery tab (SB-FR-019, SB-NFR-006, SB-US-007):
-// the rail at the top of the tab holds the Health chip and, while the delivery
-// is stale, the age of the record. The chip reads the shared health selector
+// the health group in the tab's header row holds the Health chip and, while the
+// delivery is stale, the age of the record. The chip reads the shared health selector
 // against the view's own clock, so the delivery turns stale 2 minutes after its
 // last event even when no new snapshot arrives, and the next event clears it.
-// Given the bench's last cross-check, the rail also lists its disagreements and
-// names a source it could not read (SB-FR-030).
+// Given the bench's last cross-check, the group also lists its disagreements and
+// names a source it could not read (SB-FR-030); the Delivery tab passes none,
+// and shows the cross-check as a panel on its summary rail instead.
 
 // DESIGN.md Health chip: one word, a dot that names the state, and a press that
 // opens the reason.
@@ -39,7 +40,7 @@ export function DeliveryHealthChip({ health }: { health: DeliveryHealthView }) {
         aria-expanded={open}
         aria-controls={reasonId}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 text-text-secondary transition-colors hover:border-border-control active:bg-bg-hover ${focusRing}`}
+        className={`inline-flex min-h-6 items-center gap-1.5 rounded-chip border border-border-strong bg-bg-surface px-1.5 py-0.5 text-text-secondary transition-colors hover:border-border-control active:bg-bg-hover ${focusRing}`}
       >
         <span
           aria-hidden="true"

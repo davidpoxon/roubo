@@ -434,6 +434,61 @@ describe("DeliveryTabPanel", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled());
   });
 
+  it("heads the snapshot with the spec slug, the case progress, the rail and the mode, then the source paths", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const header = await screen.findByTestId("delivery-header");
+    expect(within(header).getByTestId("delivery-slug")).toHaveTextContent("fixture-spec");
+    expect(within(header).getByTestId("delivery-header-progress")).toHaveTextContent(
+      /\d+ of \d+ cases met/,
+    );
+    expect(within(header).getByTestId("delivery-rail")).toBeInTheDocument();
+    expect(within(header).getByTestId("delivery-mode-label")).toBeInTheDocument();
+    expect(screen.getByTestId("delivery-source")).toHaveTextContent(
+      "/repos/demo/.specifications/fixture-spec",
+    ); // The intro that names the spec before the snapshot loads is gone, so the
+    // slug shows once.
+    expect(screen.queryByText(/^Delivering/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("fixture-spec")).toHaveLength(1);
+  });
+
+  it("names the spec in the intro while the snapshot is read", () => {
+    vi.mocked(api.fetchDelivery).mockReturnValue(new Promise(() => undefined));
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    expect(screen.getByText(/^Delivering/)).toBeInTheDocument();
+    expect(screen.queryByTestId("delivery-header")).not.toBeInTheDocument();
+  });
+
+  it("SB-TC-075 shows a source it could not read on the chip and in the rail when no disagreement was found", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
+      disagreements: [],
+      refreshedAt: "2026-10-16T10:00:05Z",
+      sourceError: { source: "github", message: "fetch failed" },
+    });
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const chip = await screen.findByTestId("delivery-crosscheck-chip");
+    expect(chip).toHaveTextContent("cross-check · source not read");
+    const rail = screen.getByRole("complementary", { name: "Delivery summary" });
+    const panel = within(rail).getByTestId("delivery-crosscheck");
+    expect(within(panel).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
+      "GitHub could not be read",
+    );
+    expect(within(panel).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+  });
+
+  it("brings the decision pile into view from the rail's Decisions panel", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+    const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
+    await userEvent.click(within(rail).getByRole("button", { name: "Open the decision pile" }));
+    expect(document.activeElement).toBe(screen.getByTestId("delivery-decision-pile-target"));
+  });
+
   it("SB-TC-074 reads the cross-check with the snapshot and lists every disagreement on the rail", async () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
     const classes = [
@@ -461,7 +516,9 @@ describe("DeliveryTabPanel", () => {
     });
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
-    const rail = await screen.findByRole("group", { name: "Delivery health" });
+    // The rail of summary panels holds the cross-check, and the header names
+    // the count on its chip instead of listing the entries.
+    const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
     await waitFor(() =>
       expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
     );
@@ -469,6 +526,12 @@ describe("DeliveryTabPanel", () => {
     expect(within(rail).getByTestId("delivery-crosscheck-source-error")).toHaveTextContent(
       "GitHub could not be read",
     );
+    const header = screen.getByTestId("delivery-header");
+    expect(within(header).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
+    const chip = within(header).getByTestId("delivery-crosscheck-chip");
+    expect(chip).toHaveTextContent("9 disagreements");
+    await userEvent.click(chip);
+    expect(document.activeElement).toBe(within(rail).getByTestId("delivery-crosscheck"));
   });
 
   it("SB-TC-074 reads the cross-check again after exactly 5 seconds, so the rail lists what a restart reconciled within 5 seconds", async () => {
@@ -505,7 +568,7 @@ describe("DeliveryTabPanel", () => {
           sourceError: null,
         });
       renderWithProviders(<DeliveryTabPanel bench={bench} />);
-      const rail = await screen.findByRole("group", { name: "Delivery health" });
+      const rail = await screen.findByRole("complementary", { name: "Delivery summary" });
       await waitFor(() => expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(1));
       await act(() => vi.advanceTimersByTimeAsync(0));
       expect(within(rail).queryAllByTestId("delivery-crosscheck-row")).toHaveLength(0);
@@ -518,7 +581,9 @@ describe("DeliveryTabPanel", () => {
       // At the interval, the second read lists all nine.
       await act(() => vi.advanceTimersByTimeAsync(1));
       expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
-      await waitFor(() => expect(screen.getAllByTestId("delivery-crosscheck-row")).toHaveLength(9));
+      await waitFor(() =>
+        expect(within(rail).getAllByTestId("delivery-crosscheck-row")).toHaveLength(9),
+      );
       expect(api.fetchDeliveryCrossCheck).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
