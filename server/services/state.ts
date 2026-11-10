@@ -603,7 +603,9 @@ export function saveSettings(data: UserPreferences) {
  * Write settings.json and make what was written the last good settings, so a
  * later hand edit that leaves the file unparseable serves this write rather
  * than the read before it (HR-TC-034). Every writer of settings.json goes
- * through here.
+ * through here. The state dir watch takes the write as a self-write and runs
+ * no handler for it, but it still clears an open notice that rejected the file,
+ * since the write leaves the file valid.
  */
 function writeSettingsFile(payload: unknown): void {
   const text = JSON.stringify(payload, null, 2);
