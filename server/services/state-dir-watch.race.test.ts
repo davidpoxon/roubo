@@ -286,6 +286,94 @@ describe("a hand edit followed by an app write inside the settle window", () => 
     expect(hoisted.events).toEqual([]);
   });
 
+  it("HR-TC-030 a plain app write after a hand edit that took in an earlier app write runs no handler", async () => {
+    const selfWrites = () =>
+      lines.filter((l) => l.includes("/settings.json outcome=self-write ")).length;
+    // H1, then app write A lands on it, then H2 before the watch runs.
+    writeJson("settings.json", { theme: "light" });
+    state.saveSettings({ ...state.loadSettings(), theme: "dark" });
+    writeJson("settings.json", { theme: "light" });
+
+    // The run reads H2, matches no app write, and applies it.
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "settings", outcome: "applied" });
+    expect(selfWrites()).toBe(0);
+
+    // App write B: the run consumes A and B, and neither carries a hand edit now.
+    state.saveSettings({ ...state.loadSettings(), theme: "dark" });
+    await waitFor(() => selfWrites() === 2);
+    await sleep(400);
+
+    expect(hoisted.events).toHaveLength(1);
+    expect(lines.filter((l) => l.includes("/settings.json outcome=applied "))).toHaveLength(1);
+  });
+
+  it("HR-TC-030 a plain app write of plugins-state.json after the same sequence runs no handler", async () => {
+    const selfWrites = () =>
+      lines.filter((l) => l.includes("/plugins-state.json outcome=self-write ")).length;
+    const byHand = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { database: "enabled", process: "enabled", extra: "enabled" },
+    };
+    writeJson("plugins-state.json", byHand);
+    hoisted.cache = enableState.setPluginEnabled("process", false);
+    writeJson("plugins-state.json", {
+      ...byHand,
+      plugins: { ...byHand.plugins, extra: "disabled" },
+    });
+
+    await waitFor(() => hoisted.events.length === 1);
+    expect(pluginManager.reloadEnableState).toHaveBeenCalledTimes(1);
+
+    hoisted.cache = enableState.setPluginEnabled("database", false);
+    await waitFor(() => selfWrites() >= 1);
+    await sleep(400);
+
+    expect(pluginManager.reloadEnableState).toHaveBeenCalledTimes(1);
+    expect(hoisted.events).toHaveLength(1);
+  });
+
+  it("HR-TC-034 a rejected settings.json notice clears when the app saves valid settings", async () => {
+    fs.writeFileSync(path.join(dir, "settings.json"), "{");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "settings", outcome: "rejected" });
+
+    state.saveSettings({ ...state.loadSettings(), theme: "light" });
+    await waitFor(() => hoisted.events.length === 2);
+
+    // Untargeted, as the rejection was, so a client clears that notice.
+    expect(hoisted.events[1]).toEqual({
+      surface: "settings",
+      outcome: "applied",
+      summary: "Settings applied.",
+    });
+    expect(lines.filter((l) => l.includes("/settings.json outcome=self-write "))).toHaveLength(1);
+
+    // The notice is cleared once: a later app write sends nothing.
+    state.saveSettings({ ...state.loadSettings(), theme: "dark" });
+    await waitFor(
+      () => lines.filter((l) => l.includes("/settings.json outcome=self-write ")).length === 2,
+    );
+    await sleep(300);
+    expect(hoisted.events).toHaveLength(2);
+  });
+
+  it("HR-TC-034 a rejected projects.json notice clears when the app saves the projects", async () => {
+    fs.writeFileSync(path.join(dir, "projects.json"), "{");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "project-config", outcome: "rejected" });
+
+    state.saveProjects({ projects: [] });
+    await waitFor(() => hoisted.events.length === 2);
+
+    expect(hoisted.events[1]).toEqual({
+      surface: "project-config",
+      outcome: "applied",
+      summary: "Project state applied.",
+    });
+  });
+
   it("HR-TC-028 a plugin disabled by hand is still stopped when the app writes the enable state", async () => {
     writeJson("plugins-state.json", {
       schemaVersion: 1,
