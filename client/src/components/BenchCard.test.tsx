@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -966,6 +966,33 @@ describe("BenchCard", () => {
       expect(screen.getByText("Bench 3").parentElement).toContainElement(
         screen.getByTestId("bench-card-branch"),
       );
+    });
+
+    it("lets only a long branch give way in the head, so the title, badge and dot stay whole", () => {
+      makeDefaultMutations();
+      answer(withDecisions());
+      renderCard(
+        specBench({
+          branch: `delivery/${"very-long-branch-name-".repeat(6)}end`,
+          notifications: [
+            {
+              id: "n1",
+              type: "agent-waiting",
+              priority: "action-needed",
+              createdAt: "2024-01-01T00:00:00Z",
+            },
+          ],
+        }),
+      );
+      const title = screen.getByText("Bench 3");
+      expect(title).toHaveClass("shrink-0", "whitespace-nowrap");
+      const head = title.parentElement as HTMLElement;
+      expect(within(head).getByRole("img", { name: "Action needed" })).toHaveClass("shrink-0");
+      expect(within(head).getByTestId("bench-card-branch")).toHaveClass("min-w-0");
+      for (const child of Array.from(head.children)) {
+        if (child.getAttribute("data-testid") === "bench-card-branch") continue;
+        expect(child).toHaveClass("shrink-0");
+      }
     });
 
     it("opens the Delivery tab from Open delivery, and the decision pile from Answer", async () => {

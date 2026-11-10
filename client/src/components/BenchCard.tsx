@@ -137,9 +137,15 @@ export default function BenchCard({
                 </p>
               )}
               <div className="flex items-center gap-2">
-                <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
-                <VariantBadge variant={bench.variant} decisionMode={bench.deliveryDecisionMode} />
-                <NotificationIndicator notifications={bench.notifications} />
+                <p className="shrink-0 whitespace-nowrap text-14 font-semibold text-text-primary">
+                  Bench {bench.id}
+                </p>
+                <VariantBadge
+                  variant={bench.variant}
+                  decisionMode={bench.deliveryDecisionMode}
+                  className="shrink-0"
+                />
+                <NotificationIndicator notifications={bench.notifications} className="shrink-0" />
                 {isSpecbench && <BranchLine branch={bench.branch} className="ml-auto min-w-0" />}
                 <StatusIndicator
                   tone={statusTone}
