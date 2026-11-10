@@ -8,9 +8,10 @@
  * - projects.json: the settings of each registered project.
  * - state.json: the hand-editable fields of each bench that is not live. An
  *   edit of a live bench is refused with a notice that names it, and the bench
- *   keeps what it has. A refused edit, and an edit of a field that is not
- *   hand-editable, is undone in the file by writing the bench back from
- *   memory, a self-write, so the next launch does not load it. The notice
+ *   keeps what it has. A refused edit, an edit of a field that is not
+ *   hand-editable, a record added for no bench and a removed record are undone
+ *   in the file by writing it back from memory, a self-write, so the next
+ *   launch does not load them. The notice
  *   names each bench whose edit was not applied: a live one, one whose edited
  *   field is not hand-editable, a record of no bench and a removed record. An
  *   edit that changes no bench sends no notice.

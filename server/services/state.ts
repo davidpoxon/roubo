@@ -188,6 +188,26 @@ export function migratePersistedState(data: PersistedState): PersistedState {
 export function saveState(data: PersistedState) {
   ensureDirs();
   atomicWrite(STATE_FILE, JSON.stringify(data, null, 2));
+  rememberState(data);
+}
+
+/**
+ * The content of state.json as the app last knows it: what the app last wrote,
+ * what it read at boot, or the last hand edit that the watch took in. A hand
+ * edit is diffed against it, so a field that the edit did not touch is never
+ * taken as edited, even when the bench in memory holds a default that the file
+ * never carried (HR-FR-013). Null until the app has read or written the file.
+ */
+let knownState: PersistedState | null = null;
+
+/** Record `data` as the content state.json holds now. */
+export function rememberState(data: PersistedState): void {
+  knownState = structuredClone(data);
+}
+
+/** The content state.json held when the app last read or wrote it, or null. */
+export function getKnownState(): PersistedState | null {
+  return knownState === null ? null : structuredClone(knownState);
 }
 
 export function addProject(entry: PersistedProjectEntry) {
