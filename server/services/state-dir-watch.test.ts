@@ -537,6 +537,96 @@ describe("state dir watch", () => {
     );
   });
 
+  it("an invalid state.json fixed back to what the app holds sends an applied event that clears the rejected notice", async () => {
+    const file = path.join(dir, "state.json");
+    fs.writeFileSync(file, '{"benches": [');
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "bench", outcome: "rejected" });
+    expect(hoisted.events[0]).not.toHaveProperty("projectId");
+
+    // The fix puts back the content the app already holds: no bench changes.
+    fs.writeFileSync(file, benchFile("bench-3"));
+    await waitFor(() => hoisted.events.length === 2);
+
+    // Untargeted, as the rejection was, so a client clears that notice.
+    expect(hoisted.events[1]).toEqual({
+      surface: "bench",
+      outcome: "applied",
+      summary: "Bench state applied.",
+    });
+    expect(fileLines("state.json", "applied")).toHaveLength(1);
+  });
+
+  it("an invalid state.json fixed by a valid edit of one bench clears the untargeted rejected notice too", async () => {
+    const file = path.join(dir, "state.json");
+    fs.writeFileSync(file, '{"benches": [');
+    await waitFor(() => hoisted.events.length === 1);
+
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      applied: [{ projectId: "lantern", benchId: 3 }],
+    });
+    fs.writeFileSync(file, benchFile("feature/fixed"));
+    await waitFor(() => hoisted.events.length === 3);
+
+    const appliedEvents = hoisted.events.slice(1);
+    expect(appliedEvents).toContainEqual({
+      surface: "bench",
+      outcome: "applied",
+      summary: "Bench state applied.",
+    });
+    expect(appliedEvents).toContainEqual({
+      surface: "bench",
+      outcome: "applied",
+      projectId: "lantern",
+      benchIds: [3],
+      summary: "Bench state applied: bench 3 on lantern.",
+    });
+
+    // The notice is cleared once: a later valid edit sends only its own event.
+    vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
+      ...NO_EDIT,
+      applied: [{ projectId: "lantern", benchId: 3 }],
+    });
+    fs.writeFileSync(file, benchFile("feature/again"));
+    await waitFor(() => hoisted.events.length === 4);
+    await sleep(300);
+    expect(hoisted.events).toHaveLength(4);
+  });
+
+  it("an invalid plugins-state.json fixed by an edit that disables a plugin clears the rejected notice", async () => {
+    const file = path.join(dir, "plugins-state.json");
+    fs.writeFileSync(file, "{");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "plugin", outcome: "rejected" });
+
+    vi.mocked(pluginManager.reloadEnableState).mockResolvedValueOnce({
+      disabled: ["database"],
+      enabled: [],
+    });
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: { database: "disabled" },
+      }),
+    );
+    await waitFor(() => hoisted.events.length === 3);
+
+    expect(hoisted.events.slice(1)).toContainEqual({
+      surface: "plugin",
+      outcome: "applied",
+      summary: "Plugin state applied.",
+    });
+    expect(hoisted.events.slice(1)).toContainEqual({
+      surface: "plugin",
+      outcome: "applied",
+      pluginId: "database",
+      summary: "Plugin database disabled.",
+    });
+  });
+
   it("applies the project settings that a projects.json edit changes", async () => {
     vi.mocked(projectRegistry.applyProjectsFileEdit).mockReturnValueOnce(["lantern"]);
     fs.writeFileSync(
