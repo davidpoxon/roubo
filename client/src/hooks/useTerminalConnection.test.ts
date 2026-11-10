@@ -95,7 +95,13 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["hello\n", "world\n"] });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["hello\n", "world\n"], undefined, undefined, undefined);
+    expect(onReplay).toHaveBeenCalledWith(
+      ["hello\n", "world\n"],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it("calls onReplay with exitCode for ended sessions", async () => {
@@ -108,7 +114,7 @@ describe("useTerminalConnection", () => {
       mockInstances[0].simulateMessage({ type: "replay", lines: ["data"], exitCode: 0 });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined, undefined);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 0, undefined, undefined, undefined);
   });
 
   it("forwards a replayed launch failure so a reconnect still sees it (#1064)", async () => {
@@ -132,7 +138,7 @@ describe("useTerminalConnection", () => {
       });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 2, launchFailure, undefined);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 2, launchFailure, undefined, undefined);
   });
 
   it("forwards a replayed unexpected exit so a tab opened after the fact still sees it", async () => {
@@ -156,7 +162,23 @@ describe("useTerminalConnection", () => {
       });
     });
 
-    expect(onReplay).toHaveBeenCalledWith(["data"], 137, undefined, unexpectedExit);
+    expect(onReplay).toHaveBeenCalledWith(["data"], 137, undefined, unexpectedExit, undefined);
+  });
+
+  it("#1661 forwards the PTY's size from the replay", async () => {
+    const { onReplay } = renderConnectionHook();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    act(() => {
+      mockInstances[0].simulateMessage({ type: "replay", lines: ["data"], cols: 164, rows: 29 });
+    });
+
+    expect(onReplay).toHaveBeenCalledWith(["data"], undefined, undefined, undefined, {
+      cols: 164,
+      rows: 29,
+    });
   });
 
   it("calls onMessage for output messages", async () => {

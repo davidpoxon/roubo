@@ -421,6 +421,125 @@ describe("Terminal: re-sending its size to a session shared by several viewers",
   });
 });
 
+describe("Terminal: parsing output at the PTY's size while it cannot fit (#1661)", () => {
+  // A terminal mounted under display:none cannot measure its container, so
+  // xterm stays at its 80x24 default. Output parsed at 80x24 that was drawn for
+  // a wider PTY stays garbled once the panel is shown, because the fit then
+  // matches the PTY's size and the agent gets no SIGWINCH to redraw.
+  type ReplayFn = (
+    lines: string[],
+    exitCode?: number,
+    failure?: undefined,
+    unexpected?: undefined,
+    size?: { cols: number; rows: number },
+  ) => void;
+  type MessageFn = (msg: { type: string; cols?: number; rows?: number }) => void;
+
+  afterEach(() => {
+    mockTerminalInstance.resize.mockReset();
+  });
+
+  function connect() {
+    const ws = { readyState: WebSocket.OPEN, send: vi.fn() };
+    const captured: { onReplay: ReplayFn; onMessage: MessageFn } = {
+      onReplay: () => {},
+      onMessage: () => {},
+    };
+    mockUseTerminalConnection.mockImplementation((({
+      onReplay,
+      onMessage,
+    }: {
+      onReplay: ReplayFn;
+      onMessage: MessageFn;
+    }) => {
+      captured.onReplay = onReplay;
+      captured.onMessage = onMessage;
+      return { wsRef: { current: ws }, state: "connected", attempt: 0, retry: vi.fn() };
+    }) as never);
+    return { ws, captured };
+  }
+
+  /** Make the mock xterm report resizes the way the real one does: synchronously. */
+  function forwardResizes() {
+    let listener: (size: { cols: number; rows: number }) => void = () => {};
+    mockTerminalInstance.onResize.mockImplementation(((
+      fn: (size: { cols: number; rows: number }) => void,
+    ) => {
+      listener = fn;
+      return { dispose: vi.fn() };
+    }) as never);
+    mockTerminalInstance.resize.mockImplementation((cols: number, rows: number) => {
+      listener({ cols, rows });
+    });
+  }
+
+  it("sizes a hidden terminal to the PTY before it writes the replay", () => {
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onReplay(["frame\r\n"], undefined, undefined, undefined, { cols: 164, rows: 29 });
+
+    expect(mockTerminalInstance.resize).toHaveBeenCalledWith(164, 29);
+    expect(mockTerminalInstance.resize.mock.invocationCallOrder[0]).toBeLessThan(
+      mockTerminalInstance.write.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not send that size back to the PTY, which already has it", () => {
+    forwardResizes();
+    const { ws, captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onReplay(["frame\r\n"], undefined, undefined, undefined, { cols: 164, rows: 29 });
+
+    expect(mockTerminalInstance.resize).toHaveBeenCalledWith(164, 29);
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it("leaves a terminal that can fit its container at its fitted size", () => {
+    const restore = stubDimensions();
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onReplay(["frame\r\n"], undefined, undefined, undefined, { cols: 164, rows: 29 });
+
+    expect(mockTerminalInstance.resize).not.toHaveBeenCalled();
+    expect(mockTerminalInstance.write).toHaveBeenCalledWith("frame\r\n");
+    restore();
+  });
+
+  it("follows the PTY's size while hidden when another viewer resizes it", () => {
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onMessage({ type: "pty-size", cols: 52, rows: 20 });
+
+    expect(mockTerminalInstance.resize).toHaveBeenCalledWith(52, 20);
+  });
+
+  it("ignores the PTY's size while it can fit its container", () => {
+    const restore = stubDimensions();
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onMessage({ type: "pty-size", cols: 52, rows: 20 });
+
+    expect(mockTerminalInstance.resize).not.toHaveBeenCalled();
+    restore();
+  });
+
+  it("ignores a size that is not a positive whole number", () => {
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+
+    captured.onReplay([], undefined, undefined, undefined, { cols: 0, rows: 29 });
+    captured.onMessage({ type: "pty-size", cols: 52.5, rows: 20 });
+    captured.onMessage({ type: "pty-size" });
+
+    expect(mockTerminalInstance.resize).not.toHaveBeenCalled();
+  });
+});
+
 describe("Terminal: waiting affordance (#1119)", () => {
   /** Capture the connection callbacks so live frames can be driven by hand. */
   function captureConnection() {

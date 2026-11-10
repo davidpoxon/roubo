@@ -61,6 +61,17 @@ export class Terminal {
     return disposable(this.resizeListeners, listener);
   }
 
+  // xterm's default size, which a terminal keeps until it is fitted or resized.
+  cols = 80;
+  rows = 24;
+
+  resize(cols: number, rows: number): void {
+    if (cols === this.cols && rows === this.rows) return;
+    this.cols = cols;
+    this.rows = rows;
+    for (const listener of this.resizeListeners) listener({ cols, rows });
+  }
+
   dispose(): void {
     this.rootEl?.remove();
     this.rootEl = null;

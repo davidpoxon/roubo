@@ -84,9 +84,15 @@ vi.mock("./pty-preflight.js", async (importOriginal) => {
 
 function createMockPty() {
   const emitter = new EventEmitter();
-  return {
+  const mock = {
+    // node-pty spawns at 80x24 and reports its current size on cols and rows.
+    cols: 80,
+    rows: 24,
     write: vi.fn(),
-    resize: vi.fn(),
+    resize: vi.fn((cols: number, rows: number) => {
+      mock.cols = cols;
+      mock.rows = rows;
+    }),
     kill: vi.fn(),
     onData: (fn: (data: string) => void) => {
       emitter.on("data", fn);
@@ -98,6 +104,7 @@ function createMockPty() {
     },
     _emit: (event: string, data: unknown) => emitter.emit(event, data),
   };
+  return mock;
 }
 
 function createMockWs(overrides: Record<string, unknown> = {}) {
@@ -686,6 +693,47 @@ describe("handleWebSocket", () => {
     resize(tab, 200, 50);
     expect(pty.resize).toHaveBeenLastCalledWith(200, 50);
     expect(pty.resize).toHaveBeenCalledTimes(3);
+  });
+
+  it("#1661 carries the PTY's size on the replay, so a hidden viewer parses it at that size", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    const first = createMockWs();
+    handleWebSocket(session.id, first);
+    first._trigger("message", Buffer.from(JSON.stringify({ type: "resize", cols: 164, rows: 29 })));
+
+    const second = createMockWs();
+    handleWebSocket(session.id, second);
+    expect(JSON.parse(second._sent[0])).toMatchObject({ type: "replay", cols: 164, rows: 29 });
+  });
+
+  it("#1661 tells the other viewers the PTY's new size, and not the viewer that sent it", async () => {
+    const pty = createMockPty();
+    mockSpawn.mockReturnValue(pty);
+    const { createSession, handleWebSocket } = await loadModule();
+
+    const session = createSession("project1", 1, "/workspace", "My Project");
+    const tab = createMockWs();
+    const drillIn = createMockWs();
+    handleWebSocket(session.id, tab);
+    handleWebSocket(session.id, drillIn);
+    tab._sent.length = 0;
+    drillIn._sent.length = 0;
+
+    drillIn._trigger(
+      "message",
+      Buffer.from(JSON.stringify({ type: "resize", cols: 52, rows: 20 })),
+    );
+
+    expect(tab._sent.map((m) => JSON.parse(m))).toContainEqual({
+      type: "pty-size",
+      cols: 52,
+      rows: 20,
+    });
+    expect(drillIn._sent.map((m) => JSON.parse(m).type)).not.toContain("pty-size");
   });
 
   it("sends ping at interval", async () => {

@@ -1354,6 +1354,11 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
       launchFailure: internal.launchFailure,
       // Likewise for an agent that died after launch, which survives a restart.
       unexpectedExit: internal.session.unexpectedExit,
+      // The PTY's current size. A viewer that cannot fit its container yet (a
+      // hidden panel) sizes its terminal to this before it parses the replay,
+      // so output drawn for the PTY is not parsed at the emulator's default
+      // 80x24 and left garbled once the panel is shown (#1661).
+      ...(internal.pty && { cols: internal.pty.cols, rows: internal.pty.rows }),
     }),
   );
 
@@ -1454,7 +1459,15 @@ export function handleWebSocket(sessionId: string, ws: WebSocket): void {
         // The PTY has one size, so with several viewers the last size sent
         // wins. Each client re-sends its own size when its terminal becomes
         // active, is shown again or takes focus, so the viewer in use holds it.
-        internal.pty?.resize(msg.cols, msg.rows);
+        // The other viewers are told the new size, so one that cannot fit its
+        // container keeps parsing output at the size it is drawn for (#1661).
+        if (internal.pty) {
+          internal.pty.resize(msg.cols, msg.rows);
+          const frame = JSON.stringify({ type: "pty-size", cols: msg.cols, rows: msg.rows });
+          for (const other of internal.viewers.keys()) {
+            if (other !== ws && other.readyState === other.OPEN) other.send(frame);
+          }
+        }
       } else if (msg.type === "pong") {
         if (viewer.pongDeadline) {
           clearTimeout(viewer.pongDeadline);
