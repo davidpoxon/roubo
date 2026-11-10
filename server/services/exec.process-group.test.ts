@@ -13,6 +13,33 @@ function isAlive(pid: number): boolean {
   }
 }
 
+// A killed child can still be exiting, or not yet reaped, when the command it
+// belongs to has already closed, and a signal check counts it alive until then
+// (#1643). So the test waits for it to go, up to a deadline well past the few
+// milliseconds that takes.
+async function isGoneWithin(pid: number, ms = 3000): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (isAlive(pid)) {
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return true;
+}
+
+// The shell creates the pid file before `echo` writes to it, so the file can
+// exist and still be empty. An empty read is pid 0, which signals the test's
+// own process group and always reads alive.
+async function readChildPid(pidFile: string): Promise<number> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const text = fs.existsSync(pidFile) ? fs.readFileSync(pidFile, "utf-8").trim() : "";
+    const pid = Number(text);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+    if (Date.now() > deadline) throw new Error(`no child pid in ${pidFile}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
 // Real processes, no mocks: an abort must reach the command's own children, the
 // way `git submodule update` runs `git clone` (#1433). exec.test.ts mocks spawn,
 // so it cannot show this.
@@ -32,18 +59,14 @@ describe.skipIf(process.platform === "win32")("runCommand abort on a real proces
         undefined,
         { signal: controller.signal },
       );
-      const deadline = Date.now() + 5000;
-      while (!fs.existsSync(pidFile) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 20));
-      }
-      const childPid = Number(fs.readFileSync(pidFile, "utf-8").trim());
+      const childPid = await readChildPid(pidFile);
       expect(isAlive(childPid)).toBe(true);
 
       controller.abort();
       const result = await pending;
 
       expect(result.aborted).toBe(true);
-      expect(isAlive(childPid)).toBe(false);
+      expect(await isGoneWithin(childPid)).toBe(true);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -83,12 +106,12 @@ describe.skipIf(process.platform === "win32")("runCommand idle timeout on a real
         undefined,
         { idleTimeoutMs: 300 },
       );
-      const childPid = Number(fs.readFileSync(pidFile, "utf-8").trim());
+      const childPid = await readChildPid(pidFile);
 
       expect(result.idleTimedOut).toBe(true);
       expect(result.code).not.toBe(0);
       expect(result.stderr).toContain("Process produced no output for 300ms");
-      expect(isAlive(childPid)).toBe(false);
+      expect(await isGoneWithin(childPid)).toBe(true);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
