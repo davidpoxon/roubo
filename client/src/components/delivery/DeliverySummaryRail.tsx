@@ -54,9 +54,12 @@ function PanelLink({
 export function BurnHealthPanel({
   snapshot,
   onOpenCostHealthControls,
+  onOpenCases,
 }: {
   snapshot: DeliverySnapshot;
   onOpenCostHealthControls: () => void;
+  // The Cases figure opens the cases view (#1655).
+  onOpenCases?: () => void;
 }) {
   const burn = selectBurn(snapshot);
   const jammed = selectJammedUnits(snapshot);
@@ -87,6 +90,10 @@ export function BurnHealthPanel({
           value={`${String(cases.met)} / ${String(cases.total)}`}
           note="cases met"
           fill={share(cases.met, cases.total)}
+          {...(onOpenCases !== undefined && {
+            onPress: onOpenCases,
+            pressLabel: `Show the cases: ${String(cases.met)} of ${String(cases.total)} cases met`,
+          })}
         />
       </DeliveryStatStrip>
     </DeliveryPanel>

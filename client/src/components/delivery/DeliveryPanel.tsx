@@ -17,7 +17,9 @@ import { focusRing } from "../ui/focus-ring";
 // a control brings into view takes `ref` and `focusable`, which puts it in the
 // focus order of a script but not of the Tab key. A panel that is a stop of
 // the Tab key itself takes `tabStop`, and with it the focus ring; `describedBy`
-// and `onKeyDownCapture` serve such a panel.
+// and `onKeyDownCapture` serve such a panel. A panel that takes `fill` is a
+// flex column: its header keeps its height and its body, the one child, takes
+// the rest of a height the parent sets.
 export function DeliveryPanel({
   ref,
   testId,
@@ -28,6 +30,7 @@ export function DeliveryPanel({
   tabStop,
   describedBy,
   onKeyDownCapture,
+  fill,
   className,
   children,
 }: {
@@ -40,6 +43,7 @@ export function DeliveryPanel({
   tabStop?: boolean;
   describedBy?: string;
   onKeyDownCapture?: KeyboardEventHandler<HTMLElement>;
+  fill?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -52,9 +56,9 @@ export function DeliveryPanel({
       aria-describedby={describedBy}
       tabIndex={stop ? 0 : focusable === true ? -1 : undefined}
       onKeyDownCapture={onKeyDownCapture}
-      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface ${stop ? focusRing : "focus:outline-none"} ${className ?? ""}`}
+      className={`animate-rise-in min-w-0 overflow-hidden rounded-control border border-border bg-bg-surface ${stop ? focusRing : "focus:outline-none"} ${fill === true ? "flex min-h-0 flex-col" : ""} ${className ?? ""}`}
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-3 py-2">
         <h3 className="font-mono text-11 font-medium uppercase tracking-label text-text-secondary">
           {title}
         </h3>

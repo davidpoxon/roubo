@@ -134,6 +134,8 @@ export default function DeliveryMap({
       ref={sectionRef}
       title="Delivery map"
       testId="delivery-map"
+      fill
+      className="h-full"
       meta={
         <div
           role="group"
@@ -161,7 +163,7 @@ export default function DeliveryMap({
         </div>
       }
     >
-      <div className="space-y-3 p-3">
+      <div className="flex min-h-0 flex-1 flex-col p-3">
         {view === "graph" && layout !== null ? (
           <DeliveryGraph
             layout={layout}
@@ -170,7 +172,7 @@ export default function DeliveryMap({
             onOpen={open}
           />
         ) : (
-          <div data-testid="delivery-list-scroll" className="overflow-x-auto">
+          <div data-testid="delivery-list-scroll" className="min-h-0 flex-1 overflow-auto">
             <DeliveryList
               rows={rows}
               selectedKey={selectedKey}

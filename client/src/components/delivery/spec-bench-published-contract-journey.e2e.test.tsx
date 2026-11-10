@@ -896,12 +896,11 @@ afterEach(() => {
 });
 
 // The parts of the Delivery tab that the snapshot renders: the health rail,
-// the progress, the map, and the view of cost, health and controls with each
+// the header's progress, the map, and the view of cost, health and controls with each
 // of its parts.
 const RENDERED_SECTIONS = [
   "delivery-rail",
-  "delivery-progress",
-  "delivery-met-cases",
+  "delivery-header-progress",
   "delivery-map",
   "delivery-cost-health-controls",
   "delivery-burn",

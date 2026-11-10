@@ -811,8 +811,8 @@ describe("Spec Bench progress journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
         expect(chip).toHaveTextContent("fresh");
         // Two of the three gating cases are met; FX-FR-001 is covered by both
         // cases of the gate after B, and FX-FR-002 waits on the gate after C.
-        expect(screen.getByTestId("delivery-stat-cases")).toHaveTextContent("2 of 3 cases met");
-        expect(screen.getByTestId("delivery-stat-requirements")).toHaveTextContent(
+        expect(screen.getByTestId("delivery-header-cases")).toHaveTextContent("2 of 3 cases met");
+        expect(screen.getByTestId("delivery-header-requirements")).toHaveTextContent(
           "1 of 2 requirements covered",
         );
       },

@@ -996,10 +996,10 @@ describe("Spec Bench digest journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
         const digest = await screen.findByTestId("delivery-digest", {}, { timeout: 3000 });
         expect(digest).toHaveAccessibleName("Since you left");
 
-        // First: above the progress, the map and the cost, health and
+        // First: above the map and the rail, and the cost, health and
         // controls view, which holds the decision pile and the drift ledger.
         for (const testId of [
-          "delivery-progress",
+          "delivery-workspace",
           "delivery-map",
           "delivery-cost-health-controls",
         ]) {
