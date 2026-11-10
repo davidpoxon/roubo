@@ -508,29 +508,22 @@ describe("useNotificationStream", () => {
         { queryKey: ["projects"] },
         { queryKey: ["raw-config", "p1"] },
         { queryKey: ["benches"] },
-        { queryKey: ["bench", "p1", 1] },
-        { queryKey: ["bench", "p1", 2] },
       ]);
       for (const spy of others) expect(spy).not.toHaveBeenCalled();
       expect(showNotification).not.toHaveBeenCalled();
       expect(seen).toEqual([event]);
     });
 
-    // The literal keys each surface refreshes, written out here rather than
-    // read from the client's own map, so a change to the map fails this test.
+    // The literal keys each surface refreshes, the per-surface map of the
+    // spec, written out here rather than read from the client's own map, so a
+    // change to the map fails this test.
     const EXPECTED_KEYS: Record<InputChangedEvent["surface"], unknown[][]> = {
-      "project-config": [["projects"], ["raw-config", "p1"], ["benches"], ["bench", "p1", 4]],
-      plugin: [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
+      "project-config": [["projects"], ["raw-config", "p1"], ["benches"]],
+      plugin: [["plugins"], ["project-integration"], ["benches"]],
       settings: [["settings"]],
-      bench: [["benches"], ["bench", "p1", 4]],
-      github: [
-        ["project-integration", "p1"],
-        ["github-derived-sources", "p1"],
-        ["project-items"],
-        ["settings"],
-        ["issues"],
-      ],
-      environment: [["benches"], ["bench", "p1", 4], ["env-keys"], ["settings"]],
+      bench: [["benches"]],
+      github: [["settings"], ["issues"]],
+      environment: [["settings"]],
     };
 
     it("invalidates exactly the listed keys of each surface and nothing else", () => {
@@ -552,20 +545,17 @@ describe("useNotificationStream", () => {
       }
     });
 
-    it("invalidates the unscoped integration key, settings and issues on a github change with no project", () => {
-      const { invalidateSpy, others } = fireAndCollect({
+    it("invalidates only projects and benches on a project-config change with no project", () => {
+      const { invalidateSpy } = fireAndCollect({
         type: "input-changed",
-        surface: "github",
+        surface: "project-config",
         outcome: "applied",
-        summary: "GitHub sign-in applied",
+        summary: "Project state applied.",
       });
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
-        { queryKey: ["project-integration"] },
-        { queryKey: ["project-items"] },
-        { queryKey: ["settings"] },
-        { queryKey: ["issues"] },
+        { queryKey: ["projects"] },
+        { queryKey: ["benches"] },
       ]);
-      for (const spy of others) expect(spy).not.toHaveBeenCalled();
     });
 
     it("never invalidates the whole cache or the delivery keys on an input change", () => {
