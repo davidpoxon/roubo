@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   BenchNotification,
+  PersistedBench,
+  PersistedState,
   RouboConfig,
   ComponentConfig,
   ResourceOwnershipEntry,
@@ -11,6 +13,7 @@ import { DEFAULT_BRANCH_RESOLUTION_ERROR } from "./git-helpers.js";
 import type { RunCommandResult } from "./exec.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { RESOLVE_DEFAULT_BRANCH_PHASE } from "./bench-manager.js";
+import { benchRefusedNotice } from "./state-dir-watch.js";
 import type { ResolvedTemplateContext } from "./config-parser.js";
 import { hashDefinitions, takeComponentSnapshot } from "../lib/bench-config.js";
 
@@ -43,6 +46,9 @@ vi.mock("./state.js", async (importOriginal) => {
     getWorkspacePath: vi.fn(),
     getProjectWorkspacesDir: vi.fn((name: string) => `/home/.roubo/workspaces/${name}`),
     updateBench: vi.fn(),
+    saveState: vi.fn(),
+    rememberState: vi.fn(),
+    getKnownState: vi.fn(() => null),
     getProjectPermissions: vi.fn(() => ({ allow: [], deny: [] })),
     setProjectPermissions: vi.fn(),
     loadSettings: vi.fn(() => ({
@@ -9097,6 +9103,36 @@ describe("createBench global cap", () => {
     expect(capWarnCount()).toBe(1);
   });
 
+  it("HR-TC-034 keeps the cap of the last good settings when settings.json no longer parses", () => {
+    seed(2);
+    // settings.json held benches.maxGlobal 2, then was hand-edited to '{': the
+    // throwing read fails, and the fail-open read serves the last good settings.
+    vi.mocked(stateService.loadSettings).mockImplementation(
+      (opts?: { throwOnCorrupt?: boolean }) => {
+        if (opts?.throwOnCorrupt) {
+          throw new SyntaxError("Expected property name or '}' in JSON at position 1");
+        }
+        return {
+          theme: "dark",
+          benches: {
+            enforceIssueDependencies: false,
+            autoStartComponents: false,
+            maxGlobal: 2,
+          },
+        } as any;
+      },
+    );
+
+    let thrown: any;
+    try {
+      benchManager.createBench("test-project");
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown?.code).toBe("GLOBAL_CAP_REACHED");
+    expect(benchManager.getBenches()).toHaveLength(2);
+  });
+
   it("treats a missing settings.json as unlimited and does not warn (GBL-TC-030)", () => {
     setupCreateBenchMocks();
     setupProcessMocks();
@@ -10826,5 +10862,291 @@ describe("restartBenchWithConfig (HR-FR-005)", () => {
     await expect(benchManager.restartBenchWithConfig("test-project", 9)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+});
+
+describe("applyStateFileEdit (HR-FR-013)", () => {
+  // state.json as these tests hold it: the boot read, then each hand edit and
+  // each write the app makes. The state service's read and write of the file
+  // are backed by it, and the content the app last knew follows its writes.
+  let stateFile = "";
+  let known: PersistedState | null = null;
+
+  beforeEach(() => {
+    stateFile = "";
+    known = null;
+    vi.mocked(stateService.rememberState).mockImplementation((data) => {
+      known = structuredClone(data);
+    });
+    vi.mocked(stateService.getKnownState).mockImplementation(() =>
+      known === null ? null : structuredClone(known),
+    );
+    vi.mocked(stateService.saveState).mockImplementation((data) => {
+      stateFile = JSON.stringify(data, null, 2);
+      known = structuredClone(data);
+    });
+  });
+
+  function readStateFile(): PersistedState {
+    return JSON.parse(stateFile) as PersistedState;
+  }
+
+  // The benches of a state.json written before the setup-state fields existed:
+  // the records carry no benchSetupComplete and no componentSetupState, which
+  // initialize() fills in memory with defaults it never writes.
+  function bootRecords(): PersistedBench[] {
+    return [
+      makePersistedBench({ id: 2, branch: "bench-2", ports: { backend: 5002 } }),
+      makePersistedBench({ id: 3, branch: "bench-3", ports: { backend: 5003 } }),
+    ];
+  }
+
+  function loadBenches() {
+    const project = makeProject({ config: makeConfig() });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    const boot = { benches: bootRecords() };
+    stateFile = JSON.stringify(boot, null, 2);
+    vi.mocked(stateService.loadState).mockReturnValue(boot);
+    benchManager.initialize();
+    const two = benchManager.getBench("test-project", 2);
+    if (!two) throw new Error("expected bench 2");
+    two.status = "active";
+  }
+
+  // The record that state.json holds for a bench now, with the fields a hand
+  // edit changed.
+  function record(id: number, edits: Partial<PersistedBench>): PersistedBench {
+    const current = readStateFile().benches.find((b) => b.id === id);
+    if (!current) throw new Error(`expected a record of bench ${id}`);
+    return { ...current, ...edits };
+  }
+
+  // Save the records to state.json by hand, and hand what was saved to the reconcile.
+  function handEdit(benches: PersistedBench[]) {
+    stateFile = JSON.stringify({ benches }, null, 2);
+    return benchManager.applyStateFileEdit(readStateFile());
+  }
+
+  const none = { applied: [], refused: [], reverted: [], unmatched: [], removed: [] };
+
+  it("HR-TC-029 merges an edited branch into an idle bench", () => {
+    loadBenches();
+
+    const edit = handEdit([record(2, {}), record(3, { branch: "feature/new" })]);
+
+    expect(edit).toEqual({ ...none, applied: [{ projectId: "test-project", benchId: 3 }] });
+    expect(benchManager.getBench("test-project", 3)?.branch).toBe("feature/new");
+    expect(stateService.saveState).not.toHaveBeenCalled();
+    expect(readStateFile().benches.find((b) => b.id === 3)?.branch).toBe("feature/new");
+  });
+
+  it("HR-TC-029 applies a hand edit of one bench after boot with legacy records and reports nothing of untouched fields", () => {
+    loadBenches();
+    // The legacy records lack the setup-state fields that memory holds.
+    const three = benchManager.getBench("test-project", 3);
+    expect(three?.benchSetupComplete).toBe(true);
+    expect(readStateFile().benches[1]).not.toHaveProperty("benchSetupComplete");
+    expect(readStateFile().benches[1]).not.toHaveProperty("componentSetupState");
+
+    const edit = handEdit([record(2, {}), record(3, { branch: "feature/legacy" })]);
+
+    expect(edit).toEqual({ ...none, applied: [{ projectId: "test-project", benchId: 3 }] });
+    expect(three?.branch).toBe("feature/legacy");
+    expect(stateService.saveState).not.toHaveBeenCalled();
+
+    // A second edit is diffed against the first, not against memory.
+    const again = handEdit([record(2, {}), record(3, { ports: { backend: 7003 } })]);
+    expect(again).toEqual({ ...none, applied: [{ projectId: "test-project", benchId: 3 }] });
+    expect(three?.ports).toEqual({ backend: 7003 });
+    expect(three?.branch).toBe("feature/legacy");
+  });
+
+  it("HR-TC-029 refuses an edit of an active bench, which keeps its ports and stays active", () => {
+    loadBenches();
+
+    const edit = handEdit([record(2, { ports: { backend: 6002 } }), record(3, {})]);
+
+    expect(edit).toEqual({
+      ...none,
+      refused: [{ projectId: "test-project", benchId: 2, status: "active" }],
+    });
+    const two = benchManager.getBench("test-project", 2);
+    expect(two?.ports).toEqual({ backend: 5002 });
+    expect(two?.status).toBe("active");
+  });
+
+  it("HR-TC-029 writes a refused bench back to state.json, so the refused ports never load at the next launch", () => {
+    loadBenches();
+
+    handEdit([record(2, { ports: { backend: 6002 } }), record(3, {})]);
+
+    expect(stateService.saveState).toHaveBeenCalledTimes(1);
+    const after = readStateFile().benches;
+    expect(after.map((b) => b.id)).toEqual([2, 3]);
+    expect(after[0]).toMatchObject({ projectId: "test-project", id: 2, ports: { backend: 5002 } });
+    // The untouched legacy record is kept as the file held it.
+    expect(after[1]).toEqual(bootRecords()[1]);
+  });
+
+  it("HR-TC-029 writes an applied bench back when the edit also changed a field that is not hand-editable", () => {
+    loadBenches();
+
+    const edit = handEdit([
+      record(2, {}),
+      record(3, { branch: "feature/new", workspacePath: "/somewhere/else" }),
+    ]);
+
+    expect(edit).toEqual({
+      ...none,
+      applied: [{ projectId: "test-project", benchId: 3 }],
+      reverted: [{ projectId: "test-project", benchId: 3, fields: ["workspacePath"] }],
+    });
+    const three = benchManager.getBench("test-project", 3);
+    expect(three?.branch).toBe("feature/new");
+    expect(three?.workspacePath).not.toBe("/somewhere/else");
+    expect(readStateFile().benches.find((b) => b.id === 3)).toMatchObject({
+      branch: "feature/new",
+      workspacePath: three?.workspacePath,
+    });
+  });
+
+  it("HR-TC-029 writes a bench back when the edit changed only its setup state, which is not hand-editable", () => {
+    loadBenches();
+
+    const edit = handEdit([record(2, {}), record(3, { benchSetupComplete: false })]);
+
+    expect(edit).toEqual({
+      ...none,
+      reverted: [{ projectId: "test-project", benchId: 3, fields: ["benchSetupComplete"] }],
+    });
+    expect(readStateFile().benches.find((b) => b.id === 3)?.benchSetupComplete).toBe(true);
+  });
+
+  it.each(["idle", "error"] as const)(
+    "HR-TC-029 refuses an edit of an %s bench with one running component, which keeps its ports",
+    (status) => {
+      loadBenches();
+      const three = benchManager.getBench("test-project", 3);
+      if (!three) throw new Error("expected bench 3");
+      three.status = status;
+      three.components = {
+        web: { name: "web", status: "running", setupComplete: true },
+        worker: {
+          name: "worker",
+          status: status === "error" ? "error" : "stopped",
+          setupComplete: true,
+        },
+      };
+
+      const edit = handEdit([record(2, {}), record(3, { ports: { backend: 6003 } })]);
+
+      expect(edit).toEqual({
+        ...none,
+        refused: [{ projectId: "test-project", benchId: 3, status: "active" }],
+      });
+      expect(benchManager.getBench("test-project", 3)?.ports).toEqual({ backend: 5003 });
+      expect(readStateFile().benches.find((b) => b.id === 3)?.ports).toEqual({ backend: 5003 });
+      expect(benchRefusedNotice(edit.refused).summary).toBe(
+        "Bench state not applied: bench 3 on test-project is active. Stop it first.",
+      );
+    },
+  );
+
+  it("leaves benches whose records did not change as they are and reports nothing", () => {
+    loadBenches();
+
+    const edit = handEdit([record(2, {}), record(3, {})]);
+
+    expect(edit).toEqual(none);
+    expect(stateService.saveState).not.toHaveBeenCalled();
+  });
+
+  it("reports a record with no bench in memory as unmatched, creates no bench, and drops the record from state.json", () => {
+    loadBenches();
+
+    const edit = handEdit([
+      record(2, {}),
+      record(3, {}),
+      makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
+    ]);
+
+    expect(edit).toEqual({ ...none, unmatched: [{ projectId: "test-project", benchId: 9 }] });
+    expect(benchManager.getBench("test-project", 9)).toBeUndefined();
+    expect(stateService.saveState).toHaveBeenCalledTimes(1);
+    // The file matches memory again, so the next launch loads no bench 9.
+    expect(readStateFile()).toEqual({ benches: bootRecords() });
+  });
+
+  it("reports a bench whose record the edit removed, keeps the bench, and puts its record back in state.json", () => {
+    loadBenches();
+
+    const edit = handEdit([record(2, {})]);
+
+    expect(edit).toEqual({ ...none, removed: [{ projectId: "test-project", benchId: 3 }] });
+    expect(benchManager.getBench("test-project", 3)).toBeDefined();
+    expect(stateService.saveState).toHaveBeenCalledTimes(1);
+    expect(readStateFile()).toEqual({ benches: bootRecords() });
+
+    // The restored record is there for the next edit, which applies cleanly.
+    const again = handEdit([record(2, {}), record(3, { branch: "feature/back" })]);
+    expect(again).toEqual({ ...none, applied: [{ projectId: "test-project", benchId: 3 }] });
+  });
+
+  it("restores a removed record and drops an added one in the same write, and reports both", () => {
+    loadBenches();
+
+    const edit = handEdit([
+      record(2, {}),
+      makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
+    ]);
+
+    expect(edit).toEqual({
+      ...none,
+      unmatched: [{ projectId: "test-project", benchId: 9 }],
+      removed: [{ projectId: "test-project", benchId: 3 }],
+    });
+    expect(readStateFile()).toEqual({ benches: bootRecords() });
+  });
+
+  it.each(["preparing", "clearing"] as const)(
+    "does not report a %s bench with no record as removed, since the app writes or removes it",
+    (status) => {
+      loadBenches();
+      const three = benchManager.getBench("test-project", 3);
+      if (!three) throw new Error("expected bench 3");
+      three.status = status;
+
+      const edit = handEdit([record(2, {})]);
+
+      expect(edit).toEqual(none);
+      expect(stateService.saveState).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not report a bench that state.json never held as removed, and never writes a record of it", () => {
+    loadBenches();
+    // Bench 3 failed before its record was written: it is in memory with
+    // status error, and neither the file nor the known content holds it.
+    const three = benchManager.getBench("test-project", 3);
+    if (!three) throw new Error("expected bench 3");
+    three.status = "error";
+    const onlyTwo = { benches: [bootRecords()[0]] };
+    stateFile = JSON.stringify(onlyTwo, null, 2);
+    known = structuredClone(onlyTwo);
+
+    // An edit that changes no bench reports nothing and writes nothing.
+    const edit = handEdit([record(2, {})]);
+    expect(edit).toEqual(none);
+    expect(stateService.saveState).not.toHaveBeenCalled();
+
+    // An unrelated edit that is written back writes no record of bench 3.
+    const added = handEdit([
+      record(2, {}),
+      makePersistedBench({ id: 9, branch: "bench-9", ports: { backend: 5009 } }),
+    ]);
+    expect(added).toEqual({ ...none, unmatched: [{ projectId: "test-project", benchId: 9 }] });
+    expect(stateService.saveState).toHaveBeenCalledTimes(1);
+    expect(readStateFile()).toEqual(onlyTwo);
+    expect(benchManager.getBench("test-project", 3)).toBeDefined();
   });
 });

@@ -2653,17 +2653,69 @@ export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInsp
  * `"enabled"`. A plugin that is running, has no valid manifest, is not
  * consented, or that the user disabled, also while it awaited consent, is left
  * as it is.
+ *
+ * Resolves true only when this call started the plugin's process, so a caller
+ * can name the plugins that a grant of consent actually started.
  */
-export async function startAfterConsent(pluginId: string): Promise<void> {
+export async function startAfterConsent(pluginId: string): Promise<boolean> {
   const entry = plugins.get(pluginId);
-  if (!entry || entry.process || !entry.record.manifest) return;
-  if (entry.record.status !== "disabled") return;
-  if (!pluginConsentState.hasConsent(pluginId)) return;
+  if (!entry || entry.process || !entry.record.manifest) return false;
+  if (entry.record.status !== "disabled") return false;
+  if (!pluginConsentState.hasConsent(pluginId)) return false;
   if (enableStateCache?.plugins[pluginId] === "awaiting-consent") {
     enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
   }
-  if (!isPluginEnabled(pluginId)) return;
+  if (!isPluginEnabled(pluginId)) return false;
   await spawnPlugin(entry);
+  return entry.process !== null && entry.process !== undefined;
+}
+
+/** What a reload of plugins-state.json changed in the running plugins. */
+export interface EnableStateReload {
+  /** Plugins the edit disabled, in registry order. Each one running was stopped. */
+  disabled: string[];
+  /** Plugins the edit enabled that were started. */
+  enabled: string[];
+}
+
+/**
+ * Apply a plugins-state.json edited outside the app (HR-FR-012): the
+ * enable-state cache is read again, and each registered plugin whose value
+ * changed is brought in line with it. A plugin the edit disables is stopped
+ * as `disable()` stops it. A plugin the edit enables starts only as `enable()`
+ * would let it: it needs a valid manifest and, for a consent-gated plugin, a
+ * ConsentRecord. A consent-gated plugin with no ConsentRecord is not started,
+ * and its value is written back as `"awaiting-consent"`, the hold that a
+ * relaunch would also keep. A plugin whose start fails is left stopped, with
+ * its error on its record.
+ */
+export async function reloadEnableState(): Promise<EnableStateReload> {
+  const before = new Map<string, boolean>();
+  for (const id of plugins.keys()) before.set(id, isPluginEnabled(id));
+  enableStateCache = pluginEnableState.loadEnableState();
+  const result: EnableStateReload = { disabled: [], enabled: [] };
+  for (const [id, entry] of plugins) {
+    const was = before.get(id) ?? true;
+    const now = isPluginEnabled(id);
+    if (was && !now) {
+      result.disabled.push(id);
+      cutListQueryService.evictPlugin(id);
+      if (entry.process) await stopPluginProcess(entry);
+      entry.record.status = "disabled";
+    } else if (!was && now) {
+      if (entry.process || !entry.record.manifest) continue;
+      if (entry.record.status !== "disabled") continue;
+      // Decide from consent itself: the cache already holds the edit, so a
+      // hold that the edit removed no longer shows in it.
+      if (isConsentGatedKind(entry.record.manifest.kind) && !pluginConsentState.hasConsent(id)) {
+        enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
+        continue;
+      }
+      await spawnPlugin(entry);
+      if (entry.process) result.enabled.push(id);
+    }
+  }
+  return result;
 }
 
 /**

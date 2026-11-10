@@ -55,6 +55,7 @@ import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
 import * as pluginManager from "./services/plugin-manager.js";
 import * as pluginDirWatch from "./services/plugin-dir-watch.js";
+import * as stateDirWatch from "./services/state-dir-watch.js";
 import * as catalogClient from "./services/catalog-client.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
@@ -356,6 +357,17 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     console.error("Plugin directory watcher failed to start:", (err as Error).message);
   }
 
+  // Watch the state files in the Roubo state dir, so a hand edit of
+  // projects.json, state.json, auth.json, plugins-consent.json,
+  // plugins-state.json or settings.json applies with no relaunch, while the
+  // app's own writes of them are not applied again (HR-FR-012, HR-FR-013).
+  console.log("Starting state file watcher...");
+  try {
+    await stateDirWatch.startStateDirWatch();
+  } catch (err) {
+    console.error("State file watcher failed to start:", (err as Error).message);
+  }
+
   const statusInterval = setInterval(() => {
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
@@ -398,6 +410,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     await projectRegistry.unwatchProjectConfigs();
     stopPluginSetListener();
     await pluginDirWatch.stopPluginDirWatch();
+    await stateDirWatch.stopStateDirWatch();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
     await pluginManager.shutdown();

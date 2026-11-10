@@ -9,7 +9,7 @@ import {
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
 import { PROJECT_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
-import { hashContent, markSelfWrite } from "./self-write-tokens.js";
+import { hashContent, markSelfWrite, pendingHandEdit } from "./self-write-tokens.js";
 import type {
   AssignedIssue,
   Bench,
@@ -50,7 +50,13 @@ export function ensureDirs() {
   dirsEnsured = true;
 }
 
-export function atomicWrite(filePath: string, data: string, mode?: number) {
+/**
+ * Write `data` to `filePath` through a tmp sibling and a rename, marked as the
+ * app's own write. `known`, for a write that keeps a hand edit the watch has
+ * not run for yet, is the content without that edit: what the app means the
+ * file to hold, kept as its known content so the edit stays pending.
+ */
+export function atomicWrite(filePath: string, data: string, mode?: number, known?: string) {
   // Defence-in-depth containment: callers are expected to have already validated
   // `filePath`, but re-resolve via path.resolve + relative check so CodeQL sees a
   // sanitizer immediately before the file ops. This is the same shape the default
@@ -65,7 +71,7 @@ export function atomicWrite(filePath: string, data: string, mode?: number) {
   fs.writeFileSync(tmp, data, { encoding: "utf-8", mode: mode ?? 0o666 });
   // Mark the write before the rename, so the InputWatcher event the rename
   // raises is taken as the server's own write and runs no reload handler.
-  markSelfWrite(resolvedFile, hashContent(data));
+  markSelfWrite(resolvedFile, hashContent(data), known ?? data);
   fs.renameSync(tmp, resolvedFile);
 }
 
@@ -170,7 +176,14 @@ export function loadState(): PersistedState {
   if (!fs.existsSync(STATE_FILE)) {
     return { benches: [] };
   }
-  const data: PersistedState = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+  return migratePersistedState(JSON.parse(fs.readFileSync(STATE_FILE, "utf-8")));
+}
+
+/**
+ * Migrate the legacy fields of each bench record of a parsed state.json in
+ * place, as every read of the file does, and return it.
+ */
+export function migratePersistedState(data: PersistedState): PersistedState {
   for (const bench of data.benches) {
     bench.assignedIssue = migrateAssignedIssue(bench.assignedIssue);
     migrateInjectedJigFields(bench);
@@ -178,9 +191,172 @@ export function loadState(): PersistedState {
   return data;
 }
 
+/**
+ * Write state.json and record it as the known content.
+ *
+ * Every app write of the file is read-modify-write: `data` is what was read
+ * from disk with the app's change on it. When the file holds a hand edit that
+ * the state dir watch has not run for yet, `data` carries that edit, and
+ * recording it as known would take it in unchecked: a refused change of a live
+ * bench would stay in the file, and an edit of an idle bench would never reach
+ * memory. So the edit is left in the file and kept out of the known content,
+ * which gets the app's change only (see `overHandEdit`). The watch then runs
+ * its handler for the edit, diffing it against the known content.
+ */
 export function saveState(data: PersistedState) {
   ensureDirs();
-  atomicWrite(STATE_FILE, JSON.stringify(data, null, 2));
+  const merged = overHandEdit(data);
+  if (merged === null) {
+    atomicWrite(STATE_FILE, JSON.stringify(data, null, 2));
+    rememberState(data);
+    return;
+  }
+  atomicWrite(
+    STATE_FILE,
+    JSON.stringify(merged.written, null, 2),
+    undefined,
+    JSON.stringify(merged.known, null, 2),
+  );
+  rememberState(merged.known);
+}
+
+/** A JSON text of `value` with its object keys sorted, for comparing content. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      : v,
+  );
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+function recordKey(record: { projectId: string; id: number }): string {
+  return `${record.projectId}\u0000${record.id}`;
+}
+
+/**
+ * The app's record with each field that the hand edit changed (the disk record
+ * differs from the known one) taken from the disk record, so the edit stays in
+ * the file for the watch to apply or refuse.
+ */
+function keepHandEditedFields(
+  app: PersistedBench,
+  disk: PersistedBench | undefined,
+  known: PersistedBench | undefined,
+): PersistedBench {
+  if (disk === undefined || known === undefined) return app;
+  const diskFields = disk as unknown as Record<string, unknown>;
+  const knownFields = known as unknown as Record<string, unknown>;
+  const edited = new Set(
+    [...Object.keys(diskFields), ...Object.keys(knownFields)].filter(
+      (field) => !sameJson(diskFields[field], knownFields[field]),
+    ),
+  );
+  if (edited.size === 0) return app;
+  const out = Object.entries(app as unknown as Record<string, unknown>).filter(
+    ([field]) => !edited.has(field),
+  );
+  for (const field of edited) {
+    if (Object.hasOwn(diskFields, field)) out.push([field, diskFields[field]]);
+  }
+  return Object.fromEntries(out) as unknown as PersistedBench;
+}
+
+/** The parsed state.json on disk, or null when it is absent or does not parse. */
+function readStateFileForMerge(): PersistedState | null {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const benches = (parsed as { benches?: unknown }).benches;
+    if (!Array.isArray(benches)) return null;
+    return migratePersistedState(parsed as PersistedState);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When state.json holds a hand edit that the watch has not run for yet, what
+ * to write and what to record as known for an app write of `data`; null when
+ * there is no such edit. Each record and top-level key that `data` holds as
+ * the disk does is the app's read of it, not its change: the file keeps the
+ * disk's, and the known content keeps the known one. Each that differs is the
+ * app's change: the known content takes it, and the file takes it too, with
+ * the fields the hand edit changed kept from the disk.
+ */
+function overHandEdit(
+  data: PersistedState,
+): { written: PersistedState; known: PersistedState } | null {
+  if (knownState === null || pendingHandEdit(STATE_FILE) === undefined) return null;
+  const disk = readStateFileForMerge();
+  if (disk === null) return null;
+  const knownBase = knownState;
+  const top = new Set([...Object.keys(data), ...Object.keys(disk), ...Object.keys(knownBase)]);
+  top.delete("benches");
+  const written: Record<string, unknown> = {};
+  const known: Record<string, unknown> = {};
+  const dataFields = data as unknown as Record<string, unknown>;
+  const diskFields = disk as unknown as Record<string, unknown>;
+  const knownFields = knownBase as unknown as Record<string, unknown>;
+  for (const key of top) {
+    const unchanged = sameJson(dataFields[key], diskFields[key]);
+    const writtenValue = unchanged ? diskFields[key] : dataFields[key];
+    const knownValue = unchanged ? knownFields[key] : dataFields[key];
+    if (writtenValue !== undefined) written[key] = writtenValue;
+    if (knownValue !== undefined) known[key] = knownValue;
+  }
+  const diskRecords = new Map(disk.benches.map((r) => [recordKey(r), r]));
+  const knownRecords = new Map(knownBase.benches.map((r) => [recordKey(r), r]));
+  const writtenBenches: PersistedBench[] = [];
+  const knownBenches: PersistedBench[] = [];
+  const held = new Set<string>();
+  for (const record of data.benches) {
+    const key = recordKey(record);
+    held.add(key);
+    const onDisk = diskRecords.get(key);
+    const wasKnown = knownRecords.get(key);
+    if (onDisk !== undefined && sameJson(record, onDisk)) {
+      writtenBenches.push(onDisk);
+      // A record that the hand edit added stays out of the known content.
+      if (wasKnown !== undefined) knownBenches.push(wasKnown);
+    } else {
+      writtenBenches.push(keepHandEditedFields(record, onDisk, wasKnown));
+      knownBenches.push(record);
+    }
+  }
+  for (const [key, record] of knownRecords) {
+    // A known record that the disk no longer holds was removed by the hand
+    // edit, not by the app: the known content keeps it.
+    if (!held.has(key) && !diskRecords.has(key)) knownBenches.push(record);
+  }
+  return {
+    written: { ...written, benches: writtenBenches } as unknown as PersistedState,
+    known: { ...known, benches: knownBenches } as unknown as PersistedState,
+  };
+}
+
+/**
+ * The content of state.json as the app last knows it: what the app last wrote,
+ * what it read at boot, or the last hand edit that the watch took in. A hand
+ * edit is diffed against it, so a field that the edit did not touch is never
+ * taken as edited, even when the bench in memory holds a default that the file
+ * never carried (HR-FR-013). Null until the app has read or written the file.
+ */
+let knownState: PersistedState | null = null;
+
+/** Record `data` as the content state.json holds now. */
+export function rememberState(data: PersistedState): void {
+  knownState = structuredClone(data);
+}
+
+/** The content state.json held when the app last read or wrote it, or null. */
+export function getKnownState(): PersistedState | null {
+  return knownState === null ? null : structuredClone(knownState);
 }
 
 export function addProject(entry: PersistedProjectEntry) {
@@ -318,70 +494,97 @@ export function removeBench(projectId: string, benchId: number) {
   saveState(data);
 }
 
+function defaultSettings(): UserPreferences {
+  return {
+    theme: "dark",
+    jigs: DEFAULT_JIG_SETTINGS,
+    benches: DEFAULT_BENCH_SETTINGS,
+    testBench: DEFAULT_TESTBENCH_SETTINGS,
+    github: DEFAULT_GITHUB_SETTINGS,
+  };
+}
+
+/**
+ * The settings of the last read of settings.json that parsed or of the app's
+ * last write of it, whichever came later, or null when neither has happened yet
+ * in this process. A hand edit that leaves the file unparseable, or with a top
+ * level that is not an object, keeps serving it (HR-TC-034).
+ */
+let lastGoodSettings: UserPreferences | null = null;
+
 export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferences {
   ensureDirs();
   if (!fs.existsSync(SETTINGS_FILE)) {
-    return {
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      github: DEFAULT_GITHUB_SETTINGS,
-    };
+    return defaultSettings();
   }
   try {
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
-    // Legacy migration: the `blueprints` object plus its `defaultBlueprintId`
-    // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
-    // the new ones are absent, so a user-authored settings file keeps working.
-    const legacyJigSettings = raw.blueprints as
-      (Record<string, unknown> & { defaultBlueprintId?: string }) | undefined;
-    const mergedJigSettings = {
-      ...DEFAULT_JIG_SETTINGS,
-      ...(legacyJigSettings ?? {}),
-      ...raw.jigs,
-    } as Record<string, unknown>;
-    if (
-      mergedJigSettings.defaultJigId === undefined &&
-      typeof legacyJigSettings?.defaultBlueprintId === "string"
-    ) {
-      mergedJigSettings.defaultJigId = legacyJigSettings.defaultBlueprintId;
+    const raw: unknown = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    // Valid JSON that is not an object ('[]', '"x"', '1', 'true', 'null') is as
+    // corrupt as JSON that does not parse: parseSettings would fill every field
+    // from the defaults and serve those as if the file had asked for them.
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error("settings.json must hold a JSON object at the top level");
     }
-    delete mergedJigSettings.defaultBlueprintId;
-    return {
-      theme: raw.theme ?? "dark",
-      jigs: mergedJigSettings as UserPreferences["jigs"],
-      // AP-FR-008 (found while writing the AP-TC-025 e2e, #1101): the app-level
-      // agent tool presets have to be read back explicitly. This object is
-      // rebuilt key by key rather than spread from `raw`, so an unlisted key is
-      // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
-      // re-rendered an empty list, and the next settings write erased the file's
-      // copy too (PUT /api/settings falls back to `current.agentTools`). Saving
-      // an agent tool therefore never survived a reload.
-      ...(Array.isArray(raw.agentTools) && {
-        agentTools: raw.agentTools as UserPreferences["agentTools"],
-      }),
-      benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
-      testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
-      github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
-    };
+    const settings = parseSettings(raw);
+    lastGoodSettings = structuredClone(settings);
+    return settings;
   } catch (err) {
-    // Fail-open by default: a corrupt settings.json yields built-in defaults so
-    // the app keeps working. Callers that need to distinguish corruption from a
-    // legitimately-default config (e.g. the global bench-cap check, which warns
-    // once per process load) opt in via throwOnCorrupt. A missing file is handled
-    // by the early return above and never reaches here, so absence never throws.
+    // Fail-open by default: a corrupt settings.json (one that does not parse,
+    // or whose top level is not an object) yields the last settings that
+    // parsed in this process, or the built-in defaults when none has yet,
+    // so the app keeps working. Callers that need to distinguish corruption
+    // from a legitimately-default config (e.g. the global bench-cap check,
+    // which warns once per process load) opt in via throwOnCorrupt. A missing
+    // file is handled by the early return above and never reaches here, so
+    // absence never throws.
     if (opts?.throwOnCorrupt) {
       throw err;
     }
-    return {
-      theme: "dark",
-      jigs: DEFAULT_JIG_SETTINGS,
-      benches: DEFAULT_BENCH_SETTINGS,
-      testBench: DEFAULT_TESTBENCH_SETTINGS,
-      github: DEFAULT_GITHUB_SETTINGS,
-    };
+    return lastGoodSettings === null ? defaultSettings() : structuredClone(lastGoodSettings);
   }
+}
+
+/** Forget the last settings that parsed. For tests. */
+export function resetLastGoodSettings(): void {
+  lastGoodSettings = null;
+}
+
+/** The settings a parsed settings.json holds, legacy keys migrated and defaults filled in. */
+function parseSettings(raw: ReturnType<typeof JSON.parse>): UserPreferences {
+  // Legacy migration: the `blueprints` object plus its `defaultBlueprintId`
+  // sub-key were renamed to `jigs` / `defaultJigId`. Honor old keys only if
+  // the new ones are absent, so a user-authored settings file keeps working.
+  const legacyJigSettings = raw.blueprints as
+    (Record<string, unknown> & { defaultBlueprintId?: string }) | undefined;
+  const mergedJigSettings = {
+    ...DEFAULT_JIG_SETTINGS,
+    ...(legacyJigSettings ?? {}),
+    ...raw.jigs,
+  } as Record<string, unknown>;
+  if (
+    mergedJigSettings.defaultJigId === undefined &&
+    typeof legacyJigSettings?.defaultBlueprintId === "string"
+  ) {
+    mergedJigSettings.defaultJigId = legacyJigSettings.defaultBlueprintId;
+  }
+  delete mergedJigSettings.defaultBlueprintId;
+  return {
+    theme: raw.theme ?? "dark",
+    jigs: mergedJigSettings as UserPreferences["jigs"],
+    // AP-FR-008 (found while writing the AP-TC-025 e2e, #1101): the app-level
+    // agent tool presets have to be read back explicitly. This object is
+    // rebuilt key by key rather than spread from `raw`, so an unlisted key is
+    // dropped on EVERY read: `listAppAgentPresets` saw no presets, the editor
+    // re-rendered an empty list, and the next settings write erased the file's
+    // copy too (PUT /api/settings falls back to `current.agentTools`). Saving
+    // an agent tool therefore never survived a reload.
+    ...(Array.isArray(raw.agentTools) && {
+      agentTools: raw.agentTools as UserPreferences["agentTools"],
+    }),
+    benches: { ...DEFAULT_BENCH_SETTINGS, ...raw.benches },
+    testBench: { ...DEFAULT_TESTBENCH_SETTINGS, ...raw.testBench },
+    github: { ...DEFAULT_GITHUB_SETTINGS, ...raw.github },
+  };
 }
 
 export function saveSettings(data: UserPreferences) {
@@ -393,7 +596,21 @@ export function saveSettings(data: UserPreferences) {
   // notice before the user has seen it (AP-FR-021, AP-TC-109).
   const legacy = readLegacyAgentSettings();
   const payload = legacy === undefined ? data : { ...data, [LEGACY_AGENT_SETTINGS_KEY]: legacy };
-  atomicWrite(SETTINGS_FILE, JSON.stringify(payload, null, 2));
+  writeSettingsFile(payload);
+}
+
+/**
+ * Write settings.json and make what was written the last good settings, so a
+ * later hand edit that leaves the file unparseable serves this write rather
+ * than the read before it (HR-TC-034). Every writer of settings.json goes
+ * through here. The state dir watch takes the write as a self-write and runs
+ * no handler for it, but it still clears an open notice that rejected the file,
+ * since the write leaves the file valid.
+ */
+function writeSettingsFile(payload: unknown): void {
+  const text = JSON.stringify(payload, null, 2);
+  atomicWrite(SETTINGS_FILE, text);
+  lastGoodSettings = parseSettings(JSON.parse(text));
 }
 
 /**
@@ -471,14 +688,7 @@ export function writeLegacyAgentSettings(block: Record<string, unknown> | null):
   const next = Object.fromEntries(
     Object.entries(raw).filter(([key]) => key !== LEGACY_AGENT_SETTINGS_KEY),
   );
-  atomicWrite(
-    SETTINGS_FILE,
-    JSON.stringify(
-      block === null ? next : { ...next, [LEGACY_AGENT_SETTINGS_KEY]: block },
-      null,
-      2,
-    ),
-  );
+  writeSettingsFile(block === null ? next : { ...next, [LEGACY_AGENT_SETTINGS_KEY]: block });
 }
 
 export function getPersistedBenches(projectId?: string): PersistedBench[] {

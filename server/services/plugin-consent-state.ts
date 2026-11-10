@@ -102,6 +102,11 @@ export function hasConsent(pluginId: string): boolean {
  * Read-modify-write helper used by the POST /consent route. Seeds an empty
  * document on a legacy/absent file, then persists the record under `pluginId`.
  * Always returns the freshly persisted record.
+ *
+ * A consent record added by hand that the state dir watch has not run for yet
+ * is carried into the file by this write. `atomicWrite` marks such a write as
+ * carrying a hand edit, so the watch still runs its handler for the change and
+ * starts the plugin that the hand edit consented.
  */
 export function upsertConsent(pluginId: string, acknowledgedCategories: string[]): ConsentRecord {
   const current = loadConsentState() ?? {

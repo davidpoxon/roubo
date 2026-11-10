@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   AuditEntry,
   Bench,
@@ -13,6 +14,8 @@ import type {
   ComponentPhase,
   MissingPluginResolution,
   MissingPluginSourceOffer,
+  PersistedBench,
+  PersistedState,
   PluginManifest,
   ProvisioningStep,
   ProvisioningStepStatus,
@@ -124,9 +127,12 @@ function assertNotUnregistering(projectId: string): void {
 let corruptedSettingsWarned = false;
 
 // Reads the application-wide bench cap from settings.json. Returns null (unlimited)
-// when the cap is absent, null, malformed, or unreadable. On a corrupt settings.json
-// it fails open and warns at most once per process load. Performs exactly one
-// loadSettings call (a single fs read) so it adds no extra I/O to the create path.
+// when the cap is absent, null or malformed. On a corrupt settings.json it warns at
+// most once per process load and takes the cap of the last settings that parsed in
+// this process, as every other settings read does (HR-TC-034), so a hand edit that
+// breaks the file does not lift the cap; with no last good settings it fails open
+// to unlimited. A readable file costs exactly one loadSettings call (a single fs
+// read), so the cap adds no extra I/O to the create path.
 function readGlobalBenchCap(): number | null {
   let settings;
   try {
@@ -134,11 +140,13 @@ function readGlobalBenchCap(): number | null {
   } catch {
     if (!corruptedSettingsWarned) {
       console.warn(
-        "[bench-manager] settings.json unreadable; treating global bench limit as unlimited.",
+        "[bench-manager] settings.json unreadable; using the global bench limit of the last good settings, or unlimited when there are none.",
       );
       corruptedSettingsWarned = true;
     }
-    return null;
+    // The fail-open read: the last good settings, or the built-in defaults,
+    // which set no cap, when none has parsed yet.
+    settings = stateService.loadSettings();
   }
   const max = settings.benches?.maxGlobal;
   return typeof max === "number" && Number.isInteger(max) && max >= 1 ? max : null;
@@ -245,6 +253,9 @@ function configOfBench(bench: Bench | undefined): RouboConfig | undefined {
 
 export function initialize() {
   const persisted = stateService.loadState();
+  // The boot read is what a later hand edit of state.json is diffed against
+  // until the app next writes the file (HR-FR-013).
+  stateService.rememberState(persisted);
   for (const ps of persisted.benches) {
     // workspacePath is read back from ~/.roubo/state.json (untrusted on disk) and
     // later flows into the executable position of spawn() via {{workspace}} command
@@ -3953,6 +3964,199 @@ function updateBenchStatus(bench: Bench) {
   } else {
     bench.status = "idle";
   }
+}
+
+/**
+ * The persisted fields of a bench that a hand edit of state.json can change
+ * on a bench that is not live (HR-FR-013). The rest are written by the app
+ * alone, such as the workspace path, the setup state and the delivery fields.
+ */
+const HAND_EDITABLE_BENCH_FIELDS = [
+  "branch",
+  "ports",
+  "baseBranch",
+  "baseCommit",
+  "assignedIssue",
+  "assignedContainers",
+  "focusedSpecPath",
+  "injectedJigId",
+  "injectedJigSource",
+] as const satisfies readonly (keyof PersistedBench & keyof Bench)[];
+
+type HandEditableField = (typeof HAND_EDITABLE_BENCH_FIELDS)[number];
+
+/** A bench is live while it runs or is set up or cleared: its state is not edited under it. */
+const LIVE_BENCH_STATUSES: ReadonlySet<BenchStatus> = new Set(["active", "preparing", "clearing"]);
+
+/**
+ * The status under which a state.json edit of a bench is refused, or undefined
+ * when the bench is not live. The bench status alone does not say so: it reads
+ * 'idle' unless every component runs, and 'error' when any component errored,
+ * so a bench with one component still running, starting or stopping is live
+ * too, keeps the ports that component holds, and is reported active.
+ */
+function liveStatusForEdit(bench: Bench): BenchStatus | undefined {
+  if (LIVE_BENCH_STATUSES.has(bench.status)) return bench.status;
+  const componentLive = Object.values(bench.components).some((c) =>
+    LIVE_COMPONENT_STATUSES.has(c.status),
+  );
+  return componentLive ? "active" : undefined;
+}
+
+/** One bench that a state.json edit touched. */
+export interface BenchStateEditRef {
+  projectId: string;
+  benchId: number;
+}
+
+/** What one state.json edit did to the benches in memory. */
+export interface BenchStateEdit {
+  /** The benches that are not live whose edited fields were merged. */
+  applied: BenchStateEditRef[];
+  /**
+   * The live benches whose fields the edit changed: nothing was merged into
+   * them, and their records in the file were written back from memory.
+   */
+  refused: (BenchStateEditRef & { status: BenchStatus })[];
+  /**
+   * The benches that are not live whose records the edit changed in a field
+   * that is not hand-editable, such as the workspace path: that change was not
+   * merged, and their records in the file were written back from memory. Each
+   * names the top-level fields that were undone.
+   */
+  reverted: (BenchStateEditRef & { fields: string[] })[];
+  /**
+   * The records in the file that match no bench in memory: no bench was made
+   * of them, and they were dropped from the file again.
+   */
+  unmatched: BenchStateEditRef[];
+  /**
+   * The benches in memory whose records the edit removed from the file: the
+   * bench is kept, and its record was put back in the file. A bench that is
+   * being set up or cleared is not one, since the app writes its record only
+   * once its setup is under way, and removes it before the bench leaves memory.
+   * Nor is a bench that the file did not hold before the edit either, such as
+   * one whose setup failed before its record was written: it stays out of the
+   * file.
+   */
+  removed: BenchStateEditRef[];
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  // A JSON round trip drops undefined keys, as state.json does.
+  const norm = (v: unknown): unknown =>
+    v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  return isDeepStrictEqual(norm(a), norm(b));
+}
+
+/** The top-level fields whose values differ between two records, sorted. */
+function changedFields(before: PersistedBench, after: PersistedBench): string[] {
+  const a = before as unknown as Record<string, unknown>;
+  const b = after as unknown as Record<string, unknown>;
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])]
+    .filter((field) => !sameValue(a[field], b[field]))
+    .sort();
+}
+
+const HAND_EDITABLE_FIELD_SET: ReadonlySet<string> = new Set(HAND_EDITABLE_BENCH_FIELDS);
+
+/**
+ * Apply a state.json edited outside the app to the benches in memory
+ * (HR-FR-013). Each persisted record is matched to its bench by project and
+ * number, and diffed against that bench's record in the content the app last
+ * knew the file to hold (what it last wrote, read at boot, or took in from the
+ * last hand edit), so only the fields the edit changed count as edited. A
+ * bench in memory carries defaults that a legacy record never held, such as
+ * its setup state, so a diff against memory would take those as edited. A
+ * bench with no known record is diffed against memory.
+ *
+ * A bench that is not live takes the edited value of each hand-editable field;
+ * a live bench, one whose status is live or that has a component still
+ * running, starting or stopping, takes none, and is reported refused, so it
+ * keeps its ports and stays up. An edit of a field that is not hand-editable,
+ * such as the workspace path or the setup state, is reported reverted with the
+ * fields it undid. A record with no bench in memory, and a bench whose record
+ * the edit removed, are reported unmatched and removed: an edit neither
+ * creates nor clears a bench. A bench with no record in the known content is
+ * not one the edit removed, so it is not reported and not written.
+ *
+ * When the edit has any of these, the file is written back from memory: the
+ * record of a refused or reverted bench is written from the bench, a removed
+ * record is put back, and a record of no bench is dropped. Otherwise the file
+ * would keep what memory does not hold: the next launch, which reads its
+ * benches from the file, would load it, and a later write of a removed bench
+ * would find no record to replace. The write goes through `atomicWrite`, so
+ * the watch takes it as a self-write and applies nothing of it.
+ */
+export function applyStateFileEdit(persisted: PersistedState): BenchStateEdit {
+  const result: BenchStateEdit = {
+    applied: [],
+    refused: [],
+    reverted: [],
+    unmatched: [],
+    removed: [],
+  };
+  const known = new Map<string, PersistedBench>();
+  for (const record of stateService.getKnownState()?.benches ?? []) {
+    known.set(benchKey(record.projectId, record.id), record);
+  }
+  // The file as it is written back, when it has to be: one entry per record.
+  const restored: PersistedBench[] = [];
+  const recorded = new Set<string>();
+  for (const record of persisted.benches) {
+    const key = benchKey(record.projectId, record.id);
+    recorded.add(key);
+    const bench = benches.get(key);
+    if (!bench) {
+      result.unmatched.push({ projectId: record.projectId, benchId: record.id });
+      continue;
+    }
+    const prior = known.get(key) ?? stateService.toPersistedBench(bench);
+    const edited = changedFields(prior, record);
+    const changed = HAND_EDITABLE_BENCH_FIELDS.filter((field) => edited.includes(field));
+    const notEditable = edited.filter((field) => !HAND_EDITABLE_FIELD_SET.has(field));
+    const ref = { projectId: bench.projectId, benchId: bench.id };
+    let refused = false;
+    if (changed.length > 0) {
+      const liveStatus = liveStatusForEdit(bench);
+      if (liveStatus !== undefined) {
+        refused = true;
+        result.refused.push({ ...ref, status: liveStatus });
+      } else {
+        const target = bench as unknown as Record<HandEditableField, unknown>;
+        for (const field of changed) target[field] = record[field];
+        result.applied.push(ref);
+      }
+    }
+    // A refused bench is reported refused; the rest of what is undone here is
+    // a change to a field that is not hand-editable.
+    if (notEditable.length > 0 && !refused) result.reverted.push({ ...ref, fields: notEditable });
+    const undo = refused || notEditable.length > 0;
+    restored.push(undo ? stateService.toPersistedBench(bench) : record);
+  }
+  for (const bench of benches.values()) {
+    const key = benchKey(bench.projectId, bench.id);
+    if (recorded.has(key)) continue;
+    if (bench.status === "preparing" || bench.status === "clearing") continue;
+    // A bench the file did not hold before the edit either, such as one whose
+    // setup failed before its record was written, was not removed by it.
+    const prior = known.get(key);
+    if (prior === undefined) continue;
+    result.removed.push({ projectId: bench.projectId, benchId: bench.id });
+    restored.push(prior);
+  }
+  const writeBack =
+    result.refused.length > 0 ||
+    result.reverted.length > 0 ||
+    result.unmatched.length > 0 ||
+    result.removed.length > 0;
+  if (writeBack) {
+    // saveState also records what it wrote as the known content.
+    stateService.saveState({ ...persisted, benches: restored });
+  } else {
+    stateService.rememberState(persisted);
+  }
+  return result;
 }
 
 export function getBench(projectId: string, benchId: number): Bench | undefined {
