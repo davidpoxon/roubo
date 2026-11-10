@@ -29,6 +29,13 @@ function specFolderOf(spec: DiscoveredSpec): string {
   return spec.path.replace(/[\\/]test-cases\.json$/, "");
 }
 
+// Where the spec's delivery record sits in its folder, with the separator the
+// discovered path uses.
+function recordPathOf(spec: DiscoveredSpec): string {
+  const separator = /\\test-cases\.json$/.test(spec.path) ? "\\" : "/";
+  return `${specFolderOf(spec)}${separator}${DELIVERY_RECORD_FILE}`;
+}
+
 function plural(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`;
 }
@@ -188,6 +195,21 @@ export default function SpecBenchSetupModal({
               </TabList>
               <TabPanel id="launch" className="space-y-4 pt-4">
                 {specField(true)}
+                {/* Launch is the default tab, so a delivery already committed
+                    for the spec is named here too, beside the way to join it. */}
+                {summary.data?.delivery && (
+                  <p
+                    data-testid="specbench-setup-launch-existing"
+                    className="text-12 text-text-secondary"
+                  >
+                    A delivery record is already committed for this spec:{" "}
+                    <span className="break-all font-mono text-text-primary">
+                      delivery {summary.data.delivery.deliveryId}
+                    </span>
+                    {" · "}
+                    {summary.data.delivery.lifecycleState}. Attach to a record joins it.
+                  </p>
+                )}
                 <ModeSwitch value={decisionMode} onChange={setDecisionMode} />
                 <p
                   data-testid="specbench-setup-workspace"
@@ -207,7 +229,7 @@ export default function SpecBenchSetupModal({
                         data-testid="specbench-setup-record"
                         className="block break-all font-mono text-text-primary"
                       >
-                        {`${specFolderOf(selected)}/${DELIVERY_RECORD_FILE}`}
+                        {recordPathOf(selected)}
                       </span>
                     </p>
                     {summary.data && (

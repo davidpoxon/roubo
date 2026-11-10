@@ -103,6 +103,16 @@ describe("SpecBenchSetupModal delivery line", () => {
     );
     expect(within(dialog).queryByTestId("specbench-setup-summary-delivery")).toBeNull();
     expect(within(dialog).queryByTestId("specbench-setup-attach-note")).toBeNull();
+    // Launch names the committed record instead, beside the way to join it.
+    expect(within(dialog).getByTestId("specbench-setup-launch-existing")).toHaveTextContent(
+      "A delivery record is already committed for this spec: delivery d-1 · running. Attach to a record joins it.",
+    );
+  });
+
+  it("a launch of a spec with no committed record names none", async () => {
+    useSummary({ slug: SPEC.slug, units: 4, gates: 2 });
+    const dialog = await pick(/^launch/i);
+    expect(within(dialog).queryByTestId("specbench-setup-launch-existing")).toBeNull();
   });
 });
 
@@ -182,6 +192,26 @@ describe("SpecBenchSetupModal tabs", () => {
       "/repos/demo/.specifications/fixture-spec",
       "launch",
       "attended",
+    );
+  });
+
+  it("names the record path with the separator of the discovered spec path", async () => {
+    vi.mocked(useTestbenchSpecs).mockReturnValue({
+      data: {
+        specs: [
+          { ...SPEC, path: "C:\\repos\\demo\\.specifications\\fixture-spec\\test-cases.json" },
+        ],
+        invalid: [],
+      },
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      error: null,
+    } as unknown as ReturnType<typeof useTestbenchSpecs>);
+    useSummary(summary);
+    const dialog = await pick(/^attach/i);
+    expect(within(dialog).getByTestId("specbench-setup-record")).toHaveTextContent(
+      "C:\\repos\\demo\\.specifications\\fixture-spec\\delivery-observation.json",
     );
   });
 

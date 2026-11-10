@@ -606,7 +606,7 @@ export default function BenchDashboard() {
             />
           )}
 
-          {/* Mounted only while open, so each set up starts from no choice. */}
+          {/* Mounted only while open, so each set up starts on Launch with no spec chosen. */}
           {projectId && showSpecBenchSetup && (
             <SpecBenchSetupModal
               isOpen
