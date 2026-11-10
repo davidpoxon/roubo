@@ -416,6 +416,35 @@ describe("loadEnvFile called again", () => {
       expect(process.env.ROUBO_PORT).toBe("3335");
     });
 
+    it("HR-TC-024 does not name ROUBO_PORT when a save drops a line boot never read", async () => {
+      await load("");
+      process.env.ROUBO_PORT = "3335";
+      expect(await report("ROUBO_PORT=4000")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_PORT"],
+      });
+      // The file is back to what boot read, so a relaunch would change nothing.
+      expect(await report("")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_PORT).toBe("3335");
+    });
+
+    it("HR-TC-024 does not name a ROUBO_PORT line that matches the port the server bound", async () => {
+      await load("");
+      process.env.ROUBO_PORT = "3335";
+      expect(await report("ROUBO_PORT=3335")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_PORT).toBe("3335");
+    });
+
+    it("HR-TC-024 names ROUBO_APP_LOG_DIR moved away from its boot line, not moved back to it", async () => {
+      await load("ROUBO_APP_LOG_DIR=/x/a");
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_APP_LOG_DIR"],
+      });
+      expect(await report("ROUBO_APP_LOG_DIR=/x/a")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    });
+
     it("HR-TC-024 names a key once, not again on a later save that leaves its line", async () => {
       await load("");
       expect((await report("ROUBO_APP_LOG_DIR=/x/b")).needsRelaunch).toEqual(["ROUBO_APP_LOG_DIR"]);
