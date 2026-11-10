@@ -75,6 +75,25 @@ export const DesignReferenceSchema = z
   .strict();
 export type DesignReference = z.infer<typeof DesignReferenceSchema>;
 
+// ── touches (the files a unit changes, as globs) ──
+//
+// Each entry is a glob relative to the root of the repository that holds the
+// spec folder. In a meta-repo that root is the superproject, so a glob names
+// the submodule first (`roubo/shared/**`). Delivery tooling compares these
+// lists to decide which units with no dependency between them can run at the
+// same time, and a unit's diff can be checked against its own list. The
+// pattern rejects a leading `/` and any literal `..` path segment; it is a
+// `pattern` in the generated JSON Schema too. Glob syntax such as `{..,x}` can
+// still spell a parent segment, so a consumer must match these globs against
+// repository-relative paths and never expand them on the filesystem.
+export const TouchGlobSchema = z
+  .string()
+  .min(1)
+  .regex(
+    /^(?!\/)(?!(?:.*\/)?\.\.(?:\/|$)).+$/,
+    "a touches glob must be relative to the repository root, with no leading / and no .. segment",
+  );
+
 // ── Unit ──
 //
 // `.strict()` so the generated JSON Schema emits `additionalProperties: false`
@@ -107,6 +126,9 @@ export const UnitSchema = z
     trigger_reason: z.string().optional(),
     // UI-unit only: the prototype screens and components the unit builds.
     design_reference: DesignReferenceSchema.optional(),
+    // Globs of the files the unit changes. Absent means unknown, so tooling must
+    // assume the unit can overlap any other; `[]` means it changes no files.
+    touches: z.array(TouchGlobSchema).optional(),
     // The tracker manifestation. Absent before the unit is filed.
     tracker: TrackerSchema.optional(),
   })
