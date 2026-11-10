@@ -128,6 +128,13 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Edit `pluginId`'s value in the in-memory plugins-state.json by hand. */
+function handEditEnableValue(pluginId: string, value: PluginEnableStateValue): void {
+  const state = hoisted.enableState;
+  if (!state) throw new Error("expected a plugins-state.json to edit");
+  hoisted.enableState = { ...state, plugins: { ...state.plugins, [pluginId]: value } };
+}
+
 async function waitFor(pred: () => boolean, timeoutMs = 8_000) {
   const end = Date.now() + timeoutMs;
   while (!pred()) {
@@ -355,7 +362,7 @@ describe("a plugin directory added by hand", () => {
     expect(record("off-integration")?.pid).toBeNull();
   }, 20_000);
 
-  it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled rather than awaiting consent", async () => {
+  it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled, held until consent", async () => {
     hoisted.enableState = {
       schemaVersion: 1,
       installInitialized: true,
@@ -368,8 +375,14 @@ describe("a plugin directory added by hand", () => {
 
     await waitFor(() => outcomeLines("off-agent", "applied").length === 1);
     expect(record("off-agent")?.pid).toBeNull();
-    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("off-agent")).rejects.toThrow(/no consent yet/);
+
+    // A grant of consent keeps the user's disable.
+    hoisted.consented.add("off-agent");
+    expect(await pluginManager.startAfterConsent("off-agent")).toBe(false);
+    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
+    expect(record("off-agent")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-015 never spawns an un-consented plugin found on disk and logs action=register", async () => {
@@ -425,20 +438,25 @@ describe("a plugin directory added by hand", () => {
     await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
 
-    // Disable during the hold: recorded, and enable and restart still refuse it.
+    // Disable during the hold: recorded with the hold, and enable and restart
+    // still refuse it.
     await pluginManager.disable("held-plugin");
-    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
     await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
 
-    // A relaunch neither starts it nor turns the disable back into a hold.
+    // A relaunch with the module state reset, so only plugins-state.json
+    // carries the hold, neither starts it nor lets enable or restart start it.
     await stopPluginDirWatch();
     await pluginManager.shutdown();
+    pluginManager.__test.reset();
     await pluginManager.initialize();
     await sleep(500);
     expect(record("held-plugin")?.pid).toBeNull();
-    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
 
     // A grant of consent leaves the disabled plugin as it is.
     hoisted.consented.add("held-plugin");
@@ -454,6 +472,45 @@ describe("a plugin directory added by hand", () => {
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
+  }, 20_000);
+
+  it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app runs", async () => {
+    await startWatch();
+    dropPlugin("held-plugin", { kind: "agent" });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    handEditEnableValue("held-plugin", "disabled");
+    await pluginManager.reloadEnableState();
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+
+    // A relaunch reads the hold back from the file.
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    pluginManager.__test.reset();
+    await pluginManager.initialize();
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
+  }, 20_000);
+
+  it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app is closed", async () => {
+    await startWatch();
+    dropPlugin("held-plugin", { kind: "agent" });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    pluginManager.__test.reset();
+    handEditEnableValue("held-plugin", "disabled");
+    await pluginManager.initialize();
+    expect(pluginManager.holdUnconsentedDisabledPlugins()).toEqual(["held-plugin"]);
+
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-015 does not hold a legacy plugin with no consent record and no awaiting-consent value", async () => {

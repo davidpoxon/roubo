@@ -76,6 +76,7 @@ vi.mock("./services/version-check.js", () => ({
 }));
 vi.mock("./services/plugin-manager.js", () => ({
   initialize: vi.fn(() => Promise.resolve()),
+  holdUnconsentedDisabledPlugins: vi.fn(() => []),
   shutdown: vi.fn(() => Promise.resolve()),
   listInstalled: vi.fn(() => []),
   registerComponentPluginHooks: vi.fn(),
@@ -292,6 +293,7 @@ describe("startServer", { concurrent: false }, () => {
       }));
       vi.doMock("./services/plugin-manager.js", () => ({
         initialize: vi.fn(() => Promise.resolve()),
+        holdUnconsentedDisabledPlugins: vi.fn(() => []),
         shutdown: vi.fn(() => Promise.resolve()),
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),

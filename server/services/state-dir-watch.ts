@@ -27,7 +27,10 @@
  *   rejected, not applied: the app itself moves aside a file that does not
  *   parse, and that grants no consent.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
- *   edit disables stops, and one it enables starts.
+ *   edit disables stops, and one it enables starts. A plugin held for consent
+ *   keeps its hold: one the edit enables is written back `"awaiting-consent"`,
+ *   and one it sets to `"disabled"` is written back
+ *   `"disabled-awaiting-consent"`.
  * - settings.json: read again, and the notice names each setting the edit
  *   changed; an edit that changes none sends no notice. A settings.json that
  *   does not parse, or whose top level is not an object, keeps the last good

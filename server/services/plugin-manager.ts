@@ -45,7 +45,7 @@ import * as pluginConsentState from "./plugin-consent-state.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import * as issueSnapshotCache from "./issue-snapshot-cache.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
-import type { PluginEnableState } from "@roubo/shared";
+import type { PluginEnableState, PluginEnableStateValue } from "@roubo/shared";
 import { declaredCategories, isConsentGatedKind } from "@roubo/shared";
 import { PLUGIN_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
@@ -456,13 +456,6 @@ let connectionStatusInvoker: ConnectionStatusInvoker = (pluginId, method, params
 // plugin is treated as implicitly "enabled" per architecture.md:1097.
 let enableStateCache: PluginEnableState | null = null;
 
-// The plugins held for want of consent (HR-FR-008): each one whose enable
-// value was `"awaiting-consent"` while it had no ConsentRecord. The mark
-// survives a disable during the hold, which writes `"disabled"` over that
-// value, so enable() and restart() still refuse the plugin until it has a
-// ConsentRecord. A plugin that was never held is not in it.
-const consentHolds = new Set<string>();
-
 // IP-WU-063: when ROUBO_E2E=1, Playwright specs can pin the stubbed plugin to a
 // specific scenario pack and frozen-now ISO. POST /test/__reset writes these
 // via __test.setE2EConfig; spawnPlugin appends them to argv. Outside the e2e
@@ -497,43 +490,54 @@ function isPluginEnabled(pluginId: string): boolean {
   const value = enableStateCache.plugins[pluginId];
   // Missing entries also default to "enabled" so a newly installed plugin (e.g.
   // installed via the install pipeline before its first toggle) is not silently
-  // held back. A plugin awaiting consent (HR-FR-008) is not enabled either.
-  return value !== "disabled" && value !== "awaiting-consent";
+  // held back. A plugin held for consent (HR-FR-008), enabled or disabled by
+  // the user during the hold, is not enabled either.
+  return value === undefined || value === "enabled";
 }
 
 /**
- * Whether `pluginId` was registered from disk with no ConsentRecord and still
- * has none (HR-FR-008): it must not be started. A legacy install with no
- * ConsentRecord and no `"awaiting-consent"` value is not held.
+ * Whether `value` holds a plugin for want of consent (HR-FR-008): it was
+ * registered from disk with no ConsentRecord, and the user either left it
+ * (`"awaiting-consent"`) or disabled it during the hold
+ * (`"disabled-awaiting-consent"`).
+ */
+function isHeldValue(value: PluginEnableStateValue | undefined): boolean {
+  return value === "awaiting-consent" || value === "disabled-awaiting-consent";
+}
+
+/**
+ * Whether `pluginId` is held for want of consent and still has no
+ * ConsentRecord (HR-FR-008): it must not be started, and enable() and
+ * restart() refuse it. The hold lives in plugins-state.json, so it holds
+ * after a relaunch too. A plugin that was never held, such as a legacy
+ * install or a plain `"disabled"` plugin, is not held.
  */
 function isAwaitingConsent(pluginId: string): boolean {
   return (
-    enableStateCache?.plugins[pluginId] === "awaiting-consent" &&
-    !pluginConsentState.hasConsent(pluginId)
+    isHeldValue(enableStateCache?.plugins[pluginId]) && !pluginConsentState.hasConsent(pluginId)
   );
 }
 
-/** Mark `pluginId` held for want of consent when its enable value says so now. */
-function noteConsentHold(pluginId: string): void {
-  if (isAwaitingConsent(pluginId)) consentHolds.add(pluginId);
+/**
+ * The value a grant of consent turns a held value into: `"enabled"` for a
+ * plugin left held, and `"disabled"` for one the user disabled during the
+ * hold, so the disable survives the grant. Undefined for a value that is not
+ * a hold.
+ */
+function valueAfterConsent(
+  value: PluginEnableStateValue | undefined,
+): PluginEnableStateValue | undefined {
+  if (value === "awaiting-consent") return "enabled";
+  if (value === "disabled-awaiting-consent") return "disabled";
+  return undefined;
 }
 
-/**
- * Whether enable() or restart() must refuse to start `entry` for want of
- * consent (HR-FR-008): it awaits consent, or it was held for consent and the
- * user disabled it during the hold, and it still has no ConsentRecord. A
- * plugin that was never held, such as a disabled component or agent plugin
- * that a user enables before they consent it, is not refused here.
- */
-function needsConsentToStart(entry: PluginEntry): boolean {
-  const pluginId = entry.record.id;
-  if (isAwaitingConsent(pluginId)) return true;
-  if (!consentHolds.has(pluginId)) return false;
-  if (pluginConsentState.hasConsent(pluginId)) {
-    consentHolds.delete(pluginId);
-    return false;
+/** Write the value a grant of consent leaves for a held `pluginId`, if it is held. */
+function liftConsentHold(pluginId: string): void {
+  const next = valueAfterConsent(enableStateCache?.plugins[pluginId]);
+  if (next !== undefined) {
+    enableStateCache = pluginEnableState.setPluginEnableValue(pluginId, next);
   }
-  return true;
 }
 
 /** Drop `pluginId` from the in-process enable-state copy, as removePlugin does on disk. */
@@ -1825,6 +1829,36 @@ export async function initialize(): Promise<void> {
   await Promise.all(spawns);
 }
 
+/**
+ * Keep the consent hold of each plugin that a hand edit of plugins-state.json
+ * may have taken it off while the app was closed (HR-FR-008). A component or
+ * agent plugin in the user plugins root, the root the plugins directory watch
+ * registers from, that has no ConsentRecord and a plain `"disabled"` value can
+ * be a held plugin whose `"awaiting-consent"` or `"disabled-awaiting-consent"`
+ * value was edited to `"disabled"`: the file no longer tells it from one that
+ * was never held. Each such plugin is taken as held and written
+ * `"disabled-awaiting-consent"`, so enable() and restart() refuse it until it
+ * is consented, and the grant of consent leaves it `"disabled"`.
+ *
+ * Run once at launch, after initialize(). A disabled plugin is not running,
+ * so nothing is stopped. A bundled plugin is never held, and an e2e reset
+ * re-initializes without this pass. Returns the ids it held.
+ */
+export function holdUnconsentedDisabledPlugins(): string[] {
+  const held: string[] = [];
+  for (const entry of plugins.values()) {
+    const id = entry.record.id;
+    const manifest = entry.record.manifest;
+    if (entry.record.source !== "user" || !manifest) continue;
+    if (!isConsentGatedKind(manifest.kind)) continue;
+    if (enableStateCache?.plugins[id] !== "disabled") continue;
+    if (pluginConsentState.hasConsent(id)) continue;
+    enableStateCache = pluginEnableState.setPluginEnableValue(id, "disabled-awaiting-consent");
+    held.push(id);
+  }
+  return held;
+}
+
 export async function shutdown(): Promise<void> {
   // Cancel any pending restart timers across all entries first so they don't
   // race the teardown by spawning into a sandbox that's about to be removed.
@@ -1952,7 +1986,7 @@ export async function enable(pluginId: string): Promise<void> {
   if (entry.record.status === "incompatible") {
     throw new Error(`Plugin "${pluginId}" is incompatible with this host`);
   }
-  if (needsConsentToStart(entry)) throw awaitingConsentError(pluginId);
+  if (isAwaitingConsent(pluginId)) throw awaitingConsentError(pluginId);
   if (entry.process) {
     // Already running. Record the user's intent and return; the on-disk file
     // converges with the runtime here even if it had drifted (e.g. a prior
@@ -2041,12 +2075,13 @@ export async function enable(pluginId: string): Promise<void> {
 export async function disable(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
   if (!entry) throw new Error(`Unknown plugin: ${pluginId}`);
-  // Also for a plugin awaiting consent: "disabled" survives a later grant of
-  // consent, and enable() and restart() still refuse it while it has no
-  // ConsentRecord (HR-FR-008). The hold is marked first, since "disabled"
-  // replaces the "awaiting-consent" value that shows it.
-  noteConsentHold(pluginId);
-  enableStateCache = pluginEnableState.setPluginEnabled(pluginId, false);
+  // A plugin held for consent keeps its hold in the value it is disabled to,
+  // "disabled-awaiting-consent": enable() and restart() still refuse it while
+  // it has no ConsentRecord, also after a relaunch, and a later grant of
+  // consent leaves it "disabled" (HR-FR-008).
+  enableStateCache = isAwaitingConsent(pluginId)
+    ? pluginEnableState.setPluginEnableValue(pluginId, "disabled-awaiting-consent")
+    : pluginEnableState.setPluginEnabled(pluginId, false);
   // FR-004 / NFR-001 (per Spike 553, #576): disable EVICTS the persistent disk
   // snapshots. This is deliberately distinct from the in-memory
   // issue-snapshot-cache, which is kept warm on disable so the route's
@@ -2068,10 +2103,8 @@ export async function restart(pluginId: string): Promise<void> {
   if (!entry.record.manifest) {
     throw new Error(`Plugin "${pluginId}" has no valid manifest`);
   }
-  // A running plugin restarts as before; a stopped one starts only as enable() would.
-  if (isAwaitingConsent(pluginId) || (!entry.process && needsConsentToStart(entry))) {
-    throw awaitingConsentError(pluginId);
-  }
+  // A plugin held for consent is never running, and starts only once consented.
+  if (isAwaitingConsent(pluginId)) throw awaitingConsentError(pluginId);
   if (entry.process) {
     await stopPluginProcess(entry);
   }
@@ -2487,7 +2520,6 @@ function dropUninstalled(entry: PluginEntry): void {
   // doesn't carry the prior install's enable bit by accident.
   pluginEnableState.removePlugin(pluginId);
   forgetCachedEnableValue(pluginId);
-  consentHolds.delete(pluginId);
   // #884 (CP-TC-096): drop the plugin's ConsentRecord so a stale consent
   // does not survive an uninstall. A re-installed id must re-acknowledge its
   // declared permissions before the component-plugin registry consent gate
@@ -2566,7 +2598,6 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
   plugins.delete(pluginId);
   pluginEnableState.removePlugin(pluginId);
   forgetCachedEnableValue(pluginId);
-  consentHolds.delete(pluginId);
   issueSnapshotCache.clearSnapshot(pluginId);
   cutListQueryService.evictPlugin(pluginId);
 }
@@ -2580,9 +2611,9 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
  *
  * With `inertUntilConsent` (a plugin found on disk, HR-FR-008) a component or
  * agent plugin with no ConsentRecord is registered but not started, and its
- * enable value is written `"awaiting-consent"` (unless the user disabled it), so
- * neither a relaunch nor enable() or restart() starts it before
- * `startAfterConsent`. Any other plugin
+ * enable value is written `"awaiting-consent"`, or `"disabled-awaiting-consent"`
+ * when the user disabled it, so neither a relaunch nor enable() or restart()
+ * starts it before `startAfterConsent`. Any other plugin
  * found on disk, an integration plugin or a consented one, is started unless
  * the user disabled it. Registration never grants consent.
  */
@@ -2615,14 +2646,21 @@ export async function registerInstalled(
     built.entry.record.manifest !== null &&
     isConsentGatedKind(built.entry.record.manifest.kind) &&
     !consented;
-  if (awaitingConsent) consentHolds.add(id);
-  if (awaitingConsent && enableStateCache?.plugins[id] !== "disabled") {
-    // A plugin the user disabled stays "disabled": a grant of consent then
-    // leaves it as it is, and enable() still refuses it until consent.
-    enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
-  } else if (fromDisk && consented && enableStateCache?.plugins[id] === "awaiting-consent") {
+  const current = enableStateCache?.plugins[id];
+  if (awaitingConsent) {
+    // A plugin the user disabled stays disabled, held as
+    // "disabled-awaiting-consent": enable() refuses it until consent, and a
+    // grant of consent then leaves it "disabled".
+    const held =
+      current === "disabled" || current === "disabled-awaiting-consent"
+        ? "disabled-awaiting-consent"
+        : "awaiting-consent";
+    if (current !== held) {
+      enableStateCache = pluginEnableState.setPluginEnableValue(id, held);
+    }
+  } else if (fromDisk && consented) {
     // A leftover hold whose consent has since been recorded.
-    enableStateCache = pluginEnableState.setPluginEnabled(id, true);
+    liftConsentHold(id);
   }
   const inert = awaitingConsent || (fromDisk && !isPluginEnabled(id));
   if (built.entry.record.status === "disabled" && built.entry.record.manifest && !inert) {
@@ -2669,9 +2707,10 @@ export async function inspectPluginDir(pluginDir: string): Promise<PluginDirInsp
 /**
  * Start a registered plugin that was left inert for want of consent, once it
  * has a ConsentRecord (HR-FR-008): its `"awaiting-consent"` value turns
- * `"enabled"`. A plugin that is running, has no valid manifest, is not
- * consented, or that the user disabled, also while it awaited consent, is left
- * as it is.
+ * `"enabled"`, and its `"disabled-awaiting-consent"` value turns `"disabled"`,
+ * so a disable made during the hold survives the grant. A plugin that is
+ * running, has no valid manifest, is not consented, or that the user disabled,
+ * also while it awaited consent, is not started.
  *
  * Resolves true only when this call started the plugin's process, so a caller
  * can name the plugins that a grant of consent actually started.
@@ -2681,10 +2720,7 @@ export async function startAfterConsent(pluginId: string): Promise<boolean> {
   if (!entry || entry.process || !entry.record.manifest) return false;
   if (entry.record.status !== "disabled") return false;
   if (!pluginConsentState.hasConsent(pluginId)) return false;
-  consentHolds.delete(pluginId);
-  if (enableStateCache?.plugins[pluginId] === "awaiting-consent") {
-    enableStateCache = pluginEnableState.setPluginEnabled(pluginId, true);
-  }
+  liftConsentHold(pluginId);
   if (!isPluginEnabled(pluginId)) return false;
   await spawnPlugin(entry);
   return entry.process !== null && entry.process !== undefined;
@@ -2706,20 +2742,21 @@ export interface EnableStateReload {
  * would let it: it needs a valid manifest and, for a consent-gated plugin, a
  * ConsentRecord. A consent-gated plugin with no ConsentRecord is not started,
  * and its value is written back as `"awaiting-consent"`, the hold that a
- * relaunch would also keep. A plugin whose start fails is left stopped, with
- * its error on its record.
+ * relaunch would also keep. A plugin held for consent that the edit sets to a
+ * plain `"disabled"` keeps its hold: its value is written back as
+ * `"disabled-awaiting-consent"`, as a disable in the app writes it, so a
+ * relaunch does not take it for a plugin that was never held. A plugin whose
+ * start fails is left stopped, with its error on its record.
  */
 export async function reloadEnableState(): Promise<EnableStateReload> {
-  const before = new Map<string, boolean>();
+  const before = new Map<string, { enabled: boolean; held: boolean }>();
   for (const id of plugins.keys()) {
-    before.set(id, isPluginEnabled(id));
-    // A hand edit that writes over a hold, such as "disabled", keeps it.
-    noteConsentHold(id);
+    before.set(id, { enabled: isPluginEnabled(id), held: isAwaitingConsent(id) });
   }
   enableStateCache = pluginEnableState.loadEnableState();
   const result: EnableStateReload = { disabled: [], enabled: [] };
   for (const [id, entry] of plugins) {
-    const was = before.get(id) ?? true;
+    const was = before.get(id)?.enabled ?? true;
     const now = isPluginEnabled(id);
     if (was && !now) {
       result.disabled.push(id);
@@ -2733,11 +2770,16 @@ export async function reloadEnableState(): Promise<EnableStateReload> {
       // hold that the edit removed no longer shows in it.
       if (isConsentGatedKind(entry.record.manifest.kind) && !pluginConsentState.hasConsent(id)) {
         enableStateCache = pluginEnableState.setPluginEnableValue(id, "awaiting-consent");
-        consentHolds.add(id);
         continue;
       }
       await spawnPlugin(entry);
       if (entry.process) result.enabled.push(id);
+    } else if (
+      before.get(id)?.held === true &&
+      enableStateCache?.plugins[id] === "disabled" &&
+      !pluginConsentState.hasConsent(id)
+    ) {
+      enableStateCache = pluginEnableState.setPluginEnableValue(id, "disabled-awaiting-consent");
     }
   }
   return result;
@@ -3225,7 +3267,6 @@ export const __test = {
     hostApiVersionOverride = null;
     pendingUpdates.clear();
     swapState.resetForTests();
-    consentHolds.clear();
   },
   // #1269: simulate a host below a manifest's declared `roubo` floor, so the
   // version-named refusal is asserted by a fixture test rather than resting on

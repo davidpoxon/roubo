@@ -3112,6 +3112,8 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
       sandbox = await makeSandbox({ bundled: [id] });
       mgr = await loadManager();
       await mgr.initialize();
+      // A bundled plugin is never taken as held at launch.
+      expect(mgr.holdUnconsentedDisabledPlugins()).toEqual([]);
       expect(findRecord(mgr.listInstalled(), id).pid).toBeNull();
 
       await mgr.enable(id);
@@ -3140,9 +3142,29 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
     await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
 
-    // A disable during the hold writes "disabled" over "awaiting-consent".
+    // A disable during the hold writes the hold with the disable.
     await mgr.disable("component-echo");
-    expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("component-echo", false);
+    expect(enableStateMocks.setPluginEnableValue).toHaveBeenCalledWith(
+      "component-echo",
+      "disabled-awaiting-consent",
+    );
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+    await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+
+    // A relaunch, with the module state reset, reads the hold back from the
+    // file the disable wrote, and enable and restart still refuse it.
+    await mgr.shutdown();
+    mgr = await loadManager();
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "disabled-awaiting-consent" },
+    });
+    await mgr.initialize();
+    expect(mgr.holdUnconsentedDisabledPlugins()).toEqual([]);
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
     await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
     await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
     expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();

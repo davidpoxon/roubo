@@ -227,6 +227,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing plugin manager...");
   try {
     await pluginManager.initialize();
+    // A held plugin whose value was edited to "disabled" while the app was
+    // closed stays held until it is consented (HR-FR-008).
+    pluginManager.holdUnconsentedDisabledPlugins();
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
