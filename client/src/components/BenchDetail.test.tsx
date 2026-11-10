@@ -1408,8 +1408,19 @@ describe("BenchDetail", () => {
         mutate: teardownMutate,
         isPending: false,
       } as never);
+      // A different display name, so the prompt must name the target's project.
       mockUseProjects.mockReturnValue({
-        data: [baseProject, { ...baseProject, id: "proj-2" }],
+        data: [
+          baseProject,
+          {
+            ...baseProject,
+            id: "proj-2",
+            config: {
+              ...baseProject.config,
+              project: { name: "other-app", displayName: "Other App" },
+            },
+          },
+        ],
       } as never);
 
       renderSwitchable();
