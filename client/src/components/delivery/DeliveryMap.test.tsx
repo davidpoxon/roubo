@@ -356,10 +356,17 @@ describe("Delivery map", () => {
     renderWithProviders(<DeliveryTabPanel bench={bench} />);
     await userEvent.click(await screen.findByTestId("unit-row-C"));
 
+    // The drill-in's chips name the unit's stack, layer and base, and the
+    // gate after it (#1621). C depends only on its base, B, so no chip repeats
+    // the dependency.
     const drillIn = screen.getByRole("region", { name: "Unit C" });
-    expect(drillIn).toHaveTextContent("after B");
-    expect(drillIn).toHaveTextContent("gate-after-c passed");
-    expect(drillIn).toHaveTextContent("A, layer 2");
+    expect(within(drillIn).getByTestId("unit-chip-stack")).toHaveTextContent(
+      "stack A · layer 2 · base B",
+    );
+    expect(within(drillIn).queryByTestId("unit-chip-dependencies")).not.toBeInTheDocument();
+    expect(within(drillIn).getByTestId("unit-chip-gate-gate-after-c")).toHaveTextContent(
+      "gate gate-after-c · passed",
+    );
   });
 
   it("highlights the edges of the node under focus in the accent", async () => {

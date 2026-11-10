@@ -18,6 +18,7 @@ import {
   JAM_MARK_LABEL,
   pullRequestNumber,
   unitAccessibleName,
+  unitCostLabel,
   unitStatusTone,
   type DeliveryMapLayout,
   type MapTarget,
@@ -70,7 +71,7 @@ function detailText(item: PlacedItem | undefined): string {
   if (item === undefined) return "Hover or focus a unit or a gate. Enter opens it.";
   if (item.kind === "gate") return `gate ${item.view.gate.id} · ${gateHoverLine(item.view)}`;
   const { unit } = item;
-  const cost = unit.cost_usd === undefined ? "" : ` · USD ${unit.cost_usd.toFixed(2)}`;
+  const cost = unit.cost_usd === undefined ? "" : ` · ${unitCostLabel(unit.cost_usd)}`;
   const held = item.held ? ` · ${HELD_DRAFT_LABEL}` : "";
   return `${unit.id} ${unit.title} · ${dependencyLine(item.dependencies)}${cost}${held}`;
 }

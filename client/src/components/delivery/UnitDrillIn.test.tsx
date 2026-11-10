@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // A unit's drill-in on the Delivery tab (SB-FR-013, SB-NFR-003, SB-NFR-004,
-// SB-US-004): the timeline first with the terminal beside it and the Diff and
-// Verify panels beneath, seams marked on the timeline, a done unit's transcript
+// SB-US-004): the timeline first, with the terminal beside it above the Diff
+// and Verify tabs, seams marked on the timeline, a done unit's transcript
 // replayed read-only, the 1,000-event bound, keyboard and screen-reader
 // operation, and the empty states of a unit with no events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,13 +9,18 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import type { Bench } from "@roubo/shared";
-import type { DeliveryEvent, DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
+import {
+  GATE_PROVISIONAL_STATUS,
+  type DeliveryEvent,
+  type DeliveryRecord,
+} from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
 import { FakeSocket } from "../../test/fake-terminal";
+import { HELD_DRAFT_LABEL } from "./delivery-map-model";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -165,7 +170,7 @@ afterEach(() => {
 });
 
 describe("Unit drill-in", () => {
-  it("SB-TC-029 shows the timeline first with the terminal beside it and the diff and verify beneath", async () => {
+  it("SB-TC-029 shows the timeline first, with the terminal beside it above the Diff and Verify tabs", async () => {
     record = withStatus(fourUnitRecord(), { B: "running" });
     log = [
       unitEvent(8, "B", "unit.changed", { status: "running" }, at(40)),
@@ -189,22 +194,33 @@ describe("Unit drill-in", () => {
     });
     renderWithProviders(<Harness />);
 
-    // Step 1: open B from the map.
+    // Step 1: open B from the map. The timeline comes first; beside it, the
+    // terminal sits above the panel of the Diff and Verify tabs (#1621).
     const drillIn = await openUnit("B");
     const timeline = within(drillIn).getByRole("region", { name: "Timeline of unit B" });
     const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit B" });
     const diff = within(drillIn).getByRole("region", { name: "Diff of unit B" });
-    const verify = within(drillIn).getByRole("region", { name: "Verify results of unit B" });
     expect(within(drillIn).getAllByRole("region")[0]).toBe(timeline);
-    const top = drillIn.querySelector('[data-drill-in-row="top"]');
-    const bottom = drillIn.querySelector('[data-drill-in-row="bottom"]');
-    expect([...(top?.children ?? [])]).toEqual([timeline, terminal]);
+    const side = drillIn.querySelector('[data-drill-in-column="side"]');
+    const tabs = within(drillIn).getByTestId("unit-diff-verify");
+    expect([...(side?.children ?? [])]).toEqual([terminal, tabs]);
+    expect(timeline.compareDocumentPosition(side as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     // The terminal beside the timeline is the live delivery session itself.
     expect(within(terminal).getByTestId("unit-terminal-live")).toBeInTheDocument();
     expect(within(terminal).getByRole("textbox", { name: "Terminal input" })).toBeInTheDocument();
     expect(FakeSocket.to("session-1")).toHaveLength(1);
-    expect([...(bottom?.children ?? [])]).toEqual([diff, verify]);
-    expect(top?.compareDocumentPosition(bottom as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // Diff is the selected tab, and Verify waits behind it.
+    expect(
+      within(tabs)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Diff", "Verify"]);
+    expect(within(tabs).getByRole("tab", { name: "Diff" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(diff).toBeVisible();
+    expect(within(drillIn).getByTestId("unit-verify")).not.toBeVisible();
 
     // Step 2: the timeline reads GET /delivery/events?unit=B and shows only B's
     // events, the newest first.
@@ -220,10 +236,103 @@ describe("Unit drill-in", () => {
     );
     expect(api.fetchDeliveryUnitDiff).toHaveBeenCalledWith("demo", 3, "B");
 
-    // Step 4: the Verify panel shows the result of the case B implements.
+    // Step 4: the Verify tab shows the result of the case B implements.
+    await userEvent.click(within(tabs).getByRole("tab", { name: "Verify" }));
+    const verify = within(drillIn).getByRole("region", { name: "Verify results of unit B" });
+    expect(verify).toBeVisible();
+    expect(diff).not.toBeVisible();
     expect(within(verify).getByTestId("unit-verify-FX-TC-001")).toHaveTextContent(
       "FX-TC-001gate-after-bpassed",
     );
+  });
+
+  it("heads the drill-in with the unit's id, title and chips for what the record holds of it (#1621)", async () => {
+    const base = withStatus(fourUnitRecord(), { B: "running" });
+    record = {
+      ...base,
+      units: base.units.map((unit) =>
+        unit.id === "B"
+          ? {
+              ...unit,
+              depends_on: ["A", "D"],
+              pr_url: "https://github.com/demo/demo/pull/47",
+              cost_usd: 2.65,
+            }
+          : unit,
+      ),
+    };
+    renderWithProviders(<Harness />);
+
+    // B: on stack A over its base A, with a dependency beyond its base, a pull
+    // request, the gate after it and a cost.
+    const drillIn = await openUnit("B");
+    const heading = within(drillIn).getByRole("heading", { level: 2, name: "B Second" });
+    expect(heading).toHaveFocus();
+    const chips = within(drillIn).getByRole("list", { name: "About unit B" });
+    expect(
+      within(chips)
+        .getAllByRole("listitem")
+        .map((chip) => chip.textContent),
+    ).toEqual([
+      "running",
+      "stack A · layer 1 · base A",
+      "after A, D",
+      "#47",
+      "gate gate-after-b · pending",
+      "USD 2.65",
+    ]);
+
+    // D: the first unit of its stack, with no dependency, no pull request, no
+    // gate and no cost, takes only the status and stack chips.
+    await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
+    const own = await openUnit("D");
+    const ownChips = within(own).getByRole("list", { name: "About unit D" });
+    expect(
+      within(ownChips)
+        .getAllByRole("listitem")
+        .map((chip) => chip.textContent),
+    ).toEqual(["done", "stack D · layer 0"]);
+  });
+
+  it("names the terminal live only while the unit runs (#1621)", async () => {
+    // B runs: the terminal's meta names it live.
+    record = withStatus(fourUnitRecord(), { B: "running" });
+    renderWithProviders(<Harness />);
+    const running = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
+    expect(within(running).getByTestId("unit-terminal-live")).toBeInTheDocument();
+    expect(running.querySelector("header")).toHaveTextContent("B · live");
+    cleanup();
+
+    // B waits with events of its own: the session terminal still shows, but the
+    // meta does not call B live, because the session works on another unit.
+    record = withStatus(fourUnitRecord(), { B: "pending" });
+    log = [unitEvent(8, "B", "note", { text: "Queued behind A" }, at(40))];
+    renderWithProviders(<Harness />);
+    const waiting = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
+    expect(within(waiting).getByTestId("unit-terminal-live")).toBeInTheDocument();
+    expect(waiting.querySelector("header")).not.toHaveTextContent("live");
+  });
+
+  it("names a held unit's pull request as a held draft, not its number (#1621)", async () => {
+    const base = withStatus(fourUnitRecord(), { B: "done", C: "running" });
+    record = {
+      ...base,
+      units: base.units.map((unit) =>
+        unit.id === "C" ? { ...unit, pr_url: "https://github.com/demo/demo/pull/48" } : unit,
+      ),
+      stack: {
+        ...base.stack,
+        gates: base.stack.gates.map((gate) =>
+          gate.id === "gate-after-b" ? { ...gate, status: GATE_PROVISIONAL_STATUS } : gate,
+        ),
+      },
+    };
+    renderWithProviders(<Harness />);
+
+    // A provisional gate after B holds C, the layer above it.
+    const drillIn = await openUnit("C");
+    expect(within(drillIn).getByTestId("unit-chip-pr")).toHaveTextContent(HELD_DRAFT_LABEL);
+    expect(within(drillIn).getByTestId("unit-chip-pr")).not.toHaveTextContent("#48");
   });
 
   it("SB-TC-030 marks the record's seams of the unit and a posted seam event on the timeline", async () => {
@@ -408,8 +517,8 @@ describe("Unit drill-in", () => {
     const drillIn = await openUnit("B");
     await waitFor(() => expect(timelineOrder()).toEqual(["event:8"]));
 
-    // Step 1: Tab from the timeline to the terminal, the diff and the verify
-    // panels; each announces its name.
+    // Step 1: Tab from the timeline to the terminal, then the Diff and Verify
+    // tabs and their panels; each announces its name.
     within(drillIn).getByRole("button", { name: "Close" }).focus();
     await user.tab();
     expect(screen.getByRole("region", { name: "Timeline of unit B" })).toHaveFocus();
@@ -422,10 +531,20 @@ describe("Unit drill-in", () => {
     await user.tab();
     const input = screen.getByRole("textbox", { name: "Terminal input" });
     expect(input).toHaveFocus();
-    // The live terminal keeps Tab for itself, so F6 is the way out.
+    // The live terminal keeps Tab for itself, so F6 is the way out, to the
+    // selected tab's panel.
     await user.keyboard("{F6}");
     expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
+    // Shift+Tab reaches the tab list, and the arrow key selects Verify.
+    await user.tab({ shift: true });
+    expect(screen.getByRole("tab", { name: "Diff" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Verify" })).toHaveAttribute("aria-selected", "true");
     await user.tab();
+    expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
+    // With Verify selected, F6 from the terminal goes to the Verify panel.
+    input.focus();
+    await user.keyboard("{F6}");
     expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
     // Shift+F6 from inside the terminal goes back to the timeline.
     input.focus();
