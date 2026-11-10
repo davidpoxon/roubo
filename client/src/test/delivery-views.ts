@@ -19,6 +19,11 @@ export async function openDecisionsView(user: Clicker = userEvent): Promise<void
   await user.click(await screen.findByRole("button", { name: "Open the decision pile" }));
 }
 
+// Opens the cases view from the header's cases met (#1655).
+export async function openCasesView(user: Clicker = userEvent): Promise<void> {
+  await user.click(await screen.findByTestId("delivery-header-progress"));
+}
+
 // Returns to the map through the Delivery crumb of the view that shows.
 export async function returnToMap(user: Clicker = userEvent): Promise<void> {
   const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });

@@ -25,8 +25,10 @@ import { DeliveryPanel } from "./DeliveryPanel";
 // whole delivery (plan-hash-mismatch) has no map target: it stays in the Tab
 // order and is announced, and reads as unavailable to press.
 //
-// The Delivery tab shows the panel on its rail of summary panels; DeliveryRail
-// still hosts it when it is given a cross-check, which the tab no longer does.
+// The Delivery tab shows the panel last on its rail of summary panels, where
+// it takes the rest of the rail's height and scrolls its entries under a
+// header that stays in place (#1655). DeliveryRail still hosts it when it is
+// given a cross-check, which the tab no longer does.
 // The header of the Delivery tab carries a chip that counts the disagreements
 // (DeliveryCrossCheckChip); a press on it brings this panel into view.
 
@@ -141,9 +143,13 @@ export default function DeliveryCrossCheck({
       title="Cross-check"
       meta={plural(disagreements.length, "disagreement")}
       focusable
+      fill
       {...(className !== undefined && { className })}
     >
-      <div className="space-y-1 px-3 py-2">
+      <div
+        data-testid="delivery-crosscheck-body"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2"
+      >
         {sourceError !== null && (
           <p
             role="status"

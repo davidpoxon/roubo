@@ -3,6 +3,7 @@ import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError, DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
+import { focusRing } from "../ui/focus-ring";
 import {
   classifyLifecycleState,
   selectDecisionPile,
@@ -26,40 +27,47 @@ import { gateKey, unitKey, type MapFocusRequest, type MapTarget } from "./delive
 import DeliveryDigest from "./DeliveryDigest";
 import { useDeliveryDigest } from "../../hooks/useDeliveryDigest";
 import type { DeliveryDigestEntry } from "@roubo/shared/delivery-digest";
-import { DeliveryMetCases, DeliveryProgressStats } from "./DeliveryProgress";
+import DeliveryCasesView from "./DeliveryCasesView";
 import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./DeliverySummaryRail";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It shows one view at a time
 // (#1620), with no route of its own: the map, which opens first, or one of
-// three views that each carry a breadcrumb back to it, a unit's or a gate's
-// drill-in, decisions and steering, and cost, health and controls. A unit
+// four views that each carry a breadcrumb back to it, a unit's or a gate's
+// drill-in, decisions and steering, cost, health and controls, and the cases
+// (#1655). A unit
 // node or row, a gate marker on the map and a digest link to a unit or a gate
 // open a drill-in. The
 // rail's Decisions panel, a digest link to a decision and a link to the
 // decision pile open the decisions view. The rail's Cost, health and controls
-// link and a digest link to the drift ledger open the cost view. A return to
+// link and a digest link to the drift ledger open the cost view. The header's
+// cases met and the rail's Cases figure open the cases view. A return to
 // the map puts the focus back on what opened the view, or on the map when the
 // view was not opened from it. The map, decisions and cost views stay mounted
 // while hidden, so each keeps its scroll, its selection and any text typed in
-// it; a drill-in mounts while it shows.
+// it; a drill-in and the cases view mount while they show.
 //
 // It names what the bench delivers and how it is bound, then reads the
-// delivery: the folded snapshot. The map view holds:
+// delivery: the folded snapshot. The map view takes the height of the tab
+// (#1655), down to a floor under which the tab scrolls, and holds:
 // - a header row with the spec slug, the cases met with a meter, the health
 //   chip (SB-FR-019, SB-NFR-006), the mode in effect in a mono label
 //   (SB-FR-032) and a chip that counts the cross-check's disagreements, with
 //   how the bench is bound and the spec folder on a line under it;
+// - the gate sitting the bench prepares or has open, which reads waiting for
+//   build until the pinned build passed its smoke check and ready to sit after
+//   (SB-FR-023);
 // - the since-you-left digest of what changed since the operator's last view
 //   (SB-FR-012), until the operator dismisses it;
 // - the map and a rail of summary panels (burn and health, decisions, the
 //   next boundary, and the cross-check with its disagreements and source
 //   error, SB-FR-030), side by side once the tab is wide enough for both, else
-//   the rail under the map (#1618). Enter on a cross-check entry focuses its
-//   unit or gate on the map (SB-FR-029);
-// - the progress in cases met and requirements covered (SB-FR-011), and the
-//   gate sitting the bench prepares or has open, which reads waiting for build
-//   until the pinned build passed its smoke check and ready to sit after
-//   (SB-FR-023).
+//   the rail under the map (#1618). Side by side, both take the rest of the
+//   tab's height, and the cross-check takes the rest of the rail's and scrolls
+//   its entries. Enter on a cross-check entry focuses its unit or gate on the
+//   map (SB-FR-029).
+// The cases view holds the progress in cases met and requirements covered
+// (SB-FR-011), the gating cases, and the detail of the selected case with its
+// verify record (DeliveryCasesView).
 // The decisions view holds the decision pile, where a decision is answered or
 // its default overturned in place (SB-FR-014, SB-FR-015), with the agent
 // decisions to review on the same pile (SB-FR-033), and the boundary panel
@@ -112,7 +120,7 @@ export default function DeliveryTabPanel({
   const readError = delivery.isError ? deliveryReadErrorOf(delivery.error) : undefined;
 
   return (
-    <div data-testid="delivery-tab-panel" className="space-y-4">
+    <div data-testid="delivery-tab-panel" className="flex h-full flex-col gap-4">
       {!delivery.isSuccess && (
         <div className="space-y-2">
           <p className="text-13 text-text-body">
@@ -231,7 +239,8 @@ type DeliveryView =
   | { kind: "map" }
   | { kind: "drill-in"; target: MapTarget }
   | { kind: "decisions" }
-  | { kind: "cost" };
+  | { kind: "cost" }
+  | { kind: "cases" };
 
 const VIEW_TITLE = "text-16 font-semibold text-text-primary";
 
@@ -241,16 +250,26 @@ function bringIntoView(view: HTMLElement | null): void {
   view.focus();
 }
 
-// The header's progress: the cases met of all the cases, with a meter.
-function DeliveryHeaderProgress({ snapshot }: { snapshot: DeliverySnapshot }) {
-  const { cases } = selectProgress(snapshot);
+// The header's progress: the cases met of all the cases, with a meter, and
+// the requirements covered. A press opens the cases view.
+function DeliveryHeaderProgress({
+  snapshot,
+  onOpen,
+}: {
+  snapshot: DeliverySnapshot;
+  onOpen: () => void;
+}) {
+  const { cases, requirements } = selectProgress(snapshot);
   const fill = cases.total === 0 ? 0 : cases.met / cases.total;
   return (
-    <span
+    <button
+      type="button"
       data-testid="delivery-header-progress"
-      className="flex min-w-0 flex-wrap items-center gap-2 text-12 text-text-secondary"
+      aria-label={`Show the cases: ${String(cases.met)} of ${String(cases.total)} cases met, ${String(requirements.met)} of ${String(requirements.total)} requirements covered`}
+      onClick={onOpen}
+      className={`flex min-h-6 min-w-0 flex-wrap items-center gap-2 rounded-control text-12 text-text-secondary hover:text-text-primary ${focusRing}`}
     >
-      <span>
+      <span data-testid="delivery-header-cases">
         {cases.met} of {cases.total} cases met
       </span>
       <span aria-hidden="true" className="block h-1 w-40 max-w-full rounded-full bg-bg-hover">
@@ -259,7 +278,10 @@ function DeliveryHeaderProgress({ snapshot }: { snapshot: DeliverySnapshot }) {
           style={{ width: `${Math.round(fill * 100)}%` }}
         />
       </span>
-    </span>
+      <span data-testid="delivery-header-requirements">
+        {requirements.met} of {requirements.total} requirements covered
+      </span>
+    </button>
   );
 }
 
@@ -309,6 +331,7 @@ function DeliverySnapshotView({
   const costHealthControls = useRef<HTMLElement>(null);
   const decisionPile = useRef<HTMLDivElement>(null);
   const crossCheckPanel = useRef<HTMLElement>(null);
+  const casesView = useRef<HTMLElement>(null);
   // Which view of the tab shows, and, while another view shows, the element
   // of the map that opened it, which takes the focus back on the return.
   const [view, setView] = useState<DeliveryView>({ kind: "map" });
@@ -414,17 +437,31 @@ function DeliverySnapshotView({
   const openCrossCheck = () => {
     bringIntoView(crossCheckPanel.current);
   };
+  const openCases = () => {
+    openView({ kind: "cases" }, () => casesView.current);
+  };
 
   return (
-    <div data-testid="delivery-snapshot" className="space-y-4">
+    <div
+      data-testid="delivery-snapshot"
+      // The map view fills the tab, so the tab does not scroll while the
+      // window is at least 560px high; below that it keeps a 560px floor and
+      // the tab scrolls. Just above 560px the map row gets what the header,
+      // banner and digest leave, which can be little.
+      className={
+        view.kind === "map"
+          ? "flex min-h-[560px] flex-1 flex-col [@media(min-height:560px)]:min-h-0"
+          : "shrink-0 space-y-4"
+      }
+    >
       <div
         ref={mapView}
         tabIndex={-1}
         hidden={view.kind !== "map"}
         data-testid="delivery-view-map"
-        className="space-y-4 focus:outline-none"
+        className="flex min-h-0 flex-1 flex-col gap-4 focus:outline-none"
       >
-        <div className="space-y-1 border-b border-border pb-3">
+        <div className="shrink-0 space-y-1 border-b border-border pb-3">
           <div
             data-testid="delivery-header"
             className="flex flex-wrap items-center gap-x-4 gap-y-2"
@@ -435,7 +472,7 @@ function DeliverySnapshotView({
             >
               {slug ?? "no spec"}
             </span>
-            <DeliveryHeaderProgress snapshot={snapshot} />
+            <DeliveryHeaderProgress snapshot={snapshot} onOpen={openCases} />
             <DeliveryRail
               snapshot={snapshot}
               attached={
@@ -462,18 +499,27 @@ function DeliverySnapshotView({
             </p>
           )}
         </div>
+        {snapshot.sitting !== undefined && (
+          <div className="shrink-0">
+            <GateSitting sitting={snapshot.sitting} />
+          </div>
+        )}
         {digest.isSuccess && digest.data.entries.length > 0 && (
-          <DeliveryDigest
-            digest={digest.data}
-            isDismissing={dismiss.isPending}
-            onDismiss={dismissDigest}
-            onOpen={openDigestEntry}
-          />
+          <div data-testid="delivery-digest-frame" className="max-h-48 shrink-0 overflow-y-auto">
+            <DeliveryDigest
+              digest={digest.data}
+              isDismissing={dismiss.isPending}
+              onDismiss={dismissDigest}
+              onOpen={openDigestEntry}
+            />
+          </div>
         )}
 
-        <div className="@container">
-          <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
+        {/* Side by side, the map and the rail take the rest of the height;
+            stacked, each takes a height of its own and the tab scrolls. */}
+        <div data-testid="delivery-workspace" className="@container/workspace min-h-0 flex-1">
+          <div className="grid gap-4 @4xl:h-full @4xl:grid-cols-[minmax(0,1fr)_320px] @4xl:grid-rows-[minmax(0,1fr)]">
+            <div className="flex h-[70dvh] min-h-0 min-w-0 flex-col @4xl:h-full">
               <DeliveryMap
                 projectId={bench.projectId}
                 benchId={bench.id}
@@ -485,33 +531,29 @@ function DeliverySnapshotView({
             <aside
               data-testid="delivery-summary-rail"
               aria-label="Delivery summary"
-              className="@container/rail min-w-0"
+              className="@container/rail flex min-h-0 min-w-0 flex-col gap-4 @4xl:overflow-y-auto"
             >
-              <div className="grid gap-4 @md/rail:grid-cols-2 @3xl/rail:grid-cols-3">
+              <div className="grid shrink-0 gap-4 @md/rail:grid-cols-2 @3xl/rail:grid-cols-3">
                 <BurnHealthPanel
                   snapshot={snapshot}
                   onOpenCostHealthControls={openCostHealthControls}
+                  onOpenCases={openCases}
                 />
                 <DecisionSummaryPanel snapshot={snapshot} onOpenDecisions={openDecisionPile} />
                 <NextBoundaryPanel snapshot={snapshot} className="col-span-full" />
-                {crossCheck.data !== undefined && (
-                  <DeliveryCrossCheck
-                    ref={crossCheckPanel}
-                    crossCheck={crossCheck.data}
-                    snapshot={snapshot}
-                    onFocusMapTarget={focusMapTarget}
-                    className="col-span-full"
-                  />
-                )}
               </div>
+              {crossCheck.data !== undefined && (
+                <DeliveryCrossCheck
+                  ref={crossCheckPanel}
+                  crossCheck={crossCheck.data}
+                  snapshot={snapshot}
+                  onFocusMapTarget={focusMapTarget}
+                  className="flex-1 @md/rail:max-h-[60dvh] @4xl/workspace:min-h-40"
+                />
+              )}
             </aside>
           </div>
         </div>
-
-        <DeliveryProgressStats snapshot={snapshot} />
-        <DeliveryMetCases snapshot={snapshot} />
-
-        <GateSitting sitting={snapshot.sitting} />
       </div>
 
       {view.kind === "drill-in" && (
@@ -596,6 +638,20 @@ function DeliverySnapshotView({
           onOpenUnit={(id) => openMapTarget("unit", id)}
         />
       </section>
+
+      {view.kind === "cases" && (
+        <section
+          ref={casesView}
+          tabIndex={-1}
+          data-testid="delivery-view-cases"
+          aria-label="Cases"
+          className="space-y-4 focus:outline-none"
+        >
+          <DeliveryBreadcrumb benchId={bench.id} current="Cases" onReturn={returnToMap} />
+          <h2 className={VIEW_TITLE}>Cases</h2>
+          <DeliveryCasesView projectId={bench.projectId} benchId={bench.id} snapshot={snapshot} />
+        </section>
+      )}
     </div>
   );
 }

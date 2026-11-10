@@ -22,6 +22,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
     fetchTerminals: vi.fn(),
+    fetchTestbenchPlan: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
@@ -32,7 +33,12 @@ import {
   shouldRetryDeliveryCrossCheck,
 } from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
-import { openCostView, openDecisionsView, returnToMap } from "../../test/delivery-views";
+import {
+  openCasesView,
+  openCostView,
+  openDecisionsView,
+  returnToMap,
+} from "../../test/delivery-views";
 
 const bench = {
   id: 3,
@@ -111,6 +117,8 @@ beforeEach(() => {
   vi.mocked(api.resumeDelivery).mockReset();
   vi.mocked(api.launchDelivery).mockReset();
   vi.mocked(api.fetchTerminals).mockReset();
+  vi.mocked(api.fetchTestbenchPlan).mockReset();
+  vi.mocked(api.fetchTestbenchPlan).mockRejectedValue(new Error("no plan in this test"));
   vi.mocked(api.fetchDeliveryCrossCheck).mockReset();
   vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
     disagreements: [],
@@ -342,10 +350,49 @@ describe("DeliveryTabPanel", () => {
       });
     }
 
+    function planResponse(snapshot: ReturnType<typeof progressSnapshot>) {
+      return {
+        plan: {
+          $schema: "https://roubo.dev/schema/testbench/test-cases/v1.2.0.json",
+          schemaVersion: "1.2.0",
+          specSlug: "fixture-spec",
+          cases: snapshot.progress.caseList.map((entry, index) => ({
+            id: entry.id,
+            title: `Case title ${entry.id}`,
+            area: "fixture",
+            level: 2,
+            type: "functional",
+            steps: [
+              {
+                id: "s1",
+                instruction: `Open the thing for ${entry.id}`,
+                observations: [{ id: "o1", expected: "The thing shows" }],
+              },
+            ],
+            tags: [],
+            linked_requirement_ids: [index < 3 ? "FIX-FR-001" : "FIX-FR-002"],
+            linked_user_story_ids: ["FIX-US-001"],
+          })),
+        },
+        results: null,
+        stale: false,
+        planHash: "fixture",
+        recovered: false,
+      } as unknown as Awaited<ReturnType<typeof api.fetchTestbenchPlan>>;
+    }
+
     it("SB-TC-022 reads 3 of 10 cases met, counts covered requirements, and reads no units done", async () => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
       renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
+      expect(await screen.findByTestId("delivery-header-progress")).toHaveTextContent(
+        "3 of 10 cases met",
+      );
+      // The map view no longer repeats the progress under the map (#1655).
+      expect(screen.queryByTestId("delivery-progress")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("delivery-met-cases")).not.toBeInTheDocument();
+
+      await openCasesView();
       const cases = await screen.findByTestId("delivery-stat-cases");
       expect(cases).toHaveTextContent("3 of 10 cases met");
       expect(screen.getByTestId("delivery-stat-requirements")).toHaveTextContent(
@@ -356,21 +403,46 @@ describe("DeliveryTabPanel", () => {
       expect(screen.getByTestId("delivery-snapshot")).not.toHaveTextContent(/2 of 4 units/);
     });
 
-    it("SB-TC-022 opens a met case's verify record and links the pull request of the unit that met it", async () => {
+    it("opens the cases view from the rail's Cases figure and returns to the map", async () => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
       renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
-      const metCases = await screen.findByTestId("delivery-met-cases");
-      // Only the met cases are offered.
-      expect(screen.queryByRole("button", { name: ids[3] })).not.toBeInTheDocument();
-      expect(screen.queryByTestId(`delivery-verify-record-${ids[0]}`)).not.toBeInTheDocument();
+      const figure = await screen.findByTestId("delivery-rail-stat-cases");
+      await userEvent.click(figure);
+      expect(await screen.findByTestId("delivery-view-cases")).toHaveFocus();
+      expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
 
-      const caseButton = screen.getByRole("button", { name: ids[0] });
-      await userEvent.click(caseButton);
+      await returnToMap();
+      expect(screen.queryByTestId("delivery-view-cases")).not.toBeInTheDocument();
+      expect(screen.getByTestId("delivery-rail-stat-cases")).toHaveFocus();
+    });
 
-      expect(caseButton).toHaveAttribute("aria-expanded", "true");
+    it("opens the cases view from the header's progress and gives the focus back to it", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      expect(await screen.findByTestId("delivery-view-cases")).toHaveFocus();
+      expect(screen.getByTestId("delivery-case-list")).toBeInTheDocument();
+
+      await returnToMap();
+      expect(screen.queryByTestId("delivery-view-cases")).not.toBeInTheDocument();
+      expect(screen.getByTestId("delivery-header-progress")).toHaveFocus();
+    });
+
+    it("SB-TC-022 opens a met case's verify record and links the pull request of the unit that met it", async () => {
+      const snapshot = progressSnapshot();
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
+      vi.mocked(api.fetchTestbenchPlan).mockResolvedValue(planResponse(snapshot));
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      const list = await screen.findByTestId("delivery-case-list");
+      // Every gating case is listed, and the first met case is selected.
+      expect(within(list).getAllByRole("button", { name: /^FIX-TC-/ })).toHaveLength(10);
+      const first = screen.getByTestId(`delivery-case-${ids[0]}`);
+      expect(first).toHaveAttribute("aria-current", "true");
       const verifyRecord = screen.getByTestId(`delivery-verify-record-${ids[0]}`);
-      expect(metCases).toContainElement(verifyRecord);
       expect(verifyRecord).toHaveTextContent("passed");
       expect(verifyRecord).toHaveTextContent("tier b, high confidence");
       expect(verifyRecord).toHaveTextContent("report.xml#FIX-TC-001");
@@ -379,6 +451,47 @@ describe("DeliveryTabPanel", () => {
         "href",
         "https://github.com/demo/demo/pull/2",
       );
+      // The detail says what the case is and what it links.
+      const detail = screen.getByTestId("delivery-case-detail");
+      expect(await within(detail).findByText(`Case title ${ids[0]}`)).toBeInTheDocument();
+      expect(within(detail).getByTestId("delivery-case-steps")).toHaveTextContent(
+        `Open the thing for ${ids[0]}Expects: The thing shows`,
+      );
+      expect(within(detail).getByTestId("delivery-case-requirements")).toHaveTextContent(
+        "FIX-FR-001",
+      );
+      expect(detail).toHaveTextContent("FIX-US-001");
+
+      // The arrow keys move the selection, and the Met filter hides the unmet cases.
+      first.focus();
+      await userEvent.keyboard("{ArrowDown}");
+      expect(screen.getByTestId(`delivery-case-${ids[1]}`)).toHaveFocus();
+      expect(screen.getByTestId(`delivery-verify-record-${ids[1]}`)).toBeInTheDocument();
+      await userEvent.click(within(list).getByRole("button", { name: "Met" }));
+      expect(within(list).getAllByRole("button", { name: /^FIX-TC-/ })).toHaveLength(3);
+      expect(screen.queryByTestId(`delivery-case-${ids[3]}`)).not.toBeInTheDocument();
+    });
+
+    it("says a gating case that is not met has no unit that met it yet", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      await userEvent.click(await screen.findByTestId(`delivery-case-${ids[3]}`));
+      const record = screen.getByTestId(`delivery-verify-record-${ids[3]}`);
+      expect(record).toHaveTextContent("No unit has met this case yet.");
+      expect(record).not.toHaveTextContent("No gate names this case");
+    });
+
+    it("shows the case id and its verify record when the test plan cannot be read", async () => {
+      vi.mocked(api.fetchDelivery).mockResolvedValue(progressSnapshot());
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      await openCasesView();
+      expect(await screen.findByTestId("delivery-case-text-missing")).toHaveTextContent(
+        "The case text is not available: the test plan could not be read.",
+      );
+      expect(screen.getByTestId(`delivery-verify-record-${ids[0]}`)).toBeInTheDocument();
     });
 
     it("SB-TC-022 links no pull request whose url is not a web address", async () => {
@@ -389,7 +502,8 @@ describe("DeliveryTabPanel", () => {
       vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
       renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
-      await userEvent.click(await screen.findByRole("button", { name: ids[1] }));
+      await openCasesView();
+      await userEvent.click(await screen.findByTestId(`delivery-case-${ids[1]}`));
 
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(screen.getByTestId(`delivery-verify-record-${ids[1]}`)).toHaveTextContent(
@@ -674,6 +788,11 @@ describe("DeliveryTabPanel gate sitting", () => {
 
     const sitting = await screen.findByTestId("delivery-gate-sitting");
     expect(sitting).toHaveAttribute("data-state", "preparing");
+    // The banner calls the operator to act, so it comes before the map.
+    expect(
+      sitting.compareDocumentPosition(screen.getByTestId("delivery-workspace")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(sitting).toHaveTextContent("gate-after-b");
     expect(within(sitting).getByTestId("delivery-gate-sitting-state")).toHaveTextContent(
       "waiting for build",

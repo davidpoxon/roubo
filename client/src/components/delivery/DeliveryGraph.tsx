@@ -32,10 +32,10 @@ import {
 // stack lane, a header for each layer column, one node per unit in its lane at
 // its layer (units that share a cell one above the other), the gates in a gate
 // lane below the stacks, and the `depends_on` edges between them, with a legend
-// of the edge kinds and a detail line under the graph. A lane longer than the
-// map scrolls sideways while the lane labels stay in place, and the live unit
-// is brought into view when the map opens. The layer headers scroll with their
-// columns, since the graph never scrolls on its own vertically. The nodes and gates sit in the DOM
+// of the edge kinds and a detail line under the graph. The graph takes the
+// height of the map panel (#1655) and scrolls inside it: sideways while the
+// lane labels stay in place, and down while the layer headers stay in place.
+// The live unit is brought into view when the map opens. The nodes and gates sit in the DOM
 // in dependency order, so Tab walks them in that order whatever their place on
 // the canvas. The edges are decorative: each node names its dependencies for
 // the screen reader.
@@ -104,14 +104,14 @@ export default function DeliveryGraph({
   const active = layout.items.find((item) => item.key === activeKey);
 
   return (
-    <div data-testid="delivery-graph" className="space-y-2">
+    <div data-testid="delivery-graph" className="flex min-h-0 flex-1 flex-col gap-2">
       <div
         ref={scroller}
         data-testid="delivery-graph-scroll"
         // Keeps a node that focus or a cross-check scrolls to clear of the
-        // lane labels.
-        style={{ scrollPaddingLeft: LABEL_WIDTH }}
-        className="overflow-auto"
+        // lane labels and the layer headers.
+        style={{ scrollPaddingLeft: LABEL_WIDTH, scrollPaddingTop: HEADER_HEIGHT }}
+        className="min-h-0 flex-1 overflow-auto"
       >
         <div
           className="grid"
@@ -121,8 +121,8 @@ export default function DeliveryGraph({
             width: LABEL_WIDTH + layout.width,
           }}
         >
-          <div aria-hidden="true" className="sticky left-0 z-30 bg-bg-surface" />
-          <div>
+          <div aria-hidden="true" className="sticky left-0 top-0 z-30 bg-bg-surface" />
+          <div className="sticky top-0 z-20 bg-bg-surface">
             <ol aria-label="Layers" className="relative h-full">
               {layout.columns.map((column) => (
                 <li
@@ -235,7 +235,7 @@ export default function DeliveryGraph({
       <ul
         aria-label="Edge legend"
         data-testid="delivery-graph-legend"
-        className="flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-2 font-mono text-11 text-text-secondary"
+        className="flex shrink-0 flex-wrap gap-x-6 gap-y-1 border-t border-border pt-2 font-mono text-11 text-text-secondary"
       >
         <LegendItem swatch="border-t border-border-strong">depends on</LegendItem>
         <LegendItem swatch="border-t border-success-text">merged</LegendItem>
@@ -247,7 +247,7 @@ export default function DeliveryGraph({
       <p
         aria-hidden="true"
         data-testid="delivery-graph-detail"
-        className="min-h-5 break-words text-12 text-text-secondary"
+        className="min-h-5 shrink-0 break-words text-12 text-text-secondary"
       >
         {detailText(active)}
       </p>
