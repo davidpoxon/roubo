@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { axe } from "vitest-axe";
 import type { Bench } from "@roubo/shared";
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
@@ -600,7 +601,16 @@ describe("Spec Bench test bench tab", () => {
     ]) {
       expect(within(panel).getByRole("button", { name })).toBeDisabled();
     }
+    expect(within(panel).getByRole("button", { name: /Case status/ })).toBeDisabled();
+    expect(
+      within(
+        within(panel).getByRole("radiogroup", {
+          name: "Mark observation pass or fail: FX-TC-001 behaves",
+        }),
+      ).getByRole("radio", { name: "Pass" }),
+    ).toBeDisabled();
   });
+
   it("reads the split again for a sitting of another gate, and holds a split only from a read made since the tab mounted", async () => {
     const verification = {
       tier: "b" as const,
@@ -877,6 +887,108 @@ describe("Spec Bench test bench tab", () => {
         .map((item) => item.getAttribute("data-case-id")),
     ).toEqual(["FX-TC-002"]);
     expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeVisible();
+    expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+  });
+
+  it("with the app's 2 second cache, reads the plan again on mount, keeps Stage and the marks disabled until the split is held, and a mark then keeps its case escalated", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    const verification = {
+      tier: "b" as const,
+      confidence: "high" as const,
+      evidence: [],
+      author: { name: "verify", email: "verify@example.test" },
+      timestamp: "2026-10-16T10:00:00Z",
+    };
+    const caseResults: Record<string, CaseResult> = {
+      "FX-TC-001": { observationMarks: {}, derivedStatus: "passed", notes: [], verification },
+      "FX-TC-002": { observationMarks: {}, derivedStatus: "in_progress", notes: [], verification },
+    };
+    const read = () => ({
+      plan,
+      results: { updatedAt: "2026-10-16T10:00:00Z", caseResults: { ...caseResults } },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    });
+    vi.mocked(api.fetchTestbenchPlan).mockImplementation(async () => read());
+    vi.mocked(api.markObservation).mockImplementation(
+      async (_p, _b, caseId, observationId, result) => {
+        // This test only marks, it never clears a mark.
+        if (result === null) throw new Error("unexpected clear");
+        const next: CaseResult = {
+          ...caseResults[caseId],
+          observationMarks: {
+            [observationId]: {
+              result,
+              author: { name: "Ada Operator", email: "ada@example.test" },
+              timestamp: "2026-10-16T10:05:00Z",
+            },
+          },
+          derivedStatus: result === "pass" ? "passed" : "failed",
+        };
+        caseResults[caseId] = next;
+        return next;
+      },
+    );
+    // The app's cache keeps a read fresh for 2 seconds (main.tsx).
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 2000 } },
+    });
+    const first = renderWithProviders(<SpecBenchTestBench bench={bench} />, { queryClient });
+    expect(await screen.findByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+    first.unmount();
+
+    // The tab mounts again while the cached read is still fresh. It reads the
+    // plan again, and until that read is in, nothing can be staged or marked.
+    let release: () => void = () => undefined;
+    vi.mocked(api.fetchTestbenchPlan).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(read());
+        }),
+    );
+    const calls = vi.mocked(api.fetchTestbenchPlan).mock.calls.length;
+    renderWithProviders(<SpecBenchTestBench bench={bench} />, { queryClient });
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const panel = await openCase(user, list, "FX-TC-002");
+    const pass = () =>
+      within(
+        within(panel).getByRole("radiogroup", {
+          name: "Mark observation pass or fail: FX-TC-002 behaves",
+        }),
+      ).getByRole("radio", { name: "Pass" });
+    await waitFor(() =>
+      expect(vi.mocked(api.fetchTestbenchPlan).mock.calls.length).toBeGreaterThan(calls),
+    );
+    expect(pass()).toBeDisabled();
+    expect(within(panel).getByRole("button", { name: "Stage FX-TC-002" })).toBeDisabled();
+    expect(within(panel).getByRole("button", { name: "Mark FX-TC-002 Met" })).toBeDisabled();
+    release();
+    await waitFor(() => expect(pass()).toBeEnabled());
+    expect(within(panel).getByRole("button", { name: "Stage FX-TC-002" })).toBeEnabled();
+
+    // A mark now changes the case's status, not the split.
+    await user.click(pass());
+    await waitFor(() =>
+      expect(api.markObservation).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "o1", "pass"),
+    );
+    await waitFor(() =>
+      expect(within(list).getByRole("button", { name: /^FX-TC-002 ·/ })).toHaveTextContent(
+        "Passed",
+      ),
+    );
+    expect(
+      within(list)
+        .getAllByTestId("sitting-case")
+        .map((item) => item.getAttribute("data-case-id")),
+    ).toEqual(["FX-TC-002"]);
     expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
       "1 of 2 passed by automation · 1 escalated to you",
     );

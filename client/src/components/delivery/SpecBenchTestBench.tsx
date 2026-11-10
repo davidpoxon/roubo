@@ -90,7 +90,10 @@ function Sitting({
   const phase = sittingPhase(sitting);
   const open = phase === "open";
   const gateCases = useGateCases(bench, snapshot, sitting.gateId);
-  const automationPassed = useAutomationPassed(sitting.gateId, open, gateCases);
+  const { passed: automationPassed, held } = useAutomationPassed(sitting.gateId, open, gateCases);
+  // Nothing is staged or marked before the split is held, so no mark can be
+  // part of it.
+  const writable = open && held;
   const queryClient = useQueryClient();
   // The fix unit error of the last mark of each case, which the case surface
   // shows beside it.
@@ -147,6 +150,7 @@ function Sitting({
           snapshot={snapshot}
           sitting={sitting}
           open={open}
+          writable={writable}
           gateCases={gateCases}
           automationPassed={automationPassed}
           fixUnitErrors={fixUnitErrors}
@@ -191,7 +195,9 @@ function SittingStageControl({ bench, sitting }: { bench: Bench; sitting: Delive
 type GateCases = ReturnType<typeof useGateCases>;
 
 function useGateCases(bench: Bench, snapshot: DeliverySnapshotResponse, gateId: string) {
-  const plan = useTestbenchPlan(bench.projectId, bench.id);
+  // Read again on every mount, so the escalated split is held from results as
+  // they are now, not from a cached read.
+  const plan = useTestbenchPlan(bench.projectId, bench.id, { refetchOnMount: "always" });
   const gateCaseIds = ownValue(snapshot.gatesById, gateId)?.gate.cases ?? [];
   const cases = plan.data
     ? gateCaseIds.flatMap((caseId) => {
@@ -215,28 +221,32 @@ function passedByAutomation(result: CaseResult | undefined): boolean {
 // The ids of the gate's cases that automation passed. An operator's
 // observation mark recomputes a case's derived status, so a live reading would
 // move a case between the lists, change the counts and change the chosen case.
-// So the split is read once, when the sitting is open and a read of its cases
-// made since this tab mounted has loaded, and held for the gate while this tab
-// stays mounted. A cached read can be older than results written while the
-// tab was away, so it is not held. Before the sitting opens nothing can be
-// marked here, so the split is read live. A case that joins the gate later
-// counts as escalated.
+// So the split is read once and held for the gate while this tab stays
+// mounted: when the sitting is open and the read of its cases that this tab
+// made on mount has loaded. The plan read refetches on every mount, so a
+// cached read that predates results written while the tab was away is never
+// held. Stage and the marks stay disabled until the split is held, so no mark
+// can be part of it. Before the sitting opens nothing can be marked here, so
+// the split is read live. A case that joins the gate later counts as escalated.
 function useAutomationPassed(
   gateId: string,
   open: boolean,
   { plan, cases, caseResults }: GateCases,
-): ReadonlySet<string> {
+): { passed: ReadonlySet<string>; held: boolean } {
   const [frozen, setFrozen] = useState<{ gateId: string; passed: ReadonlySet<string> }>();
   const held = frozen?.gateId === gateId ? frozen.passed : undefined;
-  if (held !== undefined) return held;
+  if (held !== undefined) return { passed: held, held: true };
   const live = new Set(
     cases
       .filter((testCase) => passedByAutomation(ownValue(caseResults, testCase.id)))
       .map((testCase) => testCase.id),
   );
-  if (open && plan.isSuccess && plan.isFetchedAfterMount && !plan.isFetching && cases.length > 0)
+  const freshRead = plan.isSuccess && plan.isFetchedAfterMount && !plan.isFetching;
+  if (open && freshRead && cases.length > 0) {
     setFrozen({ gateId, passed: live });
-  return live;
+    return { passed: live, held: true };
+  }
+  return { passed: live, held: false };
 }
 
 // The open banner's counts: the gate's cases that automation passed, and those
@@ -264,6 +274,7 @@ function SittingCases({
   snapshot,
   sitting,
   open,
+  writable,
   gateCases: { plan, cases, caseResults },
   automationPassed,
   fixUnitErrors,
@@ -273,6 +284,7 @@ function SittingCases({
   snapshot: DeliverySnapshotResponse;
   sitting: DeliverySittingView;
   open: boolean;
+  writable: boolean;
   gateCases: GateCases;
   automationPassed: ReadonlySet<string>;
   fixUnitErrors: Record<string, string>;
@@ -377,6 +389,7 @@ function SittingCases({
                   benchId={bench.id}
                   testCase={testCase}
                   open={open}
+                  writable={writable}
                   result={ownValue(caseResults, testCase.id)}
                   fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
                   fixUnitError={ownValue(fixUnitErrors, testCase.id)}
@@ -448,6 +461,7 @@ function SittingCase({
   benchId,
   testCase,
   open,
+  writable,
   result,
   fixRef,
   fixUnitError,
@@ -458,6 +472,8 @@ function SittingCase({
   benchId: number;
   testCase: Case;
   open: boolean;
+  // Open, with the escalated split held: Stage and the marks can be used.
+  writable: boolean;
   result: CaseResult | undefined;
   fixRef: string | undefined;
   fixUnitError: string | undefined;
@@ -474,7 +490,7 @@ function SittingCase({
   });
   const mark = (override: CaseStatus) =>
     setStatus.mutate({ projectId, benchId, caseId: testCase.id, override });
-  const markDisabled = !open || setStatus.isPending;
+  const markDisabled = !writable || setStatus.isPending;
   return (
     <div data-testid="testbench-case-surface" data-case-id={testCase.id} className="space-y-4">
       <CaseDetail
@@ -483,7 +499,7 @@ function SittingCase({
         testCase={testCase}
         result={result}
         onMarked={onMarked}
-        marksDisabled={!open}
+        marksDisabled={!writable}
         beforeSteps={
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3 rounded-control border border-border-strong bg-bg-base px-3 py-2.5 text-12">
@@ -494,7 +510,7 @@ function SittingCase({
               <Button
                 variant="primary"
                 onPress={() => stage.mutate()}
-                isDisabled={!open || stage.isPending}
+                isDisabled={!writable || stage.isPending}
               >
                 Stage <span className="sr-only">{testCase.id}</span>
               </Button>
