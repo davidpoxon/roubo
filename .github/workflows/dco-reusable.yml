@@ -78,7 +78,9 @@ jobs:
           #   commit when merging it.
           #
           # Keep this list in step with the bot case in
-          # scripts/git-hooks/commit-msg.
+          # scripts/git-hooks/commit-msg;
+          # scripts/dco-commit-msg-hook.test.ts fails when the two lists
+          # differ.
           bot_authors=(
             "49699333+dependabot[bot]@users.noreply.github.com"
             "354874856+poxon-agent[bot]@users.noreply.github.com"
