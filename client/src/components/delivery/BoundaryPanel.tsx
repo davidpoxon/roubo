@@ -108,6 +108,7 @@ function QueuedItem({ item }: { item: BoundaryQueueItem }) {
       </span>
       <span className="font-mono text-12 text-text-body">
         {item.role}: {item.tier}
+        {item.effort !== null && ` · ${item.effort}`}
       </span>
     </li>
   );

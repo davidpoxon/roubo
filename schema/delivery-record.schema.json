@@ -4,11 +4,11 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "https://roubo.dev/schema/delivery-record/v1.1.0.json"
+      "const": "https://roubo.dev/schema/delivery-record/v1.2.0.json"
     },
     "schemaVersion": {
       "type": "string",
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "delivery_id": {
       "type": "string",
@@ -361,6 +361,10 @@
           "tier": {
             "type": "string",
             "minLength": 1
+          },
+          "effort": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": ["tier"],
@@ -526,7 +530,7 @@
     "updated_at"
   ],
   "additionalProperties": {},
-  "$id": "https://roubo.dev/schema/delivery-record/v1.1.0.json",
+  "$id": "https://roubo.dev/schema/delivery-record/v1.2.0.json",
   "title": "Delivery record",
   "description": "One document describing a spec delivery at a point in time (SB-FR-005). Unknown keys are kept: a minor version adds fields, a major version removes them."
 }

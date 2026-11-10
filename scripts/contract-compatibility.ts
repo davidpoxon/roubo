@@ -26,6 +26,12 @@
 // itself, so they are compared through the version rule, not as a change. A
 // contract whose root is a union carries those constants in each root option,
 // which the rule covers the same way.
+// A document that embeds another contract's document (the control read response
+// embeds controls) carries that contract's `$id` and its `$schema` /
+// `schemaVersion` consts below its root. When such an embedded stamp moves to another minor or patch of
+// the same major, the embedded contract grew additively under its own version
+// rule, so the move is additive here too; a move to another major, or a const
+// that is not a version stamp, stays a changed const and is breaking.
 //
 // Pure: no IO. The suite feeds it the committed baseline and the live render.
 
@@ -99,6 +105,29 @@ interface Collector {
   rootOptions: Set<string>;
 }
 
+const VERSION_STRING = /^(\d+)\.(\d+)\.(\d+)$/;
+
+// The major of a version stamp const and the stamp with its version taken out,
+// for a `schemaVersion` (`1.1.0`) or a `$schema` or `$id` URI
+// (`.../v1.1.0.json`); null
+// when the const is not one.
+function versionStamp(name: string, value: unknown): { major: string; rest: string } | null {
+  if (typeof value !== "string") return null;
+  const pattern = name === "schemaVersion" ? VERSION_STRING : VERSION_IN_ID;
+  const match = pattern.exec(value);
+  if (!match) return null;
+  return { major: match[1], rest: value.slice(0, match.index) };
+}
+
+// True when an embedded `$id`, `$schema` or `schemaVersion` const moved to another
+// version of the same major, the rest of the stamp unchanged (see the header).
+function sameMajorStampMove(name: string, b: JsonSchema, l: JsonSchema): boolean {
+  if (sameJson(b.const, l.const)) return false;
+  const from = versionStamp(name, b.const);
+  const to = versionStamp(name, l.const);
+  return from !== null && to !== null && from.major === to.major && from.rest === to.rest;
+}
+
 function withoutConst(node: JsonSchema): JsonSchema {
   return Object.fromEntries(Object.entries(node).filter(([key]) => key !== "const"));
 }
@@ -121,6 +150,11 @@ function diffNode(base: JsonSchema, live: JsonSchema, path: string, out: Collect
     if (key === "$id" && path === "") continue;
     const b = base[key];
     const l = live[key];
+    // An embedded contract's `$id` that moved within its major (see the header).
+    if (key === "$id" && sameMajorStampMove(key, { const: b }, { const: l })) {
+      out.additive.push(`${path}.$id: embedded version moved from ${String(b)} to ${String(l)}`);
+      continue;
+    }
     switch (key) {
       case "properties":
         diffProperties(base, live, path, out);
@@ -179,6 +213,19 @@ function diffProperties(base: JsonSchema, live: JsonSchema, path: string, out: C
       isSchema(b) &&
       isSchema(l)
     ) {
+      diffNode(withoutConst(b), withoutConst(l), at(name), out);
+      continue;
+    }
+    // An embedded contract's stamp that moved within its major (see the header).
+    if (
+      VERSION_CONST_PROPERTIES.has(name) &&
+      isSchema(b) &&
+      isSchema(l) &&
+      sameMajorStampMove(name, b, l)
+    ) {
+      out.additive.push(
+        `${at(name)}: embedded version moved from ${String(b.const)} to ${String(l.const)}`,
+      );
       diffNode(withoutConst(b), withoutConst(l), at(name), out);
       continue;
     }

@@ -209,18 +209,20 @@ export function useLifecycleControl(projectId: string, benchId: number) {
 export interface RoleChangeRequest {
   role: string;
   tier: string;
+  effort?: string;
 }
 
 /**
- * Changes a role's model tier (SB-FR-021). The role-change control lands in
- * the bench's outbox, so the snapshot, which lists the outbox, is read again
- * once the request settles, and the row shows pending until the read-back.
+ * Changes a role's model tier and, when given, its effort (SB-FR-021). The
+ * role-change control lands in the bench's outbox, so the snapshot, which
+ * lists the outbox, is read again once the request settles, and the row shows
+ * pending until the read-back.
  */
 export function useRoleChange(projectId: string, benchId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ role, tier }: RoleChangeRequest) =>
-      api.changeDeliveryRole(projectId, benchId, role, tier),
+    mutationFn: ({ role, tier, effort }: RoleChangeRequest) =>
+      api.changeDeliveryRole(projectId, benchId, role, tier, effort),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: deliveryQueryKey(projectId, benchId) }),
   });

@@ -183,9 +183,8 @@ describe("delivery observation contract: generated schema", () => {
     "SB-TC-010: $file is zod in shared with a versioned $id and its committed JSON equals a fresh render",
     async ({ file, id, version, schema }) => {
       // The zod source carries the $id, and the id embeds the version: the
-      // record at 1.1.0 (the drift and per-role cost fields), the event union
-      // at 2.0.0.
-      expect(version).toBe(file === "delivery-record.schema.json" ? "1.1.0" : "2.0.0");
+      // record at 1.2.0 and the event union at 2.1.0 (the effort of a role).
+      expect(version).toBe(file === "delivery-record.schema.json" ? "1.2.0" : "2.1.0");
       expect(id.endsWith(`/v${version}.json`)).toBe(true);
       expect(schema.meta()?.$id).toBe(id);
 
@@ -324,6 +323,35 @@ describe("delivery observation contract: record fixture", () => {
     expect(negative.ok).toBe(false);
     if (!negative.ok) {
       expect(negative.errors.some((e) => e.startsWith("budget.by_role.main"))).toBe(true);
+    }
+  });
+
+  it("SB-FR-021 (#1615): a role carries an optional effort beside its tier, and a tier-only role still conforms", () => {
+    const fixture = loadFixture();
+    // The committed fixture's roles carry a tier only, as a record written
+    // before 1.2.0 does.
+    const roles = fixture.roles as Record<string, Record<string, unknown>>;
+    expect(Object.values(roles).every((role) => !("effort" in role))).toBe(true);
+    expect(validateDeliveryRecord(fixture).ok).toBe(true);
+
+    const withEffort = validateDeliveryRecord({
+      ...fixture,
+      roles: { ...roles, "unit-coder": { tier: "fast", effort: "high" } },
+    });
+    expect(withEffort.ok).toBe(true);
+    if (withEffort.ok) {
+      expect(withEffort.data.roles["unit-coder"]).toEqual({ tier: "fast", effort: "high" });
+    }
+
+    for (const effort of ["", 3]) {
+      const broken = validateDeliveryRecord({
+        ...fixture,
+        roles: { ...roles, "unit-coder": { tier: "fast", effort } },
+      });
+      expect(broken.ok).toBe(false);
+      if (!broken.ok) {
+        expect(broken.errors.some((e) => e.startsWith("roles.unit-coder.effort"))).toBe(true);
+      }
     }
   });
 
@@ -715,6 +743,12 @@ describe("delivery observation contract: event envelope", () => {
       ["seam.ran", { seam: "plan", last_run_at: "soon" }, "payload.last_run_at:"],
       ["lifecycle.changed", { armed: "yes" }, "payload.armed:"],
       ["roles.applied", { role: "unit-coder", tier: "" }, "payload.tier:"],
+      ["roles.applied", { role: "unit-coder", tier: "fast", effort: "" }, "payload.effort:"],
+      [
+        "delivery.planned",
+        { roles: { main: { tier: "fast", effort: 1 } } },
+        "payload.roles.main.effort:",
+      ],
       ["delivery.planned", { stacks: { a: "A" } }, "payload.stacks.a:"],
     ];
     for (const [type, payload, prefix] of cases) {
@@ -939,6 +973,75 @@ describe("delivery observation contract: event envelope", () => {
           `${type} ${prefix}`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("SB-FR-021 (#1615): a roles.applied reads back a tier and an effort, either alone", () => {
+    for (const payload of [
+      { role: "unit-coder", tier: "large", effort: "high", control_seq: 3 },
+      { role: "unit-coder", effort: "max" },
+      { role: "unit-coder", tier: "large" },
+    ]) {
+      const result = validateDeliveryEvent({ ...minimalEvent, type: "roles.applied", payload });
+      expect(result.ok, JSON.stringify(payload)).toBe(true);
+    }
+  });
+
+  it("SB-NFR-007 (#1615): an event stamped at an earlier minor of this major validates, as this version", () => {
+    const [major] = DELIVERY_EVENT_SCHEMA_VERSION.split(".");
+    const earlier = `${major}.0.0`;
+    const stampedEarlier = {
+      ...minimalEvent,
+      $schema: `https://roubo.dev/schema/delivery-event/v${earlier}.json`,
+      schemaVersion: earlier,
+      type: "roles.applied",
+      payload: { role: "unit-coder", tier: "large" },
+    };
+    expect(earlier).not.toBe(DELIVERY_EVENT_SCHEMA_VERSION);
+    const result = validateDeliveryEvent(stampedEarlier);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.$schema).toBe(DELIVERY_EVENT_SCHEMA_ID);
+      expect(result.data.schemaVersion).toBe(DELIVERY_EVENT_SCHEMA_VERSION);
+      expect(result.data.payload).toEqual({ role: "unit-coder", tier: "large" });
+    }
+    // A later minor of the same major reads the same way.
+    const later = `${major}.99.0`;
+    expect(
+      validateDeliveryEvent({
+        ...stampedEarlier,
+        $schema: `https://roubo.dev/schema/delivery-event/v${later}.json`,
+        schemaVersion: later,
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("SB-NFR-007 (#1615): an event of another major, or a stamp whose $schema and schemaVersion disagree, fails", () => {
+    const next = `${Number(DELIVERY_EVENT_SCHEMA_VERSION.split(".")[0]) + 1}.0.0`;
+    const [major] = DELIVERY_EVENT_SCHEMA_VERSION.split(".");
+    const cases: [Record<string, unknown>, string][] = [
+      [
+        {
+          ...minimalEvent,
+          $schema: `https://roubo.dev/schema/delivery-event/v${next}.json`,
+          schemaVersion: next,
+        },
+        "schemaVersion:",
+      ],
+      [{ ...minimalEvent, schemaVersion: `${major}.0.0` }, "schemaVersion:"],
+      [
+        {
+          ...minimalEvent,
+          $schema: `https://roubo.dev/schema/other/v${major}.0.0.json`,
+          schemaVersion: `${major}.0.0`,
+        },
+        "$schema:",
+      ],
+    ];
+    for (const [event, prefix] of cases) {
+      const result = validateDeliveryEvent(event);
+      expect(result.ok, JSON.stringify(event)).toBe(false);
+      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix))).toBe(true);
     }
   });
 

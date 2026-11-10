@@ -6,11 +6,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -72,11 +72,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -141,11 +141,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -214,11 +214,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -241,6 +241,10 @@
           "type": "object",
           "properties": {
             "tier": {
+              "type": "string",
+              "minLength": 1
+            },
+            "effort": {
               "type": "string",
               "minLength": 1
             }
@@ -280,11 +284,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -344,11 +348,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -408,11 +412,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -472,11 +476,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -536,11 +540,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -602,11 +606,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -667,11 +671,11 @@
       "properties": {
         "$schema": {
           "type": "string",
-          "const": "https://roubo.dev/schema/delivery-control/v1.0.0.json"
+          "const": "https://roubo.dev/schema/delivery-control/v1.1.0.json"
         },
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "delivery_id": {
           "type": "string",
@@ -730,7 +734,7 @@
       "additionalProperties": {}
     }
   ],
-  "$id": "https://roubo.dev/schema/delivery-control/v1.0.0.json",
+  "$id": "https://roubo.dev/schema/delivery-control/v1.1.0.json",
   "title": "Delivery control",
   "description": "One operator control of a spec delivery's outbox (SB-FR-014). `kind` names the control and picks the typed body, `target_id` what it acts on; `durability` says whether the control outlives the next read, `status` where it is in the outbox."
 }

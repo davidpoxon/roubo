@@ -48,6 +48,13 @@
 // last catch-all member with an open `type` and an open payload for any other
 // type (see "The delivery event union"). A payload that 1.0.0 accepted can now
 // fail, so the major moved. The record did not change and stays at 1.1.0.
+//
+// Record 1.2.0 and event 2.1.0 (SB-FR-021, #1615) add an optional `effort` to
+// a role, beside its `tier`: the reasoning effort the role runs at, as the
+// delivery tooling names it. A role in the record and in `delivery.planned`
+// carries it, and so does the `roles.applied` read-back. A record or an event
+// without it still reads, and an event stamped at an earlier minor of the same
+// major still validates (see validateDeliveryEvent).
 
 import { z } from "zod";
 
@@ -56,11 +63,11 @@ import { z } from "zod";
 // Each published document carries a `$schema` URI whose path embeds a semver
 // and a matching `schemaVersion` string. The two schemas version independently.
 
-export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.1.0.json";
-export const DELIVERY_RECORD_SCHEMA_VERSION = "1.1.0";
+export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.2.0.json";
+export const DELIVERY_RECORD_SCHEMA_VERSION = "1.2.0";
 
-export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.0.0.json";
-export const DELIVERY_EVENT_SCHEMA_VERSION = "2.0.0";
+export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.1.0.json";
+export const DELIVERY_EVENT_SCHEMA_VERSION = "2.1.0";
 
 // ── Shared scalars ──
 
@@ -257,9 +264,13 @@ export type DeliveryBudget = z.infer<typeof DeliveryBudgetSchema>;
 //
 // Keyed by role name. `tier` is the alias of the model tier the role runs at,
 // as the delivery tooling names it; the contract gives it no vocabulary.
+// `effort` (1.2.0) is the reasoning effort the role runs at, also as the
+// tooling names it and also with no vocabulary; a tooling that has no effort
+// per role leaves it out.
 export const DeliveryRoleSchema = z
   .object({
     tier: z.string().min(1),
+    effort: z.string().min(1).optional(),
   })
   .loose();
 export type DeliveryRole = z.infer<typeof DeliveryRoleSchema>;
@@ -406,8 +417,9 @@ export type DeliveryRecord = z.infer<typeof DeliveryRecordSchema>;
 // control, it is a read-back of that control and carries the control's
 // `control_seq`, or `in_reply_to` naming the message it answers. `mode.changed`
 // reads back a `mode_switch`, `review.outcome` a `review_accept` or an
-// `overturn`, `review.reply` a `thread_message`; a `review.reply` is always a
-// read-back, so it must carry one of the two.
+// `overturn`, `review.reply` a `thread_message`, `roles.applied` a
+// `role-change`; a `review.reply` is always a read-back, so it must carry one
+// of the two.
 const readBackFields = {
   control_seq: z.number().int().min(1).optional(),
   in_reply_to: IdSchema.optional(),
@@ -539,11 +551,13 @@ export const DeliveryPlannedPayloadSchema = z
 
 export const LifecycleChangedPayloadSchema = DeliveryLifecycleSchema.partial();
 
-// One role's tier, applied (SB-FR-021), named by `role`.
+// One role's tier and effort, applied (SB-FR-021), named by `role`. It reads
+// back a `role-change` control by its `control_seq`.
 export const RolesAppliedPayloadSchema = z
   .object({
     role: IdSchema.optional(),
     tier: z.string().min(1).optional(),
+    effort: z.string().min(1).optional(),
     ...readBackFields,
   })
   .loose();
@@ -799,13 +813,43 @@ export function validateDeliveryRecord(raw: unknown): ValidationResult<DeliveryR
 // `payload.cases.<i>.mark`; any other type is parsed by the catch-all. The
 // parsed event keeps the raw keys (every member and payload is loose), so the
 // event a caller gets back is the one it sent, validated.
+//
+// An event stamped at another minor or patch of this major (a tooling pinned to
+// 2.0.0, say) is read as the version this bench knows, as checkDeliveryRecord
+// reads a record: every member and payload keeps an unknown key, so the
+// additions a minor brings pass through (SB-NFR-007). The stamp must be whole:
+// `$schema` the event `$id` of exactly that `schemaVersion`. The event a caller
+// gets back then carries this bench's `$schema` and `schemaVersion`. Any other
+// stamp fails at `$schema` or `schemaVersion`.
 export function validateDeliveryEvent(raw: unknown): ValidationResult<DeliveryEvent> {
   const type = isObject(raw) ? raw.type : undefined;
-  const parsed = eventMember(type).safeParse(raw);
+  const parsed = eventMember(type).safeParse(sameMajorEvent(raw));
   if (!parsed.success) {
     return { ok: false, errors: zodIssuesToFieldErrors(parsed.error.issues) };
   }
   return { ok: true, data: parsed.data as DeliveryEvent };
+}
+
+const EVENT_MAJOR = DELIVERY_EVENT_SCHEMA_VERSION.split(".")[0];
+const EVENT_ID_PREFIX = DELIVERY_EVENT_SCHEMA_ID.slice(
+  0,
+  DELIVERY_EVENT_SCHEMA_ID.lastIndexOf(`/v${DELIVERY_EVENT_SCHEMA_VERSION}.json`),
+);
+
+// The event restamped at this bench's version when its own stamp is a whole
+// one of the same major; otherwise the event unchanged.
+function sameMajorEvent(raw: unknown): unknown {
+  if (!isObject(raw)) return raw;
+  const version = raw.schemaVersion;
+  if (typeof version !== "string" || version === DELIVERY_EVENT_SCHEMA_VERSION) return raw;
+  const match = /^(\d+)\.\d+\.\d+$/.exec(version);
+  if (match?.[1] !== EVENT_MAJOR) return raw;
+  if (raw.$schema !== `${EVENT_ID_PREFIX}/v${version}.json`) return raw;
+  return {
+    ...raw,
+    $schema: DELIVERY_EVENT_SCHEMA_ID,
+    schemaVersion: DELIVERY_EVENT_SCHEMA_VERSION,
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

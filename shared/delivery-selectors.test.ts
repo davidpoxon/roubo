@@ -483,15 +483,17 @@ describe("delivery selectors", () => {
         control(1, "role-change", "pending", { tier: "balanced" }, "unit-coder"),
         note(2, "delivered"),
         control(3, "approval", "pending", {}),
+        control(4, "role-change", "pending", { tier: "fast", effort: "high" }, "main"),
       ];
       const before = selectBoundaryPanel(foldDelivery({ record, events: [], controls }));
       expect(before.boundary).toMatchObject({ unitId: "B", kind: "finish" });
       expect(before.queued).toEqual([
-        { kind: "role-change", controlSeq: 1, role: "unit-coder", tier: "balanced" },
+        { kind: "role-change", controlSeq: 1, role: "unit-coder", tier: "balanced", effort: null },
         { kind: "steering-note", controlSeq: 2, note: "Note 2.", appliesAt: "B" },
+        { kind: "role-change", controlSeq: 4, role: "main", tier: "fast", effort: "high" },
       ]);
 
-      // After the boundary event with the read-backs of both.
+      // After the boundary event with the read-backs of all three.
       const after = selectBoundaryPanel(
         foldDelivery({
           record,
@@ -503,6 +505,7 @@ describe("delivery selectors", () => {
             control(1, "role-change", "applied", { tier: "balanced" }, "unit-coder"),
             note(2, "applied"),
             control(3, "approval", "pending", {}),
+            control(4, "role-change", "applied", { tier: "fast", effort: "high" }, "main"),
           ],
         }),
       );

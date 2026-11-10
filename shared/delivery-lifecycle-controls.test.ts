@@ -12,7 +12,11 @@ import {
   type DeliveryEvent,
   type DeliveryRecord,
 } from "./delivery-observation-contract.js";
-import type { DeliveryControl } from "./delivery-control-contract.js";
+import {
+  DELIVERY_CONTROL_SCHEMA_ID,
+  DELIVERY_CONTROL_SCHEMA_VERSION,
+  type DeliveryControl,
+} from "./delivery-control-contract.js";
 import { foldDelivery, type DeliveryResults } from "./delivery-reducer.js";
 import {
   classifyLifecycleState,
@@ -68,15 +72,21 @@ function event(seq: number, type: string, payload: Record<string, unknown>): Del
   };
 }
 
-function roleChange(controlSeq: number, role: string, tier: string, status = "pending") {
+function roleChange(
+  controlSeq: number,
+  role: string,
+  tier: string,
+  status = "pending",
+  effort?: string,
+) {
   return {
-    $schema: "https://roubo.dev/schema/delivery-control/v1.0.0.json",
-    schemaVersion: "1.0.0",
+    $schema: DELIVERY_CONTROL_SCHEMA_ID,
+    schemaVersion: DELIVERY_CONTROL_SCHEMA_VERSION,
     delivery_id: "demo-delivery-1",
     control_seq: controlSeq,
     kind: "role-change",
     target_id: role,
-    body: { tier },
+    body: { tier, ...(effort !== undefined && { effort }) },
     durability: "durable",
     issued_at: "2026-10-16T10:00:00Z",
     status,
@@ -126,16 +136,45 @@ describe("roles.applied", () => {
     expect(record.roles["unit-coder"]).toEqual({ tier: "fast" });
   });
 
-  it("SB-TC-049 a roles.applied without a role or a tier is skipped, and a role named __proto__ is a role", () => {
+  it("SB-TC-049 (#1615) a roles.applied makes the payload's effort the role's current effort, with or without a tier", () => {
+    const record = fixtureRecord();
+    const both = foldDelivery({
+      record,
+      events: [
+        event(8, "roles.applied", {
+          role: "unit-coder",
+          tier: "large",
+          effort: "high",
+          control_seq: 1,
+        }),
+      ],
+    });
+    expect(both.roles["unit-coder"]).toEqual({ tier: "large", effort: "high" });
+
+    const effortOnly = foldDelivery({
+      record,
+      events: [
+        event(8, "roles.applied", { role: "unit-coder", tier: "large", effort: "high" }),
+        event(9, "roles.applied", { role: "unit-coder", effort: "max" }),
+        event(10, "roles.applied", { role: "unit-coder", tier: "fast" }),
+      ],
+    });
+    // A tier-only read-back keeps the effort in effect.
+    expect(effortOnly.roles["unit-coder"]).toEqual({ tier: "fast", effort: "max" });
+  });
+
+  it("SB-TC-049 a roles.applied without a role, with neither a tier nor an effort, or with an effort for a role the record lacks is skipped, and a role named __proto__ is a role", () => {
     const record = fixtureRecord();
     const skipped = foldDelivery({
       record,
       events: [
         event(8, "roles.applied", { tier: "large" }),
         event(9, "roles.applied", { role: "unit-coder", tier: "" }),
+        event(10, "roles.applied", { role: "unit-coder" }),
+        event(11, "roles.applied", { role: "reviewer", effort: "high" }),
       ],
     });
-    expect(skipped.seq).toBe(9);
+    expect(skipped.seq).toBe(11);
     expect(skipped.roles).toEqual(record.roles);
 
     const odd = foldDelivery({
@@ -163,7 +202,9 @@ describe("role matrix", () => {
     expect(pending[2]).toEqual({
       role: "unit-coder",
       tier: "fast",
+      effort: null,
       pendingTier: "large",
+      pendingEffort: null,
       pendingControlSeq: 1,
       spentUsd: 0.6,
     });
@@ -177,6 +218,47 @@ describe("role matrix", () => {
       }),
     );
     expect(applied[2]).toMatchObject({ tier: "large", pendingTier: null });
+  });
+
+  it("SB-TC-049 (#1615) shows the effort in effect and the effort a waiting role change asks for, until its read-back", () => {
+    const record = fixtureRecord();
+    record.roles = { ...record.roles, "unit-coder": { tier: "fast", effort: "medium" } };
+    const pending = selectRoleMatrix(
+      foldDelivery({
+        record,
+        events: [],
+        controls: [roleChange(1, "unit-coder", "fast", "pending", "high")],
+      }),
+    );
+    expect(pending[2]).toMatchObject({
+      tier: "fast",
+      effort: "medium",
+      pendingTier: "fast",
+      pendingEffort: "high",
+      pendingControlSeq: 1,
+    });
+    expect(pending[0]).toMatchObject({ effort: null, pendingEffort: null });
+
+    const applied = selectRoleMatrix(
+      foldDelivery({
+        record,
+        events: [
+          event(8, "roles.applied", {
+            role: "unit-coder",
+            tier: "fast",
+            effort: "high",
+            control_seq: 1,
+          }),
+        ],
+        controls: [roleChange(1, "unit-coder", "fast", "applied", "high")],
+      }),
+    );
+    expect(applied[2]).toMatchObject({
+      effort: "high",
+      pendingTier: null,
+      pendingEffort: null,
+      pendingControlSeq: null,
+    });
   });
 });
 

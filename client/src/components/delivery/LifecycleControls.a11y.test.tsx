@@ -96,19 +96,25 @@ describe("Controls view accessibility", () => {
       screen.getByRole("button", { name: "Wind down" }),
       screen.getByRole("button", { name: "Resume" }),
       screen.getByRole("combobox", { name: "Model of main" }),
+      screen.getByRole("combobox", { name: "Effort of main" }),
       screen.getByRole("combobox", { name: "Model of unit-coder" }),
+      screen.getByRole("combobox", { name: "Effort of unit-coder" }),
     ];
     for (const control of order) {
       await user.tab();
       expect(control).toHaveFocus();
     }
 
-    // A changed model makes its Save reachable, right after its menu.
+    // A changed model makes its Save reachable, right after the row's two menus.
     const coder = screen.getByRole("combobox", { name: "Model of unit-coder" });
     await user.selectOptions(coder, "large");
     coder.focus();
     await user.tab();
-    expect(screen.getByRole("button", { name: "Save the model of unit-coder" })).toHaveFocus();
+    expect(screen.getByRole("combobox", { name: "Effort of unit-coder" })).toHaveFocus();
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: "Save the model and effort of unit-coder" }),
+    ).toHaveFocus();
 
     // The wind-down dialog opens from the keyboard and holds the focus.
     const windDown = screen.getByRole("button", { name: "Wind down" });

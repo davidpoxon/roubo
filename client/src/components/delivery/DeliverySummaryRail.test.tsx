@@ -183,6 +183,7 @@ describe("NextBoundaryPanel", () => {
           controls: [
             control(3, "steering-note", { note: "Prefer the dialog component" }),
             control(4, "role-change", { tier: "fast" }, "coder"),
+            control(5, "role-change", { tier: "large", effort: "high" }, "manager"),
           ],
         })}
         onOpenSteering={noop}
@@ -200,6 +201,11 @@ describe("NextBoundaryPanel", () => {
     );
     expect(within(panel).getByTestId("delivery-next-boundary-item-4")).toHaveTextContent(
       "coder: fast",
+    );
+    // A change that names an effort shows it beside the tier (#1615).
+    expect(within(panel).getByTestId("delivery-next-boundary-item-4")).not.toHaveTextContent("·");
+    expect(within(panel).getByTestId("delivery-next-boundary-item-5")).toHaveTextContent(
+      "manager: large · high",
     );
   });
 

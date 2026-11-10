@@ -736,17 +736,19 @@ export function sendDeliverySteeringNote(
   });
 }
 
-// Change a role's model tier (SB-FR-021): 202 with the role-change control,
-// pending until the session reads it back with a roles.applied.
+// Change a role's model tier and, when given, its effort (SB-FR-021): 202 with
+// the role-change control, pending until the session reads it back with a
+// roles.applied.
 export function changeDeliveryRole(
   projectId: string,
   benchId: number,
   role: string,
   tier: string,
+  effort?: string,
 ): Promise<DeliveryOutboxControl> {
   return request(`/projects/${projectId}/benches/${benchId}/delivery/roles`, {
     method: "PUT",
-    body: JSON.stringify({ role, tier }),
+    body: JSON.stringify({ role, tier, ...(effort !== undefined && { effort }) }),
   });
 }
 

@@ -326,6 +326,9 @@ const SPEC_FOLDER = `.specifications/${SPEC_SLUG}`;
 const ROLE = "unit-coder";
 const CURRENT_TIER = "fast";
 const NEW_TIER = "large";
+// The effort the operator picks beside the model (#1615); the record names
+// none for the role before the change.
+const NEW_EFFORT = "high";
 const BOUNDARY_UNIT = "B";
 const NEXT_UNIT = "C";
 
@@ -1020,15 +1023,21 @@ describe("Spec Bench lifecycle journey", () => {
           within(controlsView()).getByRole("combobox", { name: `Model of ${ROLE}` }),
           NEW_TIER,
         );
+        await user.selectOptions(
+          within(controlsView()).getByRole("combobox", { name: `Effort of ${ROLE}` }),
+          NEW_EFFORT,
+        );
         await user.click(
-          within(controlsView()).getByRole("button", { name: `Save the model of ${ROLE}` }),
+          within(controlsView()).getByRole("button", {
+            name: `Save the model and effort of ${ROLE}`,
+          }),
         );
         await requestAnswered(bench.id, "PUT", "roles", 202);
         await waitFor(() => expect(roleRow()).toHaveAttribute("data-state", "pending"), {
           timeout: 3000,
         });
         expect(within(roleRow()).getByTestId(`role-pending-${ROLE}`)).toHaveTextContent(
-          `pending · ${NEW_TIER}`,
+          `pending · ${NEW_TIER} · ${NEW_EFFORT}`,
         );
 
         const snapshot = await readSnapshot(bench.id);
@@ -1036,7 +1045,7 @@ describe("Spec Bench lifecycle journey", () => {
           (c) => c.kind === "role-change" && c.target_id === ROLE,
         );
         expect(control, "the outbox holds no role-change control").toBeDefined();
-        expect(control?.body).toMatchObject({ tier: NEW_TIER });
+        expect(control?.body).toMatchObject({ tier: NEW_TIER, effort: NEW_EFFORT });
         expect(control?.status).not.toBe("applied");
         expect(snapshot.roles[ROLE]?.tier).toBe(CURRENT_TIER);
         return control?.control_seq ?? 0;
@@ -1056,7 +1065,10 @@ describe("Spec Bench lifecycle journey", () => {
           (control) => control.kind === "role-change" && control.control_seq === roleControlSeq,
         );
         expect(change, `no role-change control in ${JSON.stringify(controls)}`).toBeDefined();
-        expect(change).toMatchObject({ target_id: ROLE, body: { tier: NEW_TIER } });
+        expect(change).toMatchObject({
+          target_id: ROLE,
+          body: { tier: NEW_TIER, effort: NEW_EFFORT },
+        });
 
         await tooling.post([
           tooling.event("unit.changed", { status: "done" }, BOUNDARY_UNIT),
@@ -1064,6 +1076,7 @@ describe("Spec Bench lifecycle journey", () => {
           tooling.event("roles.applied", {
             role: ROLE,
             tier: NEW_TIER,
+            effort: NEW_EFFORT,
             control_seq: roleControlSeq,
           }),
         ]);
@@ -1074,10 +1087,13 @@ describe("Spec Bench lifecycle journey", () => {
         expect(
           within(controlsView()).getByRole("combobox", { name: `Model of ${ROLE}` }),
         ).toHaveValue(NEW_TIER);
+        expect(
+          within(controlsView()).getByRole("combobox", { name: `Effort of ${ROLE}` }),
+        ).toHaveValue(NEW_EFFORT);
         expect(within(controlsView()).queryByTestId(`role-pending-${ROLE}`)).toBeNull();
 
         const snapshot = await readSnapshot(bench.id);
-        expect(snapshot.roles[ROLE]?.tier).toBe(NEW_TIER);
+        expect(snapshot.roles[ROLE]).toMatchObject({ tier: NEW_TIER, effort: NEW_EFFORT });
         const control = snapshot.controls.find((c) => c.control_seq === roleControlSeq);
         expect(control?.status, "the role-change control was not marked applied").toBe("applied");
       },

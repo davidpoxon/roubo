@@ -451,6 +451,52 @@ describe("classifySchemaChange", () => {
       });
     });
 
+    it("calls an embedded stamp that moved within its major additive, and a renamed one breaking", () => {
+      const nested = clone(base);
+      (nested.properties as Record<string, JsonSchema>).event = {
+        anyOf: [envelope("a.changed", counted), envelope(null, open)],
+      };
+      const moved = clone(nested);
+      (moved.properties as Record<string, JsonSchema>).event = {
+        anyOf: [envelope("a.changed", counted, "1.3.0"), envelope(null, open)],
+      };
+      expect(classifySchemaChange(nested, moved)).toEqual({
+        change: "additive",
+        reasons: [
+          "event.anyOf.a.changed.$schema: embedded version moved from https://roubo.dev/schema/demo/v1.2.3.json to https://roubo.dev/schema/demo/v1.3.0.json",
+          "event.anyOf.a.changed.schemaVersion: embedded version moved from 1.2.3 to 1.3.0",
+        ],
+      });
+
+      const withId = (version: string): JsonSchema => {
+        const out = clone(base);
+        (out.properties as Record<string, JsonSchema>).control = {
+          $id: `https://roubo.dev/schema/demo/v${version}.json`,
+          type: "object",
+        };
+        return out;
+      };
+      expect(classifySchemaChange(withId("1.2.3"), withId("1.3.0"))).toEqual({
+        change: "additive",
+        reasons: [
+          "control.$id: embedded version moved from https://roubo.dev/schema/demo/v1.2.3.json to https://roubo.dev/schema/demo/v1.3.0.json",
+        ],
+      });
+      expect(classifySchemaChange(withId("1.2.3"), withId("2.0.0")).change).toBe("breaking");
+
+      const renamed = clone(moved);
+      const inner = (renamed.properties as Record<string, JsonSchema>).event.anyOf as JsonSchema[];
+      (inner[0].properties as Record<string, JsonSchema>).$schema.const =
+        "https://roubo.dev/schema/other/v1.3.0.json";
+      expect(classifySchemaChange(nested, renamed)).toEqual({
+        change: "breaking",
+        reasons: [
+          'event.anyOf.a.changed.$schema: const changed from "https://roubo.dev/schema/demo/v1.2.3.json" to "https://roubo.dev/schema/other/v1.3.0.json"',
+          "event.anyOf.a.changed.schemaVersion: embedded version moved from 1.2.3 to 1.3.0",
+        ],
+      });
+    });
+
     it("keys the options by a fully pinned property over a `type` with an open option", () => {
       const option = (kind: string, type: string | null): JsonSchema => ({
         type: "object",
