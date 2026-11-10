@@ -42,14 +42,16 @@ function plural(count: number, noun: string): string {
 
 // The Set up Spec Bench dialog (SB-FR-001, SB-US-001), as two tabs (#1625).
 // Launch a delivery: the Specification menu, the chosen spec's folder and the
-// units and gates of its summary, who decides in the delivery (SB-FR-031:
-// attended by default), and a line saying the bench's workspace and ports are
-// assigned at create. Attach to a record: the same menu, the record's place in
-// the spec folder (the bench joins the copy of it committed where its worktree
-// will start, not the checkout's file), and what the summary found there: the
-// progress and lifecycle state of that committed record, or that there is none. Confirm calls onConfirm with the spec
-// folder, the tab's mode and the decision mode, and the host owns the create
-// call. Dismissal never calls onConfirm.
+// units and gates of its summary, a line naming the delivery record committed
+// for the spec when the summary finds one (Attach to a record joins it), who
+// decides in the delivery (SB-FR-031: attended by default), and a line saying
+// the bench's workspace and ports are assigned at create. Attach to a record:
+// the same menu, the record's place in the spec folder (the bench joins the
+// copy of it committed where its worktree will start, not the checkout's
+// file), and what the summary found there: the progress and lifecycle state
+// of that committed record, or that there is none. Confirm calls onConfirm
+// with the spec folder, the tab's mode and the decision mode, and the host
+// owns the create call. Dismissal never calls onConfirm.
 export default function SpecBenchSetupModal({
   isOpen,
   onClose,
