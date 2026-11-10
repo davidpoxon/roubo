@@ -29,7 +29,9 @@
  * than file by file, since a single-file watch loses saves that replace the
  * file. The allowlist also drops the `.tmp` sibling that `atomicWrite` renames
  * from. A file that does not parse is rejected with its parse error, and
- * nothing of it is applied.
+ * nothing of it is applied. The next save of that file that is not rejected
+ * sends an applied event for the target of each rejected notice of the file,
+ * so the notice clears once the file is fixed.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -47,6 +49,7 @@ import { loadConsentState } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
+import { broadcastInputChanged } from "./sse.js";
 import {
   watchInput,
   type HandlerResult,
@@ -423,6 +426,94 @@ export async function handleStateFileChange(change: InputChange): Promise<Handle
   }
 }
 
+/** The word each notice about one state file starts with. */
+const FILE_LEADS: Record<StateFile, string> = {
+  "projects.json": "Project state",
+  "state.json": "Bench state",
+  "auth.json": "GitHub token",
+  "plugins-consent.json": "Plugin consent",
+  "plugins-state.json": "Plugin state",
+  "settings.json": "Settings",
+};
+
+/** The target ids of one event, the ones a client matches notices by. */
+interface NoticeTarget {
+  projectId?: string;
+  pluginId?: string;
+}
+
+function targetOf(detail: InputEventDetail | undefined): NoticeTarget {
+  return {
+    ...(detail?.projectId === undefined ? {} : { projectId: detail.projectId }),
+    ...(detail?.pluginId === undefined ? {} : { pluginId: detail.pluginId }),
+  };
+}
+
+function targetKey(target: NoticeTarget): string {
+  return `${target.projectId ?? ""}\u0000${target.pluginId ?? ""}`;
+}
+
+/**
+ * Wrap the state-file handler so a rejected notice is cleared once its file is
+ * fixed. A client clears a rejected notice only on an applied event of the
+ * same surface and target, but a file-level rejection (invalid JSON, a schema
+ * failure) has no target, the applied event of a fixed file can name one, and
+ * a fix that puts back what the app already holds changes nothing, so its
+ * handler sends no event. So each file keeps the targets of its open rejected
+ * notices. On the next run that is not rejected or refused, an applied event
+ * is sent for each open target that the run's own event does not match: a
+ * run that changes nothing is reported applied for the first of them, and the
+ * rest are sent here.
+ */
+function clearingRejections(
+  handler: (change: InputChange) => Promise<HandlerResult>,
+): (change: InputChange) => Promise<HandlerResult> {
+  const open = new Map<StateFile, Map<string, NoticeTarget>>();
+  return async (change) => {
+    const file = path.basename(change.path) as StateFile;
+    const surface = stateFileSurface(change.path);
+    if (surface === undefined) return handler(change);
+    let result: HandlerResult;
+    try {
+      result = await handler(change);
+    } catch (err) {
+      // The watcher reports a throw as a rejection with no target.
+      const targets = open.get(file) ?? new Map<string, NoticeTarget>();
+      targets.set(targetKey({}), {});
+      open.set(file, targets);
+      throw err;
+    }
+    const outcome = typeof result === "string" ? result : result.outcome;
+    const detail = typeof result === "object" ? result.event : undefined;
+    if (outcome === "rejected") {
+      const targets = open.get(file) ?? new Map<string, NoticeTarget>();
+      const target = targetOf(detail);
+      targets.set(targetKey(target), target);
+      open.set(file, targets);
+      return result;
+    }
+    if (outcome === "refused") return result;
+    const targets = open.get(file);
+    if (targets === undefined) return result;
+    open.delete(file);
+    const summary = `${FILE_LEADS[file]} applied.`;
+    const pending = [...targets.values()];
+    let own: NoticeTarget | undefined;
+    if (result === "ignored") {
+      own = pending[0];
+      result = { outcome: "applied", event: { ...own, summary } };
+    } else {
+      own = targetOf(detail);
+    }
+    const ownKey = targetKey(own ?? {});
+    for (const target of pending) {
+      if (targetKey(target) === ownKey) continue;
+      broadcastInputChanged({ surface, outcome: "applied", ...target, summary });
+    }
+    return result;
+  };
+}
+
 /** The surface of one state file, or undefined for a path that is not one. */
 export function stateFileSurface(absPath: string): InputSurface | undefined {
   const name = path.basename(absPath);
@@ -465,7 +556,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
       settleMs: options.settleMs ?? STATE_DIR_SETTLE_MS,
       ...(options.rearmPollMs === undefined ? {} : { rearmPollMs: options.rearmPollMs }),
     },
-    handleStateFileChange,
+    clearingRejections(handleStateFileChange),
   );
   active = watch;
   await watch.ready;
