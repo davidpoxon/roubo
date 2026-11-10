@@ -25,7 +25,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 
 ## CI gates you cannot infer from the code
 
-- **`no-ai-coauthorship`** fails a PR when a `Co-Authored-By:` trailer on any commit in the range, or the PR body, credits an AI coding agent, or when either carries a "Generated with ..." attribution footer. Roubo commits credit the human author only. Denylist: `scripts/check-ai-coauthorship.mjs`.
+- **`no-ai-coauthorship`** fails a PR when a `Co-Authored-By:` trailer on any commit in the range, or the PR body, credits an AI coding agent, or when either carries a "Generated with ..." attribution footer. Roubo commits credit no AI coding agent. Denylist: `scripts/check-ai-coauthorship.mjs`.
 - **`schema-drift`** re-runs `npm run generate:schema` and fails on any diff under `schema/`. Change a zod source, regenerate, and commit the output. The hand-authored `schema/roubo-*.json` files are exempt.
 - **`route-inventory-drift`** re-runs `npm run generate:routes` and fails on any diff in `docs/routes.md`. Add, remove, or rename a route, regenerate, and commit the output.
 - **`lint:component-guard`** (CP-NFR-006) fails if a component-type literal or a docker/compose field branch reappears in `server/` or `shared/`.
@@ -36,7 +36,7 @@ Roubo is tool-agnostic across AI coding agents (Claude Code, Codex, Gemini CLI, 
 - **`lint:emitted-tokens`** fails if DESIGN.md's token block and the generated `design-tokens/tokens.tailwind.css` disagree, in either direction or on a value. That file is written by the external ui-design `emit_tokens.py` and committed by hand, and nothing else looks at both: `lint:design-tokens` reads the legal token names out of it, so a name that never arrived is simply not a token and its absence is invisible. The build compiles and the utility paints nothing. Regenerate with the emitter rather than editing the file. Guard: `scripts/emitted-tokens-guard.mjs`.
 - **`lint:em-dash`** enforces the no-em-dash rule from [docs/brand.md](docs/brand.md#punctuation), but only over tracked files under `server/ client/ shared/ schema/ docs/`. The rule itself also covers commit messages, PR bodies, `electron/`, `e2e/`, and root markdown, where nothing checks it.
 - **`lint:repo-refs`** fails if any tracked file, of any type, names a repository this public repository must not reference. The disallowed names are stored only as SHA-256 digests. Cite spec case and requirement ids or this repository's own issue and PR numbers, and use a neutral fixture project id (`demo`). FR-020 journey guards name their owning slices by title for the same reason. Guard: `scripts/repo-reference-guard.mjs`.
-- The `commit-msg` hook installed by `npm install` requires a DCO `Signed-off-by` line matching `git config user.email`.
+- The `commit-msg` hook installed by `npm install` requires a DCO `Signed-off-by` line matching the commit's author email (`git var GIT_AUTHOR_IDENT`). Commits authored by `poxon-agent[bot]` or Dependabot are exempt, here and in the DCO workflow: the maintainer signs off an app-authored pull request in its squash commit when merging it.
 - `npm run typecheck` covers the SDK, client, server, and e2e fixture workspaces. The CI `typecheck` job only runs client and server, so the local command is the stricter gate, not the looser one.
 - `.claude/hooks/pre-push-checks.sh` runs prettier, lint, and typecheck on any `git push` but always exits 0. It advises rather than blocks, so read what it prints.
 
@@ -61,7 +61,7 @@ Never reintroduce the legacy terms. Slot is a **bench**, application is a **proj
 - Bugs: reproduce first, then a failing test, then the fix. If it does not reproduce, or is already fixed on the branch, stop and report.
 - When a fix applies at one site, search for sibling sites and callers with the same defect and fix them in the same change.
 - Before committing, grep for prose that describes what you changed (comments, docstrings, docs, specs) and correct what is now false. Claim no more than the evidence shows.
-- Stage by explicit path, never `git add -A` or `git add .`. Commit with `-s` for the DCO sign-off.
+- Stage by explicit path, never `git add -A` or `git add .`. Commit with `-s` for the DCO sign-off, unless the commit is authored by `poxon-agent[bot]`: a bot cannot certify the DCO, so its commits carry no `Signed-off-by` line.
 - Review before pushing: run the pre-push checklist first, then have the branch's diff reviewed against the issue by someone fresh who did not write it. A new commit means reviewing again.
 - Never merge. Merging is the user's action.
 - Size written deliverables to their content, not to a default. Match the length and section depth of the nearest existing example of the same artifact in this repo.
