@@ -1,11 +1,13 @@
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectBurn } from "@roubo/shared/delivery-selectors";
+import { DeliveryPanel, DeliveryStatStrip } from "./DeliveryPanel";
 import { DeliveryStat } from "./DeliveryProgress";
 
-// The burn meter (SB-FR-018, SB-US-007): spend against the soft budget as a
-// Delivery stat, then the cost per unit (each unit's `cost_usd`) and per role
-// (the budget's `by_role`). It reads the snapshot, so a `unit.changed` or a
-// `budget.changed` moves it with the next delivery frame.
+// The burn meter (SB-FR-018, SB-US-007): a "Burn" panel whose stat strip holds
+// spend against the soft budget as a Delivery stat, with the cost per unit
+// (each unit's `cost_usd`) and per role (the budget's `by_role`) below it. It
+// reads the snapshot, so a `unit.changed` or a `budget.changed` moves it with
+// the next delivery frame.
 
 function usd(value: number): string {
   return value.toFixed(2);
@@ -24,7 +26,7 @@ function Breakdown({
 }) {
   return (
     <section data-testid={testId} aria-label={label} className="space-y-1">
-      <h3 className="font-mono text-11 font-medium text-text-secondary">{label}</h3>
+      <h4 className="font-mono text-11 font-medium text-text-secondary">{label}</h4>
       {rows.length === 0 ? (
         <p className="text-12 text-text-secondary">{empty}</p>
       ) : (
@@ -48,15 +50,21 @@ function Breakdown({
 export default function DeliveryBurn({ snapshot }: { snapshot: DeliverySnapshot }) {
   const burn = selectBurn(snapshot);
   return (
-    <section data-testid="delivery-burn" aria-label="Burn" className="space-y-3">
-      <DeliveryStat
-        testId="delivery-stat-spent"
-        eyebrow="Spent"
-        value={usd(burn.spentUsd)}
-        note={`of ${usd(burn.softBudgetUsd)} soft budget${burn.overBudget ? ", over budget" : ""}`}
-        fill={burn.fill}
-      />
-      <div className="grid grid-cols-2 gap-4">
+    <DeliveryPanel
+      testId="delivery-burn"
+      title="Burn"
+      meta={`estimate ${usd(burn.estimateUsd)} · soft budget ${usd(burn.softBudgetUsd)}`}
+    >
+      <DeliveryStatStrip testId="delivery-burn-stats">
+        <DeliveryStat
+          testId="delivery-stat-spent"
+          eyebrow="Spent"
+          value={usd(burn.spentUsd)}
+          note={`of ${usd(burn.softBudgetUsd)} soft budget${burn.overBudget ? ", over budget" : ""}`}
+          fill={burn.fill}
+        />
+      </DeliveryStatStrip>
+      <div className="grid grid-cols-2 gap-4 border-t border-border p-3">
         <Breakdown
           testId="delivery-burn-units"
           label="Cost per unit"
@@ -80,6 +88,6 @@ export default function DeliveryBurn({ snapshot }: { snapshot: DeliverySnapshot 
           }))}
         />
       </div>
-    </section>
+    </DeliveryPanel>
   );
 }
