@@ -481,6 +481,8 @@ export function loadEnvFile(): string[] {
   }
   for (const key of [...envFileApplied.keys()]) {
     if (values.has(key)) continue;
+    // A boot-only key stays as the first load set it, even when a save drops its line.
+    if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
     if (ownedByEnvFile(key)) {
       Reflect.deleteProperty(process.env, key);
       changed.push(key);
