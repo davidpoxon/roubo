@@ -24,6 +24,9 @@ interface NotesRailProps {
   benchId: number;
   caseId: string;
   notes: Note[];
+  // Shows the notes without the add-note form. A read-only TestBench, or a
+  // gate sitting that is not open yet, cannot append a note.
+  readOnly?: boolean;
 }
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
@@ -44,7 +47,7 @@ function authorLabel(note: Note): string {
   return note.author.isSentinel ? `${note.author.name} (unverified)` : note.author.name;
 }
 
-export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps) {
+export function NotesRail({ projectId, benchId, caseId, notes, readOnly = false }: NotesRailProps) {
   const [text, setText] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const append = useAppendNote();
@@ -115,44 +118,46 @@ export function NotesRail({ projectId, benchId, caseId, notes }: NotesRailProps)
         )}
       </ol>
 
-      <form
-        // px-0.5 keeps the textarea's 2px focus ring off the rail's clipping
-        // edge so it is not cut off on the left and right (#510, Image #2).
-        // shrink-0 pins the form so a short pane scrolls the notes list above it
-        // rather than squeezing/clipping the "Add a note" field off the bottom
-        // (#808).
-        className="flex shrink-0 flex-col gap-2 px-0.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleSubmit();
-        }}
-      >
-        <TextField value={text} onChange={setText} className="flex flex-col gap-1">
-          <Label className="text-12 font-medium text-text-secondary">Add a note</Label>
-          <TextArea
-            ref={textAreaRef}
-            rows={3}
-            placeholder="Append an immutable note"
-            // ring-inset draws the focus ring inside the field's box, so a
-            // clipping ancestor never shaves the left/right edges off it (#510).
-            className="w-full resize-y rounded-control border border-border-control bg-bg-field px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:ring-inset aria-[invalid=true]:border-danger data-[invalid]:border-danger"
-          />
-        </TextField>
-        {submitError && (
-          <p role="alert" className="text-12 text-danger-text">
-            {submitError}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            isDisabled={!canSubmit}
-            className="rounded-control border border-border-strong bg-bg-surface px-3 py-1.5 text-13 font-medium text-text-body outline-none transition-colors not-disabled:hover:bg-bg-hover not-disabled:active:bg-bg-pressed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
-          >
-            {append.isPending ? "Adding…" : "Add note"}
-          </Button>
-        </div>
-      </form>
+      {!readOnly && (
+        <form
+          // px-0.5 keeps the textarea's 2px focus ring off the rail's clipping
+          // edge so it is not cut off on the left and right (#510, Image #2).
+          // shrink-0 pins the form so a short pane scrolls the notes list above it
+          // rather than squeezing/clipping the "Add a note" field off the bottom
+          // (#808).
+          className="flex shrink-0 flex-col gap-2 px-0.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSubmit();
+          }}
+        >
+          <TextField value={text} onChange={setText} className="flex flex-col gap-1">
+            <Label className="text-12 font-medium text-text-secondary">Add a note</Label>
+            <TextArea
+              ref={textAreaRef}
+              rows={3}
+              placeholder="Append an immutable note"
+              // ring-inset draws the focus ring inside the field's box, so a
+              // clipping ancestor never shaves the left/right edges off it (#510).
+              className="w-full resize-y rounded-control border border-border-control bg-bg-field px-3 py-2 text-13 text-text-primary placeholder:text-text-secondary outline-none focus:border-focus-ring focus:ring-2 focus:ring-focus-ring focus:ring-inset aria-[invalid=true]:border-danger data-[invalid]:border-danger"
+            />
+          </TextField>
+          {submitError && (
+            <p role="alert" className="text-12 text-danger-text">
+              {submitError}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              isDisabled={!canSubmit}
+              className="rounded-control border border-border-strong bg-bg-surface px-3 py-1.5 text-13 font-medium text-text-body outline-none transition-colors not-disabled:hover:bg-bg-hover not-disabled:active:bg-bg-pressed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-surface"
+            >
+              {append.isPending ? "Adding…" : "Add note"}
+            </Button>
+          </div>
+        </form>
+      )}
     </aside>
   );
 }

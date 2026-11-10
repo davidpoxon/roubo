@@ -2,7 +2,8 @@
 // The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027): the gate
 // sitting's banner for its phase, its stage control, and the Cases list beside
 // the Case panel, which shows the chosen case on the TestBench case surface,
-// marked through the case status route.
+// marked through the case status route. Also the spec's full TestBench, which
+// the tab shows read-only with no sitting and under All cases beside one (#1653).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -32,11 +33,13 @@ vi.mock("../../lib/api", async (importOriginal) => {
     stageTestbenchCase: vi.fn(),
     openDeliverySitting: vi.fn(),
     closeDeliverySitting: vi.fn(),
+    fetchGates: vi.fn(),
   };
 });
 
 import * as api from "../../lib/api";
-import SpecBenchTestBench, { GATE_CASES_STAGGER_MS } from "./SpecBenchTestBench";
+import SpecBenchTestBench, { GATE_CASES_STAGGER_MS, NO_SITTING_NOTICE } from "./SpecBenchTestBench";
+import { specCasesPath } from "./spec-cases-path";
 
 const bench = {
   id: 3,
@@ -101,6 +104,8 @@ function setReducedMotion(reduced: boolean): void {
 
 beforeEach(() => {
   setReducedMotion(false);
+  localStorage.clear();
+  vi.mocked(api.fetchGates).mockResolvedValue({ gates: [], invalidSpecs: [] });
   vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
     plan,
     results: null,
@@ -407,13 +412,15 @@ describe("Spec Bench test bench tab", () => {
     ]);
     items.forEach((item) => expect(item).toHaveClass("animate-rise-in"));
 
-    // Tab order: the stage control, the case filter, each row of the Cases
+    // Tab order: the selected Gate sitting view tab (#1653), the stage control,
+    // the case filter, each row of the Cases
     // list, then on the chosen case's TestBench surface its status control,
     // its Stage control (under the case's heading, before its steps), its
     // observation mark, its lifecycle actions and its notes, then the Mark row.
     // Each is found by its name.
     const panel = screen.getByRole("region", { name: "Case FX-TC-001" });
     const expected: HTMLElement[] = [
+      screen.getByRole("tab", { name: "Gate sitting" }),
       screen.getByRole("button", { name: "Close the sitting" }),
       screen.getByRole("tab", { name: "Escalated" }),
       ...CASES.map((caseId) =>
@@ -1130,5 +1137,70 @@ describe("Spec Bench test bench tab", () => {
     const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
     expect(banner).toHaveTextContent("build live");
     expect(banner).not.toHaveTextContent("build coming up");
+  });
+
+  // #1653: the tab shows the spec's full TestBench, read-only, with no sitting,
+  // and beside the sitting once one is open.
+  describe("the full TestBench (#1653)", () => {
+    it("shows the read-only TestBench of the spec, scoped to its slug, while no sitting is open", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot(undefined));
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+
+      expect(await screen.findByTestId("specbench-no-sitting")).toHaveTextContent(
+        NO_SITTING_NOTICE,
+      );
+      // The header names the spec, and the batches are scoped to its slug.
+      expect(screen.getByText("fixture-spec")).toBeInTheDocument();
+      await waitFor(() => expect(api.fetchGates).toHaveBeenCalledWith("demo", "fixture-spec"));
+      expect(screen.queryByRole("button", { name: "Change focused spec" })).toBeNull();
+      expect(screen.queryByRole("tab", { name: "Gate sitting" })).toBeNull();
+
+      // The Cases view lists every case, and a chosen case cannot be marked.
+      await user.click(screen.getByRole("button", { name: "Cases" }));
+      const rows = await screen.findAllByTestId("case-row");
+      expect(rows).toHaveLength(CASES.length);
+      await user.click(rows[0]);
+      const detail = screen.getByRole("region", { name: "Case detail: Case FX-TC-001" });
+      expect(within(detail).getByRole("button", { name: /Case status/ })).toBeDisabled();
+      expect(within(detail).getByRole("radio", { name: "Pass" })).toBeDisabled();
+      expect(within(detail).queryByTestId("case-retire-open")).toBeNull();
+    });
+
+    it("shows the sitting first and the read-only TestBench under All cases while a sitting is open", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.fetchDelivery).mockResolvedValue(
+        snapshot({ gateId: "gate-after-b", state: "open" }),
+      );
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+
+      const sittingTab = await screen.findByRole("tab", { name: "Gate sitting" });
+      expect(sittingTab).toHaveAttribute("aria-selected", "true");
+      expect(
+        await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("specbench-no-sitting")).toBeNull();
+
+      await user.click(screen.getByRole("tab", { name: "All cases" }));
+      expect(screen.getByRole("group", { name: "TestBench view" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Change focused spec" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Cases" }));
+      await user.click((await screen.findAllByTestId("case-row"))[1]);
+      const detail = screen.getByRole("region", { name: "Case detail: Case FX-TC-002" });
+      expect(within(detail).getByRole("button", { name: /Case status/ })).toBeDisabled();
+    });
+
+    it("names the case file of the spec folder", () => {
+      expect(specCasesPath("/repo/.specifications/fixture-spec")).toBe(
+        "/repo/.specifications/fixture-spec/test-cases.json",
+      );
+      expect(specCasesPath("/repo/.specifications/fixture-spec/")).toBe(
+        "/repo/.specifications/fixture-spec/test-cases.json",
+      );
+      expect(specCasesPath("/repo/.specifications/fixture-spec/test-cases.json")).toBe(
+        "/repo/.specifications/fixture-spec/test-cases.json",
+      );
+      expect(specCasesPath(undefined)).toBeUndefined();
+    });
   });
 });

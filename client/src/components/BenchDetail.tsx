@@ -983,7 +983,9 @@ export default function BenchDetail() {
           )}
 
           {isSpecbench && (
-            <TabPanel id="testbench" className="outline-none overflow-auto flex-1">
+            // A flex column, as the TestBench variant's panel is: the read-only
+            // TestBench inside needs a bounded height for its case list (#1653).
+            <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
               <SpecBenchTestBench bench={bench} />
             </TabPanel>
           )}

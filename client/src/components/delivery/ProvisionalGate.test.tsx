@@ -289,7 +289,7 @@ describe("A provisional gate", () => {
       </>,
     );
     expect(
-      await screen.findByText(/No gate sitting yet/, undefined, { timeout: 2000 }),
+      await screen.findByTestId("specbench-no-sitting", undefined, { timeout: 2000 }),
     ).toBeInTheDocument();
 
     // Step 1: both marks with their evidence, neutral, with no Confirm control.
