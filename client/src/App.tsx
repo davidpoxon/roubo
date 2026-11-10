@@ -4,6 +4,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import TitleBar from "./components/TitleBar";
 import { useProjects } from "./hooks/useProjects";
 import BenchDashboard from "./components/BenchDashboard";
+import AllBenchesView from "./components/AllBenchesView";
 import BenchesTab from "./components/BenchesTab";
 import ProjectSettingsTab from "./components/ProjectSettingsTab";
 import ProjectSettings from "./components/ProjectSettings";
@@ -49,7 +50,8 @@ export default function App() {
                   clears a failed route. */}
               <ErrorBoundary resetKey={location.pathname}>
                 <Routes>
-                  <Route path="/" element={<BenchDashboard />} />
+                  <Route path="/" element={<AllBenchesView />} />
+                  <Route path="/projects" element={<BenchDashboard />} />
                   <Route path="/projects/:projectId" element={<BenchDashboard />}>
                     <Route index element={<BenchesTab />} />
                     <Route path="settings/*" element={<ProjectSettingsTab />} />

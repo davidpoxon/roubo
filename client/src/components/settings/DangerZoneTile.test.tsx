@@ -192,7 +192,7 @@ describe("DangerZoneTile", () => {
     );
   });
 
-  it("navigates to / and adds a success toast on onSuccess", async () => {
+  it("navigates to the projects overview and adds a success toast on onSuccess", async () => {
     const mutateFn = vi.fn(
       (
         _input: { projectId: string; force?: boolean },
@@ -211,7 +211,7 @@ describe("DangerZoneTile", () => {
         name: "Unregister",
       }),
     );
-    expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith("/projects", { replace: true });
     expect(mockAddToast).toHaveBeenCalledWith("Unregistered My App.");
   });
 
@@ -620,7 +620,7 @@ describe("DangerZoneTile", () => {
         onError: expect.any(Function),
       }),
     );
-    expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith("/projects", { replace: true });
     expect(mockAddToast).toHaveBeenCalledWith("Unregistered My App.");
   });
 

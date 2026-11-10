@@ -58,7 +58,7 @@ export default function DangerZoneTile({ projectId }: Props) {
       {
         onSuccess: () => {
           reset();
-          navigate("/", { replace: true });
+          navigate("/projects", { replace: true });
           addToast(`Unregistered ${displayName}.`);
         },
         onError: (err) => {
