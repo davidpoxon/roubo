@@ -138,6 +138,14 @@ export function gateBadgeText(gate: DeliveryGate): string {
 // state.
 export const HELD_DRAFT_LABEL = "draft · held";
 
+// The pull request a unit node names in its head: the number of the pull
+// request its \`pr_url\` links, or null when it has none or the url names no
+// pull request number.
+export function pullRequestNumber(unit: DeliveryUnit): string | null {
+  const match = unit.pr_url === undefined ? null : /\/pull\/(\d+)(?:[/?#]|$)/.exec(unit.pr_url);
+  return match?.[1] === undefined ? null : `#${match[1]}`;
+}
+
 export function selectHeldUnitIds(snapshot: DeliverySnapshot): Set<string> {
   const held = new Set<string>();
   for (const view of Object.values(snapshot.gatesById)) {
@@ -211,18 +219,29 @@ export function targetKey(target: MapTarget): string {
 
 // ── Graph layout ──
 //
-// Lanes are stacks, columns are layers (DESIGN.md Unit node). A gate sits in
-// the lane of the unit it follows, in the gap before the next layer.
+// Lanes are stacks, columns are layers (DESIGN.md Unit node). Units that share
+// a stack and a layer go one above the other in that lane's cell, and the lane
+// grows to fit them. The gates sit in a gate lane below the stacks, each in the
+// column after the last layer of the units it follows. Positions are on the
+// canvas of nodes; the view draws the lane labels and layer headers beside it.
 
 export const NODE_WIDTH = 184;
-export const NODE_HEIGHT = 92;
-export const GATE_WIDTH = 120;
-export const GATE_HEIGHT = 44;
-const GAP = 20;
-const LANE_GAP = 28;
-const COLUMN_WIDTH = NODE_WIDTH + GAP + GATE_WIDTH + GAP;
-const LANE_HEIGHT = NODE_HEIGHT + LANE_GAP;
-const EDGE_BEND = 32;
+export const NODE_HEIGHT = 80;
+export const GATE_WIDTH = NODE_WIDTH;
+export const GATE_HEIGHT = 52;
+const COLUMN_GAP = 40;
+const LANE_GAP = 20;
+const CELL_GAP = 8;
+// The space between the last stack lane and the gate lane; the dashed hairline
+// that opens the gate lane sits halfway across it.
+const GATE_LANE_GAP = 32;
+const COLUMN_WIDTH = NODE_WIDTH + COLUMN_GAP;
+const EDGE_BEND = 20;
+// Room around the canvas so the focus ring of a node at the first layer or in
+// the first lane is not covered by the labels or the headers beside it.
+const CANVAS_PAD = 6;
+// Room below the gate lane for the hover line of a gate in its last row.
+const GATE_HOVER_ROOM = 32;
 
 export interface PlacedUnit {
   kind: "unit";
@@ -256,10 +275,31 @@ export interface PlacedEdge {
   path: string;
 }
 
+// One stack lane: its stack id, how many units it holds, and where it runs.
+export interface PlacedLane {
+  stack: string;
+  unitCount: number;
+  top: number;
+  height: number;
+}
+
+// One layer column that holds a unit: its layer number and where it starts. A
+// column past the last unit layer holds only gates and has no header.
+export interface PlacedColumn {
+  layer: number;
+  left: number;
+}
+
 export interface DeliveryMapLayout {
   // Every unit and gate in dependency order: the focus order of the graph.
   items: PlacedItem[];
   edges: PlacedEdge[];
+  lanes: PlacedLane[];
+  columns: PlacedColumn[];
+  // The gate lane, below the stacks, or null when the delivery has no gate.
+  // `ruleTop` is where the dashed hairline that opens it runs.
+  gateLane: { top: number; height: number; ruleTop: number; gateCount: number } | null;
+  columnWidth: number;
   width: number;
   height: number;
 }
@@ -314,9 +354,12 @@ export function layoutDeliveryMap(
   snapshot: DeliverySnapshot,
   ordered: readonly DeliveryUnit[],
 ): DeliveryMapLayout {
-  const lanes = new Map<string, number>();
+  const stackOrder: string[] = [];
   for (const unit of selectUnitsInStackOrder(snapshot)) {
-    if (!lanes.has(unit.stack)) lanes.set(unit.stack, lanes.size);
+    if (!stackOrder.includes(unit.stack)) stackOrder.push(unit.stack);
+  }
+  for (const unit of ordered) {
+    if (!stackOrder.includes(unit.stack)) stackOrder.push(unit.stack);
   }
 
   const dependencyEdges = selectDependencyEdges(snapshot);
@@ -332,15 +375,50 @@ export function layoutDeliveryMap(
     snapshot,
     ordered.map((unit) => unit.id),
   );
+
+  // Each unit's place in its cell, in dependency order, and each lane's rows:
+  // the most units any one of its cells holds.
+  const minLayer = ordered.reduce((low, unit) => Math.min(low, unit.layer), Infinity);
+  const firstLayer = Number.isFinite(minLayer) ? minLayer : 0;
+  const cellIndex = new Map<string, number>();
+  const cellCounts = new Map<string, number>();
+  const laneRows = new Map<string, number>();
+  const laneUnits = new Map<string, number>();
+  for (const unit of ordered) {
+    const cell = `${unit.stack}\u0000${String(unit.layer)}`;
+    const index = cellCounts.get(cell) ?? 0;
+    cellIndex.set(unit.id, index);
+    cellCounts.set(cell, index + 1);
+    laneRows.set(unit.stack, Math.max(laneRows.get(unit.stack) ?? 0, index + 1));
+    laneUnits.set(unit.stack, (laneUnits.get(unit.stack) ?? 0) + 1);
+  }
+  const lanes: PlacedLane[] = [];
+  let laneTop = CANVAS_PAD;
+  for (const stack of stackOrder) {
+    const rows = Math.max(1, laneRows.get(stack) ?? 0);
+    const height = rows * NODE_HEIGHT + (rows - 1) * CELL_GAP;
+    lanes.push({ stack, unitCount: laneUnits.get(stack) ?? 0, top: laneTop, height });
+    laneTop += height + LANE_GAP;
+  }
+  const lanesBottom = Math.max(0, laneTop - LANE_GAP);
+  const laneByStack = new Map(lanes.map((lane) => [lane.stack, lane]));
+
+  const columnLeft = (layer: number) => CANVAS_PAD + (layer - firstLayer) * COLUMN_WIDTH;
   const items: PlacedItem[] = [];
   const unitsByKey = new Map<string, PlacedUnit>();
+  const unitById = new Map(ordered.map((unit) => [unit.id, unit]));
   const gatesPlaced: PlacedGate[] = [];
-  let maxLayer = 0;
+  const gateColumnCounts = new Map<number, number>();
+  const gateLaneTop = lanesBottom + GATE_LANE_GAP;
+  let maxLayer = firstLayer;
+  let maxUnitLayer = firstLayer;
+  let gateRows = 0;
   for (const unit of ordered) {
-    const lane = lanes.get(unit.stack) ?? 0;
-    const x = unit.layer * COLUMN_WIDTH;
-    const y = lane * LANE_HEIGHT;
+    const lane = laneByStack.get(unit.stack);
+    const x = columnLeft(unit.layer);
+    const y = (lane?.top ?? 0) + (cellIndex.get(unit.id) ?? 0) * (NODE_HEIGHT + CELL_GAP);
     maxLayer = Math.max(maxLayer, unit.layer);
+    maxUnitLayer = Math.max(maxUnitLayer, unit.layer);
     const placed: PlacedUnit = {
       kind: "unit",
       key: unitKey(unit.id),
@@ -352,17 +430,27 @@ export function layoutDeliveryMap(
     };
     items.push(placed);
     unitsByKey.set(placed.key, placed);
-    (anchors.get(unit.id) ?? []).forEach((view, index) => {
+    for (const view of anchors.get(unit.id) ?? []) {
+      // The column after the last layer of the units the gate follows.
+      const afterLayer = view.gate.after.reduce(
+        (high, id) => Math.max(high, unitById.get(id)?.layer ?? unit.layer),
+        unit.layer,
+      );
+      const layer = afterLayer + 1;
+      const row = gateColumnCounts.get(layer) ?? 0;
+      gateColumnCounts.set(layer, row + 1);
+      gateRows = Math.max(gateRows, row + 1);
+      maxLayer = Math.max(maxLayer, layer);
       const gate: PlacedGate = {
         kind: "gate",
         key: gateKey(view.gate.id),
         view,
-        x: x + NODE_WIDTH + GAP,
-        y: y + (NODE_HEIGHT - GATE_HEIGHT) / 2 + index * (GATE_HEIGHT + 4),
+        x: columnLeft(layer),
+        y: gateLaneTop + row * (GATE_HEIGHT + CELL_GAP),
       };
       items.push(gate);
       gatesPlaced.push(gate);
-    });
+    }
   }
 
   const edges: PlacedEdge[] = [];
@@ -401,15 +489,30 @@ export function layoutDeliveryMap(
     }
   }
 
-  const laneCount = Math.max(1, lanes.size);
-  const gateBottom = gatesPlaced.reduce(
-    (bottom, gate) => Math.max(bottom, gate.y + GATE_HEIGHT),
-    0,
-  );
+  const columns: PlacedColumn[] = [];
+  for (let layer = firstLayer; layer <= maxUnitLayer; layer += 1) {
+    columns.push({ layer, left: columnLeft(layer) });
+  }
+  const gateLane =
+    gatesPlaced.length === 0
+      ? null
+      : {
+          top: gateLaneTop,
+          height: gateRows * GATE_HEIGHT + (gateRows - 1) * CELL_GAP,
+          ruleTop: lanesBottom + GATE_LANE_GAP / 2,
+          gateCount: gatesPlaced.length,
+        };
   return {
     items,
     edges,
-    width: (maxLayer + 1) * COLUMN_WIDTH,
-    height: Math.max(laneCount * LANE_HEIGHT - LANE_GAP, gateBottom),
+    lanes,
+    columns,
+    gateLane,
+    columnWidth: COLUMN_WIDTH,
+    width: (maxLayer - firstLayer + 1) * COLUMN_WIDTH - COLUMN_GAP + 2 * CANVAS_PAD,
+    height:
+      gateLane === null
+        ? lanesBottom + CANVAS_PAD
+        : gateLane.top + gateLane.height + GATE_HOVER_ROOM,
   };
 }
