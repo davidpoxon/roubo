@@ -53,6 +53,15 @@ function terminalTheme(): ITheme {
   return theme;
 }
 
+/**
+ * Whether a terminal's container has a size to fit to. Under a display:none
+ * ancestor it measures 0x0; a container with either dimension at 0 cannot be
+ * fitted either, so every caller treats that the same way.
+ */
+function canFit(el: HTMLElement): boolean {
+  return el.offsetWidth > 0 && el.offsetHeight > 0;
+}
+
 /** A terminal dimension the PTY can have: a positive whole number of cells. */
 function isCellCount(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
@@ -194,7 +203,7 @@ export default function Terminal({
 
     const safeFit = () => {
       const el = containerRef.current;
-      if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+      if (!el || !canFit(el)) return false;
       fit.fit();
       return true;
     };
@@ -244,7 +253,7 @@ export default function Terminal({
   const adoptPtySize = useCallback((size: Partial<PtySize> | undefined) => {
     const term = termRef.current;
     const el = containerRef.current;
-    if (!term || !el || el.offsetWidth > 0 || el.offsetHeight > 0) return;
+    if (!term || !el || canFit(el)) return;
     const { cols, rows } = size ?? {};
     if (!isCellCount(cols) || !isCellCount(rows)) return;
     if (term.cols === cols && term.rows === rows) return;
@@ -400,9 +409,9 @@ export default function Terminal({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    let shown = el.offsetWidth > 0 && el.offsetHeight > 0;
+    let shown = canFit(el);
     const observer = new ResizeObserver(() => {
-      const nowShown = el.offsetWidth > 0 && el.offsetHeight > 0;
+      const nowShown = canFit(el);
       if (nowShown && !shown) announceSize();
       shown = nowShown;
     });

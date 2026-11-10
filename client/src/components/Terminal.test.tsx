@@ -508,13 +508,49 @@ describe("Terminal: parsing output at the PTY's size while it cannot fit (#1661)
     restore();
   });
 
-  it("follows the PTY's size while hidden when another viewer resizes it", () => {
-    const { captured } = connect();
+  it("follows the PTY's size while hidden when another viewer resizes it, without echoing it", () => {
+    forwardResizes();
+    const { ws, captured } = connect();
     render(<Terminal sessionId="sess-1" active />);
 
     captured.onMessage({ type: "pty-size", cols: 52, rows: 20 });
 
     expect(mockTerminalInstance.resize).toHaveBeenCalledWith(52, 20);
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+
+  it("still sends its own resize once it has taken the PTY's size", () => {
+    let listener: (size: { cols: number; rows: number }) => void = () => {};
+    mockTerminalInstance.onResize.mockImplementation(((
+      fn: (size: { cols: number; rows: number }) => void,
+    ) => {
+      listener = fn;
+      return { dispose: vi.fn() };
+    }) as never);
+    mockTerminalInstance.resize.mockImplementation((cols: number, rows: number) => {
+      listener({ cols, rows });
+    });
+    const { ws, captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+    captured.onReplay(["frame\r\n"], undefined, undefined, undefined, { cols: 164, rows: 29 });
+    expect(ws.send).not.toHaveBeenCalled();
+
+    // Shown and fitted to a size of its own: that resize must reach the PTY.
+    listener({ cols: 200, rows: 50 });
+
+    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: "resize", cols: 200, rows: 50 }));
+  });
+
+  it("neither fits nor keeps 80x24 when only one dimension of its container is 0", () => {
+    const restore = stubDimensions(0, 400);
+    const { captured } = connect();
+    render(<Terminal sessionId="sess-1" active />);
+    expect(mockFitAddonInstance.fit).not.toHaveBeenCalled();
+
+    captured.onReplay([], undefined, undefined, undefined, { cols: 164, rows: 29 });
+
+    expect(mockTerminalInstance.resize).toHaveBeenCalledWith(164, 29);
+    restore();
   });
 
   it("ignores the PTY's size while it can fit its container", () => {

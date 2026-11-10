@@ -93,8 +93,8 @@ export function useTerminalConnection({
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "replay") {
-          // A replay from a live session carries the PTY's size; one from a
-          // session that has already ended does not.
+          // A replay carries the PTY's size, unless the session was restored
+          // from disk without a live PTY.
           const size =
             typeof msg.cols === "number" && typeof msg.rows === "number"
               ? { cols: msg.cols, rows: msg.rows }
