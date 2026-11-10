@@ -2294,13 +2294,25 @@ export class PluginSwapRefusedError extends Error {
   readonly reason: SwapRefusalReason;
   /** Why, without the plugin name: "its kind changed from component to agent". */
   readonly detail: string;
+  /**
+   * The numbers of the benches that hold the plugin's component state, for an
+   * `imperative` refusal: the user stops them before the update. Empty for any
+   * other reason.
+   */
+  readonly benchIds: number[];
 
-  constructor(pluginId: string, reason: SwapRefusalReason, detail: string) {
+  constructor(
+    pluginId: string,
+    reason: SwapRefusalReason,
+    detail: string,
+    benchIds: number[] = [],
+  ) {
     super(`Plugin "${pluginId}" was not swapped: ${detail}`);
     this.name = "PluginSwapRefusedError";
     this.pluginId = pluginId;
     this.reason = reason;
     this.detail = detail;
+    this.benchIds = benchIds;
   }
 }
 
@@ -2368,6 +2380,7 @@ function bindingRefusal(
       path === "swap"
         ? "an imperative component plugin owns its resources in its process; restart the benches that use it instead"
         : "an imperative component plugin owns its resources in its process",
+      swapState.benchNumbersOf(swapBenchesOf(entry)),
     );
   }
   if (next.kind !== current.kind) {
