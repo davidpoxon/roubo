@@ -409,6 +409,53 @@ describe("Unit drill-in", () => {
     expect(empty).toHaveAttribute("data-folded", "true");
   });
 
+  it("#1659 appends the record-covered events a later read brings, once each", async () => {
+    // The delivery posts no event: each read takes the unit's events from the
+    // outbox, up to the seq the record carries.
+    let recordSeq = 9;
+    const outbox = [
+      unitEvent(8, "A", "unit.changed", { status: "running" }, at(40)),
+      unitEvent(9, "A", "note", { text: "Opened the worktree" }, at(41)),
+      unitEvent(10, "A", "note", { text: "Ran the suite" }, at(42)),
+      unitEvent(11, "A", "unit.changed", { status: "done" }, at(43)),
+    ];
+    record = { ...withStatus(fourUnitRecord(), { A: "running" }), last_event_seq: recordSeq };
+    vi.mocked(api.fetchDeliveryEvents).mockImplementation(async (_p, _b, query = {}) => {
+      const carried = outbox.filter(
+        (event) =>
+          event.seq <= recordSeq && (query.unit === undefined || event.unit_id === query.unit),
+      );
+      return {
+        events: carried.filter((event) => query.after === undefined || event.seq > query.after),
+        acceptedSeq: recordSeq,
+        ...(query.unit !== undefined && { folded: carried.length }),
+      };
+    });
+    renderWithProviders(<Harness />);
+    await openUnit("A");
+    await waitFor(() => expect(timelineOrder()).toEqual(["event:9", "event:8"]));
+
+    // The session writes the record past two more events, and a frame says so.
+    recordSeq = 11;
+    record = { ...record, last_event_seq: recordSeq };
+    act(() =>
+      source.onmessage?.({
+        data: JSON.stringify({
+          type: "delivery",
+          projectId: "demo",
+          benchId: 3,
+          change: "snapshot",
+          seq: recordSeq,
+        }),
+      } as MessageEvent),
+    );
+
+    await waitFor(() =>
+      expect(timelineOrder()).toEqual(["event:11", "event:10", "event:9", "event:8"]),
+    );
+    expect(api.fetchDeliveryEvents).toHaveBeenLastCalledWith("demo", 3, { after: 9, unit: "A" });
+  });
+
   it("SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst with keys still working", async () => {
     record = withStatus(fourUnitRecord(), { B: "running" });
     log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];

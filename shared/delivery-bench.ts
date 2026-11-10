@@ -179,10 +179,12 @@ export interface DeliveryEventsResponse {
 // ── Unit drill-in reads (SB-FR-013) ──
 
 // The body of GET <base>/units/:unitId/diff: the pull-request diff of the
-// unit's layer, as `git diff <base> <head>` in the bench workspace. `head` is
-// the unit's `head`; `base` is the `head` of the unit below it in its stack, or
-// the stack base (the merge base of the workspace's HEAD and the unit's head)
-// for a unit at the stack's base or one whose lower layer has no head. Both are
+// unit's layer, as `git diff <base> <head>` in the checkout of the bench
+// workspace that holds the unit's head: the workspace, or in a meta-repo a
+// mapped submodule in it (#1659). `head` is the unit's `head`; `base` is the
+// `head` of the unit below it in its stack, or the stack base (the merge base
+// of that checkout's HEAD and the unit's head) for a unit at the stack's base
+// or one whose lower layer has no head. Both are
 // null, and `diff` empty, while the unit has no head. A diff over
 // DELIVERY_DIFF_MAX_BYTES is cut there, and `truncated` says so. No GitHub call
 // is made.

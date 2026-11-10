@@ -674,6 +674,19 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/diff", () => {
     expect(res.body.error).not.toContain("fatal");
   });
 
+  it("#1659 names the checkout of the head when the head below is not in it", async () => {
+    const { layerB } = metaRepoStack();
+    // A's head is a commit of the meta-repo, B's of the submodule `app`.
+    writeRecord(recordWithHeads({ A: git("rev-parse", "HEAD"), B: layerB }));
+
+    const res = await request(app).get(`${base}/units/B/diff`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("DELIVERY_DIFF_UNAVAILABLE");
+    expect(res.body.error).toContain("is not in app in the bench workspace, where B's head is");
+    expect(res.body.error).not.toContain("fatal");
+  });
+
   it("answers 404 UNIT_NOT_FOUND for a unit the record does not carry", async () => {
     writeRecord(fixtureRecord());
 
