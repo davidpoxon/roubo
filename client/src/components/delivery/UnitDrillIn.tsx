@@ -10,6 +10,7 @@ import { STATUS_DOT, STATUS_LABEL } from "../testbench/statusLabels";
 import { focusRing } from "../ui/focus-ring";
 import { Tab, TabList, TAB_PANEL_CLASS, Tabs } from "../ui/Tabs";
 import { DeliveryPanel } from "./DeliveryPanel";
+import DeliveryTimeSplit from "./DeliveryTimeSplit";
 import {
   buildTimeline,
   clockTime,
@@ -22,6 +23,7 @@ import {
 
 // A unit's drill-in (SB-FR-013, SB-US-004): the structured event timeline on
 // the left, and on the right a panel with a Diff tab and a Verify tab (#1621).
+// Below both, the unit's time split (#1671).
 // The timeline holds the unit's events from GET /delivery/events?unit=<id>
 // (the most recent 1,000, SB-NFR-003), the events the delivery record already
 // carries included (#1659), with each generation seam of the unit marked on
@@ -93,6 +95,13 @@ export default function UnitDrillIn({ projectId, benchId, snapshot, unitId }: Un
           </Tabs>
         </div>
       </div>
+      <DeliveryTimeSplit
+        projectId={projectId}
+        benchId={benchId}
+        seq={snapshot.seq}
+        unitId={unitId}
+        className="mt-3.5"
+      />
     </div>
   );
 }

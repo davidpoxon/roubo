@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 // The cost view of the Delivery tab (#1623): a title row with the lifecycle
-// badge and buttons, then the Burn, Health, Role matrix, Decision mode and
-// Drift ledger panels, in that order, each from figures the snapshot has.
-import { afterEach, describe, expect, it, vi } from "vitest";
+// badge and buttons, then the Burn, Time (#1671), Health, Role matrix,
+// Decision mode and Drift ledger panels, in that order. Each reads figures the
+// snapshot has, except Time, which reads the delivery's time split.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench } from "@roubo/shared";
@@ -12,7 +13,25 @@ import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import { fourUnitRecord, unitChanged } from "../../test/delivery-fixtures";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { formatElapsed } from "./delivery-health-model";
+import { deriveDeliveryTimeSplit } from "@roubo/shared/delivery-time-split";
+
+vi.mock("../../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/api")>();
+  return { ...actual, fetchDeliveryTime: vi.fn() };
+});
+import * as api from "../../lib/api";
 import DeliveryCostView from "./DeliveryCostView";
+
+beforeEach(() => {
+  vi.mocked(api.fetchDeliveryTime).mockReset();
+  vi.mocked(api.fetchDeliveryTime).mockImplementation(async () =>
+    deriveDeliveryTimeSplit({
+      record: fourUnitRecord(),
+      events: [unitChanged(8, "B", "running")],
+      now: Date.parse("2026-10-16T10:00:00Z"),
+    }),
+  );
+});
 
 const bench = {
   id: 3,
@@ -86,13 +105,14 @@ afterEach(() => {
 });
 
 describe("DeliveryCostView", () => {
-  it("shows the title row, then Burn, Health, Role matrix, Decision mode and Drift ledger, in that order", () => {
+  it("shows the title row, then Burn, Time, Health, Role matrix, Decision mode and Drift ledger, in that order", () => {
     renderView();
     const order = [
       screen.getByRole("heading", { level: 2, name: "Cost, health and controls" }),
       screen.getByTestId("delivery-lifecycle"),
       screen.getByRole("region", { name: "Lifecycle" }),
       screen.getByRole("region", { name: "Burn" }),
+      screen.getByRole("region", { name: "Time of the delivery" }),
       screen.getByRole("region", { name: "Health" }),
       screen.getByRole("region", { name: "Roles" }),
       screen.getByRole("region", { name: "Decision mode" }),
@@ -114,6 +134,19 @@ describe("DeliveryCostView", () => {
         "delivery-mode-control",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("#1671 shows the delivery's elapsed time split beside the burn, the parts adding up to it", async () => {
+    renderView();
+    const time = screen.getByRole("region", { name: "Time of the delivery" });
+    // The delivery started at 09:00 and the split is read at 10:00.
+    expect(await within(time).findByTestId("delivery-time-total")).toHaveTextContent(
+      "Total1h 00m1 hour",
+    );
+    expect(time).toHaveTextContent("since 2026-10-16 09:00 UTC");
+    for (const state of ["agent", "operator", "gate", "no_session"]) {
+      expect(within(time).getByTestId(`delivery-time-${state}`)).toBeInTheDocument();
+    }
   });
 
   it("fills the Burn strip with spent, the top role, spend against the estimate and the elapsed time", () => {

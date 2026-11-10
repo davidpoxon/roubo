@@ -1,7 +1,8 @@
 // The delivery read routes of a Spec Bench, over the record fixture
 // (SB-FR-008, SB-FR-009, SB-FR-013): GET /delivery folds the record and the
-// accepted events into a snapshot, and GET /delivery/events answers the
-// accepted events above a seq, for one unit or all.
+// accepted events into a snapshot, GET /delivery/events answers the
+// accepted events above a seq, for one unit or all, and GET /delivery/time
+// splits the delivery's elapsed time (#1671).
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -590,6 +591,64 @@ function recordWithHeads(heads: Record<string, string>): DeliveryRecord {
     ),
   };
 }
+
+describe("GET /:projectId/benches/:id/delivery/time (#1671)", () => {
+  const MIN = 60_000;
+  const at = (type: string, seq: number, ts: string, payload: object, unitId?: string) =>
+    ({
+      ...event(seq, unitId),
+      type,
+      ts,
+      payload,
+    }) as DeliveryEvent;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("splits the record's events from the outbox and the ones above it from the log, once each", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T10:00:00Z"));
+    writeRecord(fixtureRecord());
+    writeOutbox([
+      outboxRow(at("lifecycle.changed", 1, "2026-10-16T09:00:00Z", { state: "running" })),
+      outboxRow(at("unit.changed", 2, "2026-10-16T09:10:00Z", { status: "running" }, "C")),
+      // Above the record's last_event_seq (7): the log, not the outbox, answers it.
+      outboxRow(at("unit.changed", 8, "2026-10-16T09:15:00Z", { status: "done" }, "C")),
+    ]);
+    accept([at("unit.changed", 8, "2026-10-16T09:30:00Z", { status: "done" }, "C")]);
+
+    const res = await request(app).get(`${base}/time`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.from).toBe("2026-10-16T09:00:00.000Z");
+    expect(res.body.open).toBe(true);
+    expect(res.body.totalMs).toBe(60 * MIN);
+    // B runs all along in the record, so the delivery's agent never stopped.
+    expect(res.body.parts).toEqual({ agent: 60 * MIN, operator: 0, gate: 0, no_session: 0 });
+    // C ran from 09:10 until the log's 09:30, then sat at its provisional gate.
+    const c = res.body.units.find((unit: { unitId: string }) => unit.unitId === "C");
+    expect(c).toMatchObject({
+      from: "2026-10-16T09:10:00.000Z",
+      to: "2026-10-16T10:00:00.000Z",
+      totalMs: 50 * MIN,
+      parts: { agent: 20 * MIN, operator: 0, gate: 30 * MIN, no_session: 0 },
+    });
+  });
+
+  it("answers 404 NOT_SPEC_BENCH for a bench that is not a Spec Bench", async () => {
+    bench = { ...bench, variant: "default" } as Bench;
+    const res = await request(app).get(`${base}/time`);
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NOT_SPEC_BENCH");
+  });
+
+  it("answers 409 DELIVERY_RECORD_MISSING while the workspace has no record", async () => {
+    const res = await request(app).get(`${base}/time`);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("DELIVERY_RECORD_MISSING");
+  });
+});
 
 describe("GET /:projectId/benches/:id/delivery/units/:unitId/diff", () => {
   it("answers the diff from the head of the layer below to the unit's head", async () => {

@@ -1165,7 +1165,9 @@ const onReviewReply: EventHandler = (state, event) => {
   return { ...state, threadsByDecisionId };
 };
 
-function looksLikeProvisionalCase(value: unknown): value is Partial<ProvisionalCase> & {
+// A `gate.provisional` payload's case entry: a case id and a known mark. The
+// time split (#1671) replays gates with the same test.
+export function looksLikeProvisionalCase(value: unknown): value is Partial<ProvisionalCase> & {
   case: string;
   mark: ProvisionalMark;
 } {

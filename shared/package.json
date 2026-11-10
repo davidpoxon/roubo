@@ -35,7 +35,8 @@
     "./gate-evaluator": "./gate-evaluator.ts",
     "./delivery-reducer": "./delivery-reducer.ts",
     "./delivery-selectors": "./delivery-selectors.ts",
-    "./delivery-digest": "./delivery-digest.ts"
+    "./delivery-digest": "./delivery-digest.ts",
+    "./delivery-time-split": "./delivery-time-split.ts"
   },
   "files": [
     "*.ts",
