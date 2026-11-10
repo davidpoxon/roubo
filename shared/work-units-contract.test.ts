@@ -86,6 +86,73 @@ describe("validateWorkUnits", () => {
         expect(result.ok).toBe(true);
       },
     );
+
+    it("accepts a UI unit carrying a design_reference and keeps its four keys", () => {
+      const designReference = {
+        prototype: "prototype/index.html",
+        inventory: "prototype/inventory.json",
+        screens: ["home", "settings"],
+        components: ["BenchCard"],
+      };
+      const result = validateWorkUnits(
+        envelope([plainUnit({ design_reference: designReference })]),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.units[0].design_reference).toEqual(designReference);
+      }
+    });
+
+    it("accepts a unit with no design_reference", () => {
+      const result = validateWorkUnits(envelope([plainUnit()]));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.units[0]).not.toHaveProperty("design_reference");
+      }
+    });
+  });
+
+  describe("design_reference is strict and its errors name the failing field", () => {
+    const validDesignReference = {
+      prototype: "prototype/index.html",
+      inventory: "prototype/inventory.json",
+      screens: ["home"],
+      components: [],
+    };
+
+    function errorsFor(designReference: unknown): string[] {
+      const result = validateWorkUnits(
+        envelope([plainUnit({ design_reference: designReference })]),
+      );
+      expect(result.ok).toBe(false);
+      return result.ok ? [] : result.errors;
+    }
+
+    it("rejects an unknown key and names it", () => {
+      const errors = errorsFor({ ...validDesignReference, bogus: "nope" });
+      expect(
+        errors.some((e) => e.startsWith("units.0.design_reference") && e.includes("bogus")),
+      ).toBe(true);
+    });
+
+    it.each([
+      ["a string", "home"],
+      ["an array holding a number", [1]],
+    ])("rejects screens given as %s and names the field", (_label, screens) => {
+      const errors = errorsFor({ ...validDesignReference, screens });
+      expect(errors.some((e) => e.startsWith("units.0.design_reference.screens"))).toBe(true);
+    });
+
+    it.each(["prototype", "inventory", "screens", "components"])(
+      "rejects a design_reference missing %s and names the field",
+      (key) => {
+        const designReference = Object.fromEntries(
+          Object.entries(validDesignReference).filter(([k]) => k !== key),
+        );
+        const errors = errorsFor(designReference);
+        expect(errors.some((e) => e.startsWith(`units.0.design_reference.${key}`))).toBe(true);
+      },
+    );
   });
 
   describe("invalid envelopes are rejected with field-named errors and never throw", () => {

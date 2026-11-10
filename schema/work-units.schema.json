@@ -96,6 +96,31 @@
           "trigger_reason": {
             "type": "string"
           },
+          "design_reference": {
+            "type": "object",
+            "properties": {
+              "prototype": {
+                "type": "string"
+              },
+              "inventory": {
+                "type": "string"
+              },
+              "screens": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "components": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["prototype", "inventory", "screens", "components"],
+            "additionalProperties": false
+          },
           "tracker": {
             "type": "object",
             "properties": {
