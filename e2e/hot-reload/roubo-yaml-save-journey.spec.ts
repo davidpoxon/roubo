@@ -33,11 +33,22 @@ const WORKER_PORT_BASE = 39600;
 // The slices of this journey, named by title: they are filed in a tracker this
 // public repository does not link to (see step-runner.ts).
 const SLICE = {
-  watcher: { title: "InputWatcher module for hot reload" },
-  events: { title: "input-changed events and the non-blocking notice" },
-  clientRefresh: { title: "Refresh the project views on a project-config change" },
-  configWatch: { title: "Watch each project's roubo.yaml and apply saves live" },
-  benchSnapshot: { title: "A bench keeps the component definitions it was set up with" },
+  watcher: {
+    title:
+      "InputWatcher module: allowlisted chokidar watches with settle, hash dedupe, self-write tokens, and one log line per outcome",
+  },
+  events: {
+    title:
+      "input-changed event on the server stream and a non-blocking client notice with targeted refresh",
+  },
+  configWatch: {
+    title:
+      "Watch roubo.yaml per project: re-parse on save, keep last good, notify, mark running benches stale",
+  },
+  benchSnapshot: {
+    title:
+      "Bench keeps its component definitions: snapshot at set-up, stale marker, restart with new config",
+  },
 } as const;
 
 const STEPS_001: Record<string, JourneyStep> = {
@@ -55,7 +66,7 @@ const STEPS_001: Record<string, JourneyStep> = {
   S003: {
     id: "S003",
     instruction: "Open the lantern project page",
-    owners: [SLICE.configWatch, SLICE.clientRefresh],
+    owners: [SLICE.configWatch, SLICE.events],
   },
   S004: {
     id: "S004",
@@ -73,7 +84,7 @@ const STEPS_045: Record<string, JourneyStep> = {
   S002: {
     id: "S002",
     instruction: "Save the project's roubo.yaml and start a timer",
-    owners: [SLICE.configWatch, SLICE.watcher, SLICE.events, SLICE.clientRefresh],
+    owners: [SLICE.configWatch, SLICE.watcher, SLICE.events],
   },
 };
 
