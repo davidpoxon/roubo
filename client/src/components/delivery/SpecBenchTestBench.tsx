@@ -17,6 +17,7 @@ import { focusRing } from "../ui/focus-ring";
 import { FIELD_LABEL_CLASS, inputClass, STATUS_DOT_CLASSES, type StatusTone } from "../ui/styles";
 import { Tab, TabList, TabPanel, Tabs } from "../ui/Tabs";
 import CaseDetail from "../testbench/CaseDetail";
+import { STATUS_DOT, STATUS_LABEL } from "../testbench/statusLabels";
 import { TestbenchApiContext, type TestbenchApi } from "../testbench/TestbenchApiContext";
 import { DeliveryPanel } from "./DeliveryPanel";
 import GateSitting from "./GateSitting";
@@ -194,14 +195,13 @@ function useGateCases(bench: Bench, snapshot: DeliverySnapshotResponse, gateId: 
   return { plan, cases, caseResults };
 }
 
-// A case that automation verified as passed, with no mark of the operator's
-// over it. The rest of the gate's cases are escalated to the operator.
+// A case that automation verified as passed. The rest of the gate's cases are
+// escalated to the operator. The operator's own mark does not move a case
+// between the two, so a mark made in the sitting keeps the lists and the
+// counts as they were.
 function passedByAutomation(result: CaseResult | undefined): boolean {
   return (
-    result !== undefined &&
-    result.verification !== undefined &&
-    result.statusOverride === undefined &&
-    result.derivedStatus === "passed"
+    result !== undefined && result.verification !== undefined && result.derivedStatus === "passed"
   );
 }
 
@@ -222,29 +222,13 @@ function SittingCounts({
     passedByAutomation(ownValue(caseResults, testCase.id)),
   ).length;
   return (
-    <span data-testid="sitting-counts">
+    <span data-testid="sitting-counts" className="min-w-0 text-text-body">
       {passed} of {cases.length} passed by automation · {cases.length - passed} escalated to you
     </span>
   );
 }
 
 type CaseFilter = "escalated" | "gating";
-
-const CASE_STATUS_TONE: Record<CaseStatus, StatusTone> = {
-  not_started: "idle",
-  in_progress: "preparing",
-  passed: "active",
-  failed: "error",
-  blocked: "idle",
-};
-
-const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
-  not_started: "not started",
-  in_progress: "in progress",
-  passed: "passed",
-  failed: "failed",
-  blocked: "blocked",
-};
 
 function SittingCases({
   bench,
@@ -340,31 +324,35 @@ function SittingCases({
             ))}
           </Tabs>
         </DeliveryPanel>
-        {selected !== undefined && (
-          <DeliveryPanel
-            title="Case"
-            label={`Case ${selected.id}`}
-            meta={
-              <span className="font-mono">
-                {selected.id} · L{selected.level}
-              </span>
-            }
-          >
-            <div className="p-3">
-              <SittingCase
-                key={selected.id}
-                projectId={bench.projectId}
-                benchId={bench.id}
-                testCase={selected}
-                result={ownValue(caseResults, selected.id)}
-                fixRef={blockers.find((blocker) => blocker.caseId === selected.id)?.fixRef}
-                fixUnitError={ownValue(fixUnitErrors, selected.id)}
-                provisional={provisionalCases.find((entry) => entry.case === selected.id)}
-                onMarked={onMarked}
-              />
-            </div>
-          </DeliveryPanel>
-        )}
+        {/* One Case panel per case of the gate, the chosen one shown: a case
+            keeps its staged state, its evidence draft and its errors while
+            another case is chosen. */}
+        {cases.map((testCase) => (
+          <div key={testCase.id} hidden={testCase.id !== selected?.id} className="min-w-0">
+            <DeliveryPanel
+              title="Case"
+              label={`Case ${testCase.id}`}
+              meta={
+                <span className="font-mono">
+                  {testCase.id} · L{testCase.level}
+                </span>
+              }
+            >
+              <div className="p-3">
+                <SittingCase
+                  projectId={bench.projectId}
+                  benchId={bench.id}
+                  testCase={testCase}
+                  result={ownValue(caseResults, testCase.id)}
+                  fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
+                  fixUnitError={ownValue(fixUnitErrors, testCase.id)}
+                  provisional={provisionalCases.find((entry) => entry.case === testCase.id)}
+                  onMarked={onMarked}
+                />
+              </div>
+            </DeliveryPanel>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -397,14 +385,14 @@ function CaseRow({
     >
       <span
         aria-hidden="true"
-        className={`inline-block h-2 w-2 rounded-full ${STATUS_DOT_CLASSES[CASE_STATUS_TONE[status]]}`}
+        className={`inline-block h-2 w-2 rounded-full ${STATUS_DOT[status]}`}
       />
       <span className="font-mono text-text-body">
         {testCase.id} · L{testCase.level}
       </span>{" "}
       <span className="min-w-0">
         <span className="block text-13 text-text-primary">{testCase.title}</span>{" "}
-        <span className="block text-11 text-text-secondary">{CASE_STATUS_LABEL[status]}</span>
+        <span className="block text-11 text-text-secondary">{STATUS_LABEL[status]}</span>
       </span>
     </button>
   );

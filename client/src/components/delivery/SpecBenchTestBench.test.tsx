@@ -331,12 +331,15 @@ describe("Spec Bench test bench tab", () => {
     const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
     expect(banner).toHaveAttribute("data-state", "ready");
     expect(banner).toHaveAttribute("data-blocked", "true");
-    expect(within(banner).getByRole("status")).toHaveTextContent(
+    // The title and the fix unit line are both announced.
+    expect(
+      within(banner)
+        .getAllByRole("status")
+        .map((status) => status.textContent?.replace(/\s+/g, " ").trim()),
+    ).toEqual([
       "Sitting blocked · Gate gate-after-b · ready to sit",
-    );
-    expect(within(banner).getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
       "Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
-    );
+    ]);
     // A ready sitting offers only Open the sitting, and lists no case yet.
     expect(screen.queryByRole("button", { name: "Close the sitting" })).not.toBeInTheDocument();
     expect(screen.getByText("The escalated cases show here once the sitting opens.")).toBeVisible();
@@ -495,7 +498,7 @@ describe("Spec Bench test bench tab", () => {
     // The case that automation passed reads dimmed, with its status.
     const passedRow = within(rows[0]).getByRole("button");
     expect(passedRow).toHaveClass("opacity-60");
-    expect(passedRow).toHaveTextContent("passed");
+    expect(passedRow).toHaveTextContent("Passed");
     expect(within(rows[1]).getByRole("button")).not.toHaveClass("opacity-60");
   });
 
@@ -560,5 +563,134 @@ describe("Spec Bench test bench tab", () => {
     expect(screen.getByRole("button", { name: "Open the sitting" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close the sitting" })).toBeEnabled();
     expect(screen.queryByRole("list", { name: /cases of gate/ })).not.toBeInTheDocument();
+  });
+  it("a case keeps its staged state and its evidence draft while another case is chosen", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    vi.mocked(api.stageTestbenchCase).mockResolvedValue({
+      caseId: "FX-TC-001",
+      unitId: "FX-UNIT-B",
+      commit: "0123456",
+      observation: { description: "The banner reads staged" },
+      steps: [],
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: "Stage FX-TC-001" }));
+    await within(first).findByRole("region", { name: "Staged state of FX-TC-001" });
+    await user.click(
+      within(first).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
+    );
+    await user.type(
+      within(screen.getByRole("form", { name: "Not met evidence for FX-TC-001" })).getByRole(
+        "textbox",
+        { name: "Note" },
+      ),
+      "Half typed.",
+    );
+
+    // Choosing the second case shows its panel alone.
+    await openCase(user, list, "FX-TC-002");
+    expect(screen.queryByRole("region", { name: "Case FX-TC-001" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Staged state of FX-TC-001" })).toBeNull();
+
+    // Back on the first case, its staged state and its draft are still there.
+    const again = await openCase(user, list, "FX-TC-001");
+    expect(
+      within(again).getByRole("region", { name: "Staged state of FX-TC-001" }),
+    ).toHaveTextContent("FX-TC-001 is staged at commit 0123456");
+    expect(
+      within(screen.getByRole("form", { name: "Not met evidence for FX-TC-001" })).getByRole(
+        "textbox",
+        { name: "Note" },
+      ),
+    ).toHaveValue("Half typed.");
+    expect(api.stageTestbenchCase).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the first case of the new list when the chosen case is not in it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
+      plan,
+      results: {
+        updatedAt: "2026-10-16T10:00:00Z",
+        caseResults: {
+          "FX-TC-001": {
+            observationMarks: {},
+            derivedStatus: "passed",
+            notes: [],
+            verification: {
+              tier: "b",
+              confidence: "high",
+              evidence: [],
+              author: { name: "verify", email: "verify@example.test" },
+              timestamp: "2026-10-16T10:00:00Z",
+            },
+          },
+        },
+      },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    });
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const cases = screen.getByRole("region", { name: "Cases" });
+    await user.click(within(cases).getByRole("tab", { name: "Gating set" }));
+    const gating = within(cases).getByRole("list", { name: "Gating set of gate gate-after-b" });
+    // The case automation passed is chosen on the gating set, then the filter
+    // goes back to Escalated, where it is not listed.
+    await openCase(user, gating, "FX-TC-001");
+    await user.click(within(cases).getByRole("tab", { name: "Escalated" }));
+    expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Case FX-TC-001" })).not.toBeInTheDocument();
+    // The operator's mark on the escalated case keeps it in the list.
+    await user.click(screen.getByRole("button", { name: "Mark FX-TC-002 Met" }));
+    await waitFor(() =>
+      expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "passed"),
+    );
+    expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+    expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeInTheDocument();
+  });
+
+  it("the open banner shows the pinned commit and a live build, and names every fix unit that blocks the gate", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({
+        gateId: "gate-after-b",
+        state: "open",
+        commit: "0123456789abcdef0123456789abcdef01234567",
+        smokeCheck: { passed: true, checkedAt: "2026-10-16T10:00:00Z" },
+        fixUnitBlockers: [
+          { caseId: "FX-TC-001", fixRef: "example/fixture#77", filedAt: "2026-10-16T10:00:00Z" },
+          { caseId: "FX-TC-002", fixRef: "example/fixture#78", filedAt: "2026-10-16T10:05:00Z" },
+        ],
+        blocked: true,
+      }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
+    expect(banner).toHaveTextContent("pinned 0123456");
+    expect(banner).toHaveTextContent("build live · smoke ok");
+    expect(within(banner).getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
+      "Blocked by 2 fix units filed for cases marked Not met: example/fixture#77 (FX-TC-001), example/fixture#78 (FX-TC-002)",
+    );
+  });
+
+  it("an open sitting with no smoke check recorded reads its build live", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
+    expect(banner).toHaveTextContent("build live");
+    expect(banner).not.toHaveTextContent("build coming up");
   });
 });

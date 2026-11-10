@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import StatusIndicator from "../ui/StatusIndicator";
 import type { StatusTone } from "../ui/styles";
-import { sittingLabel, sittingPhase, type DeliverySittingView } from "./gate-sitting-model";
+import {
+  sittingLabel,
+  sittingPhase,
+  type DeliverySittingPhase,
+  type DeliverySittingView,
+} from "./gate-sitting-model";
 
 // The gate sitting of a Spec Bench (SB-FR-023) as one banner per phase
 // (#1626): once the delivery reached a gate, the server pins the gate commit
@@ -37,7 +42,7 @@ export default function GateSitting({
   sitting: DeliverySittingView | undefined;
   /** The element of the title: a heading on the Test bench tab. */
   titleAs?: "h2" | "p";
-  /** What the open sitting holds, such as its case counts. */
+  /** What the open sitting holds, such as its case counts, with its own layout. */
   facts?: ReactNode;
   /** The sitting's controls, at the end of the banner. */
   actions?: ReactNode;
@@ -93,9 +98,13 @@ export default function GateSitting({
           is live and passed its smoke check.
         </p>
       )}
-      {facts !== undefined && <div className="min-w-0 text-text-body">{facts}</div>}
+      {facts}
       {blocked && (
-        <p data-testid="delivery-gate-sitting-blocked" className="min-w-0 text-text-body">
+        <p
+          role="status"
+          data-testid="delivery-gate-sitting-blocked"
+          className="min-w-0 text-text-body"
+        >
           Blocked by {blockers.length === 1 ? "a fix unit" : `${blockers.length} fix units`} filed
           for cases marked Not met:{" "}
           {blockers.map((blocker) => `${blocker.fixRef} (${blocker.caseId})`).join(", ")}
@@ -108,7 +117,7 @@ export default function GateSitting({
           </span>
         )}
         <span className={CHIP_CLASS}>
-          <BuildState sitting={sitting} />
+          <BuildState sitting={sitting} phase={phase} />
         </span>
       </span>
       {failed && sitting.smokeCheck?.detail !== undefined && (
@@ -121,12 +130,22 @@ export default function GateSitting({
   );
 }
 
-// The build's state, from the last smoke check of the pinned build.
-function BuildState({ sitting }: { sitting: DeliverySittingView }) {
+// The build's state, from the last smoke check of the pinned build. A sitting
+// opens only once its build is live, so an open sitting with no smoke check
+// recorded reads live.
+function BuildState({
+  sitting,
+  phase,
+}: {
+  sitting: DeliverySittingView;
+  phase: DeliverySittingPhase;
+}) {
   const check = sitting.smokeCheck;
   const [tone, label]: [StatusTone, string] =
     check === undefined
-      ? ["preparing", "build coming up"]
+      ? phase === "open"
+        ? ["active", "build live"]
+        : ["preparing", "build coming up"]
       : check.passed
         ? ["active", "build live · smoke ok"]
         : ["error", "smoke check failed"];
