@@ -524,18 +524,39 @@ describe("useNotificationStream", () => {
         { surface: "project-config" },
         [["projects"], ["raw-config", "p1"], ["benches"]],
       ],
-      ["plugin", { surface: "plugin" }, [["plugins"], ["project-integration"], ["benches"]]],
+      [
+        "plugin",
+        { surface: "plugin" },
+        [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
+      ],
       ["settings", { surface: "settings", input: "settings.json" }, [["settings"]]],
       [
         "projects",
         { surface: "project-config", input: "projects.json" },
         [["projects"], ["benches"], ["issues"]],
       ],
-      ["bench-state", { surface: "bench", input: "state.json" }, [["benches"]]],
-      ["auth", { surface: "github", input: "auth.json" }, [["settings"], ["issues"]]],
-      ["consent", { surface: "plugin", input: "plugins-consent.json" }, [["plugins"]]],
-      ["plugin-state", { surface: "plugin", input: "plugins-state.json" }, [["plugins"]]],
-      ["env", { surface: "environment", input: ".env" }, [["settings"]]],
+      ["bench-state", { surface: "bench", input: "state.json" }, [["benches"], ["bench", "p1", 4]]],
+      [
+        "auth",
+        { surface: "github", input: "auth.json" },
+        [
+          ["settings"],
+          ["issues"],
+          ["plugin-connection-status", "github-com"],
+          ["github-derived-sources"],
+        ],
+      ],
+      [
+        "consent",
+        { surface: "plugin", input: "plugins-consent.json" },
+        [["plugins"], ["agent-plugins"]],
+      ],
+      [
+        "plugin-state",
+        { surface: "plugin", input: "plugins-state.json" },
+        [["plugins"], ["agent-plugins"]],
+      ],
+      ["env", { surface: "environment", input: ".env" }, [["settings"], ["env-keys"]]],
     ];
 
     it("HR-TC-035 invalidates exactly the keys of the spec's map for each input and nothing else", () => {
@@ -591,6 +612,20 @@ describe("useNotificationStream", () => {
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
         { queryKey: ["projects"] },
         { queryKey: ["benches"] },
+      ]);
+    });
+
+    it("refreshes every bench detail key on a state.json edit that names no one project", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "bench",
+        input: "state.json",
+        outcome: "applied",
+        summary: "Bench state applied: bench 1 on a and bench 2 on b.",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+        { queryKey: ["benches"] },
+        { queryKey: ["bench"] },
       ]);
     });
 
