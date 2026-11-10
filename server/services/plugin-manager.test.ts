@@ -48,6 +48,7 @@ vi.mock("./plugin-enable-state.js", () => enableStateMocks);
 // covered by plugin-consent-state.test.ts). uninstallForUpdate must NOT call it.
 const consentStateMocks = vi.hoisted(() => ({
   removeConsent: vi.fn<(id: string) => void>(),
+  hasConsent: vi.fn<(id: string) => boolean>(() => true),
 }));
 vi.mock("./plugin-consent-state.js", () => consentStateMocks);
 
@@ -3017,6 +3018,62 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
 
     expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("echo", false);
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
+  });
+
+  // A disabled component or agent plugin that was never held for consent,
+  // such as an e2e fixture that /test/__reset disables, enables and restarts
+  // before it is consented, as it did before the hold existed (HR-FR-008).
+  it.each(["component-echo", "agent-echo"])(
+    "HR-FR-008 enable and restart start a disabled, never-held %s plugin with no consent",
+    async (id) => {
+      consentStateMocks.hasConsent.mockReturnValue(false);
+      enableStateMocks.loadEnableState.mockReturnValueOnce({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: { [id]: "disabled" },
+      });
+      sandbox = await makeSandbox({ bundled: [id] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(findRecord(mgr.listInstalled(), id).pid).toBeNull();
+
+      await mgr.enable(id);
+      expect(findRecord(mgr.listInstalled(), id).status).toBe("enabled");
+      expect(findRecord(mgr.listInstalled(), id).pid).not.toBeNull();
+
+      await mgr.disable(id);
+      expect(findRecord(mgr.listInstalled(), id).pid).toBeNull();
+      await mgr.restart(id);
+      expect(findRecord(mgr.listInstalled(), id).pid).not.toBeNull();
+    },
+  );
+
+  it("HR-FR-008 enable and restart refuse a plugin held for consent, also after a disable during the hold, until it is consented", async () => {
+    consentStateMocks.hasConsent.mockReturnValue(false);
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "awaiting-consent" },
+    });
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+
+    await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
+
+    // A disable during the hold writes "disabled" over "awaiting-consent".
+    await mgr.disable("component-echo");
+    expect(enableStateMocks.setPluginEnabled).toHaveBeenCalledWith("component-echo", false);
+    await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+
+    // Once consented, the plugin enables as any other.
+    consentStateMocks.hasConsent.mockReturnValue(true);
+    await mgr.enable("component-echo");
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).not.toBeNull();
   });
 });
 
