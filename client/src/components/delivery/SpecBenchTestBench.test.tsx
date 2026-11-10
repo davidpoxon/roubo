@@ -342,9 +342,13 @@ describe("Spec Bench test bench tab", () => {
     );
     expect(within(status).queryByRole("heading")).not.toBeInTheDocument();
     expect(within(banner).getByRole("heading", { name: "Gate gate-after-b" })).toBeVisible();
-    expect(within(banner).getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
+    // The visible blocker line is hidden from assistive technology, because the
+    // status line already carries it.
+    const blockerLine = within(banner).getByTestId("delivery-gate-sitting-blocked");
+    expect(blockerLine).toHaveTextContent(
       "Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
     );
+    expect(blockerLine).toHaveAttribute("aria-hidden", "true");
     // A ready sitting offers only Open the sitting. Its cases can be read, and
     // Stage, the Mark row, the case's status control and its observation marks
     // stay disabled until the sitting opens.
