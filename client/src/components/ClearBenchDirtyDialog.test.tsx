@@ -94,7 +94,7 @@ describe("ClearBenchDirtyDialog", () => {
         onConfirmForce={vi.fn()}
       />,
     );
-    expect(screen.getByRole("dialog").textContent ?? "").not.toContain("—");
+    expect(screen.getByRole("dialog").textContent ?? "").not.toContain("\u2014");
   });
 
   it("clicking Cancel calls onClose and does not call onConfirmForce", async () => {
