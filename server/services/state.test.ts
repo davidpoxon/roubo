@@ -831,6 +831,39 @@ describe("addBench", () => {
   });
 });
 
+describe("known state.json content (HR-FR-013)", () => {
+  it("is null until the app reads or writes the file", () => {
+    expect(stateModule.getKnownState()).toBeNull();
+  });
+
+  it("follows each write of state.json, as a copy the caller cannot change", () => {
+    const data = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project1",
+          branch: "main",
+          workspacePath: "/w",
+          ports: { backend: 5000 },
+          createdAt: "now",
+        },
+      ],
+    };
+    stateModule.saveState(data);
+    data.benches[0].branch = "changed after the write";
+
+    expect(stateModule.getKnownState()?.benches[0].branch).toBe("main");
+    const read = stateModule.getKnownState();
+    if (read) read.benches[0].branch = "changed by a reader";
+    expect(stateModule.getKnownState()?.benches[0].branch).toBe("main");
+  });
+
+  it("takes a remembered read", () => {
+    stateModule.rememberState({ benches: [] });
+    expect(stateModule.getKnownState()).toEqual({ benches: [] });
+  });
+});
+
 describe("updateBench", () => {
   it("replaces a present record in place", () => {
     const existing = {
