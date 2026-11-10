@@ -19,8 +19,19 @@ export type BundledPluginId = (typeof BUNDLED_PLUGIN_IDS)[number];
  * directory watch registered from disk with no ConsentRecord (HR-FR-008): it
  * is not started, also after a relaunch, until consent is granted, which
  * turns it `"enabled"`.
+ *
+ * `"disabled-awaiting-consent"` marks such a held plugin that the user
+ * disabled during its hold. It is disabled everywhere, and enable and restart
+ * refuse it, also after a relaunch, until consent is granted, which turns it
+ * `"disabled"`: the user's disable survives the grant. A plain `"disabled"` is
+ * a plugin that was never held.
  */
-export const PluginEnableStateValueSchema = z.enum(["enabled", "disabled", "awaiting-consent"]);
+export const PluginEnableStateValueSchema = z.enum([
+  "enabled",
+  "disabled",
+  "awaiting-consent",
+  "disabled-awaiting-consent",
+]);
 export type PluginEnableStateValue = z.infer<typeof PluginEnableStateValueSchema>;
 
 export const PluginEnableStateSchema = z
