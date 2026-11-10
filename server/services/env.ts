@@ -505,6 +505,16 @@ function isExplicitEnv(key: string): boolean {
 const bootOnlyLines = new Map<string, string | undefined>();
 
 /**
+ * The .env line of each boot-only key as the first load read it, undefined
+ * when the file had no line for it. A reload reports a boot-only key only when
+ * the value a relaunch would give it differs from the value boot gave it by
+ * the same rule (this line, else the login shell's value), so a save that puts
+ * the file back as boot read it is not reported. process.env cannot stand in
+ * for it: the server publishes its bound port into ROUBO_PORT after boot.
+ */
+const bootOnlyBootLines = new Map<string, string | undefined>();
+
+/**
  * The boot-only keys that were explicit env at the first load. Their .env line
  * would not apply after a relaunch either, so a reload never reports them.
  * The judgement is made at boot because the server publishes its bound port
@@ -518,8 +528,8 @@ export interface EnvFileLoadReport {
   changed: string[];
   /**
    * The boot-only keys whose line this load found changed, to a value that
-   * differs from the one the process holds: they apply only after a relaunch.
-   * Always empty on the first load.
+   * differs both from the one boot gave the key and from the one the process
+   * holds: they apply only after a relaunch. Always empty on the first load.
    */
   needsRelaunch: string[];
 }
@@ -549,8 +559,11 @@ export function loadEnvFile(): string[] {
  * reported when, on a reload, its .env line differs from the line the last
  * load read (a value changed, a line added or a line dropped), the key was not
  * explicit env at boot, and the value a relaunch would give it (the new line,
- * else the login shell's value, else none) differs from the one the process
- * holds. process.env is not changed for it.
+ * else the login shell's value, else none) differs both from the value boot
+ * gave it by the same rule (the line the first load read, else the login
+ * shell's value, else none) and from the one the process holds. So a save that
+ * puts a line back as boot read it is not reported, and neither is a line that
+ * matches the port the server bound. process.env is not changed for it.
  */
 export function loadEnvFileReport(): EnvFileLoadReport {
   const first = !envFileLoaded;
@@ -563,11 +576,15 @@ export function loadEnvFileReport(): EnvFileLoadReport {
     const before = bootOnlyLines.get(key);
     bootOnlyLines.set(key, line);
     if (first) {
+      bootOnlyBootLines.set(key, line);
       if (isExplicitEnv(key)) bootOnlyExplicit.add(key);
       continue;
     }
     if (line === before || bootOnlyExplicit.has(key)) continue;
-    if ((line ?? loginShellLayer.get(key)) !== process.env[key]) needsRelaunch.push(key);
+    const shell = loginShellLayer.get(key);
+    const relaunchValue = line ?? shell;
+    const bootValue = bootOnlyBootLines.get(key) ?? shell;
+    if (relaunchValue !== bootValue && relaunchValue !== process.env[key]) needsRelaunch.push(key);
   }
   for (const [key, value] of values) {
     if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
@@ -617,6 +634,7 @@ export function resetEnvFileLoads(): void {
   envFileApplied.clear();
   loginShellLayer.clear();
   bootOnlyLines.clear();
+  bootOnlyBootLines.clear();
   bootOnlyExplicit.clear();
   envFileLoaded = false;
 }
