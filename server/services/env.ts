@@ -451,8 +451,11 @@ const loginShellLayer = new Map<string, string>();
  * Keys only the first load applies. The server binds its port, resolves its
  * state dir and picks its mode once at boot, and publishes the bound port back
  * into ROUBO_PORT; plugin discovery reads its two plugin roots once at boot.
- * A later edit of these in .env must not reach process.env, or a per-call read
- * of a plugin root would move away from the root the plugins were found in.
+ * The app log reads ROUBO_APP_LOG_DIR on each write but creates the folder and
+ * counts its bytes once. A later edit of these in .env must not reach
+ * process.env, or a per-call read of a plugin root would move away from the
+ * root the plugins were found in, and the app log would write to a folder it
+ * never created and lose every later line.
  */
 const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   "ROUBO_PORT",
@@ -461,6 +464,7 @@ const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   "ROUBO_E2E",
   "ROUBO_USER_PLUGINS_DIR",
   "ROUBO_BUNDLED_PLUGINS_DIR",
+  "ROUBO_APP_LOG_DIR",
 ]);
 
 /** Whether process.env holds `key` as the .env load left it, so a reload may change it. */
