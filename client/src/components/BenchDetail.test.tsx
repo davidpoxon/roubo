@@ -1417,6 +1417,111 @@ describe("BenchDetail", () => {
       );
     });
 
+    it("keeps the Remove git worktree choice made for the bench being cleared", async () => {
+      const pending: MutateOptions[] = [];
+      const teardownMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
+        pending.push(options);
+      });
+      vi.mocked(useTeardownBench).mockReturnValue({
+        mutate: teardownMutate,
+        isPending: false,
+      } as never);
+
+      renderSwitchable();
+      await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+      await userEvent.click(screen.getByRole("checkbox", { name: /remove git worktree/i }));
+      await userEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", { name: /^clear$/i }),
+      );
+      // Moving to bench 2 resets the live choice to its default.
+      switchTo(2);
+      act(() =>
+        pending[0].onError?.(new ApiError("dirty", 409, "bench-dirty", { reasons: dirtyReasons })),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
+
+      expect(teardownMutate).toHaveBeenLastCalledWith(
+        { projectId: "proj-1", benchId: 1, removeWorkspace: false, force: true },
+        expect.anything(),
+      );
+    });
+
+    it("opens the prompt when the user has moved to a bench that is not found", async () => {
+      const pending: MutateOptions[] = [];
+      const teardownMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
+        pending.push(options);
+      });
+      vi.mocked(useTeardownBench).mockReturnValue({
+        mutate: teardownMutate,
+        isPending: false,
+      } as never);
+      mockUseBenchDetail.mockImplementation((_projectId, benchId) =>
+        benchId === 1
+          ? ({ data: baseBench, isLoading: false, isError: false } as never)
+          : ({ data: undefined, isLoading: false, isError: true } as never),
+      );
+      render(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+          <Harness />
+        </MemoryRouter>,
+      );
+      await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+      await userEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", { name: /^clear$/i }),
+      );
+
+      switchTo(9);
+      expect(screen.getByText("Bench not found.")).toBeInTheDocument();
+      act(() =>
+        pending[0].onError?.(new ApiError("dirty", 409, "bench-dirty", { reasons: dirtyReasons })),
+      );
+
+      expect(
+        screen.getByRole("dialog", { name: /clear bench 1: uncommitted work detected/i }),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
+      expect(teardownMutate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectId: "proj-1", benchId: 1, force: true }),
+        expect.anything(),
+      );
+    });
+
+    it("resumes a component start on the bench it failed on, not the bench now on screen", async () => {
+      const pending: MutateOptions[] = [];
+      const startMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
+        pending.push(options);
+      });
+      vi.mocked(useStartComponent).mockReturnValue({
+        mutate: startMutate,
+        isPending: false,
+      } as never);
+      renderSwitchable(() => ({
+        components: {
+          server: { status: "stopped", startedAt: null, phases: [], setupComplete: true },
+        },
+      }));
+
+      await userEvent.click(screen.getByRole("button", { name: /^Start$/ }));
+      switchTo(2);
+      act(() =>
+        pending[0].onError?.(
+          new ApiError("not installed", 400, "COMPONENT_NOT_BOUND", {
+            resolution: {
+              pluginId: "google-clasp",
+              state: "single-source",
+              source: { sourceId: "acme-1a2b", label: "ACME workplace", registered: true },
+            },
+          }),
+        ),
+      );
+      await userEvent.click(screen.getByTestId("missing-plugin-dialog-installed"));
+
+      expect(startMutate).toHaveBeenLastCalledWith(
+        { projectId: "proj-1", benchId: 1, component: "server" },
+        expect.anything(),
+      );
+    });
+
     it("closes the Clear dialog when the bench changes underneath it", async () => {
       const teardownMutate = vi.fn();
       vi.mocked(useTeardownBench).mockReturnValue({
@@ -1507,6 +1612,37 @@ describe("BenchDetail", () => {
       );
 
       expect(screen.queryByText("Project page")).not.toBeInTheDocument();
+    });
+
+    it("still navigates away when the bench seen clearing disappears", () => {
+      let bench1Gone = false;
+      mockUseBenchDetail.mockImplementation(() =>
+        bench1Gone
+          ? ({ data: undefined, isLoading: false, isError: true } as never)
+          : ({
+              data: {
+                ...baseBench,
+                status: "clearing",
+                teardownSteps: [{ id: "td-1", label: "Stopping components", status: "running" }],
+              },
+              isLoading: false,
+              isError: false,
+            } as never),
+      );
+      const { rerender } = render(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+          <Harness />
+        </MemoryRouter>,
+      );
+
+      bench1Gone = true;
+      rerender(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+          <Harness />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByText("Project page")).toBeInTheDocument();
     });
   });
 

@@ -217,8 +217,11 @@ function ComponentsTab({
   // an ACTIONABLE resolution lands here (isMissingPluginError narrows to
   // single-source / ambiguous), so an id no source serves never opens the dialog
   // and keeps the plain component-status error it already had (CPHMTP-TC-082).
+  // Each recovery records the bench whose start failed: this tab stays mounted
+  // when the user moves to another bench, and the resumed start must not act
+  // on the bench now on screen (#1654).
   const [missingPlugin, setMissingPlugin] = useState<{
-    component: string;
+    target: ComponentStartTarget;
     resolution: MissingPluginResolution;
   } | null>(null);
   // The component whose resumed start still dead-ended at the consent gate: the
@@ -228,7 +231,7 @@ function ComponentsTab({
   // the declared permissions + provenance the prompt needs) is read from the shared
   // plugins query below.
   const [consentPrompt, setConsentPrompt] = useState<{
-    component: string;
+    target: ComponentStartTarget;
     pluginId: string;
   } | null>(null);
   const plugins = usePlugins();
@@ -236,19 +239,16 @@ function ComponentsTab({
     ? (plugins.data?.plugins.find((p) => p.id === consentPrompt.pluginId) ?? null)
     : null;
 
-  const startComponentWithRecovery = (component: string) => {
-    startComponent.mutate(
-      { projectId, benchId, component },
-      {
-        onError: (err) => {
-          if (isMissingPluginError(err)) {
-            setMissingPlugin({ component, resolution: err.details.resolution });
-          } else if (isConsentError(err)) {
-            setConsentPrompt({ component, pluginId: err.details.consent.pluginId });
-          }
-        },
+  const startComponentWithRecovery = (target: ComponentStartTarget) => {
+    startComponent.mutate(target, {
+      onError: (err) => {
+        if (isMissingPluginError(err)) {
+          setMissingPlugin({ target, resolution: err.details.resolution });
+        } else if (isConsentError(err)) {
+          setConsentPrompt({ target, pluginId: err.details.consent.pluginId });
+        }
       },
-    );
+    });
   };
 
   const toggleLogs = (component: string) => {
@@ -311,7 +311,7 @@ function ComponentsTab({
                     isDisabled={isBusyComponent}
                     onPress={() => {
                       if (isRunning) stopComponent.mutate({ projectId, benchId, component: name });
-                      else startComponentWithRecovery(name);
+                      else startComponentWithRecovery({ projectId, benchId, component: name });
                     }}
                     className="px-2.5 py-1 rounded-control text-12 text-text-secondary not-disabled:hover:text-text-primary not-disabled:hover:bg-bg-pressed disabled:opacity-40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
@@ -356,17 +356,17 @@ function ComponentsTab({
 
       {missingPlugin && (
         <MissingPluginDialog
-          projectId={projectId}
+          projectId={missingPlugin.target.projectId}
           pluginId={missingPlugin.resolution.pluginId}
           pluginSource={undefined}
           resolution={missingPlugin.resolution}
-          componentName={missingPlugin.component}
+          componentName={missingPlugin.target.component}
           onClose={() => setMissingPlugin(null)}
           onSkip={() => setMissingPlugin(null)}
           // Resume the start the missing plugin blocked, now that it is installed
           // (CPHMTP-TC-077 S003-O02). Retrying the SAME component start is the
           // resume: the binding now resolves, so it provisions instead of throwing.
-          onInstalled={() => startComponentWithRecovery(missingPlugin.component)}
+          onInstalled={() => startComponentWithRecovery(missingPlugin.target)}
         />
       )}
 
@@ -384,7 +384,7 @@ function ComponentsTab({
           declared={consentPluginRecord.manifest.permissions}
           provenance={recordProvenance(consentPluginRecord)}
           version={consentPluginRecord.manifest.version}
-          onGranted={() => startComponentWithRecovery(consentPrompt.component)}
+          onGranted={() => startComponentWithRecovery(consentPrompt.target)}
           onClose={() => setConsentPrompt(null)}
         />
       )}
@@ -499,6 +499,7 @@ function AssignedIssueTransition({
 }
 
 type BenchRef = { projectId: string; benchId: number };
+type ComponentStartTarget = BenchRef & { component: string };
 
 // A Clear the server refused because the bench holds uncommitted work. It
 // records the bench it was started on, because the user may have moved to
@@ -544,7 +545,8 @@ export default function BenchDetail() {
   const [forceError, setForceError] = useState<string | null>(null);
   const [expandedErrorKey, setExpandedErrorKey] = useState<string | null>(null);
   // The bench whose teardown this page has watched start, so that only that
-  // bench's disappearance navigates away.
+  // bench's disappearance navigates away. It is forgotten once the user moves
+  // to another bench.
   const tearingDownBenchRef = useRef<string | null>(null);
 
   // The route keeps this component mounted when only the bench changes, so
@@ -599,6 +601,7 @@ export default function BenchDetail() {
   // Track when bench enters teardown state and auto-navigate when deleted
   useEffect(() => {
     if (isTearingDown) tearingDownBenchRef.current = benchKey;
+    else if (tearingDownBenchRef.current !== benchKey) tearingDownBenchRef.current = null;
   }, [isTearingDown, benchKey]);
 
   useEffect(() => {
@@ -702,6 +705,51 @@ export default function BenchDetail() {
     if (gateSittingKey !== undefined) setActiveTab("testbench");
   }, [gateSittingKey, setActiveTab]);
 
+  // Rendered on every path, the loading and not-found pages included: a
+  // refusal can arrive after the user has moved to a bench that is not
+  // shown yet, and the prompt belongs to the bench it names.
+  const dirtyDialog = (
+    <ClearBenchDirtyDialog
+      isOpen={dirtyTarget !== null}
+      onClose={() => {
+        setDirtyTarget(null);
+        setForceError(null);
+      }}
+      benchId={dirtyTarget?.benchId ?? benchId}
+      projectName={dirtyTargetProjectName}
+      reasons={dirtyTarget?.reasons ?? []}
+      isPending={teardown.isPending}
+      forceError={forceError}
+      onConfirmForce={() => {
+        // Act on the bench the prompt names, never on the bench on screen.
+        const target = dirtyTarget;
+        if (!target) return;
+        teardown.mutate(
+          {
+            projectId: target.projectId,
+            benchId: target.benchId,
+            removeWorkspace: target.removeWorkspace,
+            force: true,
+          },
+          {
+            onSuccess: () => {
+              registerTeardown(target.projectId, target.benchId, target.branch);
+              setDirtyTarget(null);
+            },
+            onError: (err) => {
+              if (isDirtyBenchError(err)) {
+                setDirtyTarget({ ...target, reasons: err.details.reasons });
+                setForceError(null);
+              } else {
+                setForceError("Clear failed. Please try again.");
+              }
+            },
+          },
+        );
+      }}
+    />
+  );
+
   if (isLoading) {
     return (
       <div className="p-8 flex-1">
@@ -709,6 +757,7 @@ export default function BenchDetail() {
           <Spinner />
           Loading bench...
         </div>
+        {dirtyDialog}
       </div>
     );
   }
@@ -723,6 +772,7 @@ export default function BenchDetail() {
         >
           Go back
         </Button>
+        {dirtyDialog}
       </div>
     );
   }
@@ -1191,45 +1241,7 @@ export default function BenchDetail() {
         )}
       </ConfirmDialog>
 
-      <ClearBenchDirtyDialog
-        isOpen={dirtyTarget !== null}
-        onClose={() => {
-          setDirtyTarget(null);
-          setForceError(null);
-        }}
-        benchId={dirtyTarget?.benchId ?? benchId}
-        projectName={dirtyTargetProjectName}
-        reasons={dirtyTarget?.reasons ?? []}
-        isPending={teardown.isPending}
-        forceError={forceError}
-        onConfirmForce={() => {
-          // Act on the bench the prompt names, never on the bench on screen.
-          const target = dirtyTarget;
-          if (!target) return;
-          teardown.mutate(
-            {
-              projectId: target.projectId,
-              benchId: target.benchId,
-              removeWorkspace: target.removeWorkspace,
-              force: true,
-            },
-            {
-              onSuccess: () => {
-                registerTeardown(target.projectId, target.benchId, target.branch);
-                setDirtyTarget(null);
-              },
-              onError: (err) => {
-                if (isDirtyBenchError(err)) {
-                  setDirtyTarget({ ...target, reasons: err.details.reasons });
-                  setForceError(null);
-                } else {
-                  setForceError("Clear failed. Please try again.");
-                }
-              },
-            },
-          );
-        }}
-      />
+      {dirtyDialog}
     </div>
   );
 }
