@@ -231,3 +231,70 @@ describe("SpecBenchSetupModal tabs", () => {
     expect(within(dialog).getByRole("radio", { name: "Auto" })).toBeChecked();
   });
 });
+
+describe("SpecBenchSetupModal waits for what it reads", () => {
+  function summaryState(state: "loading" | "error"): void {
+    vi.mocked(useSpecBenchSpecSummary).mockReturnValue({
+      data: undefined,
+      isLoading: state === "loading",
+      isError: state === "error",
+      isSuccess: false,
+      error: state === "error" ? new Error("The plan of fixture-spec could not be read") : null,
+    } as unknown as ReturnType<typeof useSpecBenchSpecSummary>);
+  }
+
+  function specsState(state: "loading" | "error" | "empty"): void {
+    vi.mocked(useTestbenchSpecs).mockReturnValue({
+      data: state === "empty" ? { specs: [], invalid: [] } : undefined,
+      isLoading: state === "loading",
+      isError: state === "error",
+      isSuccess: state === "empty",
+      error: state === "error" ? new Error("The specs could not be discovered") : null,
+    } as unknown as ReturnType<typeof useTestbenchSpecs>);
+  }
+
+  for (const state of ["loading", "error"] as const) {
+    it(`keeps Confirm disabled on Launch after a pick while the summary is ${state === "loading" ? "loading" : "failed"}`, async () => {
+      summaryState(state);
+      const onConfirm = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <SpecBenchSetupModal isOpen onClose={vi.fn()} projectId="demo" onConfirm={onConfirm} />,
+      );
+      const dialog = screen.getByRole("dialog");
+      // The spec is picked on the default Launch tab, with no tab pressed.
+      await user.click(within(dialog).getByRole("button", { name: /specification/i }));
+      await user.click(await screen.findByRole("option", { name: /^fixture-spec · 12 cases$/ }));
+      const confirm = within(dialog).getByRole("button", { name: "Confirm" });
+      expect(confirm).toBeDisabled();
+      await user.click(confirm);
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(within(dialog).getByTestId("specbench-setup-summary")).toHaveTextContent(
+        state === "loading" ? "Reading the plan..." : "The plan of fixture-spec could not be read",
+      );
+    });
+  }
+
+  const SPECS_TEXT = {
+    loading: "Discovering specs...",
+    error: "The specs could not be discovered",
+    empty: "No specs found in this project's .specifications folder.",
+  } as const;
+
+  for (const state of ["loading", "error", "empty"] as const) {
+    it(`shows the ${state} state of the Specification field on both tabs, with Confirm disabled`, async () => {
+      specsState(state);
+      useSummary({ slug: SPEC.slug, units: 4, gates: 2 });
+      const user = userEvent.setup();
+      render(<SpecBenchSetupModal isOpen onClose={vi.fn()} projectId="demo" onConfirm={vi.fn()} />);
+      const dialog = screen.getByRole("dialog");
+      for (const tab of [/^launch/i, /^attach/i]) {
+        await user.click(within(dialog).getByRole("tab", { name: tab }));
+        const panel = within(dialog).getByRole("tabpanel");
+        expect(panel).toHaveTextContent(SPECS_TEXT[state]);
+        expect(within(panel).queryByRole("button", { name: /specification/i })).toBeNull();
+        expect(within(dialog).getByRole("button", { name: "Confirm" })).toBeDisabled();
+      }
+    });
+  }
+});

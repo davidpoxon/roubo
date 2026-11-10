@@ -109,6 +109,22 @@ describe("BoundaryPanel", () => {
     );
   });
 
+  it("counts only the steering notes as queued, not a queued role change", () => {
+    const roleChange = {
+      ...note(2, "", "pending"),
+      kind: "role-change",
+      target_id: "coder",
+      body: { tier: "fast" },
+    } as DeliveryControl;
+    renderPanel([], [note(1, "Name the cache file by unit.", "pending"), roleChange]);
+    const panel = screen.getByRole("region", { name: "Steering" });
+    // Both wait for the next boundary, but the Steering meta counts notes.
+    const queue = within(panel).getByTestId("boundary-queue");
+    expect(within(queue).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(queue).getByTestId("boundary-role-change-2")).toBeInTheDocument();
+    expect(panel.querySelector("header")).toHaveTextContent(/^Steering1 queued · 0 applied$/);
+  });
+
   it("leaves out a rejected count when no note was rejected", () => {
     renderPanel([], []);
     const panel = screen.getByRole("region", { name: "Steering" });

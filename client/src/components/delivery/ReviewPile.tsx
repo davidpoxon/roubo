@@ -605,6 +605,10 @@ export default function ReviewPile({
   }, [leaving]);
 
   const hasPile = stack.length > 0 || reviewed.length > 0 || leaving.length > 0;
+  // The pile is a named region only while it holds a card. Once every agent
+  // decision is reviewed, the section stays, unnamed, so its announcer still
+  // says what was reviewed, but no landmark claims there is something to review.
+  const hasCards = stack.length > 0 || leaving.length > 0;
   if (!hasPile && trailingRows === undefined) return null;
 
   const topCard = stack.find((card) => cardKey(card) === raisedId) ?? stack[0];
@@ -657,7 +661,7 @@ export default function ReviewPile({
       {hasPile && (
         <section
           data-testid="delivery-review-pile"
-          aria-label="Agent decisions to review"
+          aria-label={hasCards ? "Agent decisions to review" : undefined}
           className="space-y-2"
         >
           <div role="status" aria-live="polite" className="sr-only" data-testid="review-announcer">

@@ -294,6 +294,27 @@ describe("Unit drill-in", () => {
     ).toEqual(["done", "stack D · layer 0"]);
   });
 
+  it("names a layered unit's empty dependencies beside its base, since its base is not one of them (#1635)", async () => {
+    record = {
+      ...fourUnitRecord(),
+      units: fourUnitRecord().units.map((unit) =>
+        unit.id === "C" ? { ...unit, depends_on: [] } : unit,
+      ),
+    };
+    renderWithProviders(<Harness />);
+
+    // C sits on stack A over its base B, but depends on nothing: the
+    // dependency chip says so, apart from the stack chip's base.
+    const drillIn = await openUnit("C");
+    const chips = within(drillIn).getByRole("list", { name: "About unit C" });
+    expect(within(chips).getByTestId("unit-chip-stack")).toHaveTextContent(
+      "stack A · layer 2 · base B",
+    );
+    expect(within(chips).getByTestId("unit-chip-dependencies")).toHaveTextContent(
+      "no dependencies",
+    );
+  });
+
   it("names the terminal live only while the unit runs (#1621)", async () => {
     // B runs: the terminal's meta names it live.
     record = withStatus(fourUnitRecord(), { B: "running" });
@@ -561,16 +582,24 @@ describe("Unit drill-in", () => {
 
     // Step 1: open D before any event names it.
     const drillIn = await openUnit("D");
-    expect(await within(drillIn).findByTestId("unit-timeline-empty")).toHaveTextContent(
+    // Each empty state shows within its own panel.
+    const timeline = within(drillIn).getByRole("region", { name: "Timeline of unit D" });
+    expect(await within(timeline).findByTestId("unit-timeline-empty")).toHaveTextContent(
       "No events for unit D yet.",
     );
-    expect(await within(drillIn).findByTestId("unit-terminal-empty")).toHaveTextContent(
+    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit D" });
+    expect(await within(terminal).findByTestId("unit-terminal-empty")).toHaveTextContent(
       "No transcript recorded for unit D.",
     );
-    expect(await within(drillIn).findByTestId("unit-diff-empty")).toHaveTextContent(
+    const diff = within(drillIn).getByRole("region", { name: "Diff of unit D" });
+    expect(await within(diff).findByTestId("unit-diff-empty")).toHaveTextContent(
       "No diff for unit D yet: it has no commit.",
     );
-    expect(within(drillIn).getByTestId("unit-verify-empty")).toHaveTextContent(
+    // Verify waits behind the Diff tab; selected, it shows its empty state.
+    await userEvent.click(within(drillIn).getByRole("tab", { name: "Verify" }));
+    const verify = within(drillIn).getByRole("region", { name: "Verify results of unit D" });
+    expect(within(verify).getByTestId("unit-verify-empty")).toBeVisible();
+    expect(within(verify).getByTestId("unit-verify-empty")).toHaveTextContent(
       "No verify results for unit D: no gate after it names a case.",
     );
     expect(within(drillIn).queryByRole("alert")).not.toBeInTheDocument();

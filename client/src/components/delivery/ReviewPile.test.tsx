@@ -336,6 +336,51 @@ describe("ReviewPile", () => {
     expect(within(card("D-1")).getByTestId("review-badge")).toHaveTextContent("D-1 · to review");
   });
 
+  it("names no review region once every agent decision is reviewed, and still announces the review", async () => {
+    const events = [decided(8, "D-1", 1), other(9, "review.opened", { unreviewed: ["D-1"] })];
+    const { rerender } = renderWithProviders(pileOf(events));
+    expect(screen.getByRole("region", { name: "Agent decisions to review" })).toBeInTheDocument();
+    rerender(
+      pileOf([
+        ...events,
+        other(10, "review.outcome", { decision_id: "D-1", status: "accepted", summary: "Kept." }),
+      ]),
+    );
+    expect(await screen.findByTestId("review-reviewed-D-1")).toBeInTheDocument();
+    expect(screen.getByTestId("review-announcer")).toHaveTextContent("D-1 reviewed.");
+    // The reviewed card drops away, and then no region claims a decision waits.
+    await waitFor(() => expect(screen.queryByTestId("review-leaving-D-1")).not.toBeInTheDocument());
+    expect(
+      screen.queryByRole("region", { name: "Agent decisions to review" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("review-announcer")).toHaveTextContent("D-1 reviewed.");
+  });
+
+  it("shows no Overturn group on a card whose decision has no other option, and keeps Accept", () => {
+    // The contract asks for two options but not two distinct ones, so a
+    // decision can offer nothing besides its choice.
+    const single = unitEvent(
+      8,
+      "B",
+      "decision.decided",
+      {
+        decision_id: "D-1",
+        question: "Which layout for D-1?",
+        options: [OPTIONS[0], OPTIONS[0]],
+        default: OPTIONS[0],
+        chosen: OPTIONS[0],
+        rationale: "Only one layout fits.",
+        affected_units: ["B"],
+        decided_at: "2026-10-16T10:00:01Z",
+      },
+      "2026-10-16T10:30:00Z",
+    );
+    renderWithProviders(pileOf([single]));
+    expect(within(card("D-1")).getByRole("button", { name: "Accept" })).toBeEnabled();
+    expect(within(card("D-1")).queryByRole("group", { name: "Overturn D-1 with" })).toBeNull();
+    expect(within(card("D-1")).queryByRole("button", { name: /^Overturn: / })).toBeNull();
+  });
+
   it("renders nothing when no agent decision waits or was reviewed", () => {
     const { container } = renderWithProviders(pileOf([]));
     expect(container).toBeEmptyDOMElement();

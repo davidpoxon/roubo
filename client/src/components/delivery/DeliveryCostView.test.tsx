@@ -41,6 +41,7 @@ function renderView(
   events: DeliveryEvent[] = [],
   onOpenUnit = vi.fn(),
   lifecycle: { ended_at?: string } = {},
+  edit: (record: ReturnType<typeof fourUnitRecord>) => void = () => undefined,
 ) {
   const record = fourUnitRecord();
   record.lifecycle = { ...record.lifecycle, ...lifecycle };
@@ -60,6 +61,7 @@ function renderView(
       unit_id: "B",
     },
   ];
+  edit(record);
   renderWithProviders(
     <section aria-label="Cost, health and controls">
       <DeliveryCostView
@@ -128,6 +130,16 @@ describe("DeliveryCostView", () => {
     expect(screen.getByTestId("delivery-stat-elapsed")).toHaveTextContent(
       "1d 04h since 2026-10-16 09:00 UTC",
     );
+  });
+
+  it("says no role has a cost yet and there is no estimate when the record has neither", () => {
+    renderView([], vi.fn(), {}, (record) => {
+      record.budget = { estimate_usd: 0, soft_budget_usd: 5, spent_usd: 0.42 };
+    });
+    const role = screen.getByTestId("delivery-stat-by-role");
+    expect(role).toHaveTextContent("none");
+    expect(role).toHaveTextContent("no role has a cost yet");
+    expect(screen.getByTestId("delivery-stat-estimate")).toHaveTextContent("0.00 no estimate");
   });
 
   it("stops the elapsed time at the end of an ended delivery", () => {

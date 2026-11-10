@@ -334,15 +334,17 @@ describe("Spec Bench test bench tab", () => {
     const banner = await screen.findByRole("region", { name: "Gate gate-after-b sitting" });
     expect(banner).toHaveAttribute("data-state", "ready");
     expect(banner).toHaveAttribute("data-blocked", "true");
-    // The title and the fix unit line are both announced.
-    expect(
-      within(banner)
-        .getAllByRole("status")
-        .map((status) => status.textContent?.replace(/\s+/g, " ").trim()),
-    ).toEqual([
-      "Sitting blocked · Gate gate-after-b · ready to sit",
+    // One status line announces the phase and the fix unit, and the heading is
+    // not inside it.
+    const status = within(banner).getByRole("status");
+    expect(status).toHaveTextContent(
+      "Sitting blocked · Gate gate-after-b · ready to sit. Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
+    );
+    expect(within(status).queryByRole("heading")).not.toBeInTheDocument();
+    expect(within(banner).getByRole("heading", { name: "Gate gate-after-b" })).toBeVisible();
+    expect(within(banner).getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
       "Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
-    ]);
+    );
     // A ready sitting offers only Open the sitting. Its cases can be read, and
     // Stage, the Mark row, the case's status control and its observation marks
     // stay disabled until the sitting opens.
@@ -528,7 +530,8 @@ describe("Spec Bench test bench tab", () => {
     expect(within(rows[1]).getByRole("button")).not.toHaveClass("opacity-60");
   });
 
-  it("says when no case of the gate is escalated", async () => {
+  it("says when no case of the gate is escalated, and the Case column says where to choose one", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       snapshot({ gateId: "gate-after-b", state: "open" }),
     );
@@ -559,6 +562,15 @@ describe("Spec Bench test bench tab", () => {
       await screen.findByText("No case of this gate is escalated. Gating set lists all 2."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /^Case FX-TC/ })).not.toBeInTheDocument();
+    // The Case column is not left empty: it says to choose a case from
+    // Gating set, and choosing one there shows it.
+    expect(screen.getByTestId("sitting-case-none")).toHaveTextContent(
+      "No case is escalated. Choose a case from Gating set to see it here.",
+    );
+    const cases = screen.getByRole("region", { name: "Cases" });
+    await user.click(within(cases).getByRole("tab", { name: "Gating set" }));
+    expect(screen.getByRole("region", { name: "Case FX-TC-001" })).toBeInTheDocument();
+    expect(screen.queryByTestId("sitting-case-none")).not.toBeInTheDocument();
   });
 
   it("the banner says the build is coming up while the sitting prepares, and names a failed smoke check", async () => {
@@ -702,10 +714,18 @@ describe("Spec Bench test bench tab", () => {
       ),
       "Half typed.",
     );
+    await user.upload(
+      within(screen.getByRole("form", { name: "Not met evidence for FX-TC-001" })).getByLabelText(
+        "Screenshot",
+      ),
+      new File(["png"], "banner.png", { type: "image/png" }),
+    );
 
-    // Choosing the second case shows its panel alone.
+    // Choosing the second case shows its panel alone: only the chosen case's
+    // panel is mounted.
     await openCase(user, list, "FX-TC-002");
     expect(screen.queryByRole("region", { name: "Case FX-TC-001" })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("testbench-case-surface")).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Staged state of FX-TC-001" })).toBeNull();
 
     // Back on the first case, its staged state and its draft are still there.
@@ -719,6 +739,9 @@ describe("Spec Bench test bench tab", () => {
         { name: "Note" },
       ),
     ).toHaveValue("Half typed.");
+    expect(screen.getByTestId("not-met-screenshot-chosen")).toHaveTextContent(
+      "Screenshot chosen: banner.png",
+    );
     expect(api.stageTestbenchCase).toHaveBeenCalledTimes(1);
   });
 
