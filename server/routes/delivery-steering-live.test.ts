@@ -66,7 +66,6 @@ vi.mock("../services/delivery-session-launcher.js", () => ({
 }));
 vi.mock("../services/terminal.js", () => ({
   getSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
 }));
 vi.mock("../services/git-helpers.js", () => ({
   resolveGitIdentity: vi.fn(),

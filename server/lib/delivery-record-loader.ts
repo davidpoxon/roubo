@@ -25,6 +25,7 @@ import path from "node:path";
 import type { Bench } from "@roubo/shared";
 import {
   DELIVERY_EVENT_SPILL_FILE,
+  DELIVERY_OUTBOX_FILE,
   DELIVERY_RECORD_FILE,
   checkDeliveryRecord,
   type DeliveryRecordCheck,
@@ -147,6 +148,20 @@ export function benchDeliveryEventSpillPath(
   const spill = resolveWithin(folder, DELIVERY_EVENT_SPILL_FILE);
   assertRealpathWithin(folder, spill, "delivery event spill path");
   return spill;
+}
+
+/**
+ * The delivery tooling's outbox of a Spec Bench's delivery (#1659): the
+ * `delivery/outbox.jsonl` under the spec folder of the bench workspace. Throws
+ * UnsafePathError when the path would leave the workspace.
+ */
+export function benchDeliveryOutboxPath(
+  bench: Pick<Bench, "workspacePath" | "focusedSpecPath">,
+): string {
+  const folder = deliverySpecFolder(bench);
+  const outbox = resolveWithin(folder, DELIVERY_OUTBOX_FILE);
+  assertRealpathWithin(folder, outbox, "delivery outbox path");
+  return outbox;
 }
 
 /**

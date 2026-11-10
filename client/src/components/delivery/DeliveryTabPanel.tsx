@@ -569,7 +569,6 @@ function DeliverySnapshotView({
             benchId={bench.id}
             snapshot={snapshot}
             target={view.target}
-            deliverySessionId={bench.deliverySessionId}
             sitting={snapshot.sitting}
             onClose={returnToMap}
           />

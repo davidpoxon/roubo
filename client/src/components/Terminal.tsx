@@ -380,8 +380,8 @@ export default function Terminal({
     }
   }, [state, wsRef]);
 
-  // A session can have several viewers (the Terminal tab and a delivery unit's
-  // drill-in), all sharing one PTY, and the server applies the last size any of
+  // A session can have several viewers (the Terminal tab open in two windows),
+  // all sharing one PTY, and the server applies the last size any of
   // them sent. term.onResize fires only when this xterm's own size changes, so
   // a viewer that comes back into view at the size it already had would leave
   // the PTY at another viewer's size. Each viewer therefore re-sends its current

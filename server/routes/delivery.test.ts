@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Bench } from "@roubo/shared";
+import type { Bench, RegisteredProject, RouboConfig } from "@roubo/shared";
 import {
   DELIVERY_EVENT_SCHEMA_ID,
   DELIVERY_EVENT_SCHEMA_VERSION,
@@ -40,14 +40,20 @@ vi.mock("../services/delivery-session-launcher.js", () => ({
   whenDeliveryBound: vi.fn(async () => undefined),
 }));
 
-// The transcript read takes the delivery session terminal's scrollback; the
-// terminal service and its PTYs stay out of this file.
+// The diff read looks the unit's head up across the project's mapped
+// submodules in a meta-repo workspace.
+vi.mock("../services/project-registry.js", () => ({
+  getProject: vi.fn(),
+}));
+
+// The discussion thread reads whether the main session is live; the terminal
+// service and its PTYs stay out of this file.
 vi.mock("../services/terminal.js", () => ({
-  getSessionScrollback: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 import * as benchManager from "../services/bench-manager.js";
-import { getSessionScrollback } from "../services/terminal.js";
+import * as projectRegistry from "../services/project-registry.js";
 import { forgetDeliveryEventLog, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { computePlanHash } from "../lib/testbench-store.js";
 import router from "./delivery.js";
@@ -89,6 +95,19 @@ function event(seq: number, unitId: string | undefined, status = "running"): Del
   };
 }
 
+// One row of the delivery tooling's outbox, `<spec>/delivery/outbox.jsonl`.
+function outboxRow(envelope: DeliveryEvent): Record<string, unknown> {
+  return { seq: envelope.seq, event: envelope.type, payload: envelope, posted: false };
+}
+
+function writeOutbox(rows: Record<string, unknown>[]): void {
+  fs.mkdirSync(path.join(specFolder, "delivery"), { recursive: true });
+  fs.writeFileSync(
+    path.join(specFolder, "delivery", "outbox.jsonl"),
+    rows.map((row) => `${JSON.stringify(row)}\n`).join(""),
+  );
+}
+
 // Accepts events through the bench's event log, as the ingest route does.
 function accept(events: DeliveryEvent[]): void {
   const result = ingestDeliveryEvents(
@@ -120,8 +139,11 @@ beforeEach(() => {
   vi.mocked(benchManager.getBench).mockImplementation((projectId, benchId) =>
     projectId === bench.projectId && benchId === bench.id ? bench : undefined,
   );
+  vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
   forgetDeliveryEventLog();
   app = express();
+  // The server parses JSON bodies for every route (server/index.ts).
+  app.use(express.json());
   app.use("/api/projects", router);
 });
 
@@ -197,6 +219,7 @@ describe("GET /:projectId/benches/:id/delivery", () => {
       expect(res.body.progress.requirements).toEqual({ met: 1, total: 2 });
       expect(res.body.progress.caseList[0]).toEqual({
         id: "DEMO-TC-001",
+        title: "DEMO-TC-001",
         met: true,
         result: passed,
         metBy: "B",
@@ -386,6 +409,73 @@ describe("GET /:projectId/benches/:id/delivery/events", () => {
     expect(res.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([8]);
   });
 
+  describe("#1659 the unit's events the record carries, from the delivery outbox", () => {
+    it("lists them before the accepted events above the record, for the unit only", async () => {
+      writeRecord(fixtureRecord());
+      writeOutbox([
+        outboxRow(event(1, "C")),
+        outboxRow(event(2, "D")),
+        outboxRow(event(3, "C", "review")),
+        outboxRow(event(4, undefined)),
+      ]);
+      accept([event(8, "C", "done"), event(9, "D")]);
+
+      const res = await request(app).get(`${base}/events?unit=C`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([1, 3, 8]);
+      expect(res.body.acceptedSeq).toBe(9);
+      expect(res.body.folded).toBe(2);
+      // The feed of the whole delivery stays the events above the record: the
+      // snapshot already folds the ones below it.
+      const all = await request(app).get(`${base}/events`);
+      expect(all.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([8, 9]);
+    });
+
+    it("honours after over the outbox events", async () => {
+      writeRecord(fixtureRecord());
+      writeOutbox([outboxRow(event(1, "C")), outboxRow(event(3, "C"))]);
+
+      const res = await request(app).get(`${base}/events?unit=C&after=2`);
+
+      expect(res.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([3]);
+    });
+
+    it("leaves out a row above the record, a torn line, a foreign delivery and a bad envelope", async () => {
+      writeRecord(fixtureRecord());
+      const foreign = { ...event(2, "C"), delivery_id: "another-delivery" };
+      const lines = [
+        JSON.stringify(outboxRow(event(1, "C"))),
+        JSON.stringify(outboxRow(foreign)),
+        JSON.stringify({ seq: 3, event: "unit.changed", payload: { seq: 3 }, posted: false }),
+        "not json",
+        // The record is at seq 7: the log, not the outbox, answers above it.
+        JSON.stringify(outboxRow(event(8, "C"))),
+        JSON.stringify(outboxRow(event(5, "C"))).slice(0, 40),
+      ];
+      fs.mkdirSync(path.join(specFolder, "delivery"), { recursive: true });
+      fs.writeFileSync(path.join(specFolder, "delivery", "outbox.jsonl"), lines.join("\n"));
+
+      const res = await request(app).get(`${base}/events?unit=C`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([1]);
+      expect(res.body.folded).toBe(1);
+    });
+
+    it("counts an event once that the outbox and the unit span both hold", async () => {
+      writeRecord(fixtureRecord());
+      accept([event(8, "C"), event(9, "C")]);
+      writeRecord({ ...fixtureRecord(), last_event_seq: 9 });
+      writeOutbox([outboxRow(event(8, "C")), outboxRow(event(9, "C"))]);
+
+      const res = await request(app).get(`${base}/events?unit=C`);
+
+      expect(res.body.events.map((e: DeliveryEvent) => e.seq)).toEqual([8, 9]);
+      expect(res.body.folded).toBe(2);
+    });
+  });
+
   it.each(["-1", "1.5", "abc", ""])("answers 400 INVALID_QUERY for after=%s", async (after) => {
     writeRecord(fixtureRecord());
 
@@ -435,6 +525,10 @@ describe("GET /:projectId/benches/:id/delivery/events", () => {
 // A git repository in the bench workspace: the trunk at one commit, and the
 // stack's two layers on a branch off it, with the workspace back on the trunk.
 function git(...args: string[]): string {
+  return gitIn(bench.workspacePath, ...args);
+}
+
+function gitIn(cwd: string, ...args: string[]): string {
   return execFileSync(
     "git",
     [
@@ -448,25 +542,41 @@ function git(...args: string[]): string {
       "core.hooksPath=/dev/null",
       ...args,
     ],
-    { cwd: bench.workspacePath, encoding: "utf8" },
+    { cwd, encoding: "utf8" },
   ).trim();
 }
 
-function commitFile(name: string, content: string): string {
-  fs.writeFileSync(path.join(bench.workspacePath, name), content);
-  git("add", "--", name);
-  git("commit", "-q", "-m", `add ${name}`);
-  return git("rev-parse", "HEAD");
+function commitFile(name: string, content: string, repo = bench.workspacePath): string {
+  fs.writeFileSync(path.join(repo, name), content);
+  gitIn(repo, "add", "--", name);
+  gitIn(repo, "commit", "-q", "-m", `add ${name}`);
+  return gitIn(repo, "rev-parse", "HEAD");
 }
 
-function stackRepo(): { trunk: string; layerA: string; layerB: string } {
-  git("init", "-q", "-b", "main");
-  const trunk = commitFile("trunk.txt", "trunk\n");
-  git("checkout", "-q", "-b", "stack");
-  const layerA = commitFile("layer-a.txt", "the base layer\n");
-  const layerB = commitFile("layer-b.txt", "the second layer\n");
-  git("checkout", "-q", "main");
+function stackRepo(repo = bench.workspacePath): { trunk: string; layerA: string; layerB: string } {
+  fs.mkdirSync(repo, { recursive: true });
+  gitIn(repo, "init", "-q", "-b", "main");
+  const trunk = commitFile("trunk.txt", "trunk\n", repo);
+  gitIn(repo, "checkout", "-q", "-b", "stack");
+  const layerA = commitFile("layer-a.txt", "the base layer\n", repo);
+  const layerB = commitFile("layer-b.txt", "the second layer\n", repo);
+  gitIn(repo, "checkout", "-q", "main");
   return { trunk, layerA, layerB };
+}
+
+// A meta-repo workspace: its own repository, and the stack in the repository of
+// the mapped submodule `app` inside it, as a delivery's units commit there.
+function metaRepoStack(): { trunk: string; layerA: string; layerB: string } {
+  git("init", "-q", "-b", "main");
+  commitFile("meta.txt", "the meta-repo\n");
+  const stack = stackRepo(path.join(bench.workspacePath, "app"));
+  const config = { layout: { type: "meta-repo", submodules: { app: "app" } } } as RouboConfig;
+  vi.mocked(projectRegistry.getProject).mockImplementation((projectId) =>
+    projectId === bench.projectId
+      ? ({ id: projectId, config } as unknown as RegisteredProject)
+      : undefined,
+  );
+  return stack;
 }
 
 function recordWithHeads(heads: Record<string, string>): DeliveryRecord {
@@ -535,6 +645,35 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/diff", () => {
     expect(res.body).toMatchObject({ code: "DELIVERY_DIFF_UNAVAILABLE" });
   });
 
+  it("#1659 answers the diff in the mapped submodule that holds the unit's commits", async () => {
+    const { trunk, layerA, layerB } = metaRepoStack();
+    writeRecord(recordWithHeads({ A: layerA, B: layerB }));
+
+    const upper = await request(app).get(`${base}/units/B/diff`);
+    expect(upper.status).toBe(200);
+    expect(upper.body).toMatchObject({ unit: "B", base: layerA, head: layerB });
+    expect(upper.body.diff).toContain("+++ b/layer-b.txt");
+
+    // The stack base is the merge base with the submodule's HEAD, not the
+    // meta-repo's.
+    const lower = await request(app).get(`${base}/units/A/diff`);
+    expect(lower.status).toBe(200);
+    expect(lower.body).toMatchObject({ unit: "A", base: trunk, head: layerA });
+    expect(lower.body.diff).toContain("+++ b/layer-a.txt");
+  });
+
+  it("#1659 names the repositories it searched when none holds the head", async () => {
+    metaRepoStack();
+    writeRecord(recordWithHeads({ A: "0123456789abcdef0123456789abcdef01234567" }));
+
+    const res = await request(app).get(`${base}/units/A/diff`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("DELIVERY_DIFF_UNAVAILABLE");
+    expect(res.body.error).toContain("the workspace root, app");
+    expect(res.body.error).not.toContain("fatal");
+  });
+
   it("answers 404 UNIT_NOT_FOUND for a unit the record does not carry", async () => {
     writeRecord(fixtureRecord());
 
@@ -549,67 +688,8 @@ function timedEvent(seq: number, unitId: string, ts: string): DeliveryEvent {
   return { ...event(seq, unitId), ts };
 }
 
-describe("GET /:projectId/benches/:id/delivery/units/:unitId/transcript", () => {
-  it("cuts the delivery session's scrollback to the span of the unit's events", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
-    writeRecord(fixtureRecord());
-    accept([
-      timedEvent(8, "A", "2026-10-16T09:40:00Z"),
-      timedEvent(9, "B", "2026-10-16T09:41:00Z"),
-      timedEvent(10, "A", "2026-10-16T09:45:00Z"),
-    ]);
-    vi.mocked(getSessionScrollback).mockReturnValue(["first\r\n", "last\r\n"]);
-
-    const res = await request(app).get(`${base}/units/A/transcript`);
-
-    expect(res.status).toBe(200);
-    expect(getSessionScrollback).toHaveBeenCalledWith(
-      "session-1",
-      Date.parse("2026-10-16T09:40:00Z"),
-      Date.parse("2026-10-16T09:45:00Z"),
-    );
-    expect(res.body).toEqual({
-      unit: "A",
-      sessionId: "session-1",
-      from: "2026-10-16T09:40:00Z",
-      to: "2026-10-16T09:45:00Z",
-      lines: ["first\r\n", "last\r\n"],
-    });
-  });
-
-  it("SB-TC-031 keeps a done unit's span after the record carries its events", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
-    writeRecord(fixtureRecord());
-    accept([
-      timedEvent(8, "A", "2026-10-16T09:40:00Z"),
-      timedEvent(9, "A", "2026-10-16T09:45:00Z"),
-    ]);
-    // The session writes the record past both of A's events, so they leave the
-    // log: the events read above the record holds none of A's.
-    writeRecord({ ...fixtureRecord(), last_event_seq: 9 });
-    const above = await request(app).get(`${base}/events?unit=A`);
-    expect(above.body).toEqual({ events: [], acceptedSeq: 9, folded: 2 });
-    vi.mocked(getSessionScrollback).mockReturnValue(["first\r\n", "last\r\n"]);
-
-    const res = await request(app).get(`${base}/units/A/transcript`);
-
-    expect(res.status).toBe(200);
-    expect(getSessionScrollback).toHaveBeenCalledWith(
-      "session-1",
-      Date.parse("2026-10-16T09:40:00Z"),
-      Date.parse("2026-10-16T09:45:00Z"),
-    );
-    expect(res.body).toEqual({
-      unit: "A",
-      sessionId: "session-1",
-      from: "2026-10-16T09:40:00Z",
-      to: "2026-10-16T09:45:00Z",
-      lines: ["first\r\n", "last\r\n"],
-    });
-  });
-
-  it("SB-TC-031 keeps a folded unit's span, transcript and timeline count across a server restart", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
+describe("the unit span file of the folded events", () => {
+  it("SB-TC-031 keeps a folded unit's timeline count across a server restart", async () => {
     writeRecord(fixtureRecord());
     accept([
       timedEvent(8, "A", "2026-10-16T09:40:00Z"),
@@ -625,37 +705,19 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/transcript", () => 
     vi.resetModules();
     const fresh = await import("./delivery.js");
     const freshBenches = await import("../services/bench-manager.js");
-    const freshTerminal = await import("../services/terminal.js");
     vi.mocked(freshBenches.getBench).mockImplementation((projectId, benchId) =>
       projectId === bench.projectId && benchId === bench.id ? bench : undefined,
     );
-    vi.mocked(freshTerminal.getSessionScrollback).mockReturnValue(["built A\r\n"]);
     const restarted = express();
     restarted.use("/api/projects", fresh.default);
 
     const timeline = await request(restarted).get(`${base}/events?unit=A`);
     expect(timeline.body).toEqual({ events: [], acceptedSeq: 10, folded: 2 });
-
-    const res = await request(restarted).get(`${base}/units/A/transcript`);
-    expect(res.status).toBe(200);
-    expect(freshTerminal.getSessionScrollback).toHaveBeenCalledWith(
-      "session-1",
-      Date.parse("2026-10-16T09:40:00Z"),
-      Date.parse("2026-10-16T09:45:00Z"),
-    );
-    expect(res.body).toEqual({
-      unit: "A",
-      sessionId: "session-1",
-      from: "2026-10-16T09:40:00Z",
-      to: "2026-10-16T09:45:00Z",
-      lines: ["built A\r\n"],
-    });
     const other = await request(restarted).get(`${base}/events?unit=B`);
     expect(other.body).toMatchObject({ folded: 1 });
   });
 
   it("ignores a span file of another delivery after a restart", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
     writeRecord({ ...fixtureRecord(), last_event_seq: 10 });
     fs.writeFileSync(
       path.join(specFolder, DELIVERY_UNIT_SPANS_FILE),
@@ -670,49 +732,8 @@ describe("GET /:projectId/benches/:id/delivery/units/:unitId/transcript", () => 
         },
       }),
     );
-    vi.mocked(getSessionScrollback).mockReturnValue([]);
 
     const timeline = await request(app).get(`${base}/events?unit=A`);
     expect(timeline.body).toMatchObject({ folded: 0 });
-    const res = await request(app).get(`${base}/units/A/transcript`);
-    expect(res.body).toMatchObject({ from: null, to: null, lines: [] });
-  });
-
-  it("answers no lines and no span for a unit with no events", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
-    writeRecord(fixtureRecord());
-    vi.mocked(getSessionScrollback).mockReturnValue([]);
-
-    const res = await request(app).get(`${base}/units/D/transcript`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      unit: "D",
-      sessionId: "session-1",
-      from: null,
-      to: null,
-      lines: [],
-    });
-  });
-
-  it("answers no session when the bench's delivery terminal is gone", async () => {
-    bench = { ...bench, deliverySessionId: "session-1" } as Bench;
-    writeRecord(fixtureRecord());
-    accept([timedEvent(8, "A", "2026-10-16T09:40:00Z")]);
-    vi.mocked(getSessionScrollback).mockReturnValue(undefined);
-
-    const res = await request(app).get(`${base}/units/A/transcript`);
-
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ sessionId: null, lines: [] });
-  });
-
-  it("answers 404 UNIT_NOT_FOUND for a unit the record does not carry", async () => {
-    writeRecord(fixtureRecord());
-
-    const res = await request(app).get(`${base}/units/Z/transcript`);
-
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ code: "UNIT_NOT_FOUND" });
   });
 });

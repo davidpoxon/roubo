@@ -145,7 +145,6 @@ vi.mock("../../../../server/services/project-registry.js", async (importOriginal
 });
 vi.mock("../../../../server/services/terminal.js", () => ({
   getSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
 }));
 vi.mock("../../../../server/services/state.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();

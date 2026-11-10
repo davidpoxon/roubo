@@ -32,15 +32,14 @@ import {
 // shows as a view of its own (#1620). A unit's drill-in (#1621) is headed by
 // its mono id, its title and chips for its status, its stack, layer and base,
 // its dependencies when they are not only the base, its pull request, the
-// gates after it and its cost; UnitDrillIn lays out its timeline, terminal and
-// Diff and Verify tabs beneath. A gate's names what the snapshot holds for the
+// gates after it and its cost; UnitDrillIn lays out its timeline and its Diff
+// and Verify tabs beneath. A gate's names what the snapshot holds for the
 // gate. Its heading takes the focus as it opens.
 export default function DeliveryDrillIn({
   projectId,
   benchId,
   snapshot,
   target,
-  deliverySessionId,
   sitting,
   onClose,
 }: {
@@ -48,7 +47,6 @@ export default function DeliveryDrillIn({
   benchId: number;
   snapshot: DeliverySnapshot;
   target: MapTarget;
-  deliverySessionId: string | undefined;
   sitting: DeliverySittingView | undefined;
   onClose: () => void;
 }) {
@@ -111,7 +109,6 @@ export default function DeliveryDrillIn({
           benchId={benchId}
           snapshot={snapshot}
           unitId={target.id}
-          {...(deliverySessionId !== undefined && { deliverySessionId })}
         />
       )}
     </section>

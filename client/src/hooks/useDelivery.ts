@@ -44,27 +44,6 @@ export function useDeliveryUnitDiff(
   });
 }
 
-/**
- * A done or jammed unit's recorded transcript (SB-FR-013): the delivery session
- * terminal's scrollback between the unit's first and last event. Keyed by the
- * seq of the unit's last event, so an event of the unit reads it again.
- */
-export function useDeliveryUnitTranscript(
-  projectId: string,
-  benchId: number,
-  unitId: string,
-  lastSeq: number | null,
-  enabled: boolean,
-) {
-  return useQuery({
-    queryKey: ["delivery-unit-transcript", projectId, benchId, unitId, lastSeq] as const,
-    queryFn: () => api.fetchDeliveryUnitTranscript(projectId, benchId, unitId),
-    retry: false,
-    staleTime: Infinity,
-    enabled,
-  });
-}
-
 function useDeliverySessionMutation<T>(
   projectId: string,
   benchId: number,

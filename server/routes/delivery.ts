@@ -33,11 +33,15 @@
 //                                                    spill file), only those whose
 //                                                    envelope unit_id is `unit` when it
 //                                                    is given, in seq order; acceptedSeq
-//                                                    is the bench's accepted seq; with
-//                                                    `unit`, `folded` counts the unit's
-//                                                    accepted events at or below the
-//                                                    record's last_event_seq, which the
-//                                                    record carries and `events` leaves out
+//                                                    is the bench's accepted seq. With
+//                                                    `unit`, `events` first holds the
+//                                                    unit's events at or below the
+//                                                    record's last_event_seq that the
+//                                                    tooling's delivery/outbox.jsonl
+//                                                    holds (#1659), and `folded` counts
+//                                                    the unit's events the record carries,
+//                                                    from the outbox or the bench's span
+//                                                    file
 //                                                    400 INVALID_QUERY + field: `after`
 //                                                        is not a non-negative integer,
 //                                                        or `unit` is not one id
@@ -122,8 +126,11 @@
 //   GET  /:projectId/benches/:id/delivery/units/:unitId/diff
 //                                                 -> 200 DeliveryUnitDiffResponse
 //                                                    {unit, base, head, diff, truncated}:
-//                                                    `git diff <base> <head>` in the bench
-//                                                    workspace, from the head of the unit
+//                                                    `git diff <base> <head>` in the
+//                                                    checkout that knows the unit's head:
+//                                                    the bench workspace or, in a
+//                                                    meta-repo, a mapped submodule in it
+//                                                    (#1659); from the head of the unit
 //                                                    below in its stack (or the stack
 //                                                    base, the merge base of HEAD and the
 //                                                    unit's head) to the unit's head; no
@@ -132,20 +139,12 @@
 //                                                    404 UNIT_NOT_FOUND: the record has no
 //                                                        such unit
 //                                                    409 DELIVERY_DIFF_UNAVAILABLE: a head
-//                                                        is not a commit id, or git failed
+//                                                        is not a commit id, no checkout
+//                                                        knows the head (the message names
+//                                                        the checkouts searched), the base
+//                                                        is not in the head's checkout, or
+//                                                        git failed
 //                                                    404 and 409 as the snapshot read
-//   GET  /:projectId/benches/:id/delivery/units/:unitId/transcript
-//                                                 -> 200 DeliveryUnitTranscriptResponse
-//                                                    {unit, sessionId, from, to, lines}:
-//                                                    the delivery session terminal's
-//                                                    scrollback written between the ts of
-//                                                    the unit's first and last accepted
-//                                                    event, the ones the record already
-//                                                    carries included, whose span the
-//                                                    bench's span file keeps across a
-//                                                    restart; no transcript file
-//                                                    404 UNIT_NOT_FOUND, and 404 and 409 as
-//                                                        the snapshot read
 //   POST /:projectId/benches/:id/delivery/decisions/:decisionId/answer
 //        body {option}                          -> 202 DeliveryOutboxControl: a
 //                                                    decision-answer control with the
@@ -527,13 +526,21 @@ import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
 import {
   benchDeliveryEventSpillPath,
+  benchDeliveryOutboxPath,
   deliverySpecFolder,
   loadBenchDeliveryRecord,
   loadBenchDeliveryVerifyInputs,
 } from "../lib/delivery-record-loader.js";
+import { readDeliveryOutbox } from "../lib/delivery-outbox.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import { UnsafePathError } from "../lib/safe-path.js";
 import * as benchManager from "../services/bench-manager.js";
+import * as projectRegistry from "../services/project-registry.js";
+import {
+  resolveCommitIn,
+  resolveWorkspaceCommit,
+  workspaceCheckouts,
+} from "../lib/workspace-commit.js";
 import {
   closeGatePin,
   GatePinError,
@@ -547,7 +554,6 @@ import {
   type DeliveryEventsResponse,
   type DeliverySnapshotResponse,
   type DeliveryUnitDiffResponse,
-  type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
 import {
   AGENT_AUTHOR,
@@ -592,7 +598,7 @@ import {
   issueDeliveryControl,
 } from "../services/delivery-control-outbox.js";
 import { broadcastDeliveryFrame } from "../services/sse.js";
-import { getSession, getSessionScrollback } from "../services/terminal.js";
+import { getSession } from "../services/terminal.js";
 import {
   DeliveryLaunchBlockedError,
   deliveryLaunchBlock,
@@ -754,16 +760,21 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
     loaded.record,
     benchDeliveryEventSpillPath(bench),
   );
+  const above = (event: DeliveryEvent) => after === undefined || event.seq > after;
   const events = accepted.filter(
-    (event) =>
-      (after === undefined || event.seq > after) && (unit === undefined || event.unit_id === unit),
+    (event) => above(event) && (unit === undefined || event.unit_id === unit),
   );
   const body: DeliveryEventsResponse = {
     events,
     acceptedSeq: deliveryAcceptedSeq(bench.projectId, bench.id) ?? loaded.record.last_event_seq,
   };
   if (unit !== undefined) {
-    body.folded =
+    // The unit's events the record carries come from the delivery outbox, which
+    // holds them whether they were posted or not (#1659); the log holds only
+    // the ones above the record, so the two never share a seq.
+    const carried = unitCarriedEvents(bench, loaded.record, unit);
+    body.events = [...carried.filter(above), ...events];
+    const spanFolded =
       deliveryUnitEventSpan(
         bench.projectId,
         bench.id,
@@ -771,6 +782,9 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
         unit,
         benchDeliveryEventSpillPath(bench),
       )?.folded ?? 0;
+    // The outbox holds every event the record carries, so its count covers the
+    // posted ones the span counts; the span stands in for an outbox cut short.
+    body.folded = Math.max(spanFolded, carried.length);
   }
   res.json(body);
 });
@@ -792,6 +806,22 @@ router.get(
 );
 
 // ── Unit drill-in reads (SB-FR-013) ──
+
+// The unit's events at or below the record's last_event_seq, from the
+// delivery outbox in the bench workspace, in seq order (#1659). An outbox
+// whose path would leave the workspace gives none.
+function unitCarriedEvents(bench: Bench, record: DeliveryRecord, unitId: string): DeliveryEvent[] {
+  let outboxPath: string;
+  try {
+    outboxPath = benchDeliveryOutboxPath(bench);
+  } catch (err) {
+    if (err instanceof UnsafePathError) return [];
+    throw err;
+  }
+  return readDeliveryOutbox(outboxPath, record.delivery_id).filter(
+    (event) => event.seq <= record.last_event_seq && event.unit_id === unitId,
+  );
+}
 
 // A unit's head and the lower layer's head are commits the session wrote into
 // the record, so only a hex object name reaches git: nothing that git could
@@ -876,9 +906,34 @@ router.get(
       sendDiffUnavailable(res, `The head below ${unit.id} is not a commit id: ${base}`);
       return;
     }
-    const cwd = bench.workspacePath;
+    // The unit's commits live in the repository the unit changes: the
+    // workspace's own, or in a meta-repo one of its mapped submodules (#1659).
+    const config = projectRegistry.getProject(bench.projectId)?.config;
+    const repo = await resolveWorkspaceCommit(bench.workspacePath, config, head);
+    if (repo === undefined) {
+      const searched = workspaceCheckouts(bench.workspacePath, config).map(
+        (checkout) => checkout.submodulePath ?? "the workspace root",
+      );
+      sendDiffUnavailable(
+        res,
+        `The head ${head} of ${unit.id} is in none of the repositories of the bench workspace (searched ${searched.join(", ")})`,
+      );
+      return;
+    }
+    const cwd = repo.checkout;
+    const where =
+      repo.submodulePath === undefined
+        ? "the bench workspace"
+        : `${repo.submodulePath} in the bench workspace`;
+    if (base !== undefined && (await resolveCommitIn(cwd, base)) === undefined) {
+      sendDiffUnavailable(
+        res,
+        `The head below ${unit.id}, ${base}, is not in ${where}, where ${unit.id}'s head is`,
+      );
+      return;
+    }
     if (base === undefined) {
-      // The stack base: where the unit's history leaves the workspace's own.
+      // The stack base: where the unit's history leaves the checkout's own.
       const mergeBase = await runCommand(
         "git",
         ["merge-base", "HEAD", head],
@@ -890,7 +945,7 @@ router.get(
       if (mergeBase.code !== 0 || !COMMIT_RE.test(found)) {
         sendDiffUnavailable(
           res,
-          `The stack base of ${unit.id} could not be found in the bench workspace: ${firstLine(mergeBase.stderr)}`,
+          `The stack base of ${unit.id} could not be found in ${where}: ${firstLine(mergeBase.stderr)}`,
         );
         return;
       }
@@ -906,7 +961,7 @@ router.get(
     if (diff.code !== 0) {
       sendDiffUnavailable(
         res,
-        `git diff of ${unit.id} failed in the bench workspace: ${firstLine(diff.stderr)}`,
+        `git diff of ${unit.id} failed in ${where}: ${firstLine(diff.stderr)}`,
       );
       return;
     }
@@ -926,49 +981,6 @@ router.get(
 function firstLine(text: string): string {
   return text.trim().split("\n")[0] ?? "";
 }
-
-router.get(
-  "/:projectId/benches/:id/delivery/units/:unitId/transcript",
-  deliveryReadRateLimiter,
-  (req, res) => {
-    const context = drillInContext(req, res);
-    if (!context) return;
-    const { bench, record, unit } = context;
-    // The log's span of the unit, not the events above the record only: once
-    // the record carries a finished unit's events, they leave the log, and the
-    // span keeps their times, in the bench's span file across a restart too.
-    const span = deliveryUnitEventSpan(
-      bench.projectId,
-      bench.id,
-      record,
-      unit.id,
-      benchDeliveryEventSpillPath(bench),
-    );
-    const from = span?.from ?? null;
-    const to = span?.to ?? null;
-    const sessionId = bench.deliverySessionId ?? null;
-    let lines: string[] = [];
-    let session: string | null = null;
-    if (sessionId !== null) {
-      const fromMs = from === null ? Number.NaN : Date.parse(from);
-      const toMs = to === null ? Number.NaN : Date.parse(to);
-      // A span that does not parse holds no chunk.
-      const scrollback = getSessionScrollback(sessionId, fromMs, toMs);
-      if (scrollback !== undefined) {
-        session = sessionId;
-        lines = scrollback;
-      }
-    }
-    const body: DeliveryUnitTranscriptResponse = {
-      unit: unit.id,
-      sessionId: session,
-      from,
-      to,
-      lines,
-    };
-    res.json(body);
-  },
-);
 
 // ── Controls (SB-FR-014, SB-FR-021) ──
 

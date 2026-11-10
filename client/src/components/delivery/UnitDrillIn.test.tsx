@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 // A unit's drill-in on the Delivery tab (SB-FR-013, SB-NFR-003, SB-NFR-004,
-// SB-US-004): the timeline first, with the terminal beside it above the Diff
-// and Verify tabs, seams marked on the timeline, a done unit's transcript
-// replayed read-only, the 1,000-event bound, keyboard and screen-reader
+// SB-US-004): the timeline first, with the Diff and Verify tabs beside it and
+// no terminal (#1659), seams marked on the timeline, the events the record
+// already carries, the 1,000-event bound, keyboard and screen-reader
 // operation, and the empty states of a unit with no events.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -19,7 +19,6 @@ import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
-import { FakeSocket } from "../../test/fake-terminal";
 import { HELD_DRAFT_LABEL } from "./delivery-map-model";
 
 vi.mock("../../lib/api", async (importOriginal) => {
@@ -29,19 +28,11 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchDelivery: vi.fn(),
     fetchDeliveryEvents: vi.fn(),
     fetchDeliveryUnitDiff: vi.fn(),
-    fetchDeliveryUnitTranscript: vi.fn(),
     fetchTerminals: vi.fn(),
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
   };
 });
-
-// The real Terminal and its connection hook run in the drill-in; only xterm,
-// which needs a canvas, and the socket are stand-ins.
-vi.mock("@xterm/xterm", () => import("../../test/fake-terminal"));
-vi.mock("@xterm/addon-fit", () => import("../../test/fake-terminal"));
-vi.mock("@xterm/addon-web-links", () => import("../../test/fake-terminal"));
-vi.mock("@xterm/xterm/css/xterm.css", () => ({}));
 
 import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
@@ -92,9 +83,9 @@ function post(...events: DeliveryEvent[]) {
   );
 }
 
-function Harness() {
+function Harness({ of = bench }: { of?: Bench }) {
   useNotificationStream();
-  return <DeliveryTabPanel bench={bench} />;
+  return <DeliveryTabPanel bench={of} />;
 }
 
 function withStatus(base: DeliveryRecord, statuses: Record<string, string>): DeliveryRecord {
@@ -126,8 +117,6 @@ function timelineOrder(): string[] {
 beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("EventSource", FakeEventSource);
-  FakeSocket.opened = [];
-  vi.stubGlobal("WebSocket", FakeSocket);
   record = fourUnitRecord();
   log = [];
   decorate = (snapshot) => snapshot;
@@ -152,14 +141,6 @@ beforeEach(() => {
     diff: "",
     truncated: false,
   }));
-  vi.mocked(api.fetchDeliveryUnitTranscript).mockReset();
-  vi.mocked(api.fetchDeliveryUnitTranscript).mockImplementation(async (_p, _b, unit) => ({
-    unit,
-    sessionId: "session-1",
-    from: null,
-    to: null,
-    lines: [],
-  }));
   vi.mocked(api.fetchTerminals).mockReset();
   vi.mocked(api.fetchTerminals).mockResolvedValue([]);
 });
@@ -170,7 +151,7 @@ afterEach(() => {
 });
 
 describe("Unit drill-in", () => {
-  it("SB-TC-029 shows the timeline first, with the terminal beside it above the Diff and Verify tabs", async () => {
+  it("SB-TC-029 shows the timeline first, with the Diff and Verify tabs beside it and no terminal", async () => {
     record = withStatus(fourUnitRecord(), { B: "running" });
     log = [
       unitEvent(8, "B", "unit.changed", { status: "running" }, at(40)),
@@ -182,7 +163,16 @@ describe("Unit drill-in", () => {
       ...snapshot,
       progress: {
         ...snapshot.progress,
-        caseList: [{ id: "FX-TC-001", met: true, result: passed, metBy: "B", prUrl: null }],
+        caseList: [
+          {
+            id: "FX-TC-001",
+            title: "FX-TC-001",
+            met: true,
+            result: passed,
+            metBy: "B",
+            prUrl: null,
+          },
+        ],
       },
     });
     vi.mocked(api.fetchDeliveryUnitDiff).mockResolvedValue({
@@ -194,21 +184,17 @@ describe("Unit drill-in", () => {
     });
     renderWithProviders(<Harness />);
 
-    // Step 1: open B from the map. The timeline comes first; beside it, the
-    // terminal sits above the panel of the Diff and Verify tabs (#1621).
+    // Step 1: open B from the map. The timeline comes first, and the panel of
+    // the Diff and Verify tabs sits beside it (#1621). The drill-in holds no
+    // terminal: the delivery runs in the bench's Terminal tab (#1659).
     const drillIn = await openUnit("B");
     const timeline = within(drillIn).getByRole("region", { name: "Timeline of unit B" });
-    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit B" });
     const diff = within(drillIn).getByRole("region", { name: "Diff of unit B" });
     expect(within(drillIn).getAllByRole("region")[0]).toBe(timeline);
-    const side = drillIn.querySelector('[data-drill-in-column="side"]');
     const tabs = within(drillIn).getByTestId("unit-diff-verify");
-    expect([...(side?.children ?? [])]).toEqual([terminal, tabs]);
-    expect(timeline.compareDocumentPosition(side as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    // The terminal beside the timeline is the live delivery session itself.
-    expect(within(terminal).getByTestId("unit-terminal-live")).toBeInTheDocument();
-    expect(within(terminal).getByRole("textbox", { name: "Terminal input" })).toBeInTheDocument();
-    expect(FakeSocket.to("session-1")).toHaveLength(1);
+    expect([...(timeline.parentElement?.children ?? [])]).toEqual([timeline, tabs]);
+    expect(within(drillIn).queryByRole("region", { name: /Terminal/ })).not.toBeInTheDocument();
+    expect(within(drillIn).queryByRole("textbox")).not.toBeInTheDocument();
     // Diff is the selected tab, and Verify waits behind it.
     expect(
       within(tabs)
@@ -241,9 +227,10 @@ describe("Unit drill-in", () => {
     const verify = within(drillIn).getByRole("region", { name: "Verify results of unit B" });
     expect(verify).toBeVisible();
     expect(diff).not.toBeVisible();
-    expect(within(verify).getByTestId("unit-verify-FX-TC-001")).toHaveTextContent(
-      "FX-TC-001gate-after-bpassed",
+    expect(within(verify).getByTestId("unit-verify-gate-after-b")).toHaveTextContent(
+      "gate-after-b",
     );
+    expect(within(verify).getByTestId("unit-verify-FX-TC-001")).toHaveTextContent("FX-TC-001");
   });
 
   it("heads the drill-in with the unit's id, title and chips for what the record holds of it (#1621)", async () => {
@@ -315,25 +302,6 @@ describe("Unit drill-in", () => {
     );
   });
 
-  it("names the terminal live only while the unit runs (#1621)", async () => {
-    // B runs: the terminal's meta names it live.
-    record = withStatus(fourUnitRecord(), { B: "running" });
-    renderWithProviders(<Harness />);
-    const running = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
-    expect(within(running).getByTestId("unit-terminal-live")).toBeInTheDocument();
-    expect(running.querySelector("header")).toHaveTextContent("B · live");
-    cleanup();
-
-    // B waits with events of its own: the session terminal still shows, but the
-    // meta does not call B live, because the session works on another unit.
-    record = withStatus(fourUnitRecord(), { B: "pending" });
-    log = [unitEvent(8, "B", "note", { text: "Queued behind A" }, at(40))];
-    renderWithProviders(<Harness />);
-    const waiting = within(await openUnit("B")).getByRole("region", { name: "Terminal of unit B" });
-    expect(within(waiting).getByTestId("unit-terminal-live")).toBeInTheDocument();
-    expect(waiting.querySelector("header")).not.toHaveTextContent("live");
-  });
-
   it("names a held unit's pull request as a held draft, not its number (#1621)", async () => {
     const base = withStatus(fourUnitRecord(), { B: "done", C: "running" });
     record = {
@@ -397,78 +365,40 @@ describe("Unit drill-in", () => {
     );
   });
 
-  it("SB-TC-031 replays a done unit's transcript read-only and shows an active unit's terminal live", async () => {
-    record = withStatus(fourUnitRecord(), { A: "done", B: "running" });
-    log = [
+  it("SB-TC-031 shows a done unit's events on its timeline, the ones the record carries included, and no terminal", async () => {
+    // The record already carries A's two events: the server reads them from
+    // the delivery outbox and answers them with the count it folded (#1659).
+    record = { ...withStatus(fourUnitRecord(), { A: "done", B: "running" }), last_event_seq: 9 };
+    const carried = [
       unitEvent(8, "A", "unit.changed", { status: "running" }, at(40)),
       unitEvent(9, "A", "unit.changed", { status: "done" }, at(45)),
-      unitEvent(10, "B", "unit.changed", { status: "running" }, at(46)),
     ];
-    vi.mocked(api.fetchDeliveryUnitTranscript).mockResolvedValue({
-      unit: "A",
-      sessionId: "session-1",
-      from: at(40),
-      to: at(45),
-      lines: ["\x1b[32mbuilt A\x1b[0m\r\n", "the suite passed\r\n"],
-    });
+    vi.mocked(api.fetchDeliveryEvents).mockImplementation(async (_p, _b, query = {}) => ({
+      events: query.unit === "A" ? carried : [],
+      acceptedSeq: 9,
+      ...(query.unit !== undefined && { folded: query.unit === "A" ? 2 : 0 }),
+    }));
     renderWithProviders(<Harness />);
 
-    // Step 1: A is done, so its terminal replays the recorded transcript.
     const drillIn = await openUnit("A");
-    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit A" });
-    const transcript = await within(terminal).findByRole("region", {
-      name: "Recorded transcript of unit A, read-only",
-    });
-    expect(transcript).toHaveTextContent("built A the suite passed");
-    expect(transcript.textContent).not.toContain("\x1b");
-    expect(api.fetchDeliveryUnitTranscript).toHaveBeenCalledWith("demo", 3, "A");
-    expect(within(terminal).getByTestId("unit-transcript-label")).toHaveTextContent(
-      "Read-only: recorded transcript",
-    );
-    // No input is accepted: nothing in the panel takes text, and typing over the
-    // transcript changes nothing.
-    expect(within(terminal).queryByRole("textbox")).not.toBeInTheDocument();
-    expect(within(terminal).queryByTestId("unit-terminal-live")).not.toBeInTheDocument();
-    await userEvent.type(transcript, "rm -rf");
-    expect(transcript.textContent).toBe("built A\nthe suite passed\n");
-
-    // A done unit's terminal holds no socket to the session.
-    expect(FakeSocket.opened).toHaveLength(0);
-
-    // Step 2: B is active, so its terminal is the live delivery session,
-    // embedded in the drill-in: it shows what the session writes and sends
-    // what is typed into it.
-    await userEvent.click(within(drillIn).getByRole("button", { name: "Close" }));
-    const active = await openUnit("B");
-    const live = within(active).getByRole("region", { name: "Terminal of unit B" });
-    expect(within(live).queryByTestId("unit-transcript-label")).not.toBeInTheDocument();
-    const [socket] = FakeSocket.to("session-1");
-    expect(socket).toBeDefined();
-    await act(async () => {});
-    act(() => socket.receive({ type: "replay", lines: ["$ building B\r\n"] }));
-    act(() => socket.receive({ type: "output", data: "turn 3 of B\r\n" }));
-    expect(within(live).getByTestId("xterm-screen")).toHaveTextContent("$ building B turn 3 of B");
-    const input = within(live).getByRole("textbox", { name: "Terminal input" });
-    fireEvent.input(input, { target: { value: "y" } });
-    expect(socket.sent).toContainEqual({ type: "input", data: "y" });
+    await waitFor(() => expect(timelineOrder()).toEqual(["event:9", "event:8"]));
+    expect(within(drillIn).queryByTestId("unit-timeline-empty")).not.toBeInTheDocument();
+    // A row is a plain row of the list: nothing on it takes a press.
+    expect(within(screen.getByTestId("timeline-event-9")).queryByRole("button")).toBeNull();
+    // No terminal and no transcript: nothing in the drill-in takes text.
+    expect(within(drillIn).queryByRole("region", { name: /Terminal|transcript/ })).toBeNull();
+    expect(within(drillIn).queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("SB-TC-031 replays a done unit's transcript after the record carries all its events", async () => {
-    // The session wrote the record past A's two events, so no event of A sits
-    // above it: the server counts them as folded.
+  it("SB-TC-031 names the count the record holds when the outbox no longer has a done unit's events", async () => {
+    // The session wrote the record past A's two events and the outbox holds
+    // none of them: the server counts them as folded.
     record = { ...withStatus(fourUnitRecord(), { A: "done" }), last_event_seq: 9 };
     vi.mocked(api.fetchDeliveryEvents).mockImplementation(async (_p, _b, query = {}) => ({
       events: [],
       acceptedSeq: 9,
       ...(query.unit !== undefined && { folded: query.unit === "A" ? 2 : 0 }),
     }));
-    vi.mocked(api.fetchDeliveryUnitTranscript).mockResolvedValue({
-      unit: "A",
-      sessionId: "session-1",
-      from: at(40),
-      to: at(45),
-      lines: ["built A\r\n"],
-    });
     renderWithProviders(<Harness />);
 
     const drillIn = await openUnit("A");
@@ -477,13 +407,6 @@ describe("Unit drill-in", () => {
       "No newer events for unit A: the delivery record holds its 2 events.",
     );
     expect(empty).toHaveAttribute("data-folded", "true");
-    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit A" });
-    expect(
-      await within(terminal).findByRole("region", {
-        name: "Recorded transcript of unit A, read-only",
-      }),
-    ).toHaveTextContent("built A");
-    expect(within(terminal).getByTestId("unit-transcript-label")).toBeInTheDocument();
   });
 
   it("SB-TC-032 shows a posted event within 2 seconds and keeps the most recent 1,000 of a burst with keys still working", async () => {
@@ -503,20 +426,20 @@ describe("Unit drill-in", () => {
 
     // Step 2: 1,000 more events in one minute, posted in ten batches. Between
     // each post and its render, a key on the page still does its work: the
-    // shortcut that leaves the terminal moves the focus to the next panel. The
+    // arrow keys move the selection between the Diff and Verify tabs. The
     // 100 ms bound itself is not measured here: jsdom dispatches a key
     // synchronously, so no render can delay it and a timing would prove nothing.
-    const input = screen.getByRole("textbox", { name: "Terminal input" });
-    const diffPanel = screen.getByRole("region", { name: "Diff of unit B" });
     for (let batch = 0; batch < 10; batch += 1) {
       const events = Array.from({ length: 100 }, (_, index) => {
         const seq = 10 + batch * 100 + index;
         return unitEvent(seq, "B", "note", { text: `Turn ${seq}` }, at(42 + batch, index % 60));
       });
       post(...events);
-      input.focus();
-      fireEvent.keyDown(input, { key: "F6" });
-      expect(diffPanel).toHaveFocus();
+      const [from, to] = batch % 2 === 0 ? ["Diff", "Verify"] : ["Verify", "Diff"];
+      const tab = screen.getByRole("tab", { name: from });
+      tab.focus();
+      fireEvent.keyDown(tab, { key: batch % 2 === 0 ? "ArrowRight" : "ArrowLeft" });
+      expect(screen.getByRole("tab", { name: to })).toHaveAttribute("aria-selected", "true");
       const last = events.at(-1)?.seq ?? 0;
       await waitFor(() => expect(screen.getByTestId(`timeline-event-${last}`)).toBeInTheDocument());
     }
@@ -530,7 +453,7 @@ describe("Unit drill-in", () => {
     expect(screen.getByTestId("unit-timeline-list").className).toContain("overflow-y-auto");
   }, 60_000);
 
-  it("SB-TC-033 reaches every panel by keyboard with its name, leaves the terminal by shortcut and has no axe findings", async () => {
+  it("SB-TC-033 reaches every panel by keyboard with its name and has no axe findings", async () => {
     const user = userEvent.setup();
     record = withStatus(fourUnitRecord(), { B: "running" });
     log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
@@ -538,23 +461,16 @@ describe("Unit drill-in", () => {
     const drillIn = await openUnit("B");
     await waitFor(() => expect(timelineOrder()).toEqual(["event:8"]));
 
-    // Step 1: Tab from the timeline to the terminal, then the Diff and Verify
-    // tabs and their panels; each announces its name.
+    // Step 1: Tab from the timeline to the Diff and Verify tabs and their
+    // panels; each announces its name.
     within(drillIn).getByRole("button", { name: "Close" }).focus();
     await user.tab();
     expect(screen.getByRole("region", { name: "Timeline of unit B" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("list", { name: "Events of unit B, newest first" })).toHaveFocus();
     await user.tab();
-    const terminal = screen.getByRole("region", { name: "Terminal of unit B" });
-    expect(terminal).toHaveFocus();
-    expect(terminal).toHaveAccessibleDescription(/Press F6 to leave the terminal/);
+    expect(screen.getByRole("tab", { name: "Diff" })).toHaveFocus();
     await user.tab();
-    const input = screen.getByRole("textbox", { name: "Terminal input" });
-    expect(input).toHaveFocus();
-    // The live terminal keeps Tab for itself, so F6 is the way out, to the
-    // selected tab's panel.
-    await user.keyboard("{F6}");
     expect(screen.getByRole("region", { name: "Diff of unit B" })).toHaveFocus();
     // Shift+Tab reaches the tab list, and the arrow key selects Verify.
     await user.tab({ shift: true });
@@ -563,20 +479,12 @@ describe("Unit drill-in", () => {
     expect(screen.getByRole("tab", { name: "Verify" })).toHaveAttribute("aria-selected", "true");
     await user.tab();
     expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
-    // With Verify selected, F6 from the terminal goes to the Verify panel.
-    input.focus();
-    await user.keyboard("{F6}");
-    expect(screen.getByRole("region", { name: "Verify results of unit B" })).toHaveFocus();
-    // Shift+F6 from inside the terminal goes back to the timeline.
-    input.focus();
-    await user.keyboard("{Shift>}{F6}{/Shift}");
-    expect(screen.getByRole("region", { name: "Timeline of unit B" })).toHaveFocus();
 
     // Step 2: the accessibility suite over the drill-in.
     expectNoAxeFindings(await axe(container));
   });
 
-  it("SB-TC-035 shows an empty state naming the unit in all four panels for a unit with no events", async () => {
+  it("SB-TC-035 shows an empty state naming the unit in each panel for a unit with no events", async () => {
     log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
     renderWithProviders(<Harness />);
 
@@ -586,10 +494,6 @@ describe("Unit drill-in", () => {
     const timeline = within(drillIn).getByRole("region", { name: "Timeline of unit D" });
     expect(await within(timeline).findByTestId("unit-timeline-empty")).toHaveTextContent(
       "No events for unit D yet.",
-    );
-    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit D" });
-    expect(await within(terminal).findByTestId("unit-terminal-empty")).toHaveTextContent(
-      "No transcript recorded for unit D.",
     );
     const diff = within(drillIn).getByRole("region", { name: "Diff of unit D" });
     expect(await within(diff).findByTestId("unit-diff-empty")).toHaveTextContent(
@@ -605,58 +509,65 @@ describe("Unit drill-in", () => {
     expect(within(drillIn).queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("chooses a failed unit's event by keyboard and says when its transcript holds no matching output", async () => {
-    const user = userEvent.setup();
-    record = withStatus(fourUnitRecord(), { B: "failed" });
-    log = [
-      unitEvent(8, "B", "unit.changed", { status: "running" }, at(40)),
-      unitEvent(9, "B", "note", { text: "Ran the suite" }, at(41)),
-      unitEvent(10, "B", "unit.changed", { status: "failed", summary: "Review failed" }, at(42)),
-    ];
-    vi.mocked(api.fetchDeliveryUnitTranscript).mockResolvedValue({
-      unit: "B",
-      sessionId: "session-1",
-      from: at(40),
-      to: at(42),
-      lines: ["Ran the suite\r\n", "Review failed\r\n"],
+  it("lists the verify results as rows under their gate, each opening its evidence (#1659)", async () => {
+    const result = {
+      observationMarks: {},
+      derivedStatus: "passed",
+      notes: [{ text: "Checked by hand on the bench" }],
+      verification: {
+        tier: "a",
+        confidence: "high",
+        evidence: ["vitest client/src/components/delivery/UnitDrillIn.test.tsx passes"],
+        author: "verify",
+        timestamp: at(50),
+      },
+    } as unknown as CaseResult;
+    decorate = (snapshot) => ({
+      ...snapshot,
+      progress: {
+        ...snapshot.progress,
+        caseList: [
+          {
+            id: "FX-TC-001",
+            title: "The second layer reads back",
+            met: true,
+            result,
+            metBy: "B",
+            prUrl: null,
+          },
+        ],
+      },
     });
     renderWithProviders(<Harness />);
+
     const drillIn = await openUnit("B");
-    await waitFor(() => expect(timelineOrder()).toEqual(["event:10", "event:9", "event:8"]));
-    const terminal = within(drillIn).getByRole("region", { name: "Terminal of unit B" });
-    // A failed unit replays its recorded span, not the live session.
-    expect(
-      await within(terminal).findByRole("region", {
-        name: "Recorded transcript of unit B, read-only",
-      }),
-    ).toHaveTextContent("Ran the suite Review failed");
-    expect(within(terminal).queryByTestId("unit-terminal-live")).not.toBeInTheDocument();
+    await userEvent.click(within(drillIn).getByRole("tab", { name: "Verify" }));
+    const verify = within(drillIn).getByRole("region", { name: "Verify results of unit B" });
 
-    // The list is one Tab stop; the arrow keys move between its events.
-    const list = screen.getByRole("list", { name: "Events of unit B, newest first" });
-    list.focus();
-    await user.keyboard("{ArrowDown}{ArrowDown}");
-    const second = within(screen.getByTestId("timeline-event-9")).getByRole("button");
-    expect(second).toHaveFocus();
-    await user.keyboard("{Enter}");
-    expect(second).toHaveAttribute("aria-pressed", "true");
-    expect(within(terminal).getByTestId("unit-transcript-match")).toHaveTextContent(
-      "Ran the suite",
+    // The gate heads its cases with its id and state.
+    const gate = within(verify).getByTestId("unit-verify-gate-after-b");
+    expect(within(gate).getByRole("heading", { name: /gate-after-b/ })).toHaveTextContent(
+      "gate-after-b · pending",
     );
+    // A row: the case's status, its id, its title and its verification tier,
+    // with the ids kept on one line.
+    const row = within(gate).getByRole("button", { name: /FX-TC-001/ });
+    expect(row).toHaveTextContent("FX-TC-001");
+    expect(row).toHaveTextContent("The second layer reads back");
+    expect(row).toHaveTextContent("tier a · high");
+    expect(row).toHaveAccessibleName(/^FX-TC-001 The second layer reads back, Passed/);
+    expect(within(row).getByText("FX-TC-001")).toHaveClass("whitespace-nowrap");
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(within(verify).queryByTestId("unit-verify-evidence-FX-TC-001")).not.toBeInTheDocument();
 
-    // An event whose words the transcript does not hold says so.
-    await user.click(within(screen.getByTestId("timeline-event-8")).getByRole("button"));
-    expect(within(terminal).queryByTestId("unit-transcript-match")).not.toBeInTheDocument();
-    expect(within(terminal).getByTestId("unit-transcript-chosen")).toHaveTextContent(
-      "No output in the transcript of unit B matches event 8.",
-    );
-  });
-
-  it("names a pending unit's terminal as waiting for output", async () => {
-    renderWithProviders(<Harness />);
-    const drillIn = await openUnit("C");
-    expect(await within(drillIn).findByTestId("unit-terminal-empty")).toHaveTextContent(
-      "No terminal output for unit C yet.",
-    );
+    // The row opens the evidence beneath it, and closes it again.
+    await userEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    const evidence = within(verify).getByTestId("unit-verify-evidence-FX-TC-001");
+    expect(evidence).toHaveTextContent("UnitDrillIn.test.tsx passes");
+    expect(evidence).toHaveTextContent("Checked by hand on the bench");
+    await userEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(within(verify).queryByTestId("unit-verify-evidence-FX-TC-001")).not.toBeInTheDocument();
   });
 });
