@@ -65,7 +65,6 @@
 // sitting, beside the delivery record, so the marks outlive the sitting's
 // close: the sitting names that folder in `resultsSpecPath`.
 import fs from "node:fs";
-import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type {
   Bench,
@@ -75,12 +74,18 @@ import type {
   RegisteredProject,
   RouboConfig,
 } from "@roubo/shared";
-import { assertSafeWorkspacePath, resolveWithin, UnsafePathError } from "../lib/safe-path.js";
+import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
 import * as benchManager from "./bench-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as stateService from "./state.js";
 import { deliveryAcceptedSeq } from "./delivery-event-log.js";
 import { runCommand } from "./exec.js";
+import {
+  mappedSubmodules,
+  pathWithin,
+  resolveWorkspaceCommit,
+  type WorkspaceCommit,
+} from "../lib/workspace-commit.js";
 import { createNotification, dismissByKey } from "./notification.js";
 import { broadcastDeliveryFrame } from "./sse.js";
 
@@ -181,36 +186,6 @@ async function restartComponents(bench: Bench, names: string[]): Promise<void> {
   }
 }
 
-// The submodule paths a meta-repo project maps, relative to a checkout.
-function mappedSubmodules(config: RouboConfig | undefined): string[] {
-  if (config?.layout.type !== "meta-repo") return [];
-  return Object.values(config.layout.submodules ?? {});
-}
-
-// `relative` inside `root`, or undefined when it leaves it.
-function within(root: string, relative: string): string | undefined {
-  try {
-    return resolveWithin(root, relative);
-  } catch (err) {
-    if (err instanceof UnsafePathError) return undefined;
-    throw err;
-  }
-}
-
-/** The full commit `commit` names in `checkout`, or undefined when git does not know it there. */
-async function resolveIn(checkout: string, commit: string): Promise<string | undefined> {
-  const result = await git(["rev-parse", "--verify", "--quiet", `${commit}^{commit}`], checkout);
-  const sha = result.stdout.trim();
-  return result.code === 0 && sha.length > 0 ? sha : undefined;
-}
-
-interface GateCommit {
-  /** The full gate commit. */
-  sha: string;
-  /** The mapped submodule whose commit it is, relative to the checkout; absent for its own. */
-  submodulePath?: string;
-}
-
 /**
  * The gate commit as the workspace knows it: a commit of the workspace itself,
  * or in a meta-repo a commit of one of the mapped submodules that the
@@ -220,19 +195,9 @@ async function resolveGateCommit(
   workspacePath: string,
   config: RouboConfig | undefined,
   commit: string,
-): Promise<GateCommit | undefined> {
+): Promise<WorkspaceCommit | undefined> {
   if (!COMMIT_RE.test(commit)) return undefined;
-  const own = await resolveIn(workspacePath, commit);
-  if (own !== undefined) return { sha: own };
-  for (const submodulePath of mappedSubmodules(config)) {
-    const checkout = within(workspacePath, submodulePath);
-    // A submodule that is not checked out has no `.git` of its own, and git
-    // would answer for the superproject there.
-    if (checkout === undefined || !fs.existsSync(path.join(checkout, ".git"))) continue;
-    const sha = await resolveIn(checkout, commit);
-    if (sha !== undefined) return { sha, submodulePath };
-  }
-  return undefined;
+  return resolveWorkspaceCommit(workspacePath, config, commit);
 }
 
 /** The commit a checkout has checked out, or undefined when git cannot read it. */
@@ -484,8 +449,8 @@ async function pinGateCommit(bench: Bench, input: OpenGatePinInput): Promise<Pin
   }
   let checkout = pinPath;
   if (target.submodulePath !== undefined) {
-    const inPin = within(pinPath, target.submodulePath);
-    const inWorkspace = within(workspacePath, target.submodulePath);
+    const inPin = pathWithin(pinPath, target.submodulePath);
+    const inWorkspace = pathWithin(workspacePath, target.submodulePath);
     const failed =
       inPin === undefined || inWorkspace === undefined
         ? `the submodule path ${target.submodulePath} leaves the checkout`
@@ -777,7 +742,7 @@ export async function whenGateSittingPrepared(bench: Bench): Promise<void> {
 // The checkout of the bench's pin that holds the gate commit.
 function pinCheckout(pin: BenchGatePin): string | undefined {
   if (pin.submodulePath === undefined) return pin.workspacePath;
-  return within(pin.workspacePath, pin.submodulePath);
+  return pathWithin(pin.workspacePath, pin.submodulePath);
 }
 
 // The watch of the bench's prepared sitting of `gateId`. A sitting prepared

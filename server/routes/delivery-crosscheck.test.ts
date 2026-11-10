@@ -34,7 +34,7 @@ vi.mock("../services/delivery-session-launcher.js", () => ({
   whenDeliveryBound: vi.fn(async () => undefined),
 }));
 vi.mock("../services/terminal.js", () => ({
-  getSessionScrollback: vi.fn(),
+  getSession: vi.fn(),
 }));
 vi.mock("../services/sse.js", () => ({
   broadcast: vi.fn(),

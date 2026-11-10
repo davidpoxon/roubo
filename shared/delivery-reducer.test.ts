@@ -1382,6 +1382,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     expect(snapshot.progress.caseList).toEqual([
       {
         id: "DEMO-TC-001",
+        title: "DEMO-TC-001",
         met: true,
         result: passed,
         metBy: "B",
@@ -1389,6 +1390,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
       },
       {
         id: "DEMO-TC-002",
+        title: "DEMO-TC-002",
         met: true,
         result: failedOverPassed,
         metBy: "B",
@@ -1396,6 +1398,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
       },
       {
         id: "DEMO-TC-003",
+        title: "DEMO-TC-003",
         met: false,
         result: caseResult("passed", "failed"),
         metBy: null,
@@ -1428,6 +1431,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     expect(snapshot.progress.caseList).toEqual([
       {
         id: "DEMO-TC-003",
+        title: "DEMO-TC-003",
         met: true,
         result: caseResult("passed"),
         metBy: "C",
@@ -1593,6 +1597,7 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     });
     expect(snapshot.progress.caseList[0]).toMatchObject({
       id: "DEMO-TC-001",
+      title: "DEMO-TC-001",
       met: true,
       metBy: "B",
       prUrl: null,

@@ -302,32 +302,6 @@ describe("output buffer", () => {
     expect(replay.lines[4999]).toBe("line-5009\n");
   });
 
-  it("answers the scrollback chunks written inside a time span", async () => {
-    const pty = createMockPty();
-    mockSpawn.mockReturnValue(pty);
-    const { createSession, getSessionScrollback } = await loadModule();
-
-    const session = createSession("project1", 1, "/workspace", "My Project");
-    for (const [at, chunk] of [
-      [1_000, "before\r\n"],
-      [2_000, "first\r\n"],
-      [3_000, "last\r\n"],
-      [4_000, "after\r\n"],
-    ] as const) {
-      vi.setSystemTime(at);
-      pty._emit("data", chunk);
-    }
-
-    expect(getSessionScrollback(session.id, 2_000, 3_000)).toEqual(["first\r\n", "last\r\n"]);
-    expect(getSessionScrollback(session.id, Number.NaN, Number.NaN)).toEqual([]);
-    expect(getSessionScrollback("no-such-session", 0, 5_000)).toBeUndefined();
-
-    // The times are persisted beside the buffer.
-    vi.advanceTimersByTime(1_000);
-    const [, content] = mockAtomicWrite.mock.calls.at(-1) ?? [];
-    expect(JSON.parse(String(content)).bufferTimes).toEqual([1_000, 2_000, 3_000, 4_000]);
-  });
-
   it("forwards output to connected WebSocket in real time", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
@@ -562,7 +536,7 @@ describe("handleWebSocket", () => {
     expect(replay.exitCode).toBe(0);
   });
 
-  it("SB-TC-031 keeps an attached viewer open when a second viewer attaches, and sends both the replay and the output", async () => {
+  it("keeps an attached viewer open when a second viewer attaches, and sends both the replay and the output", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession, handleWebSocket } = await loadModule();
@@ -570,43 +544,43 @@ describe("handleWebSocket", () => {
     const session = createSession("project1", 1, "/workspace", "My Project");
     pty._emit("data", "before\r\n");
     const tab = createMockWs();
-    const drillIn = createMockWs();
+    const second = createMockWs();
 
     handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
+    handleWebSocket(session.id, second);
 
     expect(tab.close).not.toHaveBeenCalled();
-    for (const ws of [tab, drillIn]) {
+    for (const ws of [tab, second]) {
       expect(JSON.parse(ws._sent[0])).toMatchObject({ type: "replay", lines: ["before\r\n"] });
     }
     pty._emit("data", "live\r\n");
-    for (const ws of [tab, drillIn]) {
+    for (const ws of [tab, second]) {
       expect(ws._sent.map((m: string) => JSON.parse(m))).toContainEqual({
         type: "output",
         data: "live\r\n",
       });
     }
     // Either viewer can type into the session.
-    drillIn._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "y\r" })));
+    second._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "y\r" })));
     tab._trigger("message", Buffer.from(JSON.stringify({ type: "input", data: "n\r" })));
     expect(pty.write).toHaveBeenCalledWith("y\r");
     expect(pty.write).toHaveBeenCalledWith("n\r");
   });
 
-  it("SB-TC-031 ends neither the session nor the other viewer when one viewer detaches", async () => {
+  it("ends neither the session nor the other viewer when one viewer detaches", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession, handleWebSocket, hasSession } = await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
     const tab = createMockWs();
-    const drillIn = createMockWs();
+    const second = createMockWs();
     handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
+    handleWebSocket(session.id, second);
 
-    drillIn._trigger("close");
+    second._trigger("close");
     tab._sent.length = 0;
-    drillIn._sent.length = 0;
+    second._sent.length = 0;
     pty._emit("data", "still running\r\n");
 
     expect(hasSession(session.id)).toBe(true);
@@ -615,16 +589,16 @@ describe("handleWebSocket", () => {
     expect(tab._sent.map((m: string) => JSON.parse(m))).toEqual([
       { type: "output", data: "still running\r\n" },
     ]);
-    expect(drillIn._sent).toEqual([]);
+    expect(second._sent).toEqual([]);
 
     // The remaining viewer keeps its heartbeat; the detached one gets none.
     vi.advanceTimersByTime(30_000);
     expect(tab._sent.some((m: string) => JSON.parse(m).type === "ping")).toBe(true);
-    expect(drillIn._sent).toEqual([]);
+    expect(second._sent).toEqual([]);
     // The pong deadline is the viewer's own: with no pong it closes alone.
     vi.advanceTimersByTime(10_000);
     expect(tab.close).toHaveBeenCalled();
-    expect(drillIn.close).not.toHaveBeenCalled();
+    expect(second.close).not.toHaveBeenCalled();
   });
 
   it("closes every attached viewer when the session is destroyed", async () => {
@@ -634,14 +608,14 @@ describe("handleWebSocket", () => {
 
     const session = createSession("project1", 1, "/workspace", "My Project");
     const tab = createMockWs();
-    const drillIn = createMockWs();
+    const second = createMockWs();
     handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
+    handleWebSocket(session.id, second);
 
     destroySession(session.id);
 
     expect(tab.close).toHaveBeenCalled();
-    expect(drillIn.close).toHaveBeenCalled();
+    expect(second.close).toHaveBeenCalled();
   });
 
   it("forwards input from WebSocket to pty", async () => {
@@ -670,22 +644,22 @@ describe("handleWebSocket", () => {
     expect(pty.resize).toHaveBeenCalledWith(120, 40);
   });
 
-  it("SB-TC-031 sizes the PTY to the viewer that sent its size last when two viewers send different sizes", async () => {
+  it("sizes the PTY to the viewer that sent its size last when two viewers send different sizes", async () => {
     const pty = createMockPty();
     mockSpawn.mockReturnValue(pty);
     const { createSession, handleWebSocket } = await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
     const tab = createMockWs();
-    const drillIn = createMockWs();
+    const second = createMockWs();
     handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
+    handleWebSocket(session.id, second);
     const resize = (ws: ReturnType<typeof createMockWs>, cols: number, rows: number) =>
       ws._trigger("message", Buffer.from(JSON.stringify({ type: "resize", cols, rows })));
 
-    // The wide Terminal tab, then the narrow drill-in panel.
+    // The wide Terminal tab, then a narrow second viewer.
     resize(tab, 200, 50);
-    resize(drillIn, 90, 20);
+    resize(second, 90, 20);
     expect(pty.resize).toHaveBeenLastCalledWith(90, 20);
 
     // The tab re-sends its unchanged size when it is shown again or takes
@@ -716,24 +690,24 @@ describe("handleWebSocket", () => {
     const { createSession, handleWebSocket } = await loadModule();
 
     const session = createSession("project1", 1, "/workspace", "My Project");
-    const tab = createMockWs();
-    const drillIn = createMockWs();
-    handleWebSocket(session.id, tab);
-    handleWebSocket(session.id, drillIn);
-    tab._sent.length = 0;
-    drillIn._sent.length = 0;
+    const firstWindow = createMockWs();
+    const otherWindow = createMockWs();
+    handleWebSocket(session.id, firstWindow);
+    handleWebSocket(session.id, otherWindow);
+    firstWindow._sent.length = 0;
+    otherWindow._sent.length = 0;
 
-    drillIn._trigger(
+    otherWindow._trigger(
       "message",
       Buffer.from(JSON.stringify({ type: "resize", cols: 52, rows: 20 })),
     );
 
-    expect(tab._sent.map((m) => JSON.parse(m))).toContainEqual({
+    expect(firstWindow._sent.map((m) => JSON.parse(m))).toContainEqual({
       type: "pty-size",
       cols: 52,
       rows: 20,
     });
-    expect(drillIn._sent.map((m) => JSON.parse(m).type)).not.toContain("pty-size");
+    expect(otherWindow._sent.map((m) => JSON.parse(m).type)).not.toContain("pty-size");
   });
 
   it("sends ping at interval", async () => {
@@ -821,35 +795,6 @@ describe("ghost sessions", () => {
     expect(replay.type).toBe("replay");
     expect(replay.lines).toEqual(["before shutdown"]);
     expect(ws.close).toHaveBeenCalledWith(4410, "Session ended");
-  });
-
-  it("restores the chunk times of a persisted session, and none from a file without them", async () => {
-    const id = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
-    const other = "7a2b3c4d-5e6f-4a70-9b8c-0d1e2f3a4b5c";
-    const sessionOf = (sessionId: string) => ({
-      id: sessionId,
-      benchKey: "project1:1",
-      label: "Terminal 1",
-      createdAt: "2026-01-01",
-      status: "live",
-    });
-    mockReaddirSync.mockReturnValue([`${id}.json`, `${other}.json`]);
-    mockReadFileSync.mockImplementation((file: string) =>
-      String(file).includes(id)
-        ? JSON.stringify({
-            session: sessionOf(id),
-            buffer: ["timed", "untimed"],
-            bufferTimes: [1_000, null],
-            persistedAt: "2026-01-01",
-          })
-        : JSON.stringify({ session: sessionOf(other), buffer: ["old"], persistedAt: "2026-01-01" }),
-    );
-
-    const { loadPersistedSessions, getSessionScrollback } = await loadModule();
-    loadPersistedSessions();
-
-    expect(getSessionScrollback(id, 0, 5_000)).toEqual(["timed"]);
-    expect(getSessionScrollback(other, 0, 5_000)).toEqual([]);
   });
 
   it("loadPersistedSessions marks sessions as ended", async () => {

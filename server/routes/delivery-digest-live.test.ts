@@ -57,7 +57,6 @@ vi.mock("../services/gate-pin.js", () => ({
 }));
 vi.mock("../services/terminal.js", () => ({
   getSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
 }));
 
 import * as benchManager from "../services/bench-manager.js";

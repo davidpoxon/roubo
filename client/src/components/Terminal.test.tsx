@@ -378,10 +378,10 @@ describe("Terminal: re-sending its size to a session shared by several viewers",
 
   const RESIZE = JSON.stringify({ type: "resize", cols: 80, rows: 24 });
 
-  it("SB-TC-031 re-sends its current size when its hidden panel is shown again", () => {
+  it("re-sends its current size when its hidden panel is shown again", () => {
     const ws = connectWs();
     // Hidden at mount (jsdom reports zero dimensions), as the force-mounted
-    // Terminal tab is while the drill-in is open.
+    // Terminal tab is while another tab of the bench shows.
     render(<Terminal sessionId="sess-1" active />);
     expect(ws.send).not.toHaveBeenCalled();
 
@@ -396,7 +396,7 @@ describe("Terminal: re-sending its size to a session shared by several viewers",
     restore();
   });
 
-  it("SB-TC-031 re-sends its current size when focus moves into the terminal", () => {
+  it("re-sends its current size when focus moves into the terminal", () => {
     const restore = stubDimensions();
     const ws = connectWs();
     // Inactive, so the becoming-active re-send cannot stand in for this one.
@@ -409,7 +409,7 @@ describe("Terminal: re-sending its size to a session shared by several viewers",
     restore();
   });
 
-  it("SB-TC-031 re-sends its current size when it becomes the active tab", async () => {
+  it("re-sends its current size when it becomes the active tab", async () => {
     const restore = stubDimensions();
     const ws = connectWs();
     const { rerender } = render(<Terminal sessionId="sess-1" active={false} />);

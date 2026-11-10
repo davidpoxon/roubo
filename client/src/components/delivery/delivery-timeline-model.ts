@@ -103,11 +103,6 @@ export function buildTimeline(
   return ascending.reverse();
 }
 
-/** The unit's own events, in seq order. */
-export function unitEvents(unitId: string, events: readonly DeliveryEvent[]): DeliveryEvent[] {
-  return events.filter((event) => event.unit_id === unitId);
-}
-
 /** The line a timeline row says about its event. */
 export function eventText(event: DeliveryEvent): string {
   const { payload } = event;
@@ -117,30 +112,6 @@ export function eventText(event: DeliveryEvent): string {
   }
   if (isString(payload.status)) return `Status ${payload.status}`;
   return event.type;
-}
-
-/** Where an event's output sits in a unit's transcript text: [start, end). */
-export interface TranscriptMatch {
-  start: number;
-  end: number;
-}
-
-/**
- * The output in a unit's transcript text that an event matches: the last
- * occurrence of the first of the event's own words that the transcript holds,
- * tried in order: the payload's `output`, then the keys its timeline row reads
- * (see `eventText`). The last occurrence, as an event follows the output it
- * reports. Null when the transcript holds none of them.
- */
-export function matchEventOutput(text: string, event: DeliveryEvent): TranscriptMatch | null {
-  const { payload } = event;
-  for (const key of ["output", "text", "summary", "detail", "question", "title"] as const) {
-    const needle = payload[key];
-    if (!isString(needle)) continue;
-    const start = text.lastIndexOf(needle);
-    if (start >= 0) return { start, end: start + needle.length };
-  }
-  return null;
 }
 
 /** The mono detail line naming the role, attempt and turn, when the event names any. */
@@ -173,20 +144,4 @@ export function seamLabel(seam: TimelineSeamItem): string {
   return [seam.name, seam.status, seam.at === null ? "no time" : clockTime(seam.at), seam.detail]
     .filter((part): part is string => isString(part))
     .join(" · ");
-}
-
-// A CSI or OSC escape sequence, or a lone escape with one following byte: what
-// a terminal writes for colour and cursor moves, which a read-only transcript
-// does not render. Built from the escape and bell characters, as a regex
-// literal may not hold control characters.
-const ESC = String.fromCharCode(0x1b);
-const BEL = String.fromCharCode(0x07);
-const ANSI_RE = new RegExp(
-  `${ESC}\\[[0-?]*[ -/]*[@-~]|${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|${ESC}[@-_]`,
-  "g",
-);
-
-/** A recorded transcript as plain text: escape sequences out, line ends as \n. */
-export function transcriptText(lines: readonly string[]): string {
-  return lines.join("").replace(ANSI_RE, "").replace(/\r\n?/g, "\n");
 }

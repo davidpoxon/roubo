@@ -29,7 +29,6 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchTerminals: vi.fn(),
     fetchDeliveryEvents: vi.fn(),
     fetchDeliveryUnitDiff: vi.fn(),
-    fetchDeliveryUnitTranscript: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
@@ -165,13 +164,6 @@ beforeEach(() => {
     head: null,
     diff: "",
     truncated: false,
-  }));
-  vi.mocked(api.fetchDeliveryUnitTranscript).mockImplementation(async (_p, _b, unit) => ({
-    unit,
-    sessionId: null,
-    from: null,
-    to: null,
-    lines: [],
   }));
 });
 

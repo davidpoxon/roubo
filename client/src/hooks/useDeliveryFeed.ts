@@ -25,8 +25,9 @@ import { deliveryQueryKey, useDelivery } from "./useDelivery";
 // holds, and appends them. The list keeps the most recent
 // DELIVERY_FEED_MAX_EVENTS events only (SB-NFR-003), so a long delivery cannot
 // grow the client without bound; the older ones stay on the server. A unit's
-// list also holds `folded`, the count of its events that the record already
-// carries, so a view can tell a unit whose events are all in the record from
+// first read also holds the unit's events the record already carries, which
+// the server reads from the tooling's outbox (#1659), and `folded`, the count
+// of them, so a view can tell a unit whose events are all in the record from
 // one with no event.
 
 export const DELIVERY_FEED_MAX_EVENTS = 1_000;

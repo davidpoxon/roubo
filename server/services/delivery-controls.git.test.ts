@@ -75,7 +75,6 @@ vi.mock("./terminal.js", () => ({
   destroyBenchSessions: vi.fn(),
   destroySession: vi.fn(() => true),
   createAgentSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
   getSession: vi.fn((id: string) => ({
     id,
     status: hoisted.liveSessions.has(id) ? "live" : "ended",

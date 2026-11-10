@@ -150,7 +150,6 @@ vi.mock("../../../../server/services/state.js", async (importOriginal) => {
 });
 vi.mock("../../../../server/services/terminal.js", () => ({
   getSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
 }));
 vi.mock("../../../../server/services/plugin-manager.js", () => ({
   invoke: vi.fn(),

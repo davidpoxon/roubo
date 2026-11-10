@@ -55,7 +55,6 @@ vi.mock("../services/sse.js", () => ({
 }));
 vi.mock("../services/terminal.js", () => ({
   getSession: vi.fn(),
-  getSessionScrollback: vi.fn(),
 }));
 vi.mock("../services/delivery-session-launcher.js", () => ({
   DeliveryLaunchBlockedError: class extends Error {},

@@ -96,7 +96,6 @@ import {
   type DeliveryReadError,
   type DeliverySnapshotResponse,
   type DeliveryUnitDiffResponse,
-  type DeliveryUnitTranscriptResponse,
   type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import type { DeliveryDigest } from "@roubo/shared/delivery-digest";
@@ -627,9 +626,10 @@ export function fetchDeliveryCrossCheck(
   return request(`/projects/${projectId}/benches/${benchId}/delivery/crosscheck`);
 }
 
-// The pull-request diff of a unit's layer (SB-FR-013): `git diff` in the bench
-// workspace from the head of the layer below (or the stack base) to the unit's
-// head. A 409 DELIVERY_DIFF_UNAVAILABLE names why git could not answer.
+// The pull-request diff of a unit's layer (SB-FR-013): `git diff` from the head
+// of the layer below (or the stack base) to the unit's head, in the checkout of
+// the bench workspace that holds the head: the workspace or a mapped submodule
+// (#1659). A 409 DELIVERY_DIFF_UNAVAILABLE names why git could not answer.
 export function fetchDeliveryUnitDiff(
   projectId: string,
   benchId: number,
@@ -637,18 +637,6 @@ export function fetchDeliveryUnitDiff(
 ): Promise<DeliveryUnitDiffResponse> {
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/units/${encodeURIComponent(unitId)}/diff`,
-  );
-}
-
-// What the delivery session terminal wrote between a unit's first and last
-// event, cut from its scrollback by time (SB-FR-013).
-export function fetchDeliveryUnitTranscript(
-  projectId: string,
-  benchId: number,
-  unitId: string,
-): Promise<DeliveryUnitTranscriptResponse> {
-  return request(
-    `/projects/${projectId}/benches/${benchId}/delivery/units/${encodeURIComponent(unitId)}/transcript`,
   );
 }
 

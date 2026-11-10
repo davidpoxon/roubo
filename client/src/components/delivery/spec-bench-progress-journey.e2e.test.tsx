@@ -18,8 +18,7 @@
 // delivery reducer as GET /delivery does. A request to any other route answers
 // 404 and is listed in the failure output. The hooks and components that the
 // journey does not cross (projects, integration, settings, plugins, terminals,
-// logs, issue controls) are stubbed as in the page suites, and so is the live
-// terminal that a running unit's drill-in embeds.
+// logs, issue controls) are stubbed as in the page suites.
 //
 // The Spec Bench is set up from `fixture-spec` in launch mode before the
 // journey starts, through the same create route the setup journey crosses, and

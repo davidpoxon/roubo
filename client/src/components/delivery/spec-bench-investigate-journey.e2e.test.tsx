@@ -7,8 +7,7 @@
 //
 // What runs for real: the Benches page (BenchDashboard and BenchesTab with the
 // real BenchCard), the bench page (BenchDetail with the real Delivery tab, its
-// map and the unit drill-in with its timeline, recorded terminal, Diff and
-// Verify panels), the real React Query hooks, the real `lib/api` request layer
+// map and the unit drill-in with its timeline, Diff and Verify panels), the real React Query hooks, the real `lib/api` request layer
 // and the real notification stream hook. The one stand-in is the network:
 // `fetch` and `EventSource` reach an in-process Roubo server stand-in below,
 // which answers each route the journey calls with the body and the status the
@@ -23,10 +22,9 @@
 // The Spec Bench is set up from `fixture-spec` in launch mode before the
 // journey starts, through the same create route the setup journey crosses, and
 // the fake delivery tooling holds the launch descriptor it was handed. Started,
-// it writes the record into the bench workspace, writes its output to the
-// delivery session terminal, and posts the events that take A to done, commit
-// B's layer, fail the gate after B and end B in a failed review, with the
-// token.
+// it writes the record into the bench workspace and posts the events that take
+// A to done, commit B's layer, fail the gate after B and end B in a failed
+// review, with the token.
 //
 // Failure-output contract: each SB-TC-034 step runs inside step(), which on a
 // divergence reports the step that diverged, the expected versus the actual at
@@ -54,7 +52,6 @@ import {
   type DeliveryReadError,
   type DeliveryStreamFrame,
   type DeliveryUnitDiffResponse,
-  type DeliveryUnitTranscriptResponse,
 } from "@roubo/shared/delivery-bench";
 import type { CaseResult, TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
@@ -326,18 +323,6 @@ function failureEvent(): DeliveryEvent {
   return last;
 }
 
-// What the delivery session terminal wrote while it worked on B, colour
-// escapes included, with the failure among other output.
-const B_TERMINAL_OUTPUT = [
-  "$ git commit -m 'second layer'\r\n",
-  "[b-layer b7b7b7b7] second layer\r\n",
-  "$ npm test\r\n",
-  "\x1b[32m PASS \x1b[0m FX-TC-002\r\n",
-  "\x1b[31m FAIL \x1b[0m FX-TC-001 expected 2, got 3\r\n",
-  `${FAILURE_SUMMARY}\r\n`,
-  "Waiting for the operator.\r\n",
-];
-
 // ── The network stand-in ──
 
 interface LaunchDescriptor {
@@ -382,7 +367,6 @@ class RouboServerStandIn {
   private records = new Map<number, DeliveryRecord>();
   private verifyInputs = new Map<number, { plan: TestCasesPlan; results: DeliveryResults }>();
   private events = new Map<number, DeliveryEvent[]>();
-  private scrollback = new Map<number, string[]>();
   private layerDiffs = new Map<string, string>();
   private tokens = new Map<number, string>();
   private streams: FakeEventSource[] = [];
@@ -415,12 +399,6 @@ class RouboServerStandIn {
   // The spec's test-cases.json and test-results.json in the bench workspace.
   writeWorkspaceVerify(benchId: number, plan: TestCasesPlan, results: DeliveryResults): void {
     this.verifyInputs.set(benchId, { plan, results });
-  }
-
-  // What the delivery session writes to its terminal: the scrollback the
-  // transcript route cuts by the unit's span.
-  writeSessionOutput(benchId: number, lines: string[]): void {
-    this.scrollback.set(benchId, [...(this.scrollback.get(benchId) ?? []), ...lines]);
   }
 
   // A commit range in the bench workspace, as `git diff <base> <head>` prints it.
@@ -479,14 +457,6 @@ class RouboServerStandIn {
       method === "GET"
     ) {
       return this.readDiff(Number(match[1]), decodeURIComponent(match[2]));
-    }
-    if (
-      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/units/([^/]+)/transcript$`).exec(
-        path,
-      )) &&
-      method === "GET"
-    ) {
-      return this.readTranscript(Number(match[1]), decodeURIComponent(match[2]));
     }
     if (method === "POST" && path === DELIVERY_EVENT_HOOK_PATH) {
       return this.ingest(url.searchParams, headers.Authorization, body);
@@ -637,26 +607,6 @@ class RouboServerStandIn {
     return respond(200, body);
   }
 
-  // GET /delivery/units/:unitId/transcript: the session terminal's scrollback
-  // over the unit's span. The stand-in's session wrote B's output only.
-  private readTranscript(benchId: number, unitId: string): StandInResponse {
-    const loaded = this.loadRecord(benchId);
-    if (!loaded.ok) return respond(409, loaded.error);
-    if (!loaded.record.units.some((unit) => unit.id === unitId)) {
-      return respond(404, { error: `No unit ${unitId}`, code: "UNIT_NOT_FOUND" });
-    }
-    const own = (this.events.get(benchId) ?? []).filter((item) => item.unit_id === unitId);
-    const bench = this.benches.find((b) => b.id === benchId);
-    const body: DeliveryUnitTranscriptResponse = {
-      unit: unitId,
-      sessionId: bench?.deliverySessionId ?? null,
-      from: own[0]?.ts ?? null,
-      to: own.at(-1)?.ts ?? null,
-      lines: unitId === "B" ? (this.scrollback.get(benchId) ?? []) : [],
-    };
-    return respond(200, body);
-  }
-
   // POST /api/hooks/delivery-event: the token first, then the envelopes, then
   // the sequence, then a delivery frame on the notification stream.
   private ingest(
@@ -735,7 +685,6 @@ class FakeDeliveryTooling {
   async start(
     record: DeliveryRecord,
     verify: { plan: TestCasesPlan; results: DeliveryResults },
-    output: string[],
     events: DeliveryEvent[],
   ): Promise<number> {
     const { descriptor, benchId } = this;
@@ -747,7 +696,6 @@ class FakeDeliveryTooling {
     this.server.writeWorkspaceVerify(benchId, verify.plan, verify.results);
     this.server.commitLayer(STACK_BASE, A_HEAD, "diff --git a/src/base.ts b/src/base.ts\n");
     this.server.commitLayer(A_HEAD, B_HEAD, B_LAYER_DIFF);
-    this.server.writeSessionOutput(benchId, output);
     const res = await fetch(descriptor.eventUrl, {
       method: "POST",
       headers: {
@@ -813,18 +761,8 @@ function renderRoubo() {
   );
 }
 
-// jsdom has no layout, so it ships no scrollIntoView: the spy records which
-// element the terminal scrolled to.
-const scrolledTo = vi.fn<(this: Element, options?: ScrollIntoViewOptions) => void>();
-
 beforeEach(() => {
   localStorage.clear();
-  scrolledTo.mockReset();
-  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-    configurable: true,
-    writable: true,
-    value: scrolledTo,
-  });
   server = new RouboServerStandIn();
   vi.stubGlobal(
     "fetch",
@@ -845,7 +783,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
 });
 
 // The precondition: a Spec Bench set up from fixture-spec in launch mode.
@@ -876,7 +813,6 @@ async function postFailedReviewForB(
   const status = await tooling.start(
     initialRecord(),
     { plan: fixturePlan(), results: gateAfterBResults() },
-    B_TERMINAL_OUTPUT,
     deliveryEvents(),
   );
   expect(status).toBe(202);
@@ -940,27 +876,18 @@ describe("Spec Bench investigate journey", { timeout: JOURNEY_TIMEOUT_MS }, () =
     );
 
     await step(
-      "3. Click the failure event",
-      `the terminal replays B's recorded output and scrolls to the line the failure event matches ("${FAILURE_SUMMARY}")`,
+      "3. Read the failure event",
+      `the failure event's row names its kind, its time and the failure ("${FAILURE_SUMMARY}"), and the drill-in holds no terminal`,
       owners(["drillIn", "routes"]),
       async () => {
         const panels = drillInOfB();
         const timeline = within(panels).getByRole("region", { name: "Timeline of unit B" });
         const row = within(timeline).getByTestId(`timeline-event-${failure.seq}`);
-        await user.click(within(row).getByRole("button"));
-        expect(within(row).getByRole("button")).toHaveAttribute("aria-pressed", "true");
-        const terminal = within(panels).getByRole("region", { name: "Terminal of unit B" });
-        const transcript = await within(terminal).findByRole("region", {
-          name: "Recorded transcript of unit B, read-only",
-        });
-        expect(transcript).toHaveTextContent("FAIL FX-TC-001 expected 2, got 3");
-        const match = await within(transcript).findByTestId("unit-transcript-match");
-        expect(match).toHaveTextContent(FAILURE_SUMMARY);
-        expect(match).toHaveAttribute("data-seq", String(failure.seq));
-        await waitFor(() => expect(scrolledTo.mock.contexts).toContain(match));
-        expect(within(terminal).getByTestId("unit-transcript-chosen")).toHaveTextContent(
-          `Showing the output of event ${failure.seq}.`,
-        );
+        expect(row).toHaveTextContent(failure.type);
+        expect(within(row).getByText(FAILURE_SUMMARY)).toBeInTheDocument();
+        expect(row.querySelector("time")).toHaveAttribute("dateTime", failure.ts);
+        // The delivery runs in the bench's Terminal tab, not the drill-in (#1659).
+        expect(within(panels).queryByRole("region", { name: /Terminal/ })).toBeNull();
       },
     );
 
@@ -996,18 +923,23 @@ describe("Spec Bench investigate journey", { timeout: JOURNEY_TIMEOUT_MS }, () =
           (id) => ownValue(results, id)?.derivedStatus === "failed",
         );
         expect(failedCases).toEqual([FAILED_CASE]);
+        // The cases sit under the gate after B, one row each (#1659).
+        const gate = within(verify).getByTestId(`unit-verify-${GATE_AFTER_B}`);
         for (const id of failedCases) {
-          const row = within(verify).getByTestId(`unit-verify-${id}`);
-          expect(row).toHaveTextContent(`${id}${GATE_AFTER_B}failed`);
-          const evidence = within(row).getByRole("list", { name: `Evidence of ${id}` });
+          const row = within(gate).getByRole("button", { name: new RegExp(`^${id} `) });
+          expect(row).toHaveAccessibleName(/, Failed/);
+          expect(row).toHaveTextContent("tier b · high");
+          // The row opens the evidence beneath it.
+          await user.click(row);
+          const evidence = within(gate).getByRole("list", { name: `Evidence of ${id}` });
           const lines = within(evidence)
             .getAllByRole("listitem")
             .map((item) => item.textContent);
-          expect(lines).toEqual(["tier b · high confidence", FAILED_EVIDENCE, FAILED_NOTE]);
+          expect(lines).toEqual([FAILED_EVIDENCE, FAILED_NOTE]);
         }
-        expect(within(verify).getByTestId(`unit-verify-${PASSED_CASE}`)).toHaveTextContent(
-          `${PASSED_CASE}${GATE_AFTER_B}passed`,
-        );
+        expect(
+          within(gate).getByRole("button", { name: new RegExp(`^${PASSED_CASE} `) }),
+        ).toHaveAccessibleName(/, Passed/);
       },
     );
   });

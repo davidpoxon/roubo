@@ -22,13 +22,11 @@
 // The log also keeps, per unit, the span of the unit's accepted events: the ts
 // of its first and last event and how many it has, counted once per seq. The
 // span outlives a record write, which takes the events it carries out of the
-// log, so a finished unit's drill-in can still cut its transcript out of the
-// session's scrollback and tell events folded into the record from none
-// (SB-FR-013). The spans are also written to the bench's span file (a JSON
+// log, so a finished unit's drill-in can still tell events folded into the
+// record from none (SB-FR-013). The spans are also written to the bench's span file (a JSON
 // file beside the spill file in the bench workspace) each time they grow, and a
 // log made after a server restart reads them back, so a unit whose events the
-// record already carries keeps its span across a restart, as the session's
-// scrollback does. The span file goes with the workspace, like the record. A
+// record already carries keeps its span across a restart. The span file goes with the workspace, like the record. A
 // write that fails leaves the spans in memory only and refuses nothing: the
 // events themselves are in the record, the spill file or memory.
 //

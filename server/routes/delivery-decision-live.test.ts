@@ -47,7 +47,7 @@ vi.mock("../services/delivery-session-launcher.js", () => ({
   whenDeliveryBound: vi.fn(async () => undefined),
 }));
 vi.mock("../services/terminal.js", () => ({
-  getSessionScrollback: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 import * as benchManager from "../services/bench-manager.js";

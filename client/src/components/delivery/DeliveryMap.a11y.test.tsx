@@ -9,7 +9,7 @@ import { THEMES, renderInTheme, resetTheme } from "../../test/themes";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
 import { renderWithProviders } from "../../test/renderWithProviders";
 
-// A unit's drill-in reads its events, diff and transcript.
+// A unit's drill-in reads its events and its diff.
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
   return {
@@ -17,7 +17,6 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchDelivery: vi.fn(),
     fetchDeliveryEvents: vi.fn(),
     fetchDeliveryUnitDiff: vi.fn(),
-    fetchDeliveryUnitTranscript: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
@@ -39,13 +38,6 @@ beforeEach(() => {
     head: null,
     diff: "",
     truncated: false,
-  }));
-  vi.mocked(api.fetchDeliveryUnitTranscript).mockImplementation(async (_p, _b, unit) => ({
-    unit,
-    sessionId: null,
-    from: null,
-    to: null,
-    lines: [],
   }));
 });
 

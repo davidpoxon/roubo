@@ -190,6 +190,8 @@ export interface DeliveryProgressCount {
 // request, so a view can open the record and link the pull request.
 export interface DeliveryCaseProgress {
   id: string;
+  // The case's title in the plan, or null for a gating id the plan lacks.
+  title: string | null;
   met: boolean;
   // The result the case is read by, exactly as the met reading takes it (see
   // `computeProgress`). Null when the results are absent or not current, or no
@@ -1427,6 +1429,7 @@ function computeProgress(
     const metByUnit = metBy === null ? undefined : ownValue(state.unitsById, metBy);
     caseList.push({
       id,
+      title: planCaseById.get(id)?.title ?? null,
       met: caseMet,
       result: result ?? null,
       metBy,
