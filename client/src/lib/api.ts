@@ -95,6 +95,7 @@ import {
   type DeliveryEventsResponse,
   type DeliveryReadError,
   type DeliverySnapshotResponse,
+  type DeliveryTimeResponse,
   type DeliveryUnitDiffResponse,
   type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
@@ -598,6 +599,16 @@ export function fetchDeliveryEvents(
   return request(
     `/projects/${projectId}/benches/${benchId}/delivery/events${search ? `?${search}` : ""}`,
   );
+}
+
+// Where the delivery's elapsed time went (#1671): the delivery's window and
+// each started unit's, split into agent working, waiting on the operator, at a
+// gate and no live session. The same 409 DeliveryReadError as the snapshot read.
+export function fetchDeliveryTime(
+  projectId: string,
+  benchId: number,
+): Promise<DeliveryTimeResponse> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/time`);
 }
 
 // The since-you-left digest (SB-FR-012): the units, decisions, gates and drift

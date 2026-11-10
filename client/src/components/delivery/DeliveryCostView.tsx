@@ -7,14 +7,16 @@ import DeliveryDriftLedger from "./DeliveryDriftLedger";
 import { DeliveryHealthPanel } from "./DeliveryJams";
 import DeliveryModeControl from "./DeliveryModeControl";
 import { DeliveryPanel } from "./DeliveryPanel";
+import DeliveryTimeSplit from "./DeliveryTimeSplit";
 import LifecycleControls from "./LifecycleControls";
 import RoleMatrix from "./RoleMatrix";
 
 // The body of the Delivery tab's cost view (#1623), below its breadcrumb: a
 // title row with the lifecycle badge and the lifecycle buttons, then the Burn
-// panel, the Health and Role matrix panels side by side on a wide view, the
-// Decision mode panel and the Drift ledger panel. The view only composes
-// them; each panel reads the snapshot and writes its own controls.
+// panel, the Time panel (#1671), the Health and Role matrix panels side by side
+// on a wide view, the Decision mode panel and the Drift ledger panel. The view
+// only composes them; each panel reads the snapshot or its own read and writes
+// its own controls.
 
 const BADGE_CLASS =
   "rounded-chip bg-bg-hover px-1.5 py-0.5 font-mono text-11 font-medium text-text-secondary";
@@ -63,6 +65,12 @@ export default function DeliveryCostView({
           <div className="col-span-full min-w-0">
             <DeliveryBurn snapshot={snapshot} />
           </div>
+          <DeliveryTimeSplit
+            projectId={bench.projectId}
+            benchId={bench.id}
+            seq={snapshot.seq}
+            className="col-span-full"
+          />
           <DeliveryHealthPanel
             snapshot={snapshot}
             attached={attached}

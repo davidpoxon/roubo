@@ -15,6 +15,7 @@ import {
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
+import { deriveDeliveryTimeSplit } from "@roubo/shared/delivery-time-split";
 import type { CaseResult } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
@@ -28,6 +29,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchDelivery: vi.fn(),
     fetchDeliveryEvents: vi.fn(),
     fetchDeliveryUnitDiff: vi.fn(),
+    fetchDeliveryTime: vi.fn(),
     fetchTerminals: vi.fn(),
     resumeDelivery: vi.fn(),
     launchDelivery: vi.fn(),
@@ -141,6 +143,10 @@ beforeEach(() => {
     diff: "",
     truncated: false,
   }));
+  vi.mocked(api.fetchDeliveryTime).mockReset();
+  vi.mocked(api.fetchDeliveryTime).mockImplementation(async () =>
+    deriveDeliveryTimeSplit({ record, events: [...log], now: Date.parse("2026-10-16T10:00:00Z") }),
+  );
   vi.mocked(api.fetchTerminals).mockReset();
   vi.mocked(api.fetchTerminals).mockResolvedValue([]);
 });
@@ -553,7 +559,33 @@ describe("Unit drill-in", () => {
     expect(within(verify).getByTestId("unit-verify-empty")).toHaveTextContent(
       "No verify results for unit D: no gate after it names a case.",
     );
+    const time = within(drillIn).getByRole("region", { name: "Time of unit D" });
+    // D is done in the record and the history starts at seq 8, so D finished
+    // before it: the panel says D has no time there, not that it never started.
+    expect(
+      await within(time).findByText("Unit D has no time in the event history."),
+    ).toBeInTheDocument();
     expect(within(drillIn).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("#1671 shows the unit's time split below the timeline and the tabs", async () => {
+    record = withStatus(fourUnitRecord(), { B: "pending" });
+    log = [unitEvent(8, "B", "unit.changed", { status: "running" }, at(40))];
+    renderWithProviders(<Harness />);
+
+    const drillIn = await openUnit("B");
+    const regions = within(drillIn).getAllByRole("region");
+    expect(regions[0]).toHaveAccessibleName("Timeline of unit B");
+    const time = within(drillIn).getByRole("region", { name: "Time of unit B" });
+    expect(regions.at(-1)).toBe(time);
+    // B has run since 09:40, and the split is read at 10:00.
+    const agent = await within(time).findByTestId("unit-time-agent");
+    expect(agent).toHaveTextContent("Agent working");
+    expect(agent).toHaveTextContent("20m");
+    expect(agent).toHaveTextContent("20 minutes, 100 percent");
+    expect(within(time).getByTestId("unit-time-operator")).toHaveTextContent("0 percent");
+    expect(within(time).getByTestId("unit-time-total")).toHaveTextContent("20 minutes");
+    expect(time).toHaveTextContent("from 2026-10-16 09:40 UTC");
   });
 
   it("lists the verify results as rows under their gate, each opening its evidence (#1659)", async () => {

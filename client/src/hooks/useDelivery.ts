@@ -25,6 +25,27 @@ export function useDelivery(projectId: string, benchId: number) {
   });
 }
 
+// How often the time split is read again while no event lands, so the open
+// part grows as the burn strip's elapsed time does. An ended delivery's split
+// no longer grows, so it is not read again on a timer.
+export const DELIVERY_TIME_REFETCH_MS = 60_000;
+
+/**
+ * Where the delivery's elapsed time went (#1671), for the delivery and each
+ * started unit. The read is keyed by the snapshot's seq, so an accepted event
+ * reads it again; the delivery view and a unit's drill-in share the one read.
+ */
+export function useDeliveryTime(projectId: string, benchId: number, seq: number) {
+  return useQuery({
+    queryKey: ["delivery-time", projectId, benchId, seq] as const,
+    queryFn: () => api.fetchDeliveryTime(projectId, benchId),
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.open === false ? false : DELIVERY_TIME_REFETCH_MS,
+    placeholderData: (previous) => previous,
+  });
+}
+
 /**
  * The pull-request diff of a unit's layer (SB-FR-013). A diff between two
  * commits never changes, so the read is keyed by the unit's head and never goes

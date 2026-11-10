@@ -45,6 +45,7 @@ import {
   type DeliveryRecord,
 } from "@roubo/shared/delivery-observation-contract";
 import { foldDelivery, type DeliveryResults } from "@roubo/shared/delivery-reducer";
+import { deriveDeliveryTimeSplit } from "@roubo/shared/delivery-time-split";
 import {
   DELIVERY_CONTROLS_HOOK_PATH,
   DELIVERY_EVENT_HOOK_PATH,
@@ -412,6 +413,12 @@ class RouboServerStandIn {
       return this.readEvents(Number(match[1]), url.searchParams);
     }
     if (
+      (match = new RegExp(`^${base}/benches/(\\d+)/delivery/time$`).exec(path)) &&
+      method === "GET"
+    ) {
+      return this.readTime(Number(match[1]));
+    }
+    if (
       (match = new RegExp(`^${base}/benches/(\\d+)/delivery/units/([^/]+)/diff$`).exec(path)) &&
       method === "GET"
     ) {
@@ -507,6 +514,18 @@ class RouboServerStandIn {
     return respond(
       200,
       foldDelivery({ record: loaded.record, events, ...verify, now: Date.now() }),
+    );
+  }
+
+  // GET /delivery/time splits the record and the accepted events, as the real
+  // route does with the outbox and the log (#1671).
+  private readTime(benchId: number): StandInResponse {
+    const loaded = this.loadRecord(benchId);
+    if (!loaded.ok) return respond(409, loaded.error);
+    const events = this.events.get(benchId) ?? [];
+    return respond(
+      200,
+      deriveDeliveryTimeSplit({ record: loaded.record, events, now: Date.now() }),
     );
   }
 

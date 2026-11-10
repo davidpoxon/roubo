@@ -554,8 +554,10 @@ import {
   type DeliveryCrossCheckResponse,
   type DeliveryEventsResponse,
   type DeliverySnapshotResponse,
+  type DeliveryTimeResponse,
   type DeliveryUnitDiffResponse,
 } from "@roubo/shared/delivery-bench";
+import { deriveDeliveryTimeSplit } from "@roubo/shared/delivery-time-split";
 import {
   AGENT_AUTHOR,
   DELIVERY_TEXT_MAX_LENGTH,
@@ -790,6 +792,34 @@ router.get("/:projectId/benches/:id/delivery/events", deliveryReadRateLimiter, (
   res.json(body);
 });
 
+// Where the delivery's elapsed time went (#1671): the split of the record and
+// every event the bench holds, the record's from the outbox and the ones above
+// it from the log, which never share a seq.
+router.get("/:projectId/benches/:id/delivery/time", deliveryReadRateLimiter, (req, res) => {
+  const bench = specBenchOf(req, res);
+  if (!bench) return;
+  const loaded = loadBenchDeliveryRecord(bench);
+  if (!loaded.ok) {
+    res.status(409).json(loaded.error);
+    return;
+  }
+  const events = [
+    ...carriedEvents(bench, loaded.record),
+    ...deliveryEventsAfterRecord(
+      bench.projectId,
+      bench.id,
+      loaded.record,
+      benchDeliveryEventSpillPath(bench),
+    ),
+  ];
+  const body: DeliveryTimeResponse = deriveDeliveryTimeSplit({
+    record: loaded.record,
+    events,
+    now: Date.now(),
+  });
+  res.json(body);
+});
+
 router.get(
   "/:projectId/benches/:id/delivery/crosscheck",
   deliveryReadRateLimiter,
@@ -808,10 +838,10 @@ router.get(
 
 // ── Unit drill-in reads (SB-FR-013) ──
 
-// The unit's events at or below the record's last_event_seq, from the
-// delivery outbox in the bench workspace, in seq order (#1659). An outbox
-// whose path would leave the workspace gives none.
-function unitCarriedEvents(bench: Bench, record: DeliveryRecord, unitId: string): DeliveryEvent[] {
+// The events at or below the record's last_event_seq, from the delivery
+// outbox in the bench workspace, in seq order (#1659). An outbox whose path
+// would leave the workspace gives none.
+function carriedEvents(bench: Bench, record: DeliveryRecord): DeliveryEvent[] {
   let outboxPath: string;
   try {
     outboxPath = benchDeliveryOutboxPath(bench);
@@ -820,8 +850,13 @@ function unitCarriedEvents(bench: Bench, record: DeliveryRecord, unitId: string)
     throw err;
   }
   return readDeliveryOutbox(outboxPath, record.delivery_id).filter(
-    (event) => event.seq <= record.last_event_seq && event.unit_id === unitId,
+    (event) => event.seq <= record.last_event_seq,
   );
+}
+
+// The unit's events among carriedEvents.
+function unitCarriedEvents(bench: Bench, record: DeliveryRecord, unitId: string): DeliveryEvent[] {
+  return carriedEvents(bench, record).filter((event) => event.unit_id === unitId);
 }
 
 // A unit's head and the lower layer's head are commits the session wrote into

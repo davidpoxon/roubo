@@ -75,8 +75,8 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 // (DeliveryCostView, #1623) holds a title row with the lifecycle badge and the
 // lifecycle controls (SB-FR-022), among them Approve, which waits while a
 // review is open (SB-FR-034), a gating case is unmet or the cross-check holds a
-// blocking class (SB-FR-029); then the burn meter (SB-FR-018), the health line
-// and the jams (SB-FR-019), the role matrix (SB-FR-021), the Mode switch
+// blocking class (SB-FR-029); then the burn meter (SB-FR-018), the time split
+// (#1671), the health line and the jams (SB-FR-019), the role matrix (SB-FR-021), the Mode switch
 // (SB-FR-032) and the drift ledger (SB-FR-020), each in its own panel. A jam's
 // Open button opens its unit's drill-in.
 //

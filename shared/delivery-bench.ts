@@ -19,6 +19,7 @@ import {
   type DeliveryRecord,
 } from "./delivery-observation-contract";
 import { classifyUnitStatus, type DeliverySnapshot } from "./delivery-reducer";
+import type { DeliveryTimeSplit } from "./delivery-time-split";
 import type { BenchDeliverySitting, SpecBenchDecisionMode } from "./types";
 
 // ── Routes ──
@@ -28,6 +29,8 @@ import type { BenchDeliverySitting, SpecBenchDecisionMode } from "./types";
 //   GET  <base>          the folded snapshot, or a named read error
 //   GET  <base>/events   the accepted events above a seq, for one unit or all
 //                        (DeliveryEventsResponse), or the same named read error
+//   GET  <base>/time     where the delivery's elapsed time went, for the
+//                        delivery and each unit (DeliveryTimeResponse, #1671)
 //   GET  <base>/digest   the since-you-left digest above the bench's last viewed
 //                        seq (DeliveryDigest, see delivery-digest.ts)
 //   POST <base>/digest/seen
@@ -175,6 +178,15 @@ export interface DeliveryEventsResponse {
   acceptedSeq: number;
   folded?: number;
 }
+
+// ── Time read (#1671) ──
+//
+// The body of GET <base>/time: the delivery's elapsed time, and each started
+// unit's, split into agent working, waiting on the operator, at a gate and no
+// live session (see delivery-time-split.ts). It is derived from the record and
+// every event the bench holds: the tooling's DELIVERY_OUTBOX_FILE for the
+// events at or below the record's `last_event_seq`, the event log above it.
+export type DeliveryTimeResponse = DeliveryTimeSplit;
 
 // ── Unit drill-in reads (SB-FR-013) ──
 
