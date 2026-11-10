@@ -332,6 +332,15 @@ describe("loadEnvFile called again", () => {
     expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
     expect(process.env.ROUBO_BUNDLED_PLUGINS_DIR).toBe("/boot/bundled");
   });
+
+  it("keeps the app log dir as boot set it, since the app log creates its folder once", async () => {
+    delete process.env.ROUBO_APP_LOG_DIR;
+    await load("ROUBO_APP_LOG_DIR=/x/a");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    expect(await load("ROUBO_APP_LOG_DIR=/x/b")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+  });
 });
 
 describe("importLoginShellEnv", () => {
