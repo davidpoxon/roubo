@@ -220,6 +220,34 @@ describe("loadSettings", () => {
     expect(stateModule.loadSettings().theme).toBe("dark");
   });
 
+  it("HR-TC-034 serves the settings the app last saved, not the last read, when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", benches: { maxGlobal: 4 } }));
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    stateModule.saveSettings({
+      theme: "light",
+      benches: { ...DEFAULT_BENCH_SETTINGS, maxGlobal: 9 },
+    });
+    readFileSync.mockReturnValue("{");
+    const served = stateModule.loadSettings();
+
+    expect(served.theme).toBe("light");
+    expect(served.benches?.maxGlobal).toBe(9);
+  });
+
+  it("HR-TC-034 serves the settings the legacy agent seam last wrote when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark" }));
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light" }));
+    stateModule.writeLegacyAgentSettings({ autoMode: true });
+    readFileSync.mockReturnValue("{");
+
+    expect(stateModule.loadSettings().theme).toBe("light");
+  });
+
   it("throws on malformed JSON when throwOnCorrupt is set, but stays fail-open by default", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue("not valid json{{{");
