@@ -507,8 +507,8 @@ function defaultSettings(): UserPreferences {
 /**
  * The settings of the last read of settings.json that parsed or of the app's
  * last write of it, whichever came later, or null when neither has happened yet
- * in this process. A hand edit that leaves the file unparseable keeps serving
- * it (HR-TC-034).
+ * in this process. A hand edit that leaves the file unparseable, or with a top
+ * level that is not an object, keeps serving it (HR-TC-034).
  */
 let lastGoodSettings: UserPreferences | null = null;
 
@@ -518,12 +518,20 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
     return defaultSettings();
   }
   try {
-    const settings = parseSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8")));
+    const raw: unknown = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    // Valid JSON that is not an object ('[]', '"x"', '1', 'true', 'null') is as
+    // corrupt as JSON that does not parse: parseSettings would fill every field
+    // from the defaults and serve those as if the file had asked for them.
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error("settings.json must hold a JSON object at the top level");
+    }
+    const settings = parseSettings(raw);
     lastGoodSettings = structuredClone(settings);
     return settings;
   } catch (err) {
-    // Fail-open by default: a corrupt settings.json yields the last settings
-    // that parsed in this process, or the built-in defaults when none has yet,
+    // Fail-open by default: a corrupt settings.json (one that does not parse,
+    // or whose top level is not an object) yields the last settings that
+    // parsed in this process, or the built-in defaults when none has yet,
     // so the app keeps working. Callers that need to distinguish corruption
     // from a legitimately-default config (e.g. the global bench-cap check,
     // which warns once per process load) opt in via throwOnCorrupt. A missing
