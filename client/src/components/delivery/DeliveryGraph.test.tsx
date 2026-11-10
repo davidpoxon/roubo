@@ -200,6 +200,30 @@ describe("DeliveryGraph layout", () => {
     }
   });
 
+  it("settles around each of several drops without growing or leaving an overlap", () => {
+    const record = fanOutRecord(40, 3, true);
+    for (const aspect of [0.42, 1, 4]) {
+      const fresh = layoutOf(record, { aspect });
+      let positions = positionsOf(record, { aspect });
+      let kept: KeptGraphLayout | undefined;
+      for (const key of ["unit:F2", "unit:F9", "unit:F19"]) {
+        const at = positions.get(key) ?? { x: 0, y: 0 };
+        kept = {
+          positions: {
+            ...Object.fromEntries(positions),
+            [key]: { x: at.x + 30, y: at.y + 20 },
+          },
+          pinned: [...(kept?.pinned ?? []), key],
+        };
+        positions = positionsOf(record, { aspect, kept });
+        const layout = layoutOf(record, { aspect, kept });
+        expect(overlaps(layout)).toEqual([]);
+        expect(layout.width).toBeLessThanOrEqual(fresh.width * 1.5);
+        expect(layout.height).toBeLessThanOrEqual(fresh.height * 1.5);
+      }
+    }
+  });
+
   it("moves the node pinned later off a node pinned earlier", () => {
     const record = fourUnitRecord();
     const positions = Object.fromEntries(positionsOf(record));

@@ -267,8 +267,6 @@ const LINK_DISTANCE = NODE_WIDTH + 64;
 const START_COLUMN = NODE_WIDTH + 72;
 const START_ROW = NODE_HEIGHT + GATE_HEIGHT + 3 * NODE_GAP;
 const TICKS = 300;
-// A layout that starts from kept positions only settles: it starts cooler.
-const SETTLE_ALPHA = 0.3;
 // How the overlap removal and the fit to the viewport's shape are bounded.
 const SEPARATE_PASSES = 60;
 const SPREAD_ROUNDS = 40;
@@ -454,12 +452,14 @@ function seededRandom(): () => number {
 // graph along the viewport's long side. `strength` is the share of the overlap that one
 // call removes. A fixed node does not move; the other one takes the push. Of
 // two fixed nodes, the one pinned later takes it and stays fixed where it
-// lands. Returns whether any pair overlapped.
+// lands. Returns whether any pair overlapped, and adds each node of an
+// overlapping pair to `touched` when it is given.
 function separate(
   nodes: readonly SimNode[],
   strength: number,
   onVelocity: boolean,
   aspect: number,
+  touched?: Set<SimNode>,
 ): boolean {
   let overlapped = false;
   for (let i = 0; i < nodes.length; i += 1) {
@@ -478,6 +478,8 @@ function separate(
       const overlapY = (a.height + b.height) / 2 + NODE_GAP - Math.abs(dy);
       if (overlapX <= 0 || overlapY <= 0) continue;
       overlapped = true;
+      touched?.add(a);
+      touched?.add(b);
       const aFixed = a.fx !== undefined && a.fx !== null;
       const bFixed = b.fx !== undefined && b.fx !== null;
       const shareA =
@@ -510,22 +512,28 @@ function separate(
   return overlapped;
 }
 
-// Takes out every overlap the forces left. Pairwise pushes can push a node
-// into a third one, so it repeats them until no pair overlaps; when a dense
-// cluster does not settle that way, it spreads the free nodes away from the
-// middle a little and tries again.
-function removeOverlaps(nodes: readonly SimNode[], aspect: number): void {
-  for (let round = 0; round < SPREAD_ROUNDS; round += 1) {
+// Takes out the overlaps the forces left. Pairwise pushes can push a node
+// into a third one, so it repeats them, up to SEPARATE_PASSES, until no pair
+// overlaps; when a dense cluster does not settle that way, it moves the
+// free nodes still in an overlap a little away from the middle and tries
+// again, up to SPREAD_ROUNDS times. The rest of the graph stays put. It
+// always ends on a round of pushes, never on a spread, and returns whether
+// an overlap is left.
+function removeOverlaps(nodes: readonly SimNode[], aspect: number): boolean {
+  for (let round = 0; ; round += 1) {
+    const touched = new Set<SimNode>();
     for (let pass = 0; pass < SEPARATE_PASSES; pass += 1) {
-      if (!separate(nodes, 1, false, aspect)) return;
+      touched.clear();
+      if (!separate(nodes, 1, false, aspect, touched)) return false;
     }
     const free = nodes.filter((node) => node.fx === undefined || node.fx === null);
-    if (free.length === 0) return;
+    const stuck = free.filter((node) => touched.has(node));
+    if (round === SPREAD_ROUNDS || stuck.length === 0) return true;
     const middle = {
       x: free.reduce((sum, node) => sum + (node.x ?? 0), 0) / free.length,
       y: free.reduce((sum, node) => sum + (node.y ?? 0), 0) / free.length,
     };
-    for (const node of free) {
+    for (const node of stuck) {
       node.x = middle.x + ((node.x ?? 0) - middle.x) * SPREAD;
       node.y = middle.y + ((node.y ?? 0) - middle.y) * SPREAD;
     }
@@ -701,10 +709,11 @@ function seedPositions(topology: GraphTopology, aspect: number): Map<string, Gra
 }
 
 // Places every unit and gate of a delivery: node centres in graph space, by
-// map key. `kept` holds the positions a node drag kept: the simulation then
-// starts from them and only settles, the pinned nodes stay where they are
-// (but for one dropped onto another, which is moved off it), and a node the
-// kept layout does not know starts beside the nodes it links.
+// map key. `kept` holds the positions a node drag kept: no force run then
+// takes place, and the nodes only move apart where they overlap. The pinned
+// nodes stay where they are (but for one dropped onto another, which is
+// moved off it), and a node the kept layout does not know starts beside the
+// nodes it links.
 export function simulateDeliveryGraph(
   topology: GraphTopology,
   options: { aspect?: number; kept?: KeptGraphLayout | undefined } = {},
@@ -758,14 +767,12 @@ export function simulateDeliveryGraph(
 
   // Put back what the kept layout holds, and start any node it does not hold
   // beside its linked nodes.
-  let keptCount = 0;
   if (kept !== undefined) {
     for (const node of nodes) {
       const at = keptAt(node.key);
       if (at === undefined) continue;
       node.x = at.x;
       node.y = at.y;
-      keptCount += 1;
       const rank = pinned.get(node.key);
       if (rank !== undefined) {
         node.fx = at.x;
@@ -786,6 +793,15 @@ export function simulateDeliveryGraph(
         neighbours.reduce((sum, at) => sum + at.x, 0) / neighbours.length + LINK_DISTANCE / 2;
       node.y = neighbours.reduce((sum, at) => sum + at.y, 0) / neighbours.length;
     }
+  }
+
+  // A kept layout is the operator's shape: the nodes only make room for the
+  // dropped one, and for any node the kept layout does not know. A force run
+  // from it would draw the graph back into the shape the forces alone give,
+  // which the fit to the viewport below has stretched away from.
+  if (kept !== undefined) {
+    removeOverlaps(nodes, aspect);
+    return new Map(nodes.map((node) => [node.key, { x: node.x ?? 0, y: node.y ?? 0 }]));
   }
 
   // A wide viewport pulls harder toward the middle line across it than along
@@ -810,10 +826,8 @@ export function simulateDeliveryGraph(
     .force("stack", stackCohesion(0.02))
     .force("collide", rectangleCollision(aspect))
     .stop();
-  if (keptCount > 0 && keptCount === nodes.length) simulation.alpha(SETTLE_ALPHA);
   simulation.tick(TICKS);
-  // A kept layout is the operator's shape; only a fresh one is fitted.
-  if (kept === undefined) fitToAspect(nodes, aspect);
+  fitToAspect(nodes, aspect);
   removeOverlaps(nodes, aspect);
 
   return new Map(nodes.map((node) => [node.key, { x: node.x ?? 0, y: node.y ?? 0 }]));

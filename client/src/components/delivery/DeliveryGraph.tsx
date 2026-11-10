@@ -42,8 +42,8 @@ import { MAX_ZOOM, MIN_ZOOM, type ViewportSize } from "./graph-viewport";
 // The graph takes the height of the map panel (#1655) and shows in a viewport
 // that pans and zooms (useGraphViewport), with zoom out, zoom in, Fit and
 // Reset layout over its bottom right corner. A drag of a node moves it: the
-// map keeps where it was dropped (onMoveNode), and the other nodes settle
-// around it. A node that takes the focus is panned into view, so Tab walks
+// map keeps where it was dropped (onMoveNode), and the other nodes move only
+// to make room for it. A node that takes the focus is panned into view, so Tab walks
 // the whole graph. The nodes and gates sit in the DOM in dependency order, so
 // Tab walks them in that order whatever their place on the canvas. The edges
 // are decorative: each node names its dependencies for the screen reader.
