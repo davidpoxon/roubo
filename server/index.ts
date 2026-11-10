@@ -373,6 +373,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
 
+  // One update check per launch: a later .env edit of ROUBO_VERSION or
+  // ROUBO_QUIET starts no new check until the next launch. Nothing is cached
+  // from them, so a reload leaves no state behind.
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
   }
