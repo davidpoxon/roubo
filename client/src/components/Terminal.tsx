@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import type { AgentLaunchFailure, SessionUnexpectedExit } from "@roubo/shared";
-import { useTerminalConnection } from "../hooks/useTerminalConnection";
+import { useTerminalConnection, type PtySize } from "../hooks/useTerminalConnection";
 import ReconnectBanner from "./ReconnectBanner";
 import WaitingBanner from "./WaitingBanner";
 import AgentLaunchFailurePanel from "./AgentLaunchFailurePanel";
@@ -51,6 +51,20 @@ function terminalTheme(): ITheme {
       .trim();
   }
   return theme;
+}
+
+/**
+ * Whether a terminal's container has a size to fit to. Under a display:none
+ * ancestor it measures 0x0; a container with either dimension at 0 cannot be
+ * fitted either, so every caller treats that the same way.
+ */
+function canFit(el: HTMLElement): boolean {
+  return el.offsetWidth > 0 && el.offsetHeight > 0;
+}
+
+/** A terminal dimension the PTY can have: a positive whole number of cells. */
+function isCellCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 /**
@@ -125,6 +139,9 @@ export default function Terminal({
   // Only fits when the container has non-zero dimensions: prevents sending
   // tiny cols to the PTY when mounted inside a display:none ancestor.
   const safeFitRef = useRef<(() => boolean) | null>(null);
+  // Set while the terminal takes the PTY's size, so term.onResize does not send
+  // that size back to a PTY that already has it.
+  const adoptingPtySizeRef = useRef(false);
 
   // Initialize xterm instance
   useEffect(() => {
@@ -186,7 +203,7 @@ export default function Terminal({
 
     const safeFit = () => {
       const el = containerRef.current;
-      if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+      if (!el || !canFit(el)) return false;
       fit.fit();
       return true;
     };
@@ -227,6 +244,27 @@ export default function Terminal({
     };
   }, [sessionId]);
 
+  // A terminal mounted under display:none (an inactive session tab, or the
+  // force-mounted Terminal panel while another bench tab is open) cannot fit
+  // its container, so xterm stays at its 80x24 default. Output drawn for a
+  // wider PTY and parsed at 80x24 stays garbled once the panel is shown: the
+  // fit then matches the PTY's size, so the agent gets no SIGWINCH and never
+  // redraws (#1661). Until it can fit, the terminal takes the PTY's size.
+  const adoptPtySize = useCallback((size: Partial<PtySize> | undefined) => {
+    const term = termRef.current;
+    const el = containerRef.current;
+    if (!term || !el || canFit(el)) return;
+    const { cols, rows } = size ?? {};
+    if (!isCellCount(cols) || !isCellCount(rows)) return;
+    if (term.cols === cols && term.rows === rows) return;
+    adoptingPtySizeRef.current = true;
+    try {
+      term.resize(cols, rows);
+    } finally {
+      adoptingPtySizeRef.current = false;
+    }
+  }, []);
+
   // The failure is replayed, not just pushed live, so reattaching to an already
   // dead session still shows the panel rather than a bare exit code.
   const onReplay = useCallback(
@@ -235,9 +273,11 @@ export default function Terminal({
       exitCode?: number,
       failure?: AgentLaunchFailure,
       unexpected?: SessionUnexpectedExit,
+      size?: PtySize,
     ) => {
       const term = termRef.current;
       if (!term) return;
+      adoptPtySize(size);
       for (const line of lines) {
         term.write(line);
       }
@@ -252,7 +292,7 @@ export default function Terminal({
       if (failure) setSocketFailure(failure);
       if (unexpected) setUnexpectedExit(unexpected);
     },
-    [],
+    [adoptPtySize],
   );
 
   const onMessage = useCallback(
@@ -260,6 +300,8 @@ export default function Terminal({
       type: string;
       data?: string;
       code?: number;
+      cols?: number;
+      rows?: number;
       launchFailure?: AgentLaunchFailure;
       unexpectedExit?: SessionUnexpectedExit;
     }) => {
@@ -280,9 +322,12 @@ export default function Terminal({
         term.write(exitLine(msg.code, msg.unexpectedExit));
         if (msg.launchFailure) setSocketFailure(msg.launchFailure);
         if (msg.unexpectedExit) setUnexpectedExit(msg.unexpectedExit);
+      } else if (msg.type === "pty-size") {
+        // Another viewer resized the shared PTY.
+        adoptPtySize(msg);
       }
     },
-    [],
+    [adoptPtySize],
   );
 
   const { wsRef, state, attempt, retry } = useTerminalConnection({
@@ -306,6 +351,7 @@ export default function Terminal({
     });
 
     const resizeDisposable = term.onResize(({ cols, rows }) => {
+      if (adoptingPtySizeRef.current) return;
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "resize", cols, rows }));
@@ -363,9 +409,9 @@ export default function Terminal({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    let shown = el.offsetWidth > 0 && el.offsetHeight > 0;
+    let shown = canFit(el);
     const observer = new ResizeObserver(() => {
-      const nowShown = el.offsetWidth > 0 && el.offsetHeight > 0;
+      const nowShown = canFit(el);
       if (nowShown && !shown) announceSize();
       shown = nowShown;
     });

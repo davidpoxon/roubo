@@ -19,8 +19,17 @@ export interface TerminalSocketMessage {
   type: string;
   data?: string;
   code?: number;
+  /** The PTY's size, on a `pty-size` frame sent when another viewer resizes it. */
+  cols?: number;
+  rows?: number;
   launchFailure?: AgentLaunchFailure;
   unexpectedExit?: SessionUnexpectedExit;
+}
+
+/** The size a PTY reported, in character cells. */
+export interface PtySize {
+  cols: number;
+  rows: number;
 }
 
 interface UseTerminalConnectionOptions {
@@ -30,6 +39,7 @@ interface UseTerminalConnectionOptions {
     exitCode?: number,
     launchFailure?: AgentLaunchFailure,
     unexpectedExit?: SessionUnexpectedExit,
+    size?: PtySize,
   ) => void;
   onMessage: (msg: TerminalSocketMessage) => void;
 }
@@ -83,7 +93,13 @@ export function useTerminalConnection({
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "replay") {
-          onReplayRef.current(msg.lines, msg.exitCode, msg.launchFailure, msg.unexpectedExit);
+          // A replay carries the PTY's size, unless the session was restored
+          // from disk without a live PTY.
+          const size =
+            typeof msg.cols === "number" && typeof msg.rows === "number"
+              ? { cols: msg.cols, rows: msg.rows }
+              : undefined;
+          onReplayRef.current(msg.lines, msg.exitCode, msg.launchFailure, msg.unexpectedExit, size);
         } else if (msg.type === "ping") {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "pong" }));
