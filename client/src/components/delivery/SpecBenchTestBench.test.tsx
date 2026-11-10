@@ -1190,6 +1190,88 @@ describe("Spec Bench test bench tab", () => {
       expect(within(detail).getByRole("button", { name: /Case status/ })).toBeDisabled();
     });
 
+    it("keeps the sitting's draft, its counts and the chosen case of All cases across a switch of view", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.fetchDelivery).mockResolvedValue(
+        snapshot({ gateId: "gate-after-b", state: "open" }),
+      );
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+      const list = await screen.findByRole("list", {
+        name: "Escalated cases of gate gate-after-b",
+      });
+      const first = await openCase(user, list, "FX-TC-001");
+      await user.click(
+        within(first).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
+      );
+      await user.type(
+        within(screen.getByRole("form", { name: "Not met evidence for FX-TC-001" })).getByRole(
+          "textbox",
+          { name: "Note" },
+        ),
+        "Half typed.",
+      );
+      const counts = screen.getByTestId("sitting-counts").textContent;
+
+      await user.click(screen.getByRole("tab", { name: "All cases" }));
+      expect(screen.queryByRole("region", { name: "Case FX-TC-001" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Cases" }));
+      await user.click((await screen.findAllByTestId("case-row"))[1]);
+      expect(
+        screen.getByRole("region", { name: "Case detail: Case FX-TC-002" }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: "Gate sitting" }));
+      expect(screen.getByRole("region", { name: "Case FX-TC-001" })).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("form", { name: "Not met evidence for FX-TC-001" })).getByRole(
+          "textbox",
+          { name: "Note" },
+        ),
+      ).toHaveValue("Half typed.");
+      expect(screen.getByTestId("sitting-counts").textContent).toBe(counts);
+      expect(api.fetchDelivery).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole("tab", { name: "All cases" }));
+      expect(
+        screen.getByRole("region", { name: "Case detail: Case FX-TC-002" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the read-only TestBench under the error when the delivery record cannot be read", async () => {
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new api.ApiError("No delivery record", 409, "DELIVERY_RECORD_MISSING"),
+      );
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+      expect(await screen.findByRole("alert")).toHaveTextContent("No delivery record");
+      expect(screen.getByTestId("specbench-no-sitting")).toHaveTextContent(NO_SITTING_NOTICE);
+      expect(screen.getByRole("group", { name: "TestBench view" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Change focused spec" })).toBeNull();
+    });
+
+    it("offers the lifecycle actions and the add-note form on a sitting case only once the sitting is open", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.fetchDelivery).mockResolvedValue(
+        snapshot({ gateId: "gate-after-b", state: "ready" }),
+      );
+      const view = renderWithProviders(<SpecBenchTestBench bench={bench} />);
+      let list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+      let panel = await openCase(user, list, "FX-TC-001");
+      expect(within(panel).queryByTestId("case-retire-open")).toBeNull();
+      await user.click(within(panel).getByRole("button", { name: /^Notes \(/ }));
+      expect(within(panel).queryByRole("textbox", { name: "Add a note" })).toBeNull();
+      view.unmount();
+
+      vi.mocked(api.fetchDelivery).mockResolvedValue(
+        snapshot({ gateId: "gate-after-b", state: "open" }),
+      );
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+      list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+      panel = await openCase(user, list, "FX-TC-001");
+      expect(within(panel).getByTestId("case-retire-open")).toBeInTheDocument();
+      await user.click(within(panel).getByRole("button", { name: /^Notes \(/ }));
+      expect(within(panel).getByRole("textbox", { name: "Add a note" })).toBeInTheDocument();
+    });
+
     it("names the case file of the spec folder", () => {
       expect(specCasesPath("/repo/.specifications/fixture-spec")).toBe(
         "/repo/.specifications/fixture-spec/test-cases.json",

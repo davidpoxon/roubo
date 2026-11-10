@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useId, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
@@ -64,6 +64,11 @@ export const NO_SITTING_NOTICE =
 
 type TestBenchView = "sitting" | "all";
 
+/** Hides a view of the tab that is not selected. It stays mounted, and inert. */
+function hiddenWhileInert({ isInert }: { isInert: boolean }): CSSProperties | undefined {
+  return isInert ? { display: "none" } : undefined;
+}
+
 export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
   const delivery = useDelivery(bench.projectId, bench.id);
   const sitting = delivery.data?.sitting;
@@ -95,7 +100,10 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
           {delivery.error.message}
         </Callout>
       )}
-      {delivery.isSuccess && sitting === undefined && (
+      {/* The reads of the TestBench do not need the delivery record, so the
+          cases show when the record cannot be read too. With no sitting known,
+          the surface stays read-only. */}
+      {(delivery.isError || (delivery.isSuccess && sitting === undefined)) && (
         <>
           <p
             role="status"
@@ -109,7 +117,10 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
       )}
       {delivery.isSuccess && sitting !== undefined && (
         // A sitting shows first. The tab opens on it when the delivery reaches a
-        // gate, and All cases keeps the whole spec one press away.
+        // gate, and All cases keeps the whole spec one press away. Both views
+        // stay mounted and the hidden one is not displayed, so a switch keeps
+        // the sitting's drafts, staged states and held split, and the chosen
+        // case of All cases.
         <Tabs
           defaultSelectedKey={"sitting" satisfies TestBenchView}
           className="flex min-h-0 flex-1 flex-col"
@@ -122,12 +133,16 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
             id={"sitting" satisfies TestBenchView}
             aria-label="Gate sitting"
             className="min-h-0 flex-1 overflow-auto pt-4"
+            shouldForceMount
+            style={hiddenWhileInert}
           >
             <Sitting bench={bench} snapshot={delivery.data} sitting={sitting} />
           </TabPanel>
           <TabPanel
             id={"all" satisfies TestBenchView}
             className="flex min-h-0 flex-1 flex-col pt-4"
+            shouldForceMount
+            style={hiddenWhileInert}
           >
             {allCases}
           </TabPanel>
