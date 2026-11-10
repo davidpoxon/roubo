@@ -1636,7 +1636,7 @@ describe("Spec Bench gate sitting journey", () => {
         await waitFor(
           () =>
             expect(
-              within(screen.getByTestId("specbench-testbench")).getByText(/No gate sitting yet/),
+              within(screen.getByTestId("specbench-testbench")).getByTestId("specbench-no-sitting"),
             ).toBeInTheDocument(),
           { timeout: 3000 },
         );

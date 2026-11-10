@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useId, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Label, TextArea, TextField } from "react-aria-components";
 import type { Bench } from "@roubo/shared";
@@ -17,15 +17,22 @@ import { focusRing } from "../ui/focus-ring";
 import { FIELD_LABEL_CLASS, inputClass, STATUS_DOT_CLASSES, type StatusTone } from "../ui/styles";
 import { Tab, TabList, TabPanel, Tabs } from "../ui/Tabs";
 import CaseDetail from "../testbench/CaseDetail";
+import TestBenchPanel from "../testbench/TestBenchPanel";
 import { STATUS_DOT, STATUS_LABEL } from "../testbench/statusLabels";
 import { TestbenchApiContext, type TestbenchApi } from "../testbench/TestbenchApiContext";
 import { DeliveryPanel } from "./DeliveryPanel";
 import GateSitting from "./GateSitting";
 import { sittingPhase, type DeliverySittingView } from "./gate-sitting-model";
 import ProvisionalMarkCard from "./ProvisionalMark";
+import { specCasesPath } from "./spec-cases-path";
 import { provisionalMarkStatus, readProvisionalMark } from "./provisional-mark-model";
 
-// The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027, SB-US-009), laid
+// The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027, SB-US-009). With no
+// gate sitting, it shows the spec's full TestBench, read-only (#1653). With a
+// sitting, it shows two views: Gate sitting, described below, and All cases,
+// the same read-only TestBench.
+//
+// The Gate sitting view is laid
 // out as the design draws it (#1626): the gate sitting's banner for its phase,
 // with the stage control, then a Cases panel beside a Case panel. The Cases
 // panel lists the gate's cases, the escalated ones by default or the whole
@@ -51,11 +58,44 @@ export const GATE_CASES_STAGGER_MS = 40;
 
 const SCREENSHOT_TYPES = "image/png,image/jpeg,image/webp";
 
+/** The line the tab shows above the read-only TestBench while no sitting is open. */
+export const NO_SITTING_NOTICE =
+  "No gate sitting is open. The cases can be read now. Marks open with a gate sitting.";
+
+/**
+ * The line above the read-only TestBench while the delivery record cannot be
+ * read. The sitting state is then unknown, so it claims none.
+ */
+export const UNREAD_SITTING_NOTICE = "The cases can be read now. Marks open with a gate sitting.";
+
+type TestBenchView = "sitting" | "all";
+
+/** Hides a view of the tab that is not selected. It stays mounted, and inert. */
+function hiddenWhileInert({ isInert }: { isInert: boolean }): CSSProperties | undefined {
+  return isInert ? { display: "none" } : undefined;
+}
+
 export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
   const delivery = useDelivery(bench.projectId, bench.id);
   const sitting = delivery.data?.sitting;
+  // The full TestBench of the spec (#1653), read-only: outside a sitting the
+  // server refuses every write, and inside one the marks go through the
+  // sitting's own surface, which holds the escalated split and files fix units.
+  const allCases = (
+    <TestBenchPanel
+      projectId={bench.projectId}
+      benchId={bench.id}
+      focusedSpecPath={specCasesPath(bench.focusedSpecPath)}
+      benchStatus={bench.status}
+      readOnly
+    />
+  );
   return (
-    <section aria-label="Gate sitting" data-testid="specbench-testbench" className="space-y-4">
+    <section
+      aria-label="Test bench"
+      data-testid="specbench-testbench"
+      className="flex min-h-0 flex-1 flex-col gap-4"
+    >
       {delivery.isPending && (
         <p role="status" className="text-13 text-text-secondary">
           Reading the delivery record...
@@ -66,13 +106,54 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
           {delivery.error.message}
         </Callout>
       )}
-      {delivery.isSuccess && sitting === undefined && (
-        <p role="status" className="text-13 text-text-secondary">
-          No gate sitting yet. The escalated cases of a gate show here once the delivery reaches it.
-        </p>
+      {/* The reads of the TestBench do not need the delivery record, so the
+          cases show when the record cannot be read too. The sitting state is
+          then unknown, so the surface stays read-only and the line claims no
+          sitting state. */}
+      {(delivery.isError || (delivery.isSuccess && sitting === undefined)) && (
+        <>
+          <p
+            role="status"
+            data-testid="specbench-no-sitting"
+            className="text-13 text-text-secondary"
+          >
+            {delivery.isError ? UNREAD_SITTING_NOTICE : NO_SITTING_NOTICE}
+          </p>
+          {allCases}
+        </>
       )}
       {delivery.isSuccess && sitting !== undefined && (
-        <Sitting bench={bench} snapshot={delivery.data} sitting={sitting} />
+        // A sitting shows first. The tab opens on it when the delivery reaches a
+        // gate, and All cases keeps the whole spec one press away. Both views
+        // stay mounted and the hidden one is not displayed, so a switch keeps
+        // the sitting's drafts, staged states and held split, and the chosen
+        // case of All cases.
+        <Tabs
+          defaultSelectedKey={"sitting" satisfies TestBenchView}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <TabList aria-label="Test bench view">
+            <Tab id={"sitting" satisfies TestBenchView}>Gate sitting</Tab>
+            <Tab id={"all" satisfies TestBenchView}>All cases</Tab>
+          </TabList>
+          <TabPanel
+            id={"sitting" satisfies TestBenchView}
+            aria-label="Gate sitting"
+            className="min-h-0 flex-1 overflow-auto pt-4"
+            shouldForceMount
+            style={hiddenWhileInert}
+          >
+            <Sitting bench={bench} snapshot={delivery.data} sitting={sitting} />
+          </TabPanel>
+          <TabPanel
+            id={"all" satisfies TestBenchView}
+            className="flex min-h-0 flex-1 flex-col pt-4"
+            shouldForceMount
+            style={hiddenWhileInert}
+          >
+            {allCases}
+          </TabPanel>
+        </Tabs>
       )}
     </section>
   );

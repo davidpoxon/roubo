@@ -71,8 +71,11 @@ interface CaseDetailProps {
   // so the panel uses this to move focus onto the archived entry the case landed
   // in and to announce the outcome. Omitted in a read-only render.
   onArchived?: (caseId: string) => void;
-  // Disables the case's status control and its observation marks. A gate
-  // sitting shows its cases before it opens, and nothing is marked until then.
+  // Disables every write on the case: the status control and the observation
+  // marks are disabled, and the add-note form and the lifecycle actions are not
+  // shown. A gate sitting shows its cases before it opens, and nothing is
+  // written until then. A read-only TestBench (a Spec Bench outside a sitting)
+  // sets it too, because the server refuses those writes.
   marksDisabled?: boolean;
   // Rendered under the case's heading, before its preconditions and steps: a
   // gate sitting puts the case's Stage control here, since staging comes
@@ -333,12 +336,14 @@ export default function CaseDetail({
           {/* Lifecycle actions (#1167): the write path into the spec's own case
               file, kept at the foot of the case body so the review surface
               (steps, marks, notes) stays first. */}
-          <LifecycleControls
-            projectId={projectId}
-            benchId={benchId}
-            testCase={testCase}
-            onArchived={onArchived}
-          />
+          {!marksDisabled && (
+            <LifecycleControls
+              projectId={projectId}
+              benchId={benchId}
+              testCase={testCase}
+              onArchived={onArchived}
+            />
+          )}
         </div>
 
         {/* Inline side rail, only when the pane is wide enough (#525). When
@@ -350,7 +355,13 @@ export default function CaseDetail({
                 and scrolls its notes list internally so the "Add a note" form
                 stays reachable on a short pane (#808). */}
             <div className={`${SECTION_LABEL} mt-0 shrink-0`}>Notes</div>
-            <NotesRail projectId={projectId} benchId={benchId} caseId={testCase.id} notes={notes} />
+            <NotesRail
+              projectId={projectId}
+              benchId={benchId}
+              caseId={testCase.id}
+              notes={notes}
+              readOnly={marksDisabled}
+            />
           </div>
         )}
       </div>
@@ -366,6 +377,7 @@ export default function CaseDetail({
           benchId={benchId}
           caseId={testCase.id}
           notes={notes}
+          readOnly={marksDisabled}
         />
       )}
     </div>
@@ -600,6 +612,7 @@ interface NotesDrawerProps {
   benchId: number;
   caseId: string;
   notes: CaseResult["notes"];
+  readOnly: boolean;
 }
 
 // Bottom notes drawer for a narrow detail pane (#525). A lightweight CSS panel
@@ -608,7 +621,7 @@ interface NotesDrawerProps {
 // foot of the pane; the panel is absolutely positioned above it so the steps
 // keep the full width while the drawer is closed. State lives here (not in the
 // parent) so a parent `key={caseId}` remount resets it to closed on case change.
-function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
+function NotesDrawer({ projectId, benchId, caseId, notes, readOnly }: NotesDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const panelId = useId();
 
@@ -633,7 +646,13 @@ function NotesDrawer({ projectId, benchId, caseId, notes }: NotesDrawerProps) {
         {isOpen && (
           <div className="absolute inset-x-0 bottom-12 z-20 max-h-[60%] overflow-auto rounded-t-lg border-t border-x border-border bg-bg-surface px-4 pb-4 pt-3 shadow-lg">
             <div className={`${SECTION_LABEL} mt-0`}>Notes</div>
-            <NotesRail projectId={projectId} benchId={benchId} caseId={caseId} notes={notes} />
+            <NotesRail
+              projectId={projectId}
+              benchId={benchId}
+              caseId={caseId}
+              notes={notes}
+              readOnly={readOnly}
+            />
           </div>
         )}
       </div>

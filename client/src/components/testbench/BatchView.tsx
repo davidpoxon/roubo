@@ -35,11 +35,15 @@ export default function BatchView({
   benchId,
   gateId,
   onBack,
+  readOnly = false,
 }: {
   projectId: string;
   benchId: number;
   gateId: string;
   onBack: () => void;
+  // Shows the batch with no write: no Sign off or Reopen, no marks and no fix
+  // issue filing. A Spec Bench outside a gate sitting shows its batches this way.
+  readOnly?: boolean;
 }) {
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [signOffError, setSignOffError] = useState<string | null>(null);
@@ -128,13 +132,17 @@ export default function BatchView({
         <ArrowLeft aria-hidden="true" className="w-3.5 h-3.5" />
         Back to batches
       </Button>
-      <Button
-        onPress={signedOff ? handleReopen : handleSignOff}
-        isDisabled={signedOff ? reopenMutation.isPending : !canSignOff || signOffMutation.isPending}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-control text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-      >
-        {signedOff ? "Reopen" : "Sign off batch"}
-      </Button>
+      {!readOnly && (
+        <Button
+          onPress={signedOff ? handleReopen : handleSignOff}
+          isDisabled={
+            signedOff ? reopenMutation.isPending : !canSignOff || signOffMutation.isPending
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-control text-13 font-medium text-on-accent bg-accent not-disabled:hover:bg-accent-hover not-disabled:active:bg-accent-active disabled:opacity-40 disabled:cursor-not-allowed transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          {signedOff ? "Reopen" : "Sign off batch"}
+        </Button>
+      )}
     </div>
   );
 
@@ -233,11 +241,12 @@ export default function BatchView({
                   result={planQuery.data.results?.caseResults[selectedCase.id]}
                   onBack={() => setSelectedCaseId(undefined)}
                   onMarked={handleMarked}
+                  marksDisabled={readOnly}
                 />
               </div>
             )}
           </div>
-          {selectedCase && selectedCaseFailed && (
+          {selectedCase && selectedCaseFailed && !readOnly && (
             // Keyed by the case id so it remounts (and resets its notes + filed
             // record) when a different failed case is selected.
             <FileFixIssuePanel

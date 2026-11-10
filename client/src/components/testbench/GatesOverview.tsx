@@ -102,7 +102,8 @@ function GateCard({
   selectable: boolean;
   selected: boolean;
   onToggleSelected: (gateId: string) => void;
-  onSplit: (gate: GateState) => void;
+  // Omitted on a read-only TestBench: the card then offers no Split.
+  onSplit?: (gate: GateState) => void;
 }) {
   const isBlocked = gate.status !== "passed";
   const coveringUnits = gate.coveringUnitIds;
@@ -178,7 +179,7 @@ function GateCard({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {canSplit && !selectable && (
+          {canSplit && !selectable && onSplit !== undefined && (
             <Button
               onPress={() => onSplit(gate)}
               data-testid="gate-split-trigger"
@@ -350,10 +351,14 @@ export default function GatesOverview({
   projectId,
   specSlug,
   onOpenGate,
+  readOnly = false,
 }: {
   projectId: string;
   specSlug?: string;
   onOpenGate: (gateId: string) => void;
+  // Lists and opens the batches, with no Combine or Split. A Spec Bench shows
+  // its spec's batches this way: the delivery owns the gates.
+  readOnly?: boolean;
 }) {
   // Scope the gate list to the bench's focused spec (#952): the Batches tab
   // must show only the focused spec's batches, matching how the Cases tab scopes
@@ -494,7 +499,7 @@ export default function GatesOverview({
             <span className="text-11 font-semibold uppercase tracking-label text-text-secondary">
               Batches
             </span>
-            {gates.length >= 2 && (
+            {gates.length >= 2 && !readOnly && (
               <Button
                 onPress={() => {
                   setMergeMode(true);
@@ -532,10 +537,14 @@ export default function GatesOverview({
               selectable={mergeMode}
               selected={selected.has(gate.gateId)}
               onToggleSelected={toggleSelected}
-              onSplit={(g) => {
-                setActionError(null);
-                setSplitTarget(g);
-              }}
+              onSplit={
+                readOnly
+                  ? undefined
+                  : (g) => {
+                      setActionError(null);
+                      setSplitTarget(g);
+                    }
+              }
             />
           </div>
         ))}

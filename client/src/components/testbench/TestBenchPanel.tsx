@@ -45,16 +45,23 @@ function focusedSpecSlug(path: string): string {
 // the panel reloads the newly focused plan, its independently preserved results,
 // and the server-computed `stale` flag. Per-spec result isolation is enforced
 // server-side.
+//
+// `readOnly` (#1653) shows the same surfaces with no write: no Change focused
+// spec, no Reconcile, no marks, notes or lifecycle actions, no Restore, and no
+// gate Combine, Split, Sign off or fix issue. A Spec Bench shows its spec this
+// way outside a gate sitting, where the server refuses every write.
 export default function TestBenchPanel({
   projectId,
   benchId,
   focusedSpecPath,
   benchStatus = "active",
+  readOnly = false,
 }: {
   projectId: string;
   benchId: number;
   focusedSpecPath?: string;
   benchStatus?: BenchStatus;
+  readOnly?: boolean;
 }) {
   // Gate the plan query on worktree readiness (#503). The query reads
   // `.specifications/<slug>/test-cases.json` from the bench worktree, so firing it
@@ -248,28 +255,31 @@ export default function TestBenchPanel({
           )}
         </div>
       </div>
-      <Button
-        onPress={() => setIsPickerOpen(true)}
-        isDisabled={setFocus.isPending}
-        className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-13 font-medium text-text-body bg-bg-hover hover:bg-bg-pressed hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-      >
-        <Pencil size={14} />
-        {setFocus.isPending ? "Re-pointing..." : "Change focused spec"}
-      </Button>
+      {!readOnly && (
+        <Button
+          onPress={() => setIsPickerOpen(true)}
+          isDisabled={setFocus.isPending}
+          className="flex items-center gap-1.5 shrink-0 px-3 py-1.5 text-13 font-medium text-text-body bg-bg-hover hover:bg-bg-pressed hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed rounded-control transition-colors outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        >
+          <Pencil size={14} />
+          {setFocus.isPending ? "Re-pointing..." : "Change focused spec"}
+        </Button>
+      )}
     </div>
   ) : null;
 
-  const picker = focusedSpecPath ? (
-    <SpecPickerModal
-      isOpen={isPickerOpen}
-      onClose={() => setIsPickerOpen(false)}
-      projectId={projectId}
-      onCreate={handleRepoint}
-      isCreating={setFocus.isPending}
-      mode="repoint"
-      activePath={focusedSpecPath}
-    />
-  ) : null;
+  const picker =
+    focusedSpecPath && !readOnly ? (
+      <SpecPickerModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        projectId={projectId}
+        onCreate={handleRepoint}
+        isCreating={setFocus.isPending}
+        mode="repoint"
+        activePath={focusedSpecPath}
+      />
+    ) : null;
 
   // Cases / Batches mode toggle (#726). A two-segment switch above the body that
   // flips between the whole-spec case review and the verify-gate batch surface.
@@ -327,12 +337,14 @@ export default function TestBenchPanel({
           benchId={benchId}
           gateId={openGateId}
           onBack={() => setOpenGateId(null)}
+          readOnly={readOnly}
         />
       ) : (
         <GatesOverview
           projectId={projectId}
           specSlug={focusedSpecPath ? focusedSpecSlug(focusedSpecPath) : undefined}
           onOpenGate={setOpenGateId}
+          readOnly={readOnly}
         />
       ),
     );
@@ -380,7 +392,7 @@ export default function TestBenchPanel({
   return frame(
     <>
       <ResultsRecoveryBanner recoveryReason={data.recoveryReason} />
-      <StalenessBanner stale={data.stale} onReconcile={openReconcile} />
+      <StalenessBanner stale={data.stale} onReconcile={readOnly ? undefined : openReconcile} />
       <div className="rounded-lg ring-1 ring-inset ring-border bg-bg-base px-4 py-3">
         <ProgressBar counts={model.overall} label="Overall" />
       </div>
@@ -429,6 +441,7 @@ export default function TestBenchPanel({
               onBack={() => selectCase(undefined)}
               onNext={nextCaseId ? () => selectCase(nextCaseId) : undefined}
               onArchived={setArchivedCaseId}
+              marksDisabled={readOnly}
             />
           </div>
         )}
@@ -443,11 +456,12 @@ export default function TestBenchPanel({
         results={data.results}
         archived={model.archived}
         onSelectCase={selectCase}
-        projectId={projectId}
-        benchId={benchId}
+        // Without the ids an archived entry offers no Restore.
+        projectId={readOnly ? undefined : projectId}
+        benchId={readOnly ? undefined : benchId}
         focusCaseId={archivedCaseId}
       />
-      {classification && (
+      {classification && !readOnly && (
         <ReconcileDialog
           isOpen={isReconcileOpen}
           onClose={closeReconcile}
