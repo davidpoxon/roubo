@@ -399,6 +399,61 @@ describe("state dir watch", () => {
     expect(fileLines("state.json", "applied")).toHaveLength(0);
   });
 
+  it("HR-TC-029 a rejected bench record stays rejected after the write-back that undoes it", async () => {
+    const file = path.join(dir, "state.json");
+    // The bench manager writes the file back from memory, as it does for a
+    // field that is not hand-editable, through the real atomicWrite.
+    vi.mocked(benchManager.applyStateFileEdit).mockImplementationOnce(() => {
+      atomicWrite(file, benchFile("bench-3"));
+      return {
+        ...NO_EDIT,
+        reverted: [{ projectId: "lantern", benchId: 3, fields: ["workspacePath"] }],
+      };
+    });
+    fs.writeFileSync(file, benchFile("bench-3-moved"));
+
+    await waitFor(() => fileLines("state.json", "self-write").length === 1);
+    await sleep(400);
+
+    expect(fileLines("state.json", "rejected")).toHaveLength(1);
+    expect(hoisted.events).toHaveLength(1);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "rejected", projectId: "lantern" });
+
+    // A later routine app write leaves the rejected notice in place too.
+    atomicWrite(file, benchFile("bench-3"));
+    await waitFor(() => fileLines("state.json", "self-write").length === 2);
+    await sleep(400);
+    expect(hoisted.events).toHaveLength(1);
+  });
+
+  it("HR-TC-029 a rejected bench record after invalid JSON clears the file's notice, not its own", async () => {
+    const file = path.join(dir, "state.json");
+    fs.writeFileSync(file, '{"benches": [');
+    await waitFor(() => hoisted.events.length === 1);
+
+    vi.mocked(benchManager.applyStateFileEdit).mockImplementationOnce(() => {
+      atomicWrite(file, benchFile("bench-3"));
+      return { ...NO_EDIT, unmatched: [{ projectId: "lantern", benchId: 9 }] };
+    });
+    fs.writeFileSync(file, benchFile("bench-3-added"));
+
+    await waitFor(() => fileLines("state.json", "self-write").length === 1);
+    await sleep(400);
+
+    // The untargeted invalid JSON notice is cleared before the record's notice.
+    expect(hoisted.events).toHaveLength(3);
+    expect(hoisted.events[1]).toEqual({
+      surface: "bench",
+      outcome: "applied",
+      summary: "Bench state applied.",
+    });
+    expect(hoisted.events[2]).toMatchObject({
+      outcome: "rejected",
+      projectId: "lantern",
+      benchIds: [9],
+    });
+  });
+
   it("a state.json edit that applies one bench and undoes a field of another names both", async () => {
     vi.mocked(benchManager.applyStateFileEdit).mockReturnValueOnce({
       ...NO_EDIT,
