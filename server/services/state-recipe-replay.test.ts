@@ -161,6 +161,7 @@ describe("replayStateRecipe", () => {
       deps(),
     );
     expect(fs.existsSync(path.join(checkout, "b.txt"))).toBe(false);
+    expect(fromEscapes.ok).toBe(false);
     expect(fromEscapes.report.steps[0]).toMatchObject({ status: "failed" });
     expect(fromEscapes.report.steps[0].detail).toContain("escapes root");
   });
