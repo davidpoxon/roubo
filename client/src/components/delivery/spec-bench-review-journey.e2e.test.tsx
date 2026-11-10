@@ -1441,12 +1441,11 @@ describe("Spec Bench review journey", () => {
       owners(["reviewControls", "waitingRead", "controlQueue", "thread"], ["controls", "reducer"]),
       async () => {
         const card = topCard(D2.id);
-        await user.click(within(card).getByRole("button", { name: "Overturn" }));
         const other = D2.options.find((option) => option !== D2.chosen) ?? "";
         await user.click(
           within(within(card).getByRole("group", { name: `Overturn ${D2.id} with` })).getByRole(
             "button",
-            { name: other },
+            { name: `Overturn: ${other}` },
           ),
         );
         await requestAnswered(bench.id, "POST", `delivery/decisions/${D2.id}/overturn`, 202);

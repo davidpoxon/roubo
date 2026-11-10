@@ -350,10 +350,9 @@ describe("The durable control queue on the bench record over the live path", () 
     await user.click(within(top).getByRole("button", { name: "Accept" }));
     await waitFor(() => expect(reviewReplies).toHaveLength(1), { timeout: 3000 });
     top = await raise(user, "D-2");
-    await user.click(within(top).getByRole("button", { name: "Overturn" }));
     await user.click(
       within(within(top).getByRole("group", { name: "Overturn D-2 with" })).getByRole("button", {
-        name: OPTIONS[0],
+        name: `Overturn: ${OPTIONS[0]}`,
       }),
     );
     await waitFor(() => expect(reviewReplies).toHaveLength(2), { timeout: 3000 });

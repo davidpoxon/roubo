@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import type { DeliveryEvent } from "@roubo/shared/delivery-observation-contract";
@@ -84,7 +84,12 @@ describe("Decision pile accessibility", () => {
     expect(screen.getByRole("button", { name: /Raise decision/ })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
-    await user.click(screen.getByRole("button", { name: "Overturn" }));
+    expect(
+      within(screen.getByRole("group", { name: "Overturn decision-a with" })).getAllByRole(
+        "button",
+        { name: /^Overturn: / },
+      ).length,
+    ).toBeGreaterThan(0);
     expectNoAxeFindings(await axe(container));
   });
 

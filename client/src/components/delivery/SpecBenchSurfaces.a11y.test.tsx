@@ -129,17 +129,14 @@ describe("Spec Bench surfaces: keyboard and screen reader", () => {
     await user.tab();
     expect(within(top).getByRole("button", { name: "Accept" })).toHaveFocus();
     expectVisibleRing(document.activeElement as Element);
-    await user.tab();
-    const overturn = within(top).getByRole("button", { name: "Overturn" });
-    expectVisibleRing(overturn);
-
-    // Overturn opens its options, and Tab reaches each before Discuss.
-    await user.keyboard("{Enter}");
-    expect(overturn).toHaveAttribute("aria-expanded", "true");
+    // One Overturn for each other option, named by it, and Tab reaches each
+    // before Discuss (#1622).
     const choices = within(top).getByRole("group", { name: "Overturn D-1 with" });
     for (const option of [OPTIONS[0], OPTIONS[2]]) {
       await user.tab();
-      expectVisibleRing(within(choices).getByRole("button", { name: option }));
+      const overturn = within(choices).getByRole("button", { name: `Overturn: ${option}` });
+      expect(overturn).toHaveFocus();
+      expectVisibleRing(overturn);
     }
     await user.tab();
     expectVisibleRing(within(top).getByRole("button", { name: "Discuss" }));
@@ -226,7 +223,6 @@ describe("Spec Bench surfaces: keyboard and screen reader", () => {
         theme,
       );
       await user.click(screen.getByRole("button", { name: "Discuss" }));
-      await user.click(screen.getByRole("button", { name: "Overturn" }));
       expect(screen.getByRole("log", { name: "Messages on D-1" })).toBeInTheDocument();
       expectNoAxeFindings(
         await axe(container, {
