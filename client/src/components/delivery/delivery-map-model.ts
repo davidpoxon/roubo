@@ -12,6 +12,16 @@ import {
   selectGateAnchors,
   selectUnitsInStackOrder,
 } from "@roubo/shared/delivery-selectors";
+import {
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type Force,
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+} from "d3-force";
 import type { StatusTone } from "../ui/styles";
 
 // The delivery map's model (SB-FR-010): what the graph and the list draw, worked
@@ -224,29 +234,64 @@ export function targetKey(target: MapTarget): string {
 
 // ── Graph layout ──
 //
-// Lanes are stacks, columns are layers (DESIGN.md Unit node). Units that share
-// a stack and a layer go one above the other in that lane's cell, and the lane
-// grows to fit them. The gates sit in a gate lane below the stacks, each in the
-// column after the last layer of the units it follows. Positions are on the
-// canvas of nodes; the view draws the lane labels and layer headers beside it.
+// The graph is laid out by a force simulation (#1656, DESIGN.md Unit node):
+// each `depends_on` edge and each gate's link to the units it follows pulls
+// its two ends together, every node pushes the others away, the units of a
+// stack are drawn to one another, and no two nodes overlap. A pull toward the
+// middle, weighted by the shape of the map's viewport, gives the graph the
+// shape of the space it is drawn in. The simulation runs to rest in one go,
+// with no animation, from start positions worked out from the stacks and the
+// layers, so the same delivery and viewport shape always give the same layout.
+//
+// Two steps: `simulateDeliveryGraph` places the nodes from the shape of the
+// delivery alone (its units, their stacks, layers and dependencies, and its
+// gates), so a change of status moves nothing; `placeDeliveryGraph` then lays
+// the snapshot's units and gates on those places and works out the edges and
+// the outline of each stack.
+//
+// Positions out of the simulation are node centres in graph space. The layout
+// moves them onto a canvas whose top left is the origin, and keeps the offset
+// (`origin`) so the view can turn a canvas point back into graph space, as a
+// node drag does.
 
 export const NODE_WIDTH = 184;
 export const NODE_HEIGHT = 80;
 export const GATE_WIDTH = NODE_WIDTH;
 export const GATE_HEIGHT = 52;
-const COLUMN_GAP = 40;
-const LANE_GAP = 20;
-const CELL_GAP = 8;
-// The space between the last stack lane and the gate lane; the dashed hairline
-// that opens the gate lane sits halfway across it.
-const GATE_LANE_GAP = 32;
-const COLUMN_WIDTH = NODE_WIDTH + COLUMN_GAP;
-const EDGE_BEND = 20;
-// Room around the canvas so the focus ring of a node at the first layer or in
-// the first lane is not covered by the labels or the headers beside it.
-const CANVAS_PAD = 6;
-// Room below the gate lane for the hover line of a gate in its last row.
+// The least space between two nodes.
+const NODE_GAP = 24;
+// The length the edges pull toward.
+const LINK_DISTANCE = NODE_WIDTH + 64;
+// The start grid: the units run along its rows, back and forth, with room
+// under each unit for a gate.
+const START_COLUMN = NODE_WIDTH + 72;
+const START_ROW = NODE_HEIGHT + GATE_HEIGHT + 3 * NODE_GAP;
+const TICKS = 300;
+// How the overlap removal and the fit to the viewport's shape are bounded.
+const SEPARATE_PASSES = 60;
+const SPREAD_ROUNDS = 40;
+const SPREAD = 1.05;
+const MAX_STRETCH = 2;
+// The room a stack's outline leaves around its units, more at the top for its
+// label.
+const HULL_PAD = 12;
+const HULL_PAD_TOP = 28;
+// Room around the canvas so a focus ring at its edge shows.
+const CANVAS_PAD = 8;
+// Room below a gate for its hover line.
 const GATE_HOVER_ROOM = 32;
+// The arrowhead at the end of an edge.
+const ARROW_LENGTH = 8;
+const ARROW_HALF_WIDTH = 4;
+// The viewport shapes the layout tells apart, as width over height.
+const MIN_ASPECT = 0.4;
+const MAX_ASPECT = 4;
+export const DEFAULT_GRAPH_ASPECT = 1.6;
+
+export interface GraphPoint {
+  x: number;
+  y: number;
+}
 
 export interface PlacedUnit {
   kind: "unit";
@@ -255,6 +300,7 @@ export interface PlacedUnit {
   dependencies: string[];
   // True while a provisional gate below the unit holds its pull request.
   held: boolean;
+  // The top left of the node on the canvas.
   x: number;
   y: number;
 }
@@ -271,46 +317,54 @@ export type PlacedItem = PlacedUnit | PlacedGate;
 
 export interface PlacedEdge {
   key: string;
-  // The keys of the two items the edge joins, `from` first.
+  // The keys of the two items the edge joins, `from` first. A `depends_on`
+  // edge runs from the dependency to the unit that depends on it; a gate edge
+  // from the gate to a unit it follows, and is drawn from that unit to the
+  // gate.
   from: string;
   to: string;
   kind: "depends_on" | "gate";
   // True when the edge leaves a unit that is done.
   fromDone: boolean;
+  // A straight line between the borders of the two nodes, and the arrowhead
+  // at the end it points to.
   path: string;
+  arrow: string;
 }
 
-// One stack lane: its stack id, how many units it holds, and where it runs.
-export interface PlacedLane {
+// The outline of one stack: a rounded hull around its units, and where its
+// label starts.
+export interface PlacedHull {
   stack: string;
   unitCount: number;
-  top: number;
-  height: number;
-}
-
-// One layer column that holds a unit: its layer number and where it starts. A
-// column past the last unit layer holds only gates and has no header.
-export interface PlacedColumn {
-  layer: number;
-  left: number;
+  path: string;
+  labelX: number;
+  labelY: number;
 }
 
 export interface DeliveryMapLayout {
   // Every unit and gate in dependency order: the focus order of the graph.
   items: PlacedItem[];
   edges: PlacedEdge[];
-  lanes: PlacedLane[];
-  columns: PlacedColumn[];
-  // The gate lane, below the stacks, or null when the delivery has no gate.
-  // `ruleTop` is where the dashed hairline that opens it runs.
-  gateLane: { top: number; height: number; ruleTop: number; gateCount: number } | null;
-  columnWidth: number;
+  hulls: PlacedHull[];
+  // Graph space minus canvas space.
+  origin: GraphPoint;
   width: number;
   height: number;
 }
 
-function curve(x1: number, y1: number, x2: number, y2: number): string {
-  return `M ${x1} ${y1} C ${x1 + EDGE_BEND} ${y1}, ${x2 - EDGE_BEND} ${y2}, ${x2} ${y2}`;
+// The shape of a delivery that the layout reads: nothing that changes when a
+// unit or a gate changes status.
+export interface GraphTopology {
+  units: { key: string; stack: string; layer: number; dependsOn: string[] }[];
+  gates: { key: string; after: string[] }[];
+}
+
+// What a node drag keeps for a bench: where every node was when the operator
+// dropped one, and which nodes the operator placed. Keys are map keys.
+export interface KeptGraphLayout {
+  positions: Record<string, GraphPoint>;
+  pinned: string[];
 }
 
 export function unitKey(id: string): string {
@@ -319,6 +373,812 @@ export function unitKey(id: string): string {
 
 export function gateKey(id: string): string {
   return targetKey({ kind: "gate", id });
+}
+
+// The shape of the delivery, units in dependency order and each gate after
+// the unit it is anchored to.
+export function selectGraphTopology(
+  snapshot: DeliverySnapshot,
+  ordered: readonly DeliveryUnit[],
+): GraphTopology {
+  const known = new Set(ordered.map((unit) => unit.id));
+  const dependsOn = new Map<string, string[]>();
+  for (const edge of selectDependencyEdges(snapshot)) {
+    if (!known.has(edge.from) || !known.has(edge.to)) continue;
+    const list = dependsOn.get(edge.to) ?? [];
+    const key = unitKey(edge.from);
+    if (!list.includes(key)) list.push(key);
+    dependsOn.set(edge.to, list);
+  }
+  const anchors = selectGateAnchors(
+    snapshot,
+    ordered.map((unit) => unit.id),
+  );
+  const units: GraphTopology["units"] = [];
+  const gates: GraphTopology["gates"] = [];
+  for (const unit of ordered) {
+    units.push({
+      key: unitKey(unit.id),
+      stack: unit.stack,
+      layer: unit.layer,
+      dependsOn: dependsOn.get(unit.id) ?? [],
+    });
+    for (const view of anchors.get(unit.id) ?? []) {
+      gates.push({
+        key: gateKey(view.gate.id),
+        after: view.gate.after.filter((id) => known.has(id)).map((id) => unitKey(id)),
+      });
+    }
+  }
+  return { units, gates };
+}
+
+// A string that is the same for two topologies exactly when they lay out the
+// same, to key a memo on.
+export function graphTopologyKey(topology: GraphTopology): string {
+  return JSON.stringify(topology);
+}
+
+// The viewport's shape, clamped and rounded to a quarter step of its log, so
+// a small resize does not lay the graph out again.
+export function graphAspectBucket(width: number, height: number): number {
+  if (!(width > 0) || !(height > 0)) return DEFAULT_GRAPH_ASPECT;
+  const aspect = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, width / height));
+  return 2 ** (Math.round(Math.log2(aspect) * 4) / 4);
+}
+
+interface SimNode extends SimulationNodeDatum {
+  key: string;
+  width: number;
+  height: number;
+  stack: string | null;
+  // The node's place in the kept layout's pinned list, or -1 when it is not
+  // pinned: of two pinned nodes that overlap, the one pinned later moves.
+  pinRank: number;
+}
+
+// A seeded random source, so the simulation's jiggle is the same every run.
+function seededRandom(): () => number {
+  let state = 0x2545f491;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+// Pushes apart any two nodes whose boxes, grown by the gap, overlap, along
+// the axis that overlaps less once the overlap across is weighted by
+// `aspect`: a wide viewport favours a push sideways, so collisions grow the
+// graph along the viewport's long side. `strength` is the share of the overlap that one
+// call removes. A fixed node does not move; the other one takes the push. Of
+// two fixed nodes, the one pinned later takes it and stays fixed where it
+// lands. Returns whether any pair overlapped, and adds each node of an
+// overlapping pair to `touched` when it is given.
+function separate(
+  nodes: readonly SimNode[],
+  strength: number,
+  onVelocity: boolean,
+  aspect: number,
+  touched?: Set<SimNode>,
+): boolean {
+  let overlapped = false;
+  for (let i = 0; i < nodes.length; i += 1) {
+    const a = nodes[i];
+    if (a === undefined) continue;
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const b = nodes[j];
+      if (b === undefined) continue;
+      const ax = a.x ?? 0;
+      const ay = a.y ?? 0;
+      const bx = b.x ?? 0;
+      const by = b.y ?? 0;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const overlapX = (a.width + b.width) / 2 + NODE_GAP - Math.abs(dx);
+      const overlapY = (a.height + b.height) / 2 + NODE_GAP - Math.abs(dy);
+      if (overlapX <= 0 || overlapY <= 0) continue;
+      overlapped = true;
+      touched?.add(a);
+      touched?.add(b);
+      const aFixed = a.fx !== undefined && a.fx !== null;
+      const bFixed = b.fx !== undefined && b.fx !== null;
+      const shareA =
+        aFixed && bFixed ? (a.pinRank > b.pinRank ? 1 : 0) : aFixed ? 0 : bFixed ? 1 : 0.5;
+      const shareB = 1 - shareA;
+      // Along x when the boxes overlap less that way, as weighted, else along
+      // y; a tie of centres is broken by the order of the nodes.
+      const alongX = overlapX < overlapY * aspect;
+      const sign = (alongX ? dx : dy) > 0 ? 1 : (alongX ? dx : dy) < 0 ? -1 : i % 2 === 0 ? 1 : -1;
+      const push = (alongX ? overlapX : overlapY) * strength * sign;
+      const axis = alongX ? "x" : "y";
+      if (onVelocity) {
+        const velocity = alongX ? "vx" : "vy";
+        a[velocity] = (a[velocity] ?? 0) - push * shareA;
+        b[velocity] = (b[velocity] ?? 0) + push * shareB;
+      } else {
+        a[axis] = (a[axis] ?? 0) - push * shareA;
+        b[axis] = (b[axis] ?? 0) + push * shareB;
+        if (aFixed) {
+          a.fx = a.x;
+          a.fy = a.y;
+        }
+        if (bFixed) {
+          b.fx = b.x;
+          b.fy = b.y;
+        }
+      }
+    }
+  }
+  return overlapped;
+}
+
+// Takes out the overlaps the forces left. Pairwise pushes can push a node
+// into a third one, so it repeats them, up to SEPARATE_PASSES, until no pair
+// overlaps; when a dense cluster does not settle that way, it moves the
+// free nodes still in an overlap a little away from the middle and tries
+// again, up to SPREAD_ROUNDS times. The rest of the graph stays put. It
+// always ends on a round of pushes, never on a spread, and returns whether
+// an overlap is left.
+function removeOverlaps(nodes: readonly SimNode[], aspect: number): boolean {
+  for (let round = 0; ; round += 1) {
+    const touched = new Set<SimNode>();
+    for (let pass = 0; pass < SEPARATE_PASSES; pass += 1) {
+      touched.clear();
+      if (!separate(nodes, 1, false, aspect, touched)) return false;
+    }
+    const free = nodes.filter((node) => node.fx === undefined || node.fx === null);
+    const stuck = free.filter((node) => touched.has(node));
+    if (round === SPREAD_ROUNDS || stuck.length === 0) return true;
+    const middle = {
+      x: free.reduce((sum, node) => sum + (node.x ?? 0), 0) / free.length,
+      y: free.reduce((sum, node) => sum + (node.y ?? 0), 0) / free.length,
+    };
+    for (const node of stuck) {
+      node.x = middle.x + ((node.x ?? 0) - middle.x) * SPREAD;
+      node.y = middle.y + ((node.y ?? 0) - middle.y) * SPREAD;
+    }
+  }
+}
+
+// Stretches a fresh layout along its short side, up to MAX_STRETCH, toward
+// the viewport's shape. The forces only pull toward it, and a unit with many
+// dependents draws them into a round cluster whatever the shape. A stretch
+// along one axis only moves boxes apart, so it makes no overlap.
+function fitToAspect(nodes: readonly SimNode[], aspect: number): void {
+  if (nodes.length < 2) return;
+  const xs = nodes.map((node) => node.x ?? 0);
+  const ys = nodes.map((node) => node.y ?? 0);
+  const width = Math.max(...xs) - Math.min(...xs) + NODE_WIDTH;
+  const height = Math.max(...ys) - Math.min(...ys) + NODE_HEIGHT;
+  const stretchX = Math.min(MAX_STRETCH, Math.max(1, (aspect * height) / width));
+  const stretchY = Math.min(MAX_STRETCH, Math.max(1, width / (aspect * height)));
+  const middle = {
+    x: xs.reduce((sum, x) => sum + x, 0) / nodes.length,
+    y: ys.reduce((sum, y) => sum + y, 0) / nodes.length,
+  };
+  for (const node of nodes) {
+    node.x = middle.x + ((node.x ?? 0) - middle.x) * stretchX;
+    node.y = middle.y + ((node.y ?? 0) - middle.y) * stretchY;
+  }
+}
+
+function rectangleCollision(aspect: number): Force<SimNode, undefined> {
+  let nodes: SimNode[] = [];
+  const force = () => {
+    separate(nodes, 0.5, true, aspect);
+  };
+  force.initialize = (next: SimNode[]) => {
+    nodes = next;
+  };
+  return force;
+}
+
+// Draws each unit toward the middle of its stack.
+function stackCohesion(strength: number): Force<SimNode, undefined> {
+  let nodes: SimNode[] = [];
+  const force = (alpha: number) => {
+    const sums = new Map<string, { x: number; y: number; count: number }>();
+    for (const node of nodes) {
+      if (node.stack === null) continue;
+      const sum = sums.get(node.stack) ?? { x: 0, y: 0, count: 0 };
+      sum.x += node.x ?? 0;
+      sum.y += node.y ?? 0;
+      sum.count += 1;
+      sums.set(node.stack, sum);
+    }
+    for (const node of nodes) {
+      if (node.stack === null) continue;
+      const sum = sums.get(node.stack);
+      if (sum === undefined || sum.count < 2) continue;
+      node.vx = (node.vx ?? 0) + (sum.x / sum.count - (node.x ?? 0)) * strength * alpha;
+      node.vy = (node.vy ?? 0) + (sum.y / sum.count - (node.y ?? 0)) * strength * alpha;
+    }
+  };
+  force.initialize = (next: SimNode[]) => {
+    nodes = next;
+  };
+  return force;
+}
+
+// The stacks in the order the start lays them out: each stack as soon as the
+// stacks it depends on are laid, so a stack that follows another starts where
+// that one ends, else in the order the stacks first appear.
+function stackOrder(topology: GraphTopology): string[] {
+  const stackOf = new Map(topology.units.map((unit) => [unit.key, unit.stack]));
+  const first: string[] = [];
+  const needs = new Map<string, Set<string>>();
+  for (const unit of topology.units) {
+    if (!needs.has(unit.stack)) {
+      first.push(unit.stack);
+      needs.set(unit.stack, new Set());
+    }
+    for (const key of unit.dependsOn) {
+      const other = stackOf.get(key);
+      if (other !== undefined && other !== unit.stack) needs.get(unit.stack)?.add(other);
+    }
+  }
+  const order: string[] = [];
+  const placed = new Set<string>();
+  const place = (stack: string) => {
+    if (placed.has(stack)) return;
+    placed.add(stack);
+    order.push(stack);
+    // Then every stack that now has all it depends on and depends on this one.
+    for (const next of first) {
+      const wanted = needs.get(next);
+      if (placed.has(next) || wanted === undefined || !wanted.has(stack)) continue;
+      if ([...wanted].every((other) => placed.has(other))) place(next);
+    }
+  };
+  for (const stack of first) {
+    const wanted = needs.get(stack);
+    if (wanted === undefined || [...wanted].every((other) => placed.has(other))) place(stack);
+  }
+  // A stack whose stacks depend on each other in a loop goes last.
+  for (const stack of first) place(stack);
+  return order;
+}
+
+// Where the simulation starts each node, centred on the origin: the units of
+// each stack in layer order along the rows of a grid shaped like the
+// viewport, left to right and then back, so a chain of units starts as a
+// line that folds instead of a tangle. A stack that does not fit in what is
+// left of a row starts a new one, so the outlines of two stacks do not cross.
+// Each gate starts under the last unit it follows.
+function seedPositions(topology: GraphTopology, aspect: number): Map<string, GraphPoint> {
+  const byStack = new Map<string, GraphTopology["units"]>();
+  for (const unit of topology.units) {
+    const list = byStack.get(unit.stack) ?? [];
+    list.push(unit);
+    byStack.set(unit.stack, list);
+  }
+  const count = Math.max(1, topology.units.length);
+  const columns = Math.max(
+    1,
+    Math.min(count, Math.round(Math.sqrt((count * aspect * START_ROW) / START_COLUMN))),
+  );
+  const seeds = new Map<string, GraphPoint>();
+  let row = 0;
+  let column = 0;
+  for (const stack of stackOrder(topology)) {
+    const units = [...(byStack.get(stack) ?? [])].sort((a, b) => a.layer - b.layer);
+    if (column > 0 && column + units.length > columns) {
+      row += 1;
+      column = 0;
+    }
+    for (const unit of units) {
+      if (column === columns) {
+        row += 1;
+        column = 0;
+      }
+      const across = row % 2 === 0 ? column : columns - 1 - column;
+      seeds.set(unit.key, { x: across * START_COLUMN, y: row * START_ROW });
+      column += 1;
+    }
+  }
+  for (const gate of topology.gates) {
+    const anchor = gate.after
+      .map((key) => seeds.get(key))
+      .filter((at): at is GraphPoint => at !== undefined)
+      .reduce<GraphPoint | undefined>(
+        (last, at) =>
+          last === undefined || at.y > last.y || (at.y === last.y && at.x > last.x) ? at : last,
+        undefined,
+      );
+    const at = anchor ?? { x: 0, y: (row + 1) * START_ROW };
+    seeds.set(gate.key, { x: at.x, y: at.y + (NODE_HEIGHT + GATE_HEIGHT) / 2 + NODE_GAP });
+  }
+  // Two gates under one unit start one beside the other.
+  const taken = new Map<string, number>();
+  for (const gate of topology.gates) {
+    const at = seeds.get(gate.key);
+    if (at === undefined) continue;
+    const spot = `${String(at.x)},${String(at.y)}`;
+    const before = taken.get(spot) ?? 0;
+    taken.set(spot, before + 1);
+    if (before > 0)
+      seeds.set(gate.key, { x: at.x + before * (GATE_WIDTH / 2), y: at.y + before * NODE_GAP });
+  }
+  const points = [...seeds.values()];
+  const middle = {
+    x: points.reduce((sum, at) => sum + at.x, 0) / Math.max(1, points.length),
+    y: points.reduce((sum, at) => sum + at.y, 0) / Math.max(1, points.length),
+  };
+  for (const [key, at] of seeds) seeds.set(key, { x: at.x - middle.x, y: at.y - middle.y });
+  return seeds;
+}
+
+// Places every unit and gate of a delivery: node centres in graph space, by
+// map key. `kept` holds the positions a node drag kept: no force run then
+// takes place, and the nodes only move apart where they overlap. The pinned
+// nodes stay where they are (but for one dropped onto another, which is
+// moved off it), and a node the kept layout does not know starts beside the
+// nodes it links.
+export function simulateDeliveryGraph(
+  topology: GraphTopology,
+  options: { aspect?: number; kept?: KeptGraphLayout | undefined } = {},
+): Map<string, GraphPoint> {
+  const aspect = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, options.aspect ?? DEFAULT_GRAPH_ASPECT));
+  const kept = options.kept;
+  const pinned = new Map((kept?.pinned ?? []).map((key, rank) => [key, rank]));
+  const nodes: SimNode[] = [];
+  const byKey = new Map<string, SimNode>();
+  const keptAt = (key: string): GraphPoint | undefined =>
+    kept !== undefined && Object.hasOwn(kept.positions, key) ? kept.positions[key] : undefined;
+  const seeds = seedPositions(topology, aspect);
+  for (const unit of topology.units) {
+    const at = seeds.get(unit.key) ?? { x: 0, y: 0 };
+    const node: SimNode = {
+      key: unit.key,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+      stack: unit.stack,
+      pinRank: -1,
+      ...at,
+    };
+    nodes.push(node);
+    byKey.set(unit.key, node);
+  }
+  for (const gate of topology.gates) {
+    const at = seeds.get(gate.key) ?? { x: 0, y: 0 };
+    const node: SimNode = {
+      key: gate.key,
+      width: GATE_WIDTH,
+      height: GATE_HEIGHT,
+      stack: null,
+      pinRank: -1,
+      ...at,
+    };
+    nodes.push(node);
+    byKey.set(gate.key, node);
+  }
+
+  const links: SimulationLinkDatum<SimNode>[] = [];
+  for (const unit of topology.units) {
+    for (const from of unit.dependsOn) {
+      if (byKey.has(from)) links.push({ source: from, target: unit.key });
+    }
+  }
+  for (const gate of topology.gates) {
+    for (const key of gate.after) {
+      if (byKey.has(key)) links.push({ source: key, target: gate.key });
+    }
+  }
+
+  // Put back what the kept layout holds, and start any node it does not hold
+  // beside its linked nodes.
+  if (kept !== undefined) {
+    for (const node of nodes) {
+      const at = keptAt(node.key);
+      if (at === undefined) continue;
+      node.x = at.x;
+      node.y = at.y;
+      const rank = pinned.get(node.key);
+      if (rank !== undefined) {
+        node.fx = at.x;
+        node.fy = at.y;
+        node.pinRank = rank;
+      }
+    }
+    for (const node of nodes) {
+      if (keptAt(node.key) !== undefined) continue;
+      const neighbours = links.flatMap((link) => {
+        const other =
+          link.source === node.key ? link.target : link.target === node.key ? link.source : null;
+        const at = typeof other === "string" ? keptAt(other) : undefined;
+        return at === undefined ? [] : [at];
+      });
+      if (neighbours.length === 0) continue;
+      node.x =
+        neighbours.reduce((sum, at) => sum + at.x, 0) / neighbours.length + LINK_DISTANCE / 2;
+      node.y = neighbours.reduce((sum, at) => sum + at.y, 0) / neighbours.length;
+    }
+  }
+
+  // A kept layout is the operator's shape: the nodes only make room for the
+  // dropped one, and for any node the kept layout does not know. A force run
+  // from it would draw the graph back into the shape the forces alone give,
+  // which the fit to the viewport below has stretched away from.
+  if (kept !== undefined) {
+    removeOverlaps(nodes, aspect);
+    return new Map(nodes.map((node) => [node.key, { x: node.x ?? 0, y: node.y ?? 0 }]));
+  }
+
+  // A wide viewport pulls harder toward the middle line across it than along
+  // it, so the graph keeps the shape the start gave it.
+  const pull = 0.02;
+  const simulation = forceSimulation<SimNode>(nodes)
+    .randomSource(seededRandom())
+    .force(
+      "link",
+      forceLink<SimNode, SimulationLinkDatum<SimNode>>(links)
+        .id((node) => node.key)
+        .distance(LINK_DISTANCE),
+    )
+    .force(
+      "charge",
+      forceManyBody<SimNode>()
+        .strength(-500)
+        .distanceMax(LINK_DISTANCE * 4),
+    )
+    .force("x", forceX<SimNode>(0).strength(pull / aspect))
+    .force("y", forceY<SimNode>(0).strength(pull * aspect))
+    .force("stack", stackCohesion(0.02))
+    .force("collide", rectangleCollision(aspect))
+    .stop();
+  simulation.tick(TICKS);
+  fitToAspect(nodes, aspect);
+  removeOverlaps(nodes, aspect);
+
+  return new Map(nodes.map((node) => [node.key, { x: node.x ?? 0, y: node.y ?? 0 }]));
+}
+
+// Where the segment from a box's centre toward a point leaves the box.
+function borderPoint(
+  centre: GraphPoint,
+  halfWidth: number,
+  halfHeight: number,
+  toward: GraphPoint,
+): GraphPoint {
+  const dx = toward.x - centre.x;
+  const dy = toward.y - centre.y;
+  if (dx === 0 && dy === 0) return centre;
+  const scale = Math.min(
+    dx === 0 ? Infinity : halfWidth / Math.abs(dx),
+    dy === 0 ? Infinity : halfHeight / Math.abs(dy),
+  );
+  return { x: centre.x + dx * scale, y: centre.y + dy * scale };
+}
+
+function round(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+// A straight edge between the borders of two boxes, and the arrowhead whose
+// tip sits on the border of the second.
+function edgeGeometry(
+  from: { centre: GraphPoint; width: number; height: number },
+  to: { centre: GraphPoint; width: number; height: number },
+): { path: string; arrow: string } {
+  const start = borderPoint(from.centre, from.width / 2, from.height / 2, to.centre);
+  const tip = borderPoint(to.centre, to.width / 2, to.height / 2, from.centre);
+  const dx = tip.x - start.x;
+  const dy = tip.y - start.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const base = { x: tip.x - ux * ARROW_LENGTH, y: tip.y - uy * ARROW_LENGTH };
+  const left = { x: base.x - uy * ARROW_HALF_WIDTH, y: base.y + ux * ARROW_HALF_WIDTH };
+  const right = { x: base.x + uy * ARROW_HALF_WIDTH, y: base.y - ux * ARROW_HALF_WIDTH };
+  return {
+    path: `M ${round(start.x)} ${round(start.y)} L ${round(base.x)} ${round(base.y)}`,
+    arrow: `M ${round(tip.x)} ${round(tip.y)} L ${round(left.x)} ${round(left.y)} L ${round(right.x)} ${round(right.y)} Z`,
+  };
+}
+
+// The convex hull of a set of points (Andrew's monotone chain), clockwise on
+// screen.
+function convexHull(points: readonly GraphPoint[]): GraphPoint[] {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  if (sorted.length < 3) return sorted;
+  // True while the last two points of the chain and the next one do not turn
+  // the hull's way, so the last point is not a corner.
+  const notACorner = (chain: GraphPoint[], point: GraphPoint) => {
+    const a = chain.at(-2);
+    const b = chain.at(-1);
+    if (a === undefined || b === undefined) return false;
+    return (b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x) <= 0;
+  };
+  const lower: GraphPoint[] = [];
+  for (const point of sorted) {
+    while (notACorner(lower, point)) lower.pop();
+    lower.push(point);
+  }
+  const upper: GraphPoint[] = [];
+  for (const point of [...sorted].reverse()) {
+    while (notACorner(upper, point)) upper.pop();
+    upper.push(point);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+// Lays the snapshot's units and gates on the places the simulation gave them.
+// A unit or a gate with no place (the topology changed since) goes to the
+// right of the rest.
+export function placeDeliveryGraph(
+  snapshot: DeliverySnapshot,
+  ordered: readonly DeliveryUnit[],
+  positions: ReadonlyMap<string, GraphPoint>,
+): DeliveryMapLayout {
+  const dependencyEdges = selectDependencyEdges(snapshot);
+  const dependenciesOf = new Map<string, string[]>();
+  for (const edge of dependencyEdges) {
+    const list = dependenciesOf.get(edge.to) ?? [];
+    if (!list.includes(edge.from)) list.push(edge.from);
+    dependenciesOf.set(edge.to, list);
+  }
+  const held = selectHeldUnitIds(snapshot);
+  const anchors = selectGateAnchors(
+    snapshot,
+    ordered.map((unit) => unit.id),
+  );
+
+  const known = [...positions.values()];
+  let spareX = known.reduce((high, at) => Math.max(high, at.x), 0) + LINK_DISTANCE;
+  const centreOf = (key: string): GraphPoint => {
+    const at = positions.get(key);
+    if (at !== undefined) return at;
+    const spare = { x: spareX, y: 0 };
+    spareX += LINK_DISTANCE;
+    return spare;
+  };
+
+  // Places in graph space first; moved onto the canvas once the bounds are known.
+  const units: { item: PlacedUnit; centre: GraphPoint }[] = [];
+  const gates: { item: PlacedGate; centre: GraphPoint }[] = [];
+  const items: PlacedItem[] = [];
+  for (const unit of ordered) {
+    const key = unitKey(unit.id);
+    const centre = centreOf(key);
+    const item: PlacedUnit = {
+      kind: "unit",
+      key,
+      unit,
+      dependencies: dependenciesOf.get(unit.id) ?? [],
+      held: held.has(unit.id),
+      x: centre.x - NODE_WIDTH / 2,
+      y: centre.y - NODE_HEIGHT / 2,
+    };
+    units.push({ item, centre });
+    items.push(item);
+    for (const view of anchors.get(unit.id) ?? []) {
+      const gateKeyValue = gateKey(view.gate.id);
+      const gateCentre = centreOf(gateKeyValue);
+      const gate: PlacedGate = {
+        kind: "gate",
+        key: gateKeyValue,
+        view,
+        x: gateCentre.x - GATE_WIDTH / 2,
+        y: gateCentre.y - GATE_HEIGHT / 2,
+      };
+      gates.push({ item: gate, centre: gateCentre });
+      items.push(gate);
+    }
+  }
+
+  const unitByKey = new Map(units.map((entry) => [entry.item.key, entry]));
+  const unitBox = (entry: { centre: GraphPoint }) => ({
+    centre: entry.centre,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+  });
+  const edges: PlacedEdge[] = [];
+  for (const edge of dependencyEdges) {
+    const from = unitByKey.get(unitKey(edge.from));
+    const to = unitByKey.get(unitKey(edge.to));
+    if (from === undefined || to === undefined) continue;
+    const key = `${from.item.key}->${to.item.key}`;
+    if (edges.some((existing) => existing.key === key)) continue;
+    edges.push({
+      key,
+      from: from.item.key,
+      to: to.item.key,
+      kind: "depends_on",
+      fromDone: isDoneUnit(from.item.unit),
+      ...edgeGeometry(unitBox(from), unitBox(to)),
+    });
+  }
+  for (const gate of gates) {
+    for (const id of gate.item.view.gate.after) {
+      const from = unitByKey.get(unitKey(id));
+      if (from === undefined) continue;
+      edges.push({
+        key: `${gate.item.key}->${from.item.key}`,
+        from: gate.item.key,
+        to: from.item.key,
+        kind: "gate",
+        fromDone: false,
+        ...edgeGeometry(unitBox(from), {
+          centre: gate.centre,
+          width: GATE_WIDTH,
+          height: GATE_HEIGHT,
+        }),
+      });
+    }
+  }
+
+  // One outline per stack, in the order the stacks first appear.
+  const stackUnits = new Map<string, { item: PlacedUnit; centre: GraphPoint }[]>();
+  for (const unit of selectUnitsInStackOrder(snapshot)) {
+    if (!stackUnits.has(unit.stack)) stackUnits.set(unit.stack, []);
+  }
+  for (const entry of units) {
+    const list = stackUnits.get(entry.item.unit.stack) ?? [];
+    list.push(entry);
+    stackUnits.set(entry.item.unit.stack, list);
+  }
+  const hullCorners: {
+    stack: string;
+    unitCount: number;
+    corners: GraphPoint[];
+    label: GraphPoint;
+  }[] = [];
+  for (const [stack, members] of stackUnits) {
+    if (members.length === 0) continue;
+    const corners = members.flatMap(({ item }) => [
+      { x: item.x - HULL_PAD, y: item.y - HULL_PAD_TOP },
+      { x: item.x + NODE_WIDTH + HULL_PAD, y: item.y - HULL_PAD_TOP },
+      { x: item.x + NODE_WIDTH + HULL_PAD, y: item.y + NODE_HEIGHT + HULL_PAD },
+      { x: item.x - HULL_PAD, y: item.y + NODE_HEIGHT + HULL_PAD },
+    ]);
+    // The label sits over the topmost unit, inside the outline's top room.
+    const top = members.reduce((best, entry) => (entry.item.y < best.item.y ? entry : best));
+    hullCorners.push({
+      stack,
+      unitCount: members.length,
+      corners: convexHull(corners),
+      label: { x: top.item.x, y: top.item.y - HULL_PAD_TOP + 6 },
+    });
+  }
+
+  // The bounds of everything drawn, then the move onto the canvas.
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const extend = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  for (const { item } of units) {
+    extend(item.x, item.y);
+    extend(item.x + NODE_WIDTH, item.y + NODE_HEIGHT);
+  }
+  for (const { item } of gates) {
+    extend(item.x, item.y);
+    extend(item.x + GATE_WIDTH, item.y + GATE_HEIGHT + GATE_HOVER_ROOM);
+  }
+  for (const hull of hullCorners) for (const corner of hull.corners) extend(corner.x, corner.y);
+  if (!Number.isFinite(minX)) {
+    minX = 0;
+    minY = 0;
+    maxX = 0;
+    maxY = 0;
+  }
+  const origin = { x: minX - CANVAS_PAD, y: minY - CANVAS_PAD };
+  const shift = (point: GraphPoint): GraphPoint => ({
+    x: round(point.x - origin.x),
+    y: round(point.y - origin.y),
+  });
+  for (const item of items) {
+    const at = shift(item);
+    item.x = at.x;
+    item.y = at.y;
+  }
+  const shiftPath = (path: string) =>
+    path.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_, x: string, y: string) => {
+      const at = shift({ x: Number(x), y: Number(y) });
+      return `${String(at.x)} ${String(at.y)}`;
+    });
+  for (const edge of edges) {
+    edge.path = shiftPath(edge.path);
+    edge.arrow = shiftPath(edge.arrow);
+  }
+  const hulls: PlacedHull[] = hullCorners.map((hull) => {
+    const label = shift(hull.label);
+    return {
+      stack: hull.stack,
+      unitCount: hull.unitCount,
+      path:
+        hull.corners
+          .map((corner, index) => {
+            const at = shift(corner);
+            return `${index === 0 ? "M" : "L"} ${String(at.x)} ${String(at.y)}`;
+          })
+          .join(" ") + " Z",
+      labelX: label.x,
+      labelY: label.y,
+    };
+  });
+
+  return {
+    items,
+    edges,
+    hulls,
+    origin,
+    width: Math.ceil(maxX - minX + 2 * CANVAS_PAD),
+    height: Math.ceil(maxY - minY + 2 * CANVAS_PAD),
+  };
+}
+
+// The last few simulations, by topology, shape and kept layout: a snapshot
+// that changes only a status, or a return to a shape the viewport had, lays
+// out again without running the simulation.
+const SIMULATION_CACHE_SIZE = 8;
+const simulations = new Map<string, Map<string, GraphPoint>>();
+
+// Empties the cache, so a test can time the simulation itself.
+export function clearDeliveryGraphCache(): void {
+  simulations.clear();
+}
+
+export function simulateDeliveryGraphCached(
+  topology: GraphTopology,
+  options: { aspect: number; kept?: KeptGraphLayout | undefined },
+): Map<string, GraphPoint> {
+  const key = `${graphTopologyKey(topology)}|${String(options.aspect)}|${JSON.stringify(options.kept ?? null)}`;
+  const hit = simulations.get(key);
+  if (hit !== undefined) {
+    simulations.delete(key);
+    simulations.set(key, hit);
+    return hit;
+  }
+  const positions = simulateDeliveryGraph(topology, options);
+  simulations.set(key, positions);
+  if (simulations.size > SIMULATION_CACHE_SIZE) {
+    const oldest = simulations.keys().next().value;
+    if (oldest !== undefined) simulations.delete(oldest);
+  }
+  return positions;
+}
+
+function isGraphPoint(value: unknown): value is GraphPoint {
+  if (typeof value !== "object" || value === null) return false;
+  const { x, y } = value as Record<string, unknown>;
+  return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y);
+}
+
+// A kept layout read back from storage, or undefined when it does not have
+// the shape one is written in.
+export function keptGraphLayoutOf(value: unknown): KeptGraphLayout | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { positions, pinned } = value as Record<string, unknown>;
+  if (typeof positions !== "object" || positions === null || !Array.isArray(pinned)) {
+    return undefined;
+  }
+  const kept: KeptGraphLayout = { positions: {}, pinned: [] };
+  for (const [key, point] of Object.entries(positions)) {
+    if (isGraphPoint(point)) kept.positions[key] = { x: point.x, y: point.y };
+  }
+  kept.pinned = pinned.filter(
+    (key): key is string => typeof key === "string" && Object.hasOwn(kept.positions, key),
+  );
+  return kept;
+}
+
+// The whole layout in one call, as the map draws it with no viewport yet.
+export function layoutDeliveryMap(
+  snapshot: DeliverySnapshot,
+  ordered: readonly DeliveryUnit[],
+  options: { aspect?: number; kept?: KeptGraphLayout | undefined } = {},
+): DeliveryMapLayout {
+  return placeDeliveryGraph(
+    snapshot,
+    ordered,
+    simulateDeliveryGraph(selectGraphTopology(snapshot, ordered), options),
+  );
 }
 
 // ── A cross-check disagreement on the map (SB-FR-029) ──
@@ -353,171 +1213,4 @@ export interface MapFocusRequest {
   keys: string[];
   nonce: number;
   open?: MapTarget;
-}
-
-export function layoutDeliveryMap(
-  snapshot: DeliverySnapshot,
-  ordered: readonly DeliveryUnit[],
-): DeliveryMapLayout {
-  const stackOrder: string[] = [];
-  for (const unit of selectUnitsInStackOrder(snapshot)) {
-    if (!stackOrder.includes(unit.stack)) stackOrder.push(unit.stack);
-  }
-  for (const unit of ordered) {
-    if (!stackOrder.includes(unit.stack)) stackOrder.push(unit.stack);
-  }
-
-  const dependencyEdges = selectDependencyEdges(snapshot);
-  const dependenciesOf = new Map<string, string[]>();
-  for (const edge of dependencyEdges) {
-    const list = dependenciesOf.get(edge.to) ?? [];
-    if (!list.includes(edge.from)) list.push(edge.from);
-    dependenciesOf.set(edge.to, list);
-  }
-
-  const held = selectHeldUnitIds(snapshot);
-  const anchors = selectGateAnchors(
-    snapshot,
-    ordered.map((unit) => unit.id),
-  );
-
-  // Each unit's place in its cell, in dependency order, and each lane's rows:
-  // the most units any one of its cells holds.
-  const minLayer = ordered.reduce((low, unit) => Math.min(low, unit.layer), Infinity);
-  const firstLayer = Number.isFinite(minLayer) ? minLayer : 0;
-  const cellIndex = new Map<string, number>();
-  const cellCounts = new Map<string, number>();
-  const laneRows = new Map<string, number>();
-  const laneUnits = new Map<string, number>();
-  for (const unit of ordered) {
-    const cell = `${unit.stack}\u0000${String(unit.layer)}`;
-    const index = cellCounts.get(cell) ?? 0;
-    cellIndex.set(unit.id, index);
-    cellCounts.set(cell, index + 1);
-    laneRows.set(unit.stack, Math.max(laneRows.get(unit.stack) ?? 0, index + 1));
-    laneUnits.set(unit.stack, (laneUnits.get(unit.stack) ?? 0) + 1);
-  }
-  const lanes: PlacedLane[] = [];
-  let laneTop = CANVAS_PAD;
-  for (const stack of stackOrder) {
-    const rows = Math.max(1, laneRows.get(stack) ?? 0);
-    const height = rows * NODE_HEIGHT + (rows - 1) * CELL_GAP;
-    lanes.push({ stack, unitCount: laneUnits.get(stack) ?? 0, top: laneTop, height });
-    laneTop += height + LANE_GAP;
-  }
-  const lanesBottom = Math.max(0, laneTop - LANE_GAP);
-  const laneByStack = new Map(lanes.map((lane) => [lane.stack, lane]));
-
-  const columnLeft = (layer: number) => CANVAS_PAD + (layer - firstLayer) * COLUMN_WIDTH;
-  const items: PlacedItem[] = [];
-  const unitsByKey = new Map<string, PlacedUnit>();
-  const unitById = new Map(ordered.map((unit) => [unit.id, unit]));
-  const gatesPlaced: PlacedGate[] = [];
-  const gateColumnCounts = new Map<number, number>();
-  const gateLaneTop = lanesBottom + GATE_LANE_GAP;
-  let maxLayer = firstLayer;
-  let maxUnitLayer = firstLayer;
-  let gateRows = 0;
-  for (const unit of ordered) {
-    const lane = laneByStack.get(unit.stack);
-    const x = columnLeft(unit.layer);
-    const y = (lane?.top ?? 0) + (cellIndex.get(unit.id) ?? 0) * (NODE_HEIGHT + CELL_GAP);
-    maxLayer = Math.max(maxLayer, unit.layer);
-    maxUnitLayer = Math.max(maxUnitLayer, unit.layer);
-    const placed: PlacedUnit = {
-      kind: "unit",
-      key: unitKey(unit.id),
-      unit,
-      dependencies: dependenciesOf.get(unit.id) ?? [],
-      held: held.has(unit.id),
-      x,
-      y,
-    };
-    items.push(placed);
-    unitsByKey.set(placed.key, placed);
-    for (const view of anchors.get(unit.id) ?? []) {
-      // The column after the last layer of the units the gate follows.
-      const afterLayer = view.gate.after.reduce(
-        (high, id) => Math.max(high, unitById.get(id)?.layer ?? unit.layer),
-        unit.layer,
-      );
-      const layer = afterLayer + 1;
-      const row = gateColumnCounts.get(layer) ?? 0;
-      gateColumnCounts.set(layer, row + 1);
-      gateRows = Math.max(gateRows, row + 1);
-      maxLayer = Math.max(maxLayer, layer);
-      const gate: PlacedGate = {
-        kind: "gate",
-        key: gateKey(view.gate.id),
-        view,
-        x: columnLeft(layer),
-        y: gateLaneTop + row * (GATE_HEIGHT + CELL_GAP),
-      };
-      items.push(gate);
-      gatesPlaced.push(gate);
-    }
-  }
-
-  const edges: PlacedEdge[] = [];
-  for (const edge of dependencyEdges) {
-    const from = unitsByKey.get(unitKey(edge.from));
-    const to = unitsByKey.get(unitKey(edge.to));
-    if (from === undefined || to === undefined) continue;
-    const key = `${from.key}->${to.key}`;
-    if (edges.some((existing) => existing.key === key)) continue;
-    edges.push({
-      key,
-      from: from.key,
-      to: to.key,
-      kind: "depends_on",
-      fromDone: isDoneUnit(from.unit),
-      path: curve(from.x + NODE_WIDTH, from.y + NODE_HEIGHT / 2, to.x, to.y + NODE_HEIGHT / 2),
-    });
-  }
-  for (const gate of gatesPlaced) {
-    for (const id of gate.view.gate.after) {
-      const from = unitsByKey.get(unitKey(id));
-      if (from === undefined) continue;
-      edges.push({
-        key: `${gate.key}->${from.key}`,
-        from: gate.key,
-        to: from.key,
-        kind: "gate",
-        fromDone: false,
-        path: curve(
-          from.x + NODE_WIDTH,
-          from.y + NODE_HEIGHT / 2,
-          gate.x,
-          gate.y + GATE_HEIGHT / 2,
-        ),
-      });
-    }
-  }
-
-  const columns: PlacedColumn[] = [];
-  for (let layer = firstLayer; layer <= maxUnitLayer; layer += 1) {
-    columns.push({ layer, left: columnLeft(layer) });
-  }
-  const gateLane =
-    gatesPlaced.length === 0
-      ? null
-      : {
-          top: gateLaneTop,
-          height: gateRows * GATE_HEIGHT + (gateRows - 1) * CELL_GAP,
-          ruleTop: lanesBottom + GATE_LANE_GAP / 2,
-          gateCount: gatesPlaced.length,
-        };
-  return {
-    items,
-    edges,
-    lanes,
-    columns,
-    gateLane,
-    columnWidth: COLUMN_WIDTH,
-    width: (maxLayer - firstLayer + 1) * COLUMN_WIDTH - COLUMN_GAP + 2 * CANVAS_PAD,
-    height:
-      gateLane === null
-        ? lanesBottom + CANVAS_PAD
-        : gateLane.top + gateLane.height + GATE_HOVER_ROOM,
-  };
 }

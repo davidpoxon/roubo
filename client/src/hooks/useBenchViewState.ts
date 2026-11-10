@@ -25,6 +25,14 @@ type BenchViewEntry = {
   // Spec Bench delivery map view (SB-FR-010). Persisted per bench so the last
   // chosen graph or list view is restored on reload; unset reads as the graph.
   deliveryMapView?: "graph" | "list";
+  // Spec Bench delivery graph layout (#1656): where the nodes were when the
+  // operator last dropped one, and which nodes the operator placed. Persisted
+  // per bench so a dragged node stays put across reloads; unset reads as the
+  // computed layout.
+  deliveryGraphLayout?: {
+    positions: Record<string, { x: number; y: number }>;
+    pinned: string[];
+  };
 };
 type BenchViewStore = Record<string, BenchViewEntry>;
 
@@ -116,6 +124,14 @@ export function useBenchViewState(projectId: string, benchId: number) {
     [benchKey, bump],
   );
 
+  const setDeliveryGraphLayout = useCallback(
+    (layout: BenchViewEntry["deliveryGraphLayout"]) => {
+      writeEntry(benchKey, { deliveryGraphLayout: layout });
+      bump();
+    },
+    [benchKey, bump],
+  );
+
   return {
     activeTab: entry.activeTab,
     setActiveTab,
@@ -131,5 +147,7 @@ export function useBenchViewState(projectId: string, benchId: number) {
     setHeaderCollapsed,
     deliveryMapView: entry.deliveryMapView,
     setDeliveryMapView,
+    deliveryGraphLayout: entry.deliveryGraphLayout,
+    setDeliveryGraphLayout,
   };
 }

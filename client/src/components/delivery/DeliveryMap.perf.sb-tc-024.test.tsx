@@ -32,6 +32,7 @@ import {
   unitChanged,
 } from "../../test/delivery-fixtures";
 import DeliveryMap from "./DeliveryMap";
+import { clearDeliveryGraphCache } from "./delivery-map-model";
 
 const RUN = process.env.RUN_PERF_HARNESS === "1";
 const UNIT_COUNT = FIFTY_UNIT_STACKS * FIFTY_UNIT_LAYERS;
@@ -62,10 +63,13 @@ function benchmarkMap() {
     <DeliveryMap projectId="demo" benchId={3} snapshot={snapshot} />
   );
 
-  // Step 1: the render benchmark.
+  // Step 1: the render benchmark. Each render lays the graph out from
+  // nothing: the simulation cache would otherwise answer every one after the
+  // first, and the budget would not hold the simulation to account.
   for (let i = 0; i < WARMUP_ITERATIONS; i++) render(map(first)).unmount();
   const samples: number[] = [];
   for (let i = 0; i < ITERATIONS; i++) {
+    clearDeliveryGraphCache();
     const t0 = performance.now();
     const view = render(map(first));
     samples.push(performance.now() - t0);
