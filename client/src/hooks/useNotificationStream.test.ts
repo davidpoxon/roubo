@@ -514,10 +514,11 @@ describe("useNotificationStream", () => {
       expect(seen).toEqual([event]);
     });
 
-    // The per-input map of the spec, written out literally rather than read
-    // from the client's own map, so a change to the map fails this test. Each
-    // input is sent as the server sends it: its surface, and for a state file
-    // the file's name as `input`.
+    // The keys each input refreshes, written out literally rather than read
+    // from the client's own map, so a change to the map fails this test. The
+    // map holds the spec's keys plus the keys of the views that each input
+    // also feeds. Each input is sent as the server sends it: its surface, and
+    // for a state file the file's name as `input`.
     const EXPECTED_KEYS: [string, Partial<InputChangedEvent>, unknown[][]][] = [
       [
         "project-config",
@@ -559,7 +560,7 @@ describe("useNotificationStream", () => {
       ["env", { surface: "environment", input: ".env" }, [["settings"], ["env-keys"]]],
     ];
 
-    it("HR-TC-035 invalidates exactly the keys of the spec's map for each input and nothing else", () => {
+    it("HR-TC-035 invalidates exactly the keys each input refreshes and nothing else", () => {
       expect(EXPECTED_KEYS.map(([input]) => input)).toEqual([
         "project-config",
         "plugin",
