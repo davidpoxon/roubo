@@ -78,6 +78,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openDecisionsView } from "../../client/src/test/delivery-views";
 
 const FIXTURE_RECORD = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -341,6 +342,8 @@ describe("The durable control queue on the bench record over the live path", () 
   it("SB-TC-090 queued review actions survive a server restart and arrive in order at resume", async () => {
     renderTab();
     const user = userEvent.setup();
+    // The review pile is in the decisions view (#1620).
+    await openDecisionsView(user);
 
     // Step 1: accept D-1, overturn D-2 and accept D-3 from the bench.
     let top = await raise(user, "D-1");
@@ -379,6 +382,7 @@ describe("The durable control queue on the bench record over the live path", () 
     // Step 2: restart the server and reload the bench.
     restartServer();
     renderTab();
+    await openDecisionsView(user);
     await expectQueuedBadges(user, [
       ["D-1", "accept"],
       ["D-2", "overturn"],

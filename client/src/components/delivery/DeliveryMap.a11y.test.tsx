@@ -57,8 +57,9 @@ afterEach(() => {
 describe("Delivery map accessibility", () => {
   it("SB-TC-025 is fully operable by keyboard and screen reader in both views", async () => {
     const user = userEvent.setup();
+    const onOpen = vi.fn();
     const { container } = renderWithProviders(
-      <DeliveryMap projectId="demo" benchId={3} snapshot={snapshot()} />,
+      <DeliveryMap projectId="demo" benchId={3} snapshot={snapshot()} onOpen={onOpen} />,
     );
 
     // Step 1: Tab through the graph view. The view toggle comes first, then
@@ -82,10 +83,11 @@ describe("Delivery map accessibility", () => {
       for (const ring of FOCUS_RING) expect(focused.className).toContain(ring);
     }
 
-    // Step 2: Enter on a node opens its drill-in.
+    // Step 2: Enter on a node opens its drill-in, which the tab shows as a
+    // view of its own (#1620).
     screen.getByTestId("unit-node-B").focus();
     await user.keyboard("{Enter}");
-    expect(screen.getByRole("region", { name: "Unit B" })).toBeInTheDocument();
+    expect(onOpen).toHaveBeenLastCalledWith({ kind: "unit", id: "B" });
 
     // Step 3: every node is named with its id, status and layer, and axe finds
     // nothing in either view.
@@ -110,7 +112,7 @@ describe("Delivery map accessibility", () => {
     }
     screen.getByTestId("unit-row-C").focus();
     await user.keyboard("{Enter}");
-    expect(screen.getByRole("region", { name: "Unit C" })).toBeInTheDocument();
+    expect(onOpen).toHaveBeenLastCalledWith({ kind: "unit", id: "C" });
     expectNoAxeFindings(await axe(container));
   });
 

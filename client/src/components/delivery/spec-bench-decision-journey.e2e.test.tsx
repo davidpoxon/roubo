@@ -261,6 +261,7 @@ import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { openDecisionsView } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1002,6 +1003,9 @@ describe("Spec Bench decision journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
           deliveryTab,
           "a return to the Delivery tab moved the focus to the pile",
         ).toHaveFocus();
+        // The return opens the tab on the map, so the operator opens the
+        // decisions view from the rail to read the pile (#1620).
+        await openDecisionsView(user);
         const card = topCard();
         const pile = within(decisionsRegion()).getByRole("list", { name: "Decision pile" });
         expect(within(pile).getAllByRole("listitem")[0]).toContainElement(card);

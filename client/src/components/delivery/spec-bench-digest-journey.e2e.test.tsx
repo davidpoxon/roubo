@@ -253,6 +253,7 @@ import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
 import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
+import { returnToMap } from "../../test/delivery-views";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -1096,6 +1097,9 @@ describe("Spec Bench digest journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
       `the digest closes, the last view is stored at seq ${LAST_SEQ}, and after a reload the bench opens with no digest`,
       owners(["digest"]),
       async () => {
+        // The digest is on the map, which the decisions view's breadcrumb
+        // returns to (#1620).
+        await returnToMap(user);
         const digest = screen.getByTestId("delivery-digest");
         await user.click(within(digest).getByRole("button", { name: "Dismiss" }));
         await waitFor(() => expect(screen.queryByTestId("delivery-digest")).toBeNull(), {

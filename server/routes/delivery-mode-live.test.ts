@@ -84,6 +84,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openCostView } from "../../client/src/test/delivery-views";
 import VariantBadge from "../../client/src/components/VariantBadge";
 
 // The jsdom URL global is not the one fileURLToPath takes, so the path is
@@ -394,6 +395,8 @@ describe("Mode switch over the live path", () => {
   it("SB-TC-084 a switch to auto shows pending with attended selected, is read by the tooling, and applies on its mode.changed read-back", async () => {
     renderTab();
     await snapshotShown();
+    // The mode control is in the cost view (#1620).
+    await openCostView();
     await waitFor(() => expect(screen.getByTestId("bench-variant-badge")).toBeInTheDocument());
     expect(segment("Attended")).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByTestId("decision-mode-pending")).not.toBeInTheDocument();

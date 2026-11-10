@@ -88,6 +88,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openDecisionsView } from "../../client/src/test/delivery-views";
 import {
   REVIEW_THREAD_NO_SESSION,
   REVIEW_THREAD_UNAVAILABLE,
@@ -411,6 +412,8 @@ describe("The discussion thread on a review card over the live path", () => {
   it("SB-TC-088 a discussion runs on the card, and only the summary stays after the outcome", async () => {
     renderTab();
     const user = userEvent.setup();
+    // The review pile is in the decisions view (#1620).
+    await openDecisionsView(user);
     const card = await topCard("D-1");
 
     // Step 1: open the thread on D-1 and send a message.
@@ -513,6 +516,7 @@ describe("The discussion thread on a review card over the live path", () => {
     writeRecord(autoRecord(NO_REVIEW));
     renderTab();
     const user = userEvent.setup();
+    await openDecisionsView(user);
 
     // Step 1: with no review open, a message is refused and the card says why.
     const noReview = await operatorPost("decisions/D-1/thread", { text: "Why?" });
@@ -601,6 +605,7 @@ describe("The discussion thread on a review card over the live path", () => {
     ]);
     renderTab();
     const user = userEvent.setup();
+    await openDecisionsView(user);
     const card = await topCard("D-1");
     await user.click(within(card).getByRole("button", { name: "Discuss" }));
     const thread = screen.getByTestId("review-thread-D-1");

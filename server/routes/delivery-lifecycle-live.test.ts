@@ -98,6 +98,7 @@ import deliveryRouter from "./delivery.js";
 import notificationsRouter from "./notifications.js";
 import { useNotificationStream } from "../../client/src/hooks/useNotificationStream";
 import DeliveryTabPanel from "../../client/src/components/delivery/DeliveryTabPanel";
+import { openCostView } from "../../client/src/test/delivery-views";
 
 // The jsdom URL global is not the one fileURLToPath takes, so the path is
 // joined from this file's own path.
@@ -463,6 +464,8 @@ describe("Role matrix over the live path", () => {
   it("SB-TC-049 a model change PUTs the role, shows pending, is listed on the controls endpoint, and shows current after roles.applied", async () => {
     renderTab();
     await snapshotShown();
+    // The role matrix is in the cost view (#1620).
+    await openCostView();
     const row = () => screen.getByTestId("role-row-unit-coder");
     expect(row()).toHaveAttribute("data-state", "current");
 
@@ -532,6 +535,8 @@ describe("Lifecycle controls over the live path", () => {
     renderTab();
     await snapshotShown();
     const user = userEvent.setup();
+    // The lifecycle controls are in the cost view (#1620).
+    await openCostView(user);
 
     // Step 1: Pause.
     await user.click(lifecycleButton("Pause"));
@@ -586,6 +591,7 @@ describe("Lifecycle controls over the live path", () => {
     renderTab();
     await snapshotShown();
     const user = userEvent.setup();
+    await openCostView(user);
     await user.click(lifecycleButton("Wind down"));
     const dialog = await screen.findByRole("alertdialog", { name: "Wind down the delivery?" });
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
