@@ -12,6 +12,7 @@ import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
 import { foldDelivery } from "@roubo/shared/delivery-reducer";
 import {
   TEST_CASES_SCHEMA_ID,
+  type CaseResult,
   type CaseStatus,
   type TestCasesPlan,
 } from "@roubo/shared/testbench-contracts";
@@ -616,28 +617,45 @@ describe("Spec Bench test bench tab", () => {
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       snapshot({ gateId: "gate-after-b", state: "open" }),
     );
-    vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
-      plan,
-      results: {
-        updatedAt: "2026-10-16T10:00:00Z",
-        caseResults: {
-          "FX-TC-001": {
-            observationMarks: {},
-            derivedStatus: "passed",
-            notes: [],
-            verification: {
-              tier: "b",
-              confidence: "high",
-              evidence: [],
-              author: { name: "verify", email: "verify@example.test" },
-              timestamp: "2026-10-16T10:00:00Z",
-            },
-          },
+    // The results writer: FX-TC-001 passed by automation, and each mark written
+    // over the case's result, so a read after a mark returns it.
+    const caseResults: Record<string, CaseResult> = {
+      "FX-TC-001": {
+        observationMarks: {},
+        derivedStatus: "passed",
+        notes: [],
+        verification: {
+          tier: "b",
+          confidence: "high",
+          evidence: [],
+          author: { name: "verify", email: "verify@example.test" },
+          timestamp: "2026-10-16T10:00:00Z",
         },
       },
+    };
+    vi.mocked(api.fetchTestbenchPlan).mockImplementation(async () => ({
+      plan,
+      results: { updatedAt: "2026-10-16T10:00:00Z", caseResults: { ...caseResults } },
       stale: false,
       planHash: "hash",
       recovered: false,
+    }));
+    vi.mocked(api.setStatusOverride).mockImplementation(async (_p, _b, caseId, override) => {
+      const before: CaseResult = caseResults[caseId] ?? {
+        observationMarks: {},
+        derivedStatus: "not_started",
+        notes: [],
+      };
+      const result: CaseResult = {
+        ...before,
+        statusOverride: {
+          status: override as CaseStatus,
+          author: { name: "Ada Operator", email: "ada@example.test" },
+          timestamp: "2026-10-16T10:05:00Z",
+        },
+      };
+      caseResults[caseId] = result;
+      return result;
     });
     renderWithProviders(<SpecBenchTestBench bench={bench} />);
     await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
@@ -650,15 +668,35 @@ describe("Spec Bench test bench tab", () => {
     await user.click(within(cases).getByRole("tab", { name: "Escalated" }));
     expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Case FX-TC-001" })).not.toBeInTheDocument();
-    // The operator's mark on the escalated case keeps it in the list.
-    await user.click(screen.getByRole("button", { name: "Mark FX-TC-002 Met" }));
+    // The operator's mark on the case automation passed leaves it out of the
+    // Escalated list and keeps the counts.
+    await user.click(within(cases).getByRole("tab", { name: "Gating set" }));
+    await openCase(
+      user,
+      within(cases).getByRole("list", { name: "Gating set of gate gate-after-b" }),
+      "FX-TC-001",
+    );
+    await user.click(screen.getByRole("button", { name: "Mark FX-TC-001 Still blocked" }));
     await waitFor(() =>
-      expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "passed"),
+      expect(api.setStatusOverride).toHaveBeenCalledWith("demo", 3, "FX-TC-001", "blocked"),
+    );
+    await waitFor(() =>
+      expect(
+        within(
+          within(cases).getByRole("list", { name: "Gating set of gate gate-after-b" }),
+        ).getByRole("button", { name: /^FX-TC-001 ·/ }),
+      ).toHaveTextContent("Blocked"),
     );
     expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
       "1 of 2 passed by automation · 1 escalated to you",
     );
-    expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeInTheDocument();
+    expect(within(cases).getByRole("button", { name: /^FX-TC-001 ·/ })).toHaveClass("opacity-60");
+    await user.click(within(cases).getByRole("tab", { name: "Escalated" }));
+    expect(
+      within(within(cases).getByRole("list", { name: "Escalated cases of gate gate-after-b" }))
+        .getAllByTestId("sitting-case")
+        .map((item) => item.getAttribute("data-case-id")),
+    ).toEqual(["FX-TC-002"]);
   });
 
   it("the open banner shows the pinned commit and a live build, and names every fix unit that blocks the gate", async () => {

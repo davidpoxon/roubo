@@ -1,8 +1,8 @@
 import type { CaseStatus } from "@roubo/shared/testbench-contracts";
 
 // Per-case status labels, shared by StatusIndicator and StatusOverrideControl,
-// and the status dot colours, shared by StatusIndicator and the Spec Bench
-// sitting's Cases list.
+// and the status dot colours, shared by StatusIndicator, NotesRail and the
+// Spec Bench sitting's Cases list.
 // Kept out of StatusIndicator.tsx so that file only exports a component (fast refresh).
 export const STATUS_LABEL: Record<CaseStatus, string> = {
   not_started: "Not started",
