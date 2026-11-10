@@ -27,10 +27,11 @@ import { provisionalMarkStatus, readProvisionalMark } from "./provisional-mark-m
 
 // The Test bench tab of a Spec Bench (SB-FR-026, SB-FR-027, SB-US-009), laid
 // out as the design draws it (#1626): the gate sitting's banner for its phase,
-// with the stage control, and, once the sitting is open, a Cases panel beside
-// a Case panel. The Cases panel lists the gate's cases, the escalated ones by
-// default or the whole gating set; the Case panel shows the chosen case on the
-// TestBench case surface (CaseDetail). A mark, from the case's status control,
+// with the stage control, then a Cases panel beside a Case panel. The Cases
+// panel lists the gate's cases, the escalated ones by default or the whole
+// gating set; the Case panel shows the chosen case on the TestBench case
+// surface (CaseDetail). Until the sitting opens, the cases can be read but not
+// staged or marked. A mark, from the case's status control,
 // from the Mark row, or from its Not met evidence form, goes through the
 // TestBench's case status route, which the server resolves through the
 // TestbenchHostResolver into the workspace's test-results.json. A Not met mark
@@ -87,6 +88,9 @@ function Sitting({
   sitting: DeliverySittingView;
 }) {
   const phase = sittingPhase(sitting);
+  const open = phase === "open";
+  const gateCases = useGateCases(bench, snapshot, sitting.gateId);
+  const automationPassed = useAutomationPassed(sitting.gateId, open, gateCases);
   const queryClient = useQueryClient();
   // The fix unit error of the last mark of each case, which the case surface
   // shows beside it.
@@ -126,27 +130,29 @@ function Sitting({
         sitting={sitting}
         titleAs="h2"
         facts={
-          phase === "open" ? (
-            <SittingCounts bench={bench} snapshot={snapshot} sitting={sitting} />
+          open ? (
+            <SittingCounts gateCases={gateCases} automationPassed={automationPassed} />
           ) : undefined
         }
         actions={<SittingStageControl bench={bench} sitting={sitting} />}
       />
-      {phase === "open" ? (
-        <TestbenchApiContext.Provider value={markApi}>
-          <SittingCases
-            bench={bench}
-            snapshot={snapshot}
-            sitting={sitting}
-            fixUnitErrors={fixUnitErrors}
-            onMarked={readDelivery}
-          />
-        </TestbenchApiContext.Provider>
-      ) : (
+      {!open && (
         <p className="text-13 text-text-secondary">
-          The escalated cases show here once the sitting opens.
+          The cases can be read now. Stage and Mark open with the sitting.
         </p>
       )}
+      <TestbenchApiContext.Provider value={markApi}>
+        <SittingCases
+          bench={bench}
+          snapshot={snapshot}
+          sitting={sitting}
+          open={open}
+          gateCases={gateCases}
+          automationPassed={automationPassed}
+          fixUnitErrors={fixUnitErrors}
+          onMarked={readDelivery}
+        />
+      </TestbenchApiContext.Provider>
     </div>
   );
 }
@@ -181,7 +187,9 @@ function SittingStageControl({ bench, sitting }: { bench: Bench; sitting: Delive
   );
 }
 
-// The cases of the open sitting's gate, read from the plan, with their results.
+// The cases of the sitting's gate, read from the plan, with their results.
+type GateCases = ReturnType<typeof useGateCases>;
+
 function useGateCases(bench: Bench, snapshot: DeliverySnapshotResponse, gateId: string) {
   const plan = useTestbenchPlan(bench.projectId, bench.id);
   const gateCaseIds = ownValue(snapshot.gatesById, gateId)?.gate.cases ?? [];
@@ -195,32 +203,50 @@ function useGateCases(bench: Bench, snapshot: DeliverySnapshotResponse, gateId: 
   return { plan, cases, caseResults };
 }
 
-// A case that automation verified as passed. The rest of the gate's cases are
-// escalated to the operator. The operator's own mark does not move a case
-// between the two, so a mark made in the sitting keeps the lists and the
-// counts as they were.
+// A case that automation verified as passed: it has a verification record and
+// its status derived from its observation marks is passed. The rest of the
+// gate's cases are escalated to the operator.
 function passedByAutomation(result: CaseResult | undefined): boolean {
   return (
     result !== undefined && result.verification !== undefined && result.derivedStatus === "passed"
   );
 }
 
+// The ids of the gate's cases that automation passed. An operator's
+// observation mark recomputes a case's derived status, so a live reading would
+// move a case between the lists, change the counts and change the chosen case.
+// So the split is read once, when the sitting is open and its cases have
+// loaded, and held for the gate while this tab stays mounted. Before the
+// sitting opens nothing can be marked here, so the split is read live. A case
+// that joins the gate later counts as escalated.
+function useAutomationPassed(
+  gateId: string,
+  open: boolean,
+  { plan, cases, caseResults }: GateCases,
+): ReadonlySet<string> {
+  const [frozen, setFrozen] = useState<{ gateId: string; passed: ReadonlySet<string> }>();
+  const held = frozen?.gateId === gateId ? frozen.passed : undefined;
+  if (held !== undefined) return held;
+  const live = new Set(
+    cases
+      .filter((testCase) => passedByAutomation(ownValue(caseResults, testCase.id)))
+      .map((testCase) => testCase.id),
+  );
+  if (open && plan.isSuccess && cases.length > 0) setFrozen({ gateId, passed: live });
+  return live;
+}
+
 // The open banner's counts: the gate's cases that automation passed, and those
 // escalated to the operator.
 function SittingCounts({
-  bench,
-  snapshot,
-  sitting,
+  gateCases: { plan, cases },
+  automationPassed,
 }: {
-  bench: Bench;
-  snapshot: DeliverySnapshotResponse;
-  sitting: DeliverySittingView;
+  gateCases: GateCases;
+  automationPassed: ReadonlySet<string>;
 }) {
-  const { plan, cases, caseResults } = useGateCases(bench, snapshot, sitting.gateId);
   if (!plan.isSuccess || cases.length === 0) return null;
-  const passed = cases.filter((testCase) =>
-    passedByAutomation(ownValue(caseResults, testCase.id)),
-  ).length;
+  const passed = cases.filter((testCase) => automationPassed.has(testCase.id)).length;
   return (
     <span data-testid="sitting-counts" className="min-w-0 text-text-body">
       {passed} of {cases.length} passed by automation · {cases.length - passed} escalated to you
@@ -234,16 +260,21 @@ function SittingCases({
   bench,
   snapshot,
   sitting,
+  open,
+  gateCases: { plan, cases, caseResults },
+  automationPassed,
   fixUnitErrors,
   onMarked,
 }: {
   bench: Bench;
   snapshot: DeliverySnapshotResponse;
   sitting: DeliverySittingView;
+  open: boolean;
+  gateCases: GateCases;
+  automationPassed: ReadonlySet<string>;
   fixUnitErrors: Record<string, string>;
   onMarked: () => void;
 }) {
-  const { plan, cases, caseResults } = useGateCases(bench, snapshot, sitting.gateId);
   const reducedMotion = usePrefersReducedMotion();
   const [filter, setFilter] = useState<CaseFilter>("escalated");
   const [selectedId, setSelectedId] = useState<string | undefined>();
@@ -269,9 +300,7 @@ function SittingCases({
   if (cases.length === 0) {
     return <p className="text-13 text-text-secondary">The gate has no case to mark.</p>;
   }
-  const escalated = cases.filter(
-    (testCase) => !passedByAutomation(ownValue(caseResults, testCase.id)),
-  );
+  const escalated = cases.filter((testCase) => !automationPassed.has(testCase.id));
   const shown = filter === "escalated" ? escalated : cases;
   const selected = shown.find((testCase) => testCase.id === selectedId) ?? shown[0];
   const listName =
@@ -313,6 +342,7 @@ function SittingCases({
                         <CaseRow
                           testCase={testCase}
                           result={ownValue(caseResults, testCase.id)}
+                          passedByAutomation={automationPassed.has(testCase.id)}
                           selected={testCase.id === selected?.id}
                           onSelect={() => setSelectedId(testCase.id)}
                         />
@@ -343,6 +373,7 @@ function SittingCases({
                   projectId={bench.projectId}
                   benchId={bench.id}
                   testCase={testCase}
+                  open={open}
                   result={ownValue(caseResults, testCase.id)}
                   fixRef={blockers.find((blocker) => blocker.caseId === testCase.id)?.fixRef}
                   fixUnitError={ownValue(fixUnitErrors, testCase.id)}
@@ -360,20 +391,22 @@ function SittingCases({
 
 // One row of the Cases list: the case's status, its id and level, and its
 // title. Pressing it shows the case in the Case panel. A case that automation
-// passed reads dimmed.
+// passed reads dimmed while its status is still passed.
 function CaseRow({
   testCase,
   result,
+  passedByAutomation,
   selected,
   onSelect,
 }: {
   testCase: Case;
   result: CaseResult | undefined;
+  passedByAutomation: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
   const status = result?.statusOverride?.status ?? result?.derivedStatus ?? "not_started";
-  const dimmed = passedByAutomation(result);
+  const dimmed = passedByAutomation && status === "passed";
   return (
     <button
       type="button"
@@ -398,9 +431,11 @@ function CaseRow({
   );
 }
 
-// One escalated case: the TestBench case surface (CaseDetail), with its own
-// status control, then the case's Stage control, the agent's provisional mark
-// when it has one, and the Mark row. Met and Still blocked write through the
+// One case of the gate: the TestBench case surface (CaseDetail), with its own
+// status control and, under its heading and before its steps, the case's Stage
+// control; then the agent's provisional mark when it has one, and the Mark row.
+// Until the sitting opens, Stage, the marks and Confirm are disabled. Met and
+// Still blocked write through the
 // same case status route as the status control; Not met opens the evidence of
 // a Not met mark, a note and a screenshot, that the same route takes. The
 // provisional mark's Confirm writes the agent's mark through that route, with
@@ -409,6 +444,7 @@ function SittingCase({
   projectId,
   benchId,
   testCase,
+  open,
   result,
   fixRef,
   fixUnitError,
@@ -418,6 +454,7 @@ function SittingCase({
   projectId: string;
   benchId: number;
   testCase: Case;
+  open: boolean;
   result: CaseResult | undefined;
   fixRef: string | undefined;
   fixUnitError: string | undefined;
@@ -434,6 +471,7 @@ function SittingCase({
   });
   const mark = (override: CaseStatus) =>
     setStatus.mutate({ projectId, benchId, caseId: testCase.id, override });
+  const markDisabled = !open || setStatus.isPending;
   return (
     <div data-testid="testbench-case-surface" data-case-id={testCase.id} className="space-y-4">
       <CaseDetail
@@ -442,22 +480,31 @@ function SittingCase({
         testCase={testCase}
         result={result}
         onMarked={onMarked}
+        marksDisabled={!open}
+        beforeSteps={
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3 rounded-control border border-border-strong bg-bg-base px-3 py-2.5 text-12">
+              <span className="min-w-0 flex-1 text-text-body">
+                Stage replays the case&apos;s state recipe in the pinned checkout, or opens the case
+                cold when it has none.
+              </span>
+              <Button
+                variant="primary"
+                onPress={() => stage.mutate()}
+                isDisabled={!open || stage.isPending}
+              >
+                Stage <span className="sr-only">{testCase.id}</span>
+              </Button>
+            </div>
+            <CaseStageOutcome caseId={testCase.id} stage={stage} />
+          </div>
+        }
       />
-      <div className="flex flex-wrap items-center gap-3 rounded-control border border-border-strong bg-bg-base px-3 py-2.5 text-12">
-        <span className="min-w-0 flex-1 text-text-body">
-          Stage replays the case&apos;s state recipe in the pinned checkout, or opens the case cold
-          when it has none.
-        </span>
-        <Button variant="primary" onPress={() => stage.mutate()} isDisabled={stage.isPending}>
-          Stage <span className="sr-only">{testCase.id}</span>
-        </Button>
-      </div>
-      <CaseStageOutcome caseId={testCase.id} stage={stage} />
       {provisional !== undefined && (
         <ProvisionalMarkCard
           entry={provisional}
           reading={readProvisionalMark(provisional, result)}
-          isConfirming={setStatus.isPending}
+          isConfirming={markDisabled}
           onConfirm={() => mark(provisionalMarkStatus(provisional.mark))}
         />
       )}
@@ -466,20 +513,20 @@ function SittingCase({
           <span className="mr-1 font-mono text-11 font-medium uppercase tracking-label text-text-secondary">
             Mark
           </span>
-          <Button onPress={() => mark("passed")} isDisabled={setStatus.isPending}>
+          <Button onPress={() => mark("passed")} isDisabled={markDisabled}>
             <MarkDot tone="active" />
             <span className="sr-only">Mark {testCase.id}</span> Met
           </Button>
           <Button
             aria-expanded={evidenceOpen}
             aria-controls={evidencePanelId}
-            onPress={() => setEvidenceOpen((open) => !open)}
-            isDisabled={setStatus.isPending}
+            onPress={() => setEvidenceOpen((shown) => !shown)}
+            isDisabled={markDisabled}
           >
             <MarkDot tone="error" />
             <span className="sr-only">Mark {testCase.id}</span> Not met with evidence
           </Button>
-          <Button onPress={() => mark("blocked")} isDisabled={setStatus.isPending}>
+          <Button onPress={() => mark("blocked")} isDisabled={markDisabled}>
             <MarkDot tone="idle" />
             <span className="sr-only">Mark {testCase.id}</span> Still blocked
           </Button>
@@ -489,8 +536,8 @@ function SittingCase({
           gate.
         </p>
       </div>
-      <div id={evidencePanelId} hidden={!evidenceOpen}>
-        {evidenceOpen && (
+      <div id={evidencePanelId} hidden={!evidenceOpen || !open}>
+        {evidenceOpen && open && (
           <NotMetEvidenceForm
             caseId={testCase.id}
             isPending={setStatus.isPending}

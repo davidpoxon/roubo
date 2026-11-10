@@ -27,6 +27,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     fetchDelivery: vi.fn(),
     fetchTestbenchPlan: vi.fn(),
     setStatusOverride: vi.fn(),
+    markObservation: vi.fn(),
     stageTestbenchCase: vi.fn(),
     openDeliverySitting: vi.fn(),
     closeDeliverySitting: vi.fn(),
@@ -341,9 +342,31 @@ describe("Spec Bench test bench tab", () => {
       "Sitting blocked · Gate gate-after-b · ready to sit",
       "Blocked by a fix unit filed for cases marked Not met: example/fixture#77 (FX-TC-001)",
     ]);
-    // A ready sitting offers only Open the sitting, and lists no case yet.
+    // A ready sitting offers only Open the sitting. Its cases can be read, and
+    // Stage, the Mark row, the case's status control and its observation marks
+    // stay disabled until the sitting opens.
     expect(screen.queryByRole("button", { name: "Close the sitting" })).not.toBeInTheDocument();
-    expect(screen.getByText("The escalated cases show here once the sitting opens.")).toBeVisible();
+    expect(
+      screen.getByText("The cases can be read now. Stage and Mark open with the sitting."),
+    ).toBeVisible();
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const panel = await openCase(user, list, "FX-TC-001");
+    for (const name of [
+      "Stage FX-TC-001",
+      "Mark FX-TC-001 Met",
+      "Mark FX-TC-001 Not met with evidence",
+      "Mark FX-TC-001 Still blocked",
+    ]) {
+      expect(within(panel).getByRole("button", { name })).toBeDisabled();
+    }
+    expect(within(panel).getByRole("button", { name: /Case status/ })).toBeDisabled();
+    expect(
+      within(
+        within(panel).getByRole("radiogroup", {
+          name: "Mark observation pass or fail: FX-TC-001 behaves",
+        }),
+      ).getByRole("radio", { name: "Pass" }),
+    ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Open the sitting" }));
     await waitFor(() =>
       expect(api.openDeliverySitting).toHaveBeenCalledWith("demo", 3, "gate-after-b"),
@@ -379,8 +402,9 @@ describe("Spec Bench test bench tab", () => {
 
     // Tab order: the stage control, the case filter, each row of the Cases
     // list, then on the chosen case's TestBench surface its status control,
-    // its observation mark, its lifecycle actions and its notes, then its
-    // Stage control and the Mark row. Each is found by its name.
+    // its Stage control (under the case's heading, before its steps), its
+    // observation mark, its lifecycle actions and its notes, then the Mark row.
+    // Each is found by its name.
     const panel = screen.getByRole("region", { name: "Case FX-TC-001" });
     const expected: HTMLElement[] = [
       screen.getByRole("button", { name: "Close the sitting" }),
@@ -389,6 +413,7 @@ describe("Spec Bench test bench tab", () => {
         within(list).getByRole("button", { name: new RegExp(`^${caseId} ·`) }),
       ),
       within(panel).getByRole("button", { name: /Case status/ }),
+      within(panel).getByRole("button", { name: "Stage FX-TC-001" }),
       within(
         within(panel).getByRole("radiogroup", {
           name: "Mark observation pass or fail: FX-TC-001 behaves",
@@ -397,7 +422,6 @@ describe("Spec Bench test bench tab", () => {
       within(panel).getByRole("button", { name: "Retire" }),
       within(panel).getByRole("button", { name: "Supersede" }),
       within(panel).getByRole("button", { name: "Notes (0)" }),
-      within(panel).getByRole("button", { name: "Stage FX-TC-001" }),
       within(panel).getByRole("button", { name: "Mark FX-TC-001 Met" }),
       within(panel).getByRole("button", { name: "Mark FX-TC-001 Not met with evidence" }),
       within(panel).getByRole("button", { name: "Mark FX-TC-001 Still blocked" }),
@@ -690,13 +714,96 @@ describe("Spec Bench test bench tab", () => {
     expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
       "1 of 2 passed by automation · 1 escalated to you",
     );
-    expect(within(cases).getByRole("button", { name: /^FX-TC-001 ·/ })).toHaveClass("opacity-60");
+    // Its status is no longer passed, so its row no longer reads dimmed.
+    expect(within(cases).getByRole("button", { name: /^FX-TC-001 ·/ })).not.toHaveClass(
+      "opacity-60",
+    );
     await user.click(within(cases).getByRole("tab", { name: "Escalated" }));
     expect(
       within(within(cases).getByRole("list", { name: "Escalated cases of gate gate-after-b" }))
         .getAllByTestId("sitting-case")
         .map((item) => item.getAttribute("data-case-id")),
     ).toEqual(["FX-TC-002"]);
+  });
+
+  it("keeps an escalated case escalated, and the counts and the chosen case, when the operator marks its observations Pass", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    const verification = {
+      tier: "b" as const,
+      confidence: "high" as const,
+      evidence: [],
+      author: { name: "verify", email: "verify@example.test" },
+      timestamp: "2026-10-16T10:00:00Z",
+    };
+    // FX-TC-001 passed by automation; automation could not decide FX-TC-002.
+    // An observation mark is written over the case's result, with its status
+    // derived again, so a read after the mark returns it.
+    const caseResults: Record<string, CaseResult> = {
+      "FX-TC-001": { observationMarks: {}, derivedStatus: "passed", notes: [], verification },
+      "FX-TC-002": { observationMarks: {}, derivedStatus: "in_progress", notes: [], verification },
+    };
+    vi.mocked(api.fetchTestbenchPlan).mockImplementation(async () => ({
+      plan,
+      results: { updatedAt: "2026-10-16T10:00:00Z", caseResults: { ...caseResults } },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    }));
+    vi.mocked(api.markObservation).mockImplementation(
+      async (_p, _b, caseId, observationId, result) => {
+        const before = caseResults[caseId];
+        // This test only marks, it never clears a mark.
+        if (result === null) throw new Error("unexpected clear");
+        const next: CaseResult = {
+          ...before,
+          observationMarks: {
+            ...before.observationMarks,
+            [observationId]: {
+              result,
+              author: { name: "Ada Operator", email: "ada@example.test" },
+              timestamp: "2026-10-16T10:05:00Z",
+            },
+          },
+          derivedStatus: result === "pass" ? "passed" : "failed",
+        };
+        caseResults[caseId] = next;
+        return next;
+      },
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    expect(await screen.findByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+    const panel = await openCase(user, list, "FX-TC-002");
+    await user.click(
+      within(
+        within(panel).getByRole("radiogroup", {
+          name: "Mark observation pass or fail: FX-TC-002 behaves",
+        }),
+      ).getByRole("radio", { name: "Pass" }),
+    );
+    await waitFor(() =>
+      expect(api.markObservation).toHaveBeenCalledWith("demo", 3, "FX-TC-002", "o1", "pass"),
+    );
+    await waitFor(() =>
+      expect(within(list).getByRole("button", { name: /^FX-TC-002 ·/ })).toHaveTextContent(
+        "Passed",
+      ),
+    );
+    // Still escalated, still chosen, and the counts did not move.
+    expect(
+      within(list)
+        .getAllByTestId("sitting-case")
+        .map((item) => item.getAttribute("data-case-id")),
+    ).toEqual(["FX-TC-002"]);
+    expect(screen.getByRole("region", { name: "Case FX-TC-002" })).toBeVisible();
+    expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
   });
 
   it("the open banner shows the pinned commit and a live build, and names every fix unit that blocks the gate", async () => {
