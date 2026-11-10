@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import { selectDependencyOrder, selectGatesAfterUnit } from "@roubo/shared/delivery-selectors";
 import Callout from "../ui/Callout";
@@ -9,9 +9,15 @@ import DeliveryList from "./DeliveryList";
 import { DeliveryPanel } from "./DeliveryPanel";
 import {
   DEFAULT_DELIVERY_MAP_VIEW,
+  DEFAULT_GRAPH_ASPECT,
   cycleMessage,
-  layoutDeliveryMap,
+  graphAspectBucket,
+  keptGraphLayoutOf,
+  placeDeliveryGraph,
+  selectGraphTopology,
   selectHeldUnitIds,
+  simulateDeliveryGraphCached,
+  type GraphPoint,
   targetKey,
   type DeliveryMapView,
   type MapFocusRequest,
@@ -26,6 +32,11 @@ import {
 // shows as a view of its own (#1620). A record whose
 // dependencies form a cycle has no order to draw, so the map names the cycle
 // instead and the rest of the tab stays as it is.
+//
+// The graph's layout (#1656) takes the shape of its viewport, and keeps, per
+// bench, where the operator dropped a dragged node: the next layouts start
+// from those places, the dragged nodes stay put, and Reset layout forgets
+// them.
 
 export interface DeliveryMapProps {
   projectId: string;
@@ -86,15 +97,54 @@ export default function DeliveryMap({
     if (root === null) return;
     const item = mapItemOf(root, focusRequest.keys);
     if (item === null) return;
-    item.scrollIntoView?.({ block: "nearest" });
-    item.focus();
+    // The graph pans a focused node into view itself; the list scrolls to it.
+    const inGraph = item.closest('[data-testid="delivery-graph-scroll"]') !== null;
+    if (!inGraph) item.scrollIntoView?.({ block: "nearest" });
+    item.focus({ preventScroll: inGraph });
   }, [focusRequest]);
 
   const order = useMemo(() => selectDependencyOrder(snapshot), [snapshot]);
-  const layout = useMemo(
-    () => (order.kind === "ordered" ? layoutDeliveryMap(snapshot, order.units) : null),
+  // The shape of the graph's viewport, in the steps the layout tells apart.
+  const [aspect, setAspect] = useState(DEFAULT_GRAPH_ASPECT);
+  const onGraphResize = useCallback((size: { width: number; height: number }) => {
+    setAspect(graphAspectBucket(size.width, size.height));
+  }, []);
+  const kept = keptGraphLayoutOf(viewState.deliveryGraphLayout);
+  const keptKey = kept === undefined ? "" : JSON.stringify(kept);
+  const topology = useMemo(
+    () => (order.kind === "ordered" ? selectGraphTopology(snapshot, order.units) : null),
     [snapshot, order],
   );
+  const positions = useMemo(
+    () =>
+      topology === null
+        ? null
+        : simulateDeliveryGraphCached(topology, {
+            aspect,
+            kept: keptKey === "" ? undefined : keptGraphLayoutOf(JSON.parse(keptKey)),
+          }),
+    [topology, aspect, keptKey],
+  );
+  const layout = useMemo(
+    () =>
+      order.kind === "ordered" && positions !== null
+        ? placeDeliveryGraph(snapshot, order.units, positions)
+        : null,
+    [snapshot, order, positions],
+  );
+  // A dropped node keeps its place, and every other node keeps where it was
+  // as the next layout's start.
+  const moveNode = (key: string, centre: GraphPoint) => {
+    if (positions === null) return;
+    const next = Object.fromEntries([...positions].map(([itemKey, at]) => [itemKey, { ...at }]));
+    next[key] = { x: centre.x, y: centre.y };
+    viewState.setDeliveryGraphLayout({
+      positions: next,
+      pinned: [...new Set([...(kept?.pinned ?? []), key])],
+    });
+  };
+  const resetLayout =
+    kept === undefined ? undefined : () => viewState.setDeliveryGraphLayout(undefined);
   const held = useMemo(() => selectHeldUnitIds(snapshot), [snapshot]);
   const rows = useMemo(
     () =>
@@ -170,6 +220,9 @@ export default function DeliveryMap({
             selectedKey={selectedKey}
             onSelect={setSelected}
             onOpen={open}
+            onResize={onGraphResize}
+            onMoveNode={moveNode}
+            onResetLayout={resetLayout}
           />
         ) : (
           <div data-testid="delivery-list-scroll" className="min-h-0 flex-1 overflow-auto">

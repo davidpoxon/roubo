@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Bench } from "@roubo/shared";
 import { createDeliveryReducer, foldDelivery } from "@roubo/shared/delivery-reducer";
@@ -24,7 +24,6 @@ import * as api from "../../lib/api";
 import { useNotificationStream } from "../../hooks/useNotificationStream";
 import DeliveryTabPanel from "./DeliveryTabPanel";
 import { openCostView, returnToMap } from "../../test/delivery-views";
-import { NODE_HEIGHT } from "./delivery-map-model";
 
 const bench = {
   id: 3,
@@ -122,10 +121,12 @@ describe("Delivery map", () => {
       ),
     ).toEqual(["unit:A>unit:B", "unit:B>unit:C"]);
 
-    // Each stack lane has a label and each layer column a header; a node sits
-    // in its stack's lane, at its layer's column.
-    expect(within(graph).getByTestId("delivery-lane-A")).toHaveTextContent("stack A3 units");
-    expect(within(graph).getByTestId("delivery-lane-D")).toHaveTextContent("stack D1 unit");
+    // Each stack has an outline and a label; a node carries its stack and its
+    // layer, as data and as a layer chip.
+    expect(within(graph).getByTestId("delivery-lane-A")).toHaveTextContent("stack A · 3 units");
+    expect(within(graph).getByTestId("delivery-lane-D")).toHaveTextContent("stack D · 1 unit");
+    expect(within(graph).getByTestId("delivery-stack-outline-A")).toBeTruthy();
+    expect(within(graph).getByTestId("delivery-stack-outline-D")).toBeTruthy();
     for (const [id, stack, layer] of [
       ["A", "A", 0],
       ["B", "A", 1],
@@ -133,23 +134,10 @@ describe("Delivery map", () => {
       ["D", "D", 0],
     ] as const) {
       const node = screen.getByTestId(`unit-node-${id}`);
-      const header = within(graph).getByTestId(`delivery-layer-${layer}`);
-      expect(header).toHaveTextContent(`Layer ${layer}`);
       expect(node).toHaveAttribute("data-stack", stack);
       expect(node).toHaveAttribute("data-layer", String(layer));
-      expect(node.style.left).toBe(header.style.left);
-      // The node lies wholly inside its stack's lane.
-      const lane = within(graph).getByTestId(`delivery-lane-${stack}`);
-      const laneTop = parseFloat(lane.style.top);
-      const nodeTop = parseFloat(node.style.top);
-      expect(nodeTop).toBeGreaterThanOrEqual(laneTop);
-      expect(nodeTop + NODE_HEIGHT).toBeLessThanOrEqual(laneTop + parseFloat(lane.style.height));
+      expect(screen.getByTestId(`unit-layer-${id}`)).toHaveTextContent(`L${layer}`);
     }
-    // A column that holds only a gate has no layer header.
-    expect(within(graph).queryByTestId("delivery-layer-3")).toBeNull();
-    expect(parseFloat(screen.getByTestId("unit-node-D").style.top)).toBeGreaterThan(
-      parseFloat(screen.getByTestId("unit-node-A").style.top),
-    );
 
     const markers = screen.getAllByTestId(/^gate-marker-/);
     expect(markers).toHaveLength(2);
@@ -159,17 +147,14 @@ describe("Delivery map", () => {
     ]) {
       const marker = screen.getByTestId(`gate-marker-${gateId}`);
       const unit = screen.getByTestId(`unit-node-${unitId}`);
-      // After the unit in reading order, in the column after it, in the gate
-      // lane below the stacks.
+      // After the unit in reading order, and joined to it by a gate edge.
       expect(unit.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(parseFloat(marker.style.left)).toBeGreaterThan(parseFloat(unit.style.left));
-      expect(parseFloat(marker.style.top)).toBeGreaterThan(
-        parseFloat(screen.getByTestId("unit-node-D").style.top),
-      );
+      expect(
+        graph.querySelector(
+          `[data-edge-kind="gate"][data-edge-from="gate:${gateId}"][data-edge-to="unit:${unitId}"]`,
+        ),
+      ).not.toBeNull();
     }
-    expect(within(graph).getByTestId("delivery-gate-lane")).toHaveTextContent(
-      "verify gates2 gates",
-    );
     expect(within(graph).getByTestId("delivery-graph-legend")).toHaveTextContent(
       "depends onmergedlive pathgates the next batch",
     );
@@ -418,6 +403,62 @@ describe("Delivery map", () => {
     expect(screen.getByTestId("delivery-health-chip")).not.toHaveAttribute(
       "data-health",
       "blocked",
+    );
+  });
+
+  it("keeps a dragged node where it was dropped for the bench, and forgets it on Reset layout", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      foldDelivery({ record: fourUnitRecord(), events: [] }),
+    );
+    const first = renderWithProviders(<Harness />);
+    const node = await screen.findByTestId("unit-node-B");
+    const left = parseFloat(node.style.left);
+    expect(screen.getByRole("button", { name: "Reset layout" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    act(() => {
+      fireEvent.pointerDown(node, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(node, { pointerId: 1, clientX: 610, clientY: 10 });
+      fireEvent.pointerUp(node, { pointerId: 1, clientX: 610, clientY: 10 });
+    });
+    const kept = JSON.parse(localStorage.getItem("roubo-bench-view-state") ?? "{}") as Record<
+      string,
+      { deliveryGraphLayout?: { positions: Record<string, unknown>; pinned: string[] } }
+    >;
+    const layout = kept["demo:3"]?.deliveryGraphLayout;
+    expect(layout?.pinned).toEqual(["unit:B"]);
+    expect(Object.keys(layout?.positions ?? {}).sort()).toEqual([
+      "gate:gate-after-b",
+      "gate:gate-after-c",
+      "unit:A",
+      "unit:B",
+      "unit:C",
+      "unit:D",
+    ]);
+    // B now sits right of where it was, against the rest of the graph.
+    const relativeLeft = () =>
+      parseFloat(screen.getByTestId("unit-node-B").style.left) -
+      parseFloat(screen.getByTestId("unit-node-A").style.left);
+    const moved = relativeLeft();
+    expect(moved).toBeGreaterThan(left - parseFloat(screen.getByTestId("unit-node-A").style.left));
+
+    // A reload lays the graph out from the kept places.
+    first.unmount();
+    renderWithProviders(<Harness />, { queryClient: makeQueryClient() });
+    await screen.findByTestId("unit-node-B");
+    expect(relativeLeft()).toBeCloseTo(moved, 0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset layout" }));
+    expect(
+      (
+        JSON.parse(localStorage.getItem("roubo-bench-view-state") ?? "{}") as Record<string, object>
+      )["demo:3"],
+    ).not.toHaveProperty("deliveryGraphLayout");
+    expect(screen.getByRole("button", { name: "Reset layout" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
   });
 });

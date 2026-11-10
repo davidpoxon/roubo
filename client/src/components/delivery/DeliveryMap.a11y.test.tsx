@@ -63,11 +63,15 @@ describe("Delivery map accessibility", () => {
     );
 
     // Step 1: Tab through the graph view. The view toggle comes first, then
-    // every node and gate marker in dependency order.
+    // the graph's viewport, then every node and gate marker in dependency
+    // order.
     await user.tab();
     expect(screen.getByRole("button", { name: "Graph" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "List" })).toHaveFocus();
+    // The graph's viewport, where the arrow keys pan (#1656).
+    await user.tab();
+    expect(screen.getByRole("group", { name: "Delivery graph" })).toHaveFocus();
     const expected = [
       "unit-node-A",
       "unit-node-B",
