@@ -397,23 +397,106 @@ export function getContextWindow(): number {
 }
 
 /**
- * Loads $ROUBO_DIR/.env and merges vars into process.env.
- * Existing process.env values take precedence (explicit env wins).
- * Silently no-ops if the file doesn't exist.
+ * Strip surrounding quotes (single or double). Limitations: does not handle
+ * escaped quotes within the value (e.g. "value \"with\" quotes") and does not
+ * detect mismatched pairs (e.g. "value'). Sufficient for the primary use case
+ * of API keys that don't contain escape sequences.
  */
-export function loadEnvFile(): void {
+function unquoteEnvValue(raw: string): string {
+  return raw.length >= 2 &&
+    ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
+      (raw[0] === "'" && raw[raw.length - 1] === "'"))
+    ? raw.slice(1, -1)
+    : raw;
+}
+
+/** The values of $ROUBO_DIR/.env by key, the first line of a key winning. */
+function readEnvFileValues(): Map<string, string> {
+  const values = new Map<string, string>();
   for (const { key, raw } of parseEnvFile()) {
-    if (!(key in process.env)) {
-      // Strip surrounding quotes (single or double). Limitations: does not
-      // handle escaped quotes within the value (e.g. "value \"with\" quotes")
-      // and does not detect mismatched pairs (e.g. "value'). Sufficient for
-      // the primary use case of API keys that don't contain escape sequences.
-      process.env[key] =
-        raw.length >= 2 &&
-        ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
-          (raw[0] === "'" && raw[raw.length - 1] === "'"))
-          ? raw.slice(1, -1)
-          : raw;
-    }
+    if (!values.has(key)) values.set(key, unquoteEnvValue(raw));
   }
+  return values;
+}
+
+/**
+ * Each key `loadEnvFile()` put in process.env, with the value it put there. A
+ * later load may change or remove only these: a key the process had before,
+ * or one something else has set since, is explicit env and wins.
+ */
+const envFileApplied = new Map<string, string>();
+let envFileLoaded = false;
+
+/**
+ * Keys only the first load applies. The server binds its port, resolves its
+ * state dir and picks its mode once at boot, and publishes the bound port back
+ * into ROUBO_PORT, so a later edit of these in .env must not reach process.env.
+ */
+const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
+  "ROUBO_PORT",
+  "ROUBO_DIR",
+  "ROUBO_PRODUCTION",
+  "ROUBO_E2E",
+]);
+
+/** Whether process.env holds `key` as the .env load left it, so a reload may change it. */
+function ownedByEnvFile(key: string): boolean {
+  const applied = envFileApplied.get(key);
+  return applied !== undefined && process.env[key] === applied;
+}
+
+/**
+ * Loads $ROUBO_DIR/.env and merges vars into process.env, and returns the keys
+ * whose process.env value it changed. Existing process.env values take
+ * precedence (explicit env wins). Silently no-ops if the file doesn't exist.
+ *
+ * Re-invocable (HR-FR-011): the state dir watch calls it again on each save of
+ * .env, so a key added, changed or removed there reaches process.env, and so
+ * every child process spawned after it, with no relaunch. A reload changes or
+ * removes only the keys an earlier load set and nothing has changed since, and
+ * never the boot-only keys.
+ */
+export function loadEnvFile(): string[] {
+  const first = !envFileLoaded;
+  envFileLoaded = true;
+  const values = readEnvFileValues();
+  const changed: string[] = [];
+  for (const [key, value] of values) {
+    if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
+    if (key in process.env && !ownedByEnvFile(key)) {
+      envFileApplied.delete(key);
+      continue;
+    }
+    if (process.env[key] !== value) {
+      process.env[key] = value;
+      changed.push(key);
+    }
+    envFileApplied.set(key, value);
+  }
+  for (const key of [...envFileApplied.keys()]) {
+    if (values.has(key)) continue;
+    if (ownedByEnvFile(key)) {
+      Reflect.deleteProperty(process.env, key);
+      changed.push(key);
+    }
+    envFileApplied.delete(key);
+  }
+  return changed;
+}
+
+/**
+ * The value of `key` now, read per call (HR-FR-011): explicit env when the
+ * process has it from outside .env, else the line of $ROUBO_DIR/.env as the
+ * file holds it at this call, else undefined. A save of .env is seen by the
+ * next call even before the state dir watch has reloaded it.
+ */
+export function readEnvValue(key: string): string | undefined {
+  if (key in process.env && !ownedByEnvFile(key)) return process.env[key];
+  return readEnvFileValues().get(key);
+}
+
+/** Forget what earlier loads of .env applied. For tests. */
+export function resetEnvFileLoads(): void {
+  envFileApplied.clear();
+  envFileLoaded = false;
 }

@@ -26,8 +26,12 @@
  *   it, and the notice names the plugins that started.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
  *   edit disables stops, and one it enables starts.
- * - settings.json: read again. A settings.json that does not parse, or whose
- *   top level is not an object, keeps the last good settings served (HR-TC-034).
+ * - settings.json: read again, and the notice names each setting the edit
+ *   changed. A settings.json that does not parse, or whose top level is not an
+ *   object, keeps the last good settings served (HR-TC-034).
+ * - .env: loaded again into process.env, so each key the edit adds, changes or
+ *   removes reaches every process the app starts from then on, and the notice
+ *   counts the keys that changed (HR-FR-011).
  *
  * The state dir is watched as one directory with a basename allowlist rather
  * than file by file, since a single-file watch loses saves that replace the
@@ -52,11 +56,13 @@ import {
 import * as benchManager from "./bench-manager.js";
 import type { BenchStateEditRef } from "./bench-manager.js";
 import * as credentialStore from "./credential-store.js";
+import { loadEnvFile } from "./env.js";
 import { loadConsentState } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { broadcastInputChanged } from "./sse.js";
+import { changedSettingNames, settingsAppliedNotice } from "./settings-changes.js";
 import { forgetInputContent, noteInputContent } from "./self-write-tokens.js";
 import {
   watchInput,
@@ -80,6 +86,7 @@ export const STATE_FILE_SURFACES = {
   "plugins-consent.json": "plugin",
   "plugins-state.json": "plugin",
   "settings.json": "settings",
+  ".env": "environment",
 } as const satisfies Record<string, InputSurface>;
 
 export type StateFile = keyof typeof STATE_FILE_SURFACES;
@@ -426,9 +433,26 @@ async function handleSettings(absPath: string): Promise<HandlerResult> {
     return rejected("settings.json", "Settings", read.first, "Last good settings still in effect.");
   }
   // Read again, so the last good settings are the ones the edit left. A
-  // missing file reads as the built-in defaults.
-  state.loadSettings();
-  return applied({ summary: "Settings applied." });
+  // missing file reads as the built-in defaults. The notice names each setting
+  // the edit changed (HR-FR-011).
+  const before = state.settingsInEffect();
+  const after = state.loadSettings();
+  return applied({ summary: settingsAppliedNotice(changedSettingNames(before, after)) });
+}
+
+/** "Environment file applied: 1 key changed." */
+export function envFileAppliedNotice(changed: number): string {
+  return `Environment file applied: ${changed} ${changed === 1 ? "key" : "keys"} changed.`;
+}
+
+async function handleEnvFile(): Promise<HandlerResult> {
+  // Load .env again (HR-FR-011): each key it adds, changes or removes reaches
+  // process.env, and so every component, terminal and plugin process started
+  // from now on. Explicit env still wins, and the boot-only keys stay as boot
+  // set them. An edit that changes no key, such as a comment, sends no notice.
+  const changed = loadEnvFile();
+  if (changed.length === 0) return "ignored";
+  return applied({ summary: envFileAppliedNotice(changed.length) });
 }
 
 /** The handler of one state file of the state dir. */
@@ -447,6 +471,8 @@ export async function handleStateFileChange(change: InputChange): Promise<Handle
       return handleEnableState(change.path);
     case "settings.json":
       return handleSettings(change.path);
+    case ".env":
+      return handleEnvFile();
     default:
       return "ignored";
   }
@@ -460,6 +486,7 @@ const FILE_LEADS: Record<StateFile, string> = {
   "plugins-consent.json": "Plugin consent",
   "plugins-state.json": "Plugin state",
   "settings.json": "Settings",
+  ".env": "Environment file",
 };
 
 /** The target ids of one event, the ones a client matches notices by. */
@@ -622,6 +649,13 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
   active = watch;
   activeDir = dir;
   await watch.ready;
+  // Load .env once more, so an edit saved between the boot load and the arm
+  // is not missed; the watch runs for each save from here on.
+  try {
+    loadEnvFile();
+  } catch (err) {
+    console.warn(`[state-dir-watch] .env could not be loaded: ${(err as Error).message}`);
+  }
   // A state file that is absent is known absent, so a file created by hand
   // and written by the app inside the settle window is told apart too.
   for (const file of STATE_FILES) {

@@ -555,7 +555,7 @@ Opens a Server-Sent Events stream. Each `data:` line is a JSON object with a `ty
 | `summary`   | string                                                                             | One line that starts with the surface's thing, such as `Project`                                                                                                   |
 | `error`     | `{ path, first }`, optional                                                        | On a rejection or a refusal: the input path, relative to its project root or the state dir, and its first validation error, or a generic reason when there is none |
 
-The event never carries file content. A change whose content matches what is already applied (deduped) and a write Roubo made itself (self-write) are logged on the server only and never sent.
+The event never carries file content. A change whose content matches what is already applied (deduped) and a write Roubo made itself (self-write) are logged on the server only and never sent. The one exception is `PUT /api/settings`: a save that changes a setting sends one `settings` event, `applied`, whose summary names each setting it changed, such as `Settings applied: default agent.` A save of `~/.roubo/.env` sends one `environment` event, `applied`, that counts the keys it changed, such as `Environment file applied: 1 key changed.`, and sends none when it changed no key.
 
 Reconnect on close; the server does not currently send `retry:` or `id:` directives.
 

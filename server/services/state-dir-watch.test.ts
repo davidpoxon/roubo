@@ -26,6 +26,7 @@ vi.mock("./state.js", async (importOriginal) => {
     loadProjects: () => ({ projects: [] }),
     // The real one reads the process's own state dir, never the temp one.
     loadSettings: vi.fn(() => ({ theme: "dark" })),
+    settingsInEffect: vi.fn(() => ({ theme: "dark" })),
   };
 });
 vi.mock("./sse.js", async (importOriginal) => {
@@ -69,6 +70,8 @@ import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
+import { cleanEnv, resetEnvFileLoads } from "./env.js";
+import { startDeviceFlow } from "./github-oauth.js";
 import { LAST_GOOD_LINE, inputNoticeText } from "../../client/src/lib/input-changed";
 import {
   STATE_FILES,
@@ -77,6 +80,7 @@ import {
   benchRemovedNotice,
   benchRevertedNotice,
   benchUnmatchedNotice,
+  envFileAppliedNotice,
   jsonParseError,
   startStateDirWatch,
   stopStateDirWatch,
@@ -175,9 +179,10 @@ afterEach(async () => {
 });
 
 describe("state dir watch", () => {
-  it("watches the five state files and settings.json, and nothing else in the state dir", async () => {
+  it("watches the five state files, settings.json and .env, and nothing else in the state dir", async () => {
     expect([...STATE_FILES].sort()).toEqual(
       [
+        ".env",
         "auth.json",
         "plugins-consent.json",
         "plugins-state.json",
@@ -596,6 +601,31 @@ describe("state dir watch", () => {
     expect(state.loadSettings).toHaveBeenCalledTimes(1);
   });
 
+  it("HR-TC-023 a hand edit of the default agent in settings.json names the setting in its notice", async () => {
+    const jigs = { autoInject: true, autoExecute: true };
+    vi.mocked(state.settingsInEffect).mockReturnValueOnce({
+      theme: "dark",
+      jigs: { ...jigs, defaultAgentPluginId: "claude-code" },
+    });
+    vi.mocked(state.loadSettings).mockReturnValueOnce({
+      theme: "dark",
+      jigs: { ...jigs, defaultAgentPluginId: "codex" },
+    });
+    fs.writeFileSync(
+      path.join(dir, "settings.json"),
+      JSON.stringify({ theme: "dark", jigs: { ...jigs, defaultAgentPluginId: "codex" } }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "settings",
+      outcome: "applied",
+      summary: "Settings applied: default agent.",
+    });
+    expect(noticeOf(hoisted.events[0])).toBe("Settings applied: default agent.");
+  });
+
   it("invalid JSON in any state file is rejected and nothing of it is applied", async () => {
     fs.writeFileSync(path.join(dir, "state.json"), '{"benches": [');
 
@@ -738,7 +768,114 @@ describe("state dir watch", () => {
   });
 });
 
+describe("state dir watch of .env", () => {
+  const KEYS = ["KEY_A", "KEY_B", "GITHUB_CLIENT_ID"] as const;
+  const saved = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved.set(key, process.env[key]);
+      Reflect.deleteProperty(process.env, key);
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetEnvFileLoads();
+    for (const key of KEYS) {
+      const value = saved.get(key);
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
+  });
+
+  const envEvents = () => hoisted.events.filter((e) => e.surface === "environment");
+
+  it("HR-TC-024 a key added to .env applies with a notice and reaches the next component", async () => {
+    fs.writeFileSync(path.join(dir, ".env"), "# my keys\nKEY_A=1\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0]).toEqual({
+      surface: "environment",
+      outcome: "applied",
+      summary: "Environment file applied: 1 key changed.",
+    });
+    expect(noticeOf(envEvents()[0])).toBe("Environment file applied: 1 key changed.");
+    // A component is spawned with cleanEnv() at its start, so it sees the key.
+    expect(cleanEnv().KEY_A).toBe("1");
+
+    // A change and an addition count as two keys; a removal takes the key out.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=2\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 2 keys changed.");
+    expect(cleanEnv()).toMatchObject({ KEY_A: "2", KEY_B: "b" });
+
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_B=b\n");
+    await waitFor(() => envEvents().length === 3);
+    expect(envEvents()[2].summary).toBe("Environment file applied: 1 key changed.");
+    expect(cleanEnv().KEY_A).toBeUndefined();
+    expect(fileLines(".env", "applied")).toHaveLength(3);
+  });
+
+  it("HR-TC-024 an explicit env value wins over .env, and an edit that changes no key sends no notice", async () => {
+    process.env.KEY_A = "from-launch";
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+
+    await sleep(600);
+
+    expect(process.env.KEY_A).toBe("from-launch");
+    expect(envEvents()).toEqual([]);
+
+    // The watch is still live: a key it can apply sends its notice.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+    expect(envEvents()[0].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.KEY_A).toBe("from-launch");
+    expect(process.env.KEY_B).toBe("b");
+  });
+
+  it("HR-TC-025 a GITHUB_CLIENT_ID change in .env shows a notice and the next sign-in carries the new client id", async () => {
+    const fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<unknown>>(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          device_code: "dev-123",
+          user_code: "ABCD-1234",
+          verification_uri: "https://github.com/login/device",
+          expires_in: 900,
+          interval: 5,
+        }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const clientIdOf = (call: number) =>
+      (JSON.parse(String(fetchMock.mock.calls[call]?.[1].body)) as { client_id: string }).client_id;
+
+    fs.writeFileSync(path.join(dir, ".env"), "GITHUB_CLIENT_ID=Iv1.first\n");
+    await waitFor(() => envEvents().length === 1);
+    await startDeviceFlow();
+    expect(clientIdOf(0)).toBe("Iv1.first");
+
+    fs.writeFileSync(path.join(dir, ".env"), "GITHUB_CLIENT_ID=Iv1.second\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(noticeOf(envEvents()[1])).toBe("Environment file applied: 1 key changed.");
+
+    await startDeviceFlow();
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://github.com/login/device/code");
+    expect(clientIdOf(1)).toBe("Iv1.second");
+    // The value is never logged or sent.
+    expect(lines.join("\n")).not.toContain("Iv1.second");
+    expect(JSON.stringify(hoisted.events)).not.toContain("Iv1.second");
+  });
+});
+
 describe("state dir watch notice copy", () => {
+  it("counts the changed keys of .env", () => {
+    expect(envFileAppliedNotice(1)).toBe("Environment file applied: 1 key changed.");
+    expect(envFileAppliedNotice(3)).toBe("Environment file applied: 3 keys changed.");
+  });
+
   it("names each bench by project, in order", () => {
     expect(benchAppliedNotice([])).toBe("Bench state applied.");
     expect(

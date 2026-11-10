@@ -544,6 +544,15 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
   }
 }
 
+/**
+ * The settings in effect now, without reading the file: the last good
+ * settings, or the built-in defaults when none has parsed yet. A reader of a
+ * changed settings.json compares its new read with these.
+ */
+export function settingsInEffect(): UserPreferences {
+  return lastGoodSettings === null ? defaultSettings() : structuredClone(lastGoodSettings);
+}
+
 /** Forget the last settings that parsed. For tests. */
 export function resetLastGoodSettings(): void {
   lastGoodSettings = null;

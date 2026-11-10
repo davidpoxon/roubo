@@ -359,8 +359,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   // Watch the state files in the Roubo state dir, so a hand edit of
   // projects.json, state.json, auth.json, plugins-consent.json,
-  // plugins-state.json or settings.json applies with no relaunch, while the
-  // app's own writes of them are not applied again (HR-FR-012, HR-FR-013).
+  // plugins-state.json, settings.json or .env applies with no relaunch, while
+  // the app's own writes of them are not applied again (HR-FR-011, HR-FR-012,
+  // HR-FR-013).
   console.log("Starting state file watcher...");
   try {
     await stateDirWatch.startStateDirWatch();
