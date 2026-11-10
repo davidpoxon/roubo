@@ -1486,6 +1486,46 @@ describe("BenchDetail", () => {
       );
     });
 
+    it("opens the prompt when the user has moved to a bench that is still loading", async () => {
+      const pending: MutateOptions[] = [];
+      const teardownMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
+        pending.push(options);
+      });
+      vi.mocked(useTeardownBench).mockReturnValue({
+        mutate: teardownMutate,
+        isPending: false,
+      } as never);
+      mockUseBenchDetail.mockImplementation((_projectId, benchId) =>
+        benchId === 1
+          ? ({ data: baseBench, isLoading: false, isError: false } as never)
+          : ({ data: undefined, isLoading: true, isError: false } as never),
+      );
+      render(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+          <Harness />
+        </MemoryRouter>,
+      );
+      await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+      await userEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", { name: /^clear$/i }),
+      );
+
+      switchTo(9);
+      expect(screen.getByText("Loading bench...")).toBeInTheDocument();
+      act(() =>
+        pending[0].onError?.(new ApiError("dirty", 409, "bench-dirty", { reasons: dirtyReasons })),
+      );
+
+      expect(
+        screen.getByRole("dialog", { name: /clear bench 1: uncommitted work detected/i }),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Clear anyway" }));
+      expect(teardownMutate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ projectId: "proj-1", benchId: 1, force: true }),
+        expect.anything(),
+      );
+    });
+
     it("resumes a component start on the bench it failed on, not the bench now on screen", async () => {
       const pending: MutateOptions[] = [];
       const startMutate = vi.fn((_vars: unknown, options: MutateOptions) => {
@@ -1612,6 +1652,42 @@ describe("BenchDetail", () => {
       );
 
       expect(screen.queryByText("Project page")).not.toBeInTheDocument();
+    });
+
+    it("forgets a teardown it saw once the user has moved to another bench", () => {
+      let bench1Gone = false;
+      mockUseBenchDetail.mockImplementation((_projectId, benchId) => {
+        if (benchId !== 1) {
+          return {
+            data: { ...baseBench, id: benchId as number, branch: branchOf(benchId as number) },
+            isLoading: false,
+            isError: false,
+          } as never;
+        }
+        return bench1Gone
+          ? ({ data: undefined, isLoading: false, isError: true } as never)
+          : ({
+              data: {
+                ...baseBench,
+                status: "clearing",
+                teardownSteps: [{ id: "td-1", label: "Stopping components", status: "running" }],
+              },
+              isLoading: false,
+              isError: false,
+            } as never);
+      });
+      render(
+        <MemoryRouter initialEntries={["/projects/proj-1/benches/1"]}>
+          <Harness />
+        </MemoryRouter>,
+      );
+
+      switchTo(2);
+      bench1Gone = true;
+      switchTo(1);
+
+      expect(screen.queryByText("Project page")).not.toBeInTheDocument();
+      expect(screen.getByText("Bench not found.")).toBeInTheDocument();
     });
 
     it("still navigates away when the bench seen clearing disappears", () => {

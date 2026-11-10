@@ -217,9 +217,9 @@ function ComponentsTab({
   // an ACTIONABLE resolution lands here (isMissingPluginError narrows to
   // single-source / ambiguous), so an id no source serves never opens the dialog
   // and keeps the plain component-status error it already had (CPHMTP-TC-082).
-  // Each recovery records the bench whose start failed: this tab stays mounted
-  // when the user moves to another bench, and the resumed start must not act
-  // on the bench now on screen (#1654).
+  // Each recovery records the bench whose start failed. When the user moves to
+  // a bench that is already loaded, this tab stays mounted, and the resumed
+  // start must not act on the bench now on screen (#1654).
   const [missingPlugin, setMissingPlugin] = useState<{
     target: ComponentStartTarget;
     resolution: MissingPluginResolution;
