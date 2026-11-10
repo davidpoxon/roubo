@@ -139,7 +139,7 @@ export default function DeliveryCasesView({
                         tabIndex={current ? 0 : -1}
                         onClick={() => setSelectedId(entry.id)}
                         onFocus={() => setSelectedId(entry.id)}
-                        className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left ${focusRing} ${
+                        className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition-colors ${focusRing} ${
                           current ? "bg-accent-muted" : "hover:bg-bg-hover active:bg-bg-pressed"
                         }`}
                       >

@@ -446,7 +446,8 @@ function DeliverySnapshotView({
       data-testid="delivery-snapshot"
       // The map view fills the tab, so the tab does not scroll while the
       // window is at least 560px high; below that it keeps a 560px floor and
-      // the tab scrolls instead of squashing the map.
+      // the tab scrolls. Just above 560px the map row gets what the header,
+      // banner and digest leave, which can be little.
       className={
         view.kind === "map"
           ? "flex min-h-[560px] flex-1 flex-col [@media(min-height:560px)]:min-h-0"
@@ -516,7 +517,7 @@ function DeliverySnapshotView({
 
         {/* Side by side, the map and the rail take the rest of the height;
             stacked, each takes a height of its own and the tab scrolls. */}
-        <div data-testid="delivery-workspace" className="@container min-h-0 flex-1">
+        <div data-testid="delivery-workspace" className="@container/workspace min-h-0 flex-1">
           <div className="grid gap-4 @4xl:h-full @4xl:grid-cols-[minmax(0,1fr)_320px] @4xl:grid-rows-[minmax(0,1fr)]">
             <div className="flex h-[70dvh] min-h-0 min-w-0 flex-col @4xl:h-full">
               <DeliveryMap
@@ -547,7 +548,7 @@ function DeliverySnapshotView({
                   crossCheck={crossCheck.data}
                   snapshot={snapshot}
                   onFocusMapTarget={focusMapTarget}
-                  className="flex-1 @md/rail:max-h-[60dvh] @4xl:min-h-40"
+                  className="flex-1 @md/rail:max-h-[60dvh] @4xl/workspace:min-h-40"
                 />
               )}
             </aside>
