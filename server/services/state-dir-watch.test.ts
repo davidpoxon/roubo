@@ -211,10 +211,36 @@ describe("state dir watch", () => {
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-consent.json",
       summary: "Plugin consent applied: database.",
     });
     expect(fileLines("plugins-consent.json", "applied")).toHaveLength(1);
     expect(fileLines("plugins-consent.json")[0]).toContain("surface=plugin ");
+  });
+
+  it("HR-TC-027 a plugins-consent.json moved aside after a rejected hand edit sends no applied notice", async () => {
+    const file = path.join(dir, "plugins-consent.json");
+    fs.writeFileSync(file, "{ not json");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "plugin",
+      outcome: "rejected",
+      input: "plugins-consent.json",
+      error: { path: "plugins-consent.json" },
+    });
+
+    // The app moves a file that does not parse aside when it next reads it.
+    fs.renameSync(file, path.join(dir, "plugins-consent.json.corrupt"));
+    await waitFor(() => fileLines("plugins-consent.json").length === 2);
+    await sleep(300);
+
+    expect(hoisted.events.filter((e) => e.outcome === "applied")).toEqual([]);
+    expect(hoisted.events[1]).toMatchObject({
+      surface: "plugin",
+      outcome: "rejected",
+      error: { path: "plugins-consent.json", first: "the file is missing" },
+    });
+    expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
   });
 
   it("HR-TC-027 a consented plugin that is already running is not named in the notice", async () => {
@@ -288,6 +314,7 @@ describe("state dir watch", () => {
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-state.json",
       summary: "Plugin database disabled.",
     });
   });
@@ -326,6 +353,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -344,6 +372,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "refused",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [2],
       summary: "Bench state not applied: bench 2 on lantern is active. Stop it first.",
@@ -388,6 +417,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary:
@@ -450,6 +480,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(hoisted.events[2]).toMatchObject({
@@ -491,6 +522,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [9],
       summary: "Bench state not applied. state.json: bench 9 on lantern does not exist.",
@@ -513,6 +545,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state not applied. state.json: bench 3 on lantern cannot be removed by hand.",
@@ -590,13 +623,15 @@ describe("state dir watch", () => {
     // Nothing reads the broken file as new settings.
     expect(state.loadSettings).not.toHaveBeenCalled();
 
-    // The watch keeps running: a fixed file applies.
-    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark" }));
+    // The watch keeps running: a fixed file applies, and its notice names the
+    // setting it changed.
+    vi.mocked(state.loadSettings).mockReturnValueOnce({ theme: "light" });
+    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "light" }));
     await waitFor(() => hoisted.events.length === 2);
     expect(hoisted.events[1]).toMatchObject({
       surface: "settings",
       outcome: "applied",
-      summary: "Settings applied.",
+      summary: "Settings applied: theme.",
     });
     expect(state.loadSettings).toHaveBeenCalledTimes(1);
   });
@@ -621,9 +656,20 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "settings",
       outcome: "applied",
+      input: "settings.json",
       summary: "Settings applied: default agent.",
     });
     expect(noticeOf(hoisted.events[0])).toBe("Settings applied: default agent.");
+  });
+
+  it("HR-TC-023 a hand edit of settings.json that changes no setting sends no notice", async () => {
+    vi.mocked(state.loadSettings).mockClear();
+    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark" }, null, 4));
+    await waitFor(() => vi.mocked(state.loadSettings).mock.calls.length === 1);
+    await sleep(300);
+
+    expect(hoisted.events).toEqual([]);
+    expect(hoisted.events.map((e) => e.summary)).not.toContain("Settings applied.");
   });
 
   it("HR-TC-023 deleting settings.json then restoring it names the setting each time", async () => {
@@ -647,6 +693,7 @@ describe("state dir watch", () => {
       expect(hoisted.events[0]).toEqual({
         surface: "settings",
         outcome: "applied",
+        input: "settings.json",
         summary: "Settings applied: theme.",
       });
 
@@ -658,6 +705,7 @@ describe("state dir watch", () => {
       expect(hoisted.events[1]).toEqual({
         surface: "settings",
         outcome: "applied",
+        input: "settings.json",
         summary: "Settings applied: theme.",
       });
     } finally {
@@ -696,6 +744,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(fileLines("state.json", "applied")).toHaveLength(1);
@@ -717,11 +766,13 @@ describe("state dir watch", () => {
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -761,12 +812,14 @@ describe("state dir watch", () => {
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
+      input: "plugins-state.json",
       summary: "Plugin state applied.",
     });
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-state.json",
       summary: "Plugin database disabled.",
     });
   });
@@ -785,6 +838,7 @@ describe("state dir watch", () => {
       surface: "project-config",
       outcome: "applied",
       projectId: "lantern",
+      input: "projects.json",
       summary: "Project settings applied: lantern.",
     });
   });
@@ -799,8 +853,9 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toMatchObject({
       surface: "github",
       outcome: "applied",
-      summary: "GitHub token applied from auth.json.",
+      summary: "GitHub credentials applied.",
     });
+    expect(noticeOf(hoisted.events[0])).toBe("GitHub credentials applied.");
     // The token is never logged or sent.
     expect(lines.join("\n")).not.toContain("ghp_example");
     expect(JSON.stringify(hoisted.events)).not.toContain("ghp_example");
@@ -844,6 +899,7 @@ describe("state dir watch of .env", () => {
     expect(envEvents()[0]).toEqual({
       surface: "environment",
       outcome: "applied",
+      input: ".env",
       summary: "Environment file applied: 1 key changed.",
     });
     expect(noticeOf(envEvents()[0])).toBe("Environment file applied: 1 key changed.");
@@ -929,6 +985,7 @@ describe("state dir watch of .env", () => {
     expect(envEvents()[0]).toEqual({
       surface: "environment",
       outcome: "applied",
+      input: ".env",
       summary: "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
     });
     expect(noticeOf(envEvents()[0])).toBe(

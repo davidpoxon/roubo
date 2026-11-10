@@ -2105,6 +2105,14 @@ export interface InputChangedEvent {
   type: "input-changed";
   surface: InputSurface;
   outcome: InputChangedOutcome;
+  /**
+   * The state file the change was made to, such as `projects.json`, on an
+   * event of the state dir watch. A surface that more than one input feeds is
+   * told apart by it: `project-config` from `projects.json` or a roubo.yaml,
+   * and `plugin` from `plugins-consent.json`, `plugins-state.json` or a plugin
+   * folder. Absent on an event of any other input.
+   */
+  input?: string;
   projectId?: string;
   pluginId?: string;
   benchIds?: number[];

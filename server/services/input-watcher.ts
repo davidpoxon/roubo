@@ -106,6 +106,12 @@ export interface WatchInputOptions {
    * back to `surface` when absent or when it gives nothing.
    */
   surfaceOf?: (absPath: string) => string | undefined;
+  /**
+   * The name of one input that its events carry as `input`, for a watch whose
+   * inputs share a surface but differ in what a client refreshes, such as the
+   * state files. Absent, or giving nothing, the events carry no `input`.
+   */
+  inputOf?: (absPath: string) => string | undefined;
   /** The trailing settle window for each input, in milliseconds. */
   settleMs: number;
   /**
@@ -295,6 +301,7 @@ function sendInputChanged(
   detail: InputEventDetail | undefined,
   target: WatchInputOptions["target"],
   fallbackError: { path: string; first: string },
+  input?: string,
 ): void {
   if (!isInputSurface(surface)) return;
   const projectId = detail?.projectId ?? target?.projectId;
@@ -303,6 +310,7 @@ function sendInputChanged(
   broadcastInputChanged({
     surface,
     outcome,
+    ...(input === undefined ? {} : { input }),
     ...(projectId === undefined ? {} : { projectId }),
     ...(pluginId === undefined ? {} : { pluginId }),
     ...(detail?.benchIds === undefined ? {} : { benchIds: [...detail.benchIds] }),
@@ -610,10 +618,18 @@ export function watchInput(
       });
       // Deduped and self-write outcomes are logged only, never sent.
       if (outcome === "applied" || outcome === "rejected" || outcome === "refused") {
-        sendInputChanged(surface, outcome, detail, options.target, {
-          path: pathFromWatchRoot(unit, roots),
-          first: reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
-        });
+        sendInputChanged(
+          surface,
+          outcome,
+          detail,
+          options.target,
+          {
+            path: pathFromWatchRoot(unit, roots),
+            first:
+              reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
+          },
+          options.inputOf?.(unit),
+        );
       }
     };
 

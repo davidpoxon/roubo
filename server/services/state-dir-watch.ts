@@ -23,12 +23,15 @@
  *   plugin's github-token credential slot, and auth.json is left in place.
  * - plugins-consent.json: each consented plugin that is not running and that
  *   the user has not disabled starts, as a grant of consent in the app starts
- *   it, and the notice names the plugins that started.
+ *   it, and the notice names the plugins that started. A missing file is
+ *   rejected, not applied: the app itself moves aside a file that does not
+ *   parse, and that grants no consent.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
  *   edit disables stops, and one it enables starts.
  * - settings.json: read again, and the notice names each setting the edit
- *   changed. A settings.json that does not parse, or whose top level is not an
- *   object, keeps the last good settings served (HR-TC-034).
+ *   changed; an edit that changes none sends no notice. A settings.json that
+ *   does not parse, or whose top level is not an object, keeps the last good
+ *   settings served (HR-TC-034).
  * - .env: loaded again into process.env, so each key the edit adds, changes or
  *   removes reaches every process the app starts from then on, and the notice
  *   counts the keys that changed (HR-FR-011).
@@ -366,18 +369,21 @@ async function handleAuth(absPath: string): Promise<HandlerResult> {
   // removes it, so its absence is the normal state. A token put there by hand
   // is copied into the credential slot, and the file is left in place.
   if (read.kind === "missing") return "ignored";
-  if (read.kind === "invalid") return rejected("auth.json", "GitHub token", read.first);
+  if (read.kind === "invalid") return rejected("auth.json", "GitHub credentials", read.first);
   const token = read.value.githubToken;
   if (typeof token !== "string" || token.length === 0) {
-    return rejected("auth.json", "GitHub token", "githubToken must be a non-empty string");
+    return rejected("auth.json", "GitHub credentials", "githubToken must be a non-empty string");
   }
   await credentialStore.set(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT, token);
-  return applied({ summary: "GitHub token applied from auth.json." });
+  return applied({ summary: "GitHub credentials applied." });
 }
 
 async function handleConsent(absPath: string): Promise<HandlerResult> {
   const read = readStateFile(absPath);
-  if (read.kind === "missing") return applied({ summary: consentAppliedNotice([]) });
+  // The app moves a plugins-consent.json that does not parse aside when it
+  // next reads it, so a missing file is no grant of consent: it is rejected,
+  // and the rejected notice of a hand edit stays open.
+  if (read.kind === "missing") return rejected("plugins-consent.json", "Plugin consent", MISSING);
   if (read.kind === "invalid") {
     return rejected("plugins-consent.json", "Plugin consent", read.first);
   }
@@ -440,7 +446,12 @@ async function handleSettings(absPath: string): Promise<HandlerResult> {
   const before = state.lastAnnouncedSettings();
   const after = read.kind === "missing" ? state.builtInSettings() : state.loadSettings();
   state.noteAnnouncedSettings(after);
-  return applied({ summary: settingsAppliedNotice(changedSettingNames(before, after)) });
+  // An edit that changes no setting, such as a save of the same settings
+  // reformatted, has no setting to name: it sends no notice, as a save in
+  // Settings that changes nothing sends none.
+  const names = changedSettingNames(before, after);
+  if (names.length === 0) return "ignored";
+  return applied({ summary: settingsAppliedNotice(names) });
 }
 
 /** "Environment file applied: 1 key changed." */
@@ -506,7 +517,7 @@ export async function handleStateFileChange(change: InputChange): Promise<Handle
 const FILE_LEADS: Record<StateFile, string> = {
   "projects.json": "Project state",
   "state.json": "Bench state",
-  "auth.json": "GitHub token",
+  "auth.json": "GitHub credentials",
   "plugins-consent.json": "Plugin consent",
   "plugins-state.json": "Plugin state",
   "settings.json": "Settings",
@@ -561,7 +572,7 @@ function clearingRejections(handler: (change: InputChange) => Promise<HandlerRes
     const summary = `${FILE_LEADS[file]} applied.`;
     for (const target of pending) {
       if (targetKey(target) === ownKey) continue;
-      broadcastInputChanged({ surface, outcome: "applied", ...target, summary });
+      broadcastInputChanged({ surface, outcome: "applied", input: file, ...target, summary });
     }
     return pending;
   };
@@ -627,6 +638,13 @@ export function stateFileSurface(absPath: string): InputSurface | undefined {
     : undefined;
 }
 
+/** The basename of one state file, the `input` its events carry, or undefined for another path. */
+export function stateFileInput(absPath: string): StateFile | undefined {
+  return stateFileSurface(absPath) === undefined
+    ? undefined
+    : (path.basename(absPath) as StateFile);
+}
+
 let active: InputWatch | null = null;
 let activeDir: string | null = null;
 
@@ -659,6 +677,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
     {
       surface: STATE_DIR_SURFACE,
       surfaceOf: stateFileSurface,
+      inputOf: stateFileInput,
       kind: "directory",
       depth: 0,
       allow: STATE_FILES,

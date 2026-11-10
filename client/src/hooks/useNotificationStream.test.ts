@@ -514,43 +514,79 @@ describe("useNotificationStream", () => {
       expect(seen).toEqual([event]);
     });
 
-    // The literal keys each surface refreshes, the per-surface map of the
-    // spec, written out here rather than read from the client's own map, so a
-    // change to the map fails this test.
-    const EXPECTED_KEYS: Record<InputChangedEvent["surface"], unknown[][]> = {
-      "project-config": [["projects"], ["raw-config", "p1"], ["benches"]],
-      plugin: [["plugins"], ["project-integration"], ["benches"]],
-      settings: [["settings"]],
-      bench: [["benches"]],
-      github: [["settings"], ["issues"]],
-      environment: [["settings"]],
-    };
+    // The per-input map of the spec, written out literally rather than read
+    // from the client's own map, so a change to the map fails this test. Each
+    // input is sent as the server sends it: its surface, and for a state file
+    // the file's name as `input`.
+    const EXPECTED_KEYS: [string, Partial<InputChangedEvent>, unknown[][]][] = [
+      [
+        "project-config",
+        { surface: "project-config" },
+        [["projects"], ["raw-config", "p1"], ["benches"]],
+      ],
+      ["plugin", { surface: "plugin" }, [["plugins"], ["project-integration"], ["benches"]]],
+      ["settings", { surface: "settings", input: "settings.json" }, [["settings"]]],
+      [
+        "projects",
+        { surface: "project-config", input: "projects.json" },
+        [["projects"], ["benches"], ["issues"]],
+      ],
+      ["bench-state", { surface: "bench", input: "state.json" }, [["benches"]]],
+      ["auth", { surface: "github", input: "auth.json" }, [["settings"], ["issues"]]],
+      ["consent", { surface: "plugin", input: "plugins-consent.json" }, [["plugins"]]],
+      ["plugin-state", { surface: "plugin", input: "plugins-state.json" }, [["plugins"]]],
+      ["env", { surface: "environment", input: ".env" }, [["settings"]]],
+    ];
 
-    it("invalidates exactly the listed keys of each surface and nothing else", () => {
-      expect(Object.keys(EXPECTED_KEYS).sort()).toEqual([...INPUT_SURFACES].sort());
-      for (const surface of INPUT_SURFACES) {
+    it("HR-TC-035 invalidates exactly the keys of the spec's map for each input and nothing else", () => {
+      expect(EXPECTED_KEYS.map(([input]) => input)).toEqual([
+        "project-config",
+        "plugin",
+        "settings",
+        "projects",
+        "bench-state",
+        "auth",
+        "consent",
+        "plugin-state",
+        "env",
+      ]);
+      const surfaces = new Set(EXPECTED_KEYS.map(([, fields]) => fields.surface));
+      expect([...surfaces].sort()).toEqual([...INPUT_SURFACES].sort());
+      for (const [input, fields, keys] of EXPECTED_KEYS) {
         const { invalidateSpy, others } = fireAndCollect({
           type: "input-changed",
-          surface,
+          surface: "settings",
           outcome: "applied",
           projectId: "p1",
           pluginId: "plug",
           benchIds: [4],
           summary: "change applied",
+          ...fields,
         });
-        expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
-          EXPECTED_KEYS[surface].map((queryKey) => ({ queryKey })),
-        );
+        expect(
+          invalidateSpy.mock.calls.map(([arg]) => arg),
+          `the keys a change of ${input} refreshes`,
+        ).toEqual(keys.map((queryKey) => ({ queryKey })));
         for (const spy of others) expect(spy).not.toHaveBeenCalled();
       }
     });
 
-    it("invalidates only projects and benches on a project-config change with no project", () => {
+    it("refreshes the settings key on a settings save made in the app, which names no file", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "settings",
+        outcome: "applied",
+        summary: "Settings applied: default agent.",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([{ queryKey: ["settings"] }]);
+    });
+
+    it("invalidates only projects and benches on a roubo.yaml change with no project", () => {
       const { invalidateSpy } = fireAndCollect({
         type: "input-changed",
         surface: "project-config",
         outcome: "applied",
-        summary: "Project state applied.",
+        summary: "Project config applied.",
       });
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
         { queryKey: ["projects"] },

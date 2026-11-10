@@ -22,16 +22,54 @@ export function surfaceThing(surface: InputSurface): string {
 }
 
 /**
- * The React Query keys an input change of each surface refreshes (HR-FR-016).
- * Only these keys are invalidated: the rest of the cache, the screen, the
- * selection, the scroll position and any unsent form input stay as they are.
- * Each surface takes the keys of the input it reports: a project's roubo.yaml
- * for `project-config`, a plugin folder for `plugin` (whose consent and
- * enable-state files refresh `["plugins"]`, a subset of it), settings.json for
- * `settings`, state.json for `bench`, auth.json for `github` and .env for
- * `environment`.
+ * The inputs a change can come from, each with its own query keys. A surface
+ * that more than one input feeds is split by the event's `input`, the state
+ * file it names: `project-config` comes from a project's roubo.yaml or from
+ * projects.json (`projects`), and `plugin` from a plugin folder, from
+ * plugins-consent.json (`consent`) or from plugins-state.json
+ * (`plugin-state`). The other surfaces each have one input: settings.json for
+ * `settings`, state.json for `bench-state`, auth.json for `auth` and .env for
+ * `env`.
  */
-export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent) => QueryKey[]> = {
+export type ChangedInput =
+  | "project-config"
+  | "plugin"
+  | "settings"
+  | "projects"
+  | "bench-state"
+  | "auth"
+  | "consent"
+  | "plugin-state"
+  | "env";
+
+/** The input an event is about, or undefined for a surface this client does not know. */
+export function changedInputOf(event: InputChangedEvent): ChangedInput | undefined {
+  switch (event.surface) {
+    case "project-config":
+      return event.input === "projects.json" ? "projects" : "project-config";
+    case "plugin":
+      if (event.input === "plugins-consent.json") return "consent";
+      if (event.input === "plugins-state.json") return "plugin-state";
+      return "plugin";
+    case "settings":
+      return "settings";
+    case "bench":
+      return "bench-state";
+    case "github":
+      return "auth";
+    case "environment":
+      return "env";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The React Query keys a change of each input refreshes (HR-FR-016). Only
+ * these keys are invalidated: the rest of the cache, the screen, the
+ * selection, the scroll position and any unsent form input stay as they are.
+ */
+export const INPUT_QUERY_KEYS: Record<ChangedInput, (event: InputChangedEvent) => QueryKey[]> = {
   // The raw config editor seeds its text from ["raw-config", projectId] once,
   // so a refetch refreshes the saved copy without discarding unsent edits.
   // ["project-settings", projectId] is not here: roubo.yaml does not feed it
@@ -43,15 +81,18 @@ export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent)
   ],
   plugin: () => [["plugins"], ["project-integration"], ["benches"]],
   settings: () => [["settings"]],
-  bench: () => [["benches"]],
-  github: () => [["settings"], ["issues"]],
-  environment: () => [["settings"]],
+  projects: () => [["projects"], ["benches"], ["issues"]],
+  "bench-state": () => [["benches"]],
+  auth: () => [["settings"], ["issues"]],
+  consent: () => [["plugins"]],
+  "plugin-state": () => [["plugins"]],
+  env: () => [["settings"]],
 };
 
 /** The keys to refresh for one event; none for a surface this client does not know. */
 export function inputChangedQueryKeys(event: InputChangedEvent): QueryKey[] {
-  const keys = SURFACE_QUERY_KEYS[event.surface];
-  return keys ? keys(event) : [];
+  const input = changedInputOf(event);
+  return input === undefined ? [] : INPUT_QUERY_KEYS[input](event);
 }
 
 /** `text` with every trailing full stop taken off. */

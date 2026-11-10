@@ -31,9 +31,12 @@ export function changedSettingNames(before: UserPreferences, after: UserPreferen
   ).map(([name]) => name);
 }
 
-/** "Settings applied: default agent." or, naming none, "Settings applied." */
+/**
+ * "Settings applied: default agent.", naming each setting of `names`. A
+ * caller sends no notice for a change that names no setting.
+ */
 export function settingsAppliedNotice(names: readonly string[]): string {
-  return names.length === 0 ? "Settings applied." : `Settings applied: ${names.join(", ")}.`;
+  return `Settings applied: ${names.join(", ")}.`;
 }
 
 /**
