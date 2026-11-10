@@ -121,6 +121,14 @@
             "required": ["prototype", "inventory", "screens", "components"],
             "additionalProperties": false
           },
+          "touches": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\/)(?!(?:.*\\/)?\\.\\.(?:\\/|$)).+$"
+            }
+          },
           "tracker": {
             "type": "object",
             "properties": {

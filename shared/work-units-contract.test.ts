@@ -155,6 +155,55 @@ describe("validateWorkUnits", () => {
     );
   });
 
+  describe("touches is an optional list of relative globs", () => {
+    it("accepts a unit carrying touches and keeps the globs", () => {
+      const touches = ["roubo/shared/work-units-*.ts", "roubo/schema/work-units.schema.json"];
+      const result = validateWorkUnits(envelope([plainUnit({ touches })]));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.units[0].touches).toEqual(touches);
+      }
+    });
+
+    it("accepts an empty touches list for a unit that changes no files", () => {
+      const result = validateWorkUnits(envelope([plainUnit({ touches: [] })]));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.units[0].touches).toEqual([]);
+      }
+    });
+
+    it("accepts a unit with no touches and keeps the schema version at 1.0.0", () => {
+      const result = validateWorkUnits(envelope([plainUnit()]));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.units[0]).not.toHaveProperty("touches");
+      }
+      expect(WORK_UNITS_SCHEMA_VERSION).toBe("1.0.0");
+    });
+
+    it.each([
+      ["a string instead of a list", "shared/**"],
+      ["a list holding a number", [1]],
+      ["an empty glob", [""]],
+      ["an absolute path", ["/etc/passwd"]],
+      ["a leading parent segment", ["../other-repo/**"]],
+      ["an inner parent segment", ["shared/../server/**"]],
+      ["a bare parent segment", [".."]],
+      ["a trailing parent segment", ["shared/.."]],
+    ])("rejects touches given as %s and names the field", (_label, touches) => {
+      const result = validateWorkUnits(envelope([plainUnit({ touches })]));
+      expect(result.ok).toBe(false);
+      const errors = result.ok ? [] : result.errors;
+      expect(errors.some((e) => e.startsWith("units.0.touches"))).toBe(true);
+    });
+
+    it("accepts a glob whose name only starts with two dots", () => {
+      const result = validateWorkUnits(envelope([plainUnit({ touches: ["shared/..hidden/*"] })]));
+      expect(result.ok).toBe(true);
+    });
+  });
+
   describe("invalid envelopes are rejected with field-named errors and never throw", () => {
     it("missing schemaVersion", () => {
       const raw = envelope([plainUnit()]);
