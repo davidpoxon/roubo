@@ -241,6 +241,14 @@ describe("loadEnvFile called again", () => {
     expect(process.env.ROUBO_PORT).toBe("4000");
   });
 
+  it("keeps a boot-only key the first load set when a later save drops its line", async () => {
+    delete process.env.ROUBO_E2E;
+    await load("ROUBO_E2E=1\nROUBO_PORT=4000");
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_E2E).toBe("1");
+    expect(process.env.ROUBO_PORT).toBe("4000");
+  });
+
   it("HR-TC-025 readEnvValue reads the file per call, and explicit env wins", async () => {
     const { readEnvValue } = await import("./env.js");
     vi.mocked(fs.readFileSync).mockReturnValue("ROUBO_TEST_RELOAD=first");
