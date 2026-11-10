@@ -118,6 +118,15 @@ describe("scripts/git-hooks/commit-msg", () => {
     expect(git("log", "-1", "--format=%ae").stdout.trim()).toBe(email);
   });
 
+  it("rejects an unsigned commit from a bot that bot_authors does not list", () => {
+    const email = "1+lookalike[bot]@users.noreply.github.com";
+    expect(workflowBotAuthors()).not.toContain(email);
+    const result = commit(`--author=Bot <${email}>`);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(`missing DCO sign-off matching <${email}>`);
+    expect(commitCount()).toBe(0);
+  });
+
   it("rejects a commit for another author that carries only the committer's sign-off", () => {
     const result = commit("--author=Grace Hopper <grace@example.com>", "-s");
     expect(result.status).not.toBe(0);
