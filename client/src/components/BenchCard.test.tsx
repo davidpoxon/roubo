@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,11 +13,21 @@ import type {
 } from "../hooks/useBenches";
 import type { useTeardownTracker } from "../hooks/useClearingTracker";
 import { ApiError } from "../lib/api";
+import * as api from "../lib/api";
+import type { DeliveryRecord } from "@roubo/shared/delivery-observation-contract";
+import { foldDelivery } from "@roubo/shared/delivery-reducer";
+import { fourUnitRecord } from "../test/delivery-fixtures";
 
 const mockNavigate = vi.fn();
 vi.mock("react-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-router")>();
   return { ...actual, useNavigate: () => mockNavigate };
+});
+// A Spec Bench card reads its delivery (#1624). The read stays pending unless a
+// test answers it.
+vi.mock("../lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/api")>();
+  return { ...actual, fetchDelivery: vi.fn(() => new Promise(() => undefined)) };
 });
 vi.mock("../hooks/useBenches");
 vi.mock("../hooks/useClearingTracker");
@@ -885,6 +895,197 @@ describe("BenchCard", () => {
       await userEvent.click(buttons[buttons.length - 1]);
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       expect(screen.queryByTestId("delivery-record-warning")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Spec Bench delivery summary (#1624)", () => {
+    const specBench = (overrides: Partial<Bench> = {}) =>
+      makeBench({
+        id: 3,
+        projectId: "demo",
+        status: "active",
+        variant: "specbench",
+        focusedSpecPath: "/repo/.specifications/fixture-spec",
+        deliveryBindMode: "launch",
+        ...overrides,
+      });
+
+    function withDecisions(): DeliveryRecord {
+      const record = fourUnitRecord();
+      record.decisions = [
+        {
+          id: "D-004",
+          question: "One file per unit or one per stack?",
+          options: ["one file per unit", "one file per stack"],
+          default: "one file per unit",
+          status: "open",
+          raised_at: "2026-10-16T09:05:00Z",
+        },
+        {
+          id: "D-005",
+          question: "Split the fixture?",
+          options: ["split", "keep"],
+          default: "keep",
+          status: "open",
+          raised_at: "2026-10-16T09:20:00Z",
+        },
+      ];
+      return record;
+    }
+
+    function answer(record: DeliveryRecord) {
+      const snapshot = foldDelivery({ record, events: [] });
+      // Three of ten cases met, so the count and the meter have figures to show.
+      snapshot.progress = { ...snapshot.progress, cases: { met: 3, total: 10 } };
+      vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+      localStorage.clear();
+    });
+
+    it("shows the slug, cases met, spend, meter, waiting decisions, live unit and health", async () => {
+      vi.useFakeTimers({ now: Date.parse("2026-10-16T09:31:00Z"), toFake: ["Date"] });
+      makeDefaultMutations();
+      answer(withDecisions());
+      renderCard(specBench());
+      const summary = await screen.findByText("2 decisions waiting");
+      const card = summary.closest('[data-testid="specbench-card-summary"]') as HTMLElement;
+      expect(card).toHaveTextContent("fixture-spec");
+      expect(card).toHaveTextContent("fixture-spec 3 of 10 cases met USD 0.42");
+      expect(card).toHaveTextContent("2 decisions waiting A running fresh");
+      expect(card).toHaveTextContent("USD 0.42");
+      expect(screen.getByTestId("specbench-card-meter")).toHaveStyle({ width: "30%" });
+      expect(screen.getByTestId("specbench-card-live")).toHaveTextContent("A running");
+      expect(screen.getByTestId("specbench-card-health")).toHaveTextContent("fresh");
+      expect(screen.getByRole("button", { name: "Open delivery" })).toBeInTheDocument();
+      // The oldest open decision is the one to answer first.
+      expect(screen.getByRole("button", { name: "Answer D-004" })).toBeInTheDocument();
+      // The branch sits in the head, beside the title.
+      expect(screen.getByText("Bench 3").parentElement).toContainElement(
+        screen.getByTestId("bench-card-branch"),
+      );
+    });
+
+    it("lets only a long branch give way in the head, so the title, badge and dot stay whole", () => {
+      makeDefaultMutations();
+      answer(withDecisions());
+      renderCard(
+        specBench({
+          branch: `delivery/${"very-long-branch-name-".repeat(6)}end`,
+          notifications: [
+            {
+              id: "n1",
+              type: "agent-waiting",
+              priority: "action-needed",
+              createdAt: "2024-01-01T00:00:00Z",
+            },
+          ],
+        }),
+      );
+      const title = screen.getByText("Bench 3");
+      expect(title).toHaveClass("shrink-0", "whitespace-nowrap");
+      const head = title.parentElement as HTMLElement;
+      expect(within(head).getByRole("img", { name: "Action needed" })).toHaveClass("shrink-0");
+      expect(within(head).getByTestId("bench-card-branch")).toHaveClass("min-w-0");
+      for (const child of Array.from(head.children)) {
+        if (child.getAttribute("data-testid") === "bench-card-branch") continue;
+        expect(child).toHaveClass("shrink-0");
+      }
+    });
+
+    it("opens the Delivery tab from Open delivery, and the decision pile from Answer", async () => {
+      makeDefaultMutations();
+      mockNavigate.mockClear();
+      answer(withDecisions());
+      renderCard(specBench());
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: "Open delivery" }));
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      expect(mockNavigate).toHaveBeenLastCalledWith("/projects/demo/benches/3");
+      expect(localStorage.getItem("roubo-bench-view-state")).toContain('"activeTab":"delivery"');
+      await user.click(screen.getByRole("button", { name: "Answer D-004" }));
+      expect(mockNavigate).toHaveBeenCalledTimes(2);
+      expect(mockNavigate).toHaveBeenLastCalledWith("/projects/demo/benches/3#decisions");
+    });
+
+    it("offers no Answer button while no decision waits", async () => {
+      makeDefaultMutations();
+      answer(fourUnitRecord());
+      renderCard(specBench());
+      expect(await screen.findByText("no decision waiting")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Answer/ })).toBeNull();
+    });
+
+    it("shows a nonconformant record's error and offers Open bench only", async () => {
+      makeDefaultMutations();
+      mockNavigate.mockClear();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new ApiError("missing decisions", 409, "DELIVERY_NONCONFORMANT", {
+          error: "missing decisions",
+          code: "DELIVERY_NONCONFORMANT",
+          section: "decisions",
+        }),
+      );
+      renderCard(specBench());
+      const error = await screen.findByTestId("specbench-card-error");
+      expect(error).toHaveTextContent("The delivery record is missing its decisions section");
+      expect(screen.getByTestId("specbench-card-summary")).toHaveTextContent(
+        "fixture-spec The delivery record is missing its decisions section",
+      );
+      expect(error.className).toContain("text-danger-text");
+      expect(screen.getByText("No controls until the record conforms")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open delivery" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Answer/ })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Open bench" }));
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      expect(mockNavigate).toHaveBeenCalledWith("/projects/demo/benches/3");
+    });
+
+    it("says a missing record is not there yet, without danger-text, and offers Open bench", async () => {
+      makeDefaultMutations();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new ApiError("no record", 409, "DELIVERY_RECORD_MISSING", {
+          error: "no record",
+          code: "DELIVERY_RECORD_MISSING",
+        }),
+      );
+      renderCard(specBench());
+      const error = await screen.findByTestId("specbench-card-error");
+      expect(error).toHaveTextContent("No delivery record yet");
+      expect(error.className).not.toContain("text-danger-text");
+      expect(screen.queryByText("No controls until the record conforms")).toBeNull();
+      expect(screen.getByRole("button", { name: "Open bench" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open delivery" })).toBeNull();
+    });
+
+    it("does not blame the record when the read fails for another reason", async () => {
+      makeDefaultMutations();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(new Error("Network down"));
+      renderCard(specBench());
+      expect(await screen.findByTestId("specbench-card-error")).toHaveTextContent(
+        "The delivery could not be read",
+      );
+      expect(screen.queryByText("No controls until the record conforms")).toBeNull();
+      expect(screen.getByRole("button", { name: "Open bench" })).toBeInTheDocument();
+    });
+
+    it("keeps the component list on a plain bench and a TestBench", () => {
+      makeDefaultMutations();
+      const components = {
+        web: { status: "running", setupComplete: true },
+      } as unknown as Bench["components"];
+      const { unmount } = renderCard(makeBench({ components }));
+      expect(screen.getByText("web")).toBeInTheDocument();
+      expect(screen.queryByTestId("specbench-card-summary")).toBeNull();
+      expect(screen.getByText("Bench 1").parentElement).not.toContainElement(
+        screen.getByTestId("bench-card-branch"),
+      );
+      unmount();
+      renderCard(makeBench({ variant: "testbench", components }));
+      expect(screen.getByText("web")).toBeInTheDocument();
+      expect(screen.queryByTestId("specbench-card-summary")).toBeNull();
     });
   });
 });

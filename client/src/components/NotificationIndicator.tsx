@@ -13,8 +13,10 @@ const labelMap: Record<NotificationPriority, string> = {
 
 export default function NotificationIndicator({
   notifications,
+  className = "",
 }: {
   notifications: BenchNotification[];
+  className?: string;
 }) {
   const priority = getHighestPriority(notifications);
   if (priority === null) return null;
@@ -25,7 +27,7 @@ export default function NotificationIndicator({
       aria-label={labelMap[priority]}
       className={`inline-block w-2 h-2 rounded-full ${colorMap[priority]} ${
         priority === "action-needed" ? "animate-status-pulse" : ""
-      } transition-colors duration-300`}
+      } transition-colors duration-300 ${className}`}
     />
   );
 }

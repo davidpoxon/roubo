@@ -6,6 +6,7 @@ import ComponentStatusDot from "./ComponentStatusDot";
 import NotificationIndicator from "./NotificationIndicator";
 import VariantBadge from "./VariantBadge";
 import ToolButtons from "./ToolButtons";
+import SpecBenchCardSummary from "./delivery/SpecBenchCardSummary";
 import {
   useStartBench,
   useStopBench,
@@ -72,6 +73,7 @@ export default function BenchCard({
   const [dirtyReasons, setDirtyReasons] = useState<DirtyReason[] | null>(null);
   const [forceError, setForceError] = useState<string | null>(null);
 
+  const isSpecbench = bench.variant === "specbench";
   const isRunning = bench.status === "active";
   const isBusy = bench.status === "preparing" || bench.status === "clearing";
   const isProvisioning = bench.status === "preparing";
@@ -135,24 +137,29 @@ export default function BenchCard({
                 </p>
               )}
               <div className="flex items-center gap-2">
-                <p className="text-14 font-semibold text-text-primary">Bench {bench.id}</p>
-                <VariantBadge variant={bench.variant} decisionMode={bench.deliveryDecisionMode} />
-                <NotificationIndicator notifications={bench.notifications} />
+                <p className="shrink-0 whitespace-nowrap text-14 font-semibold text-text-primary">
+                  Bench {bench.id}
+                </p>
+                <VariantBadge
+                  variant={bench.variant}
+                  decisionMode={bench.deliveryDecisionMode}
+                  className="shrink-0"
+                />
+                <NotificationIndicator notifications={bench.notifications} className="shrink-0" />
+                {isSpecbench && <BranchLine branch={bench.branch} className="ml-auto min-w-0" />}
                 <StatusIndicator
                   tone={statusTone}
                   label={bench.status}
                   pulse={bench.status === "preparing" || bench.status === "clearing"}
-                  className="ml-auto"
+                  className={isSpecbench ? "shrink-0" : "ml-auto"}
                   data-testid="bench-card-status"
                 />
               </div>
             </div>
 
-            {/* Branch */}
-            <div className="flex items-center gap-1.5 text-12 text-text-secondary mt-2.5 shrink-0">
-              <GitBranch size={12} className="shrink-0 text-text-secondary" />
-              <span className="truncate">{bench.branch}</span>
-            </div>
+            {/* Branch. A Spec Bench card carries it in its head, which leaves its
+                delivery summary the room it needs (#1624). */}
+            {!isSpecbench && <BranchLine branch={bench.branch} className="mt-2.5 shrink-0" />}
 
             {/* Assigned issue */}
             {bench.assignedIssue && (
@@ -175,7 +182,7 @@ export default function BenchCard({
               </div>
             )}
 
-            {/* Provisioning steps or Components */}
+            {/* Provisioning steps, a Spec Bench's delivery, or Components */}
             <div className="flex-1 min-h-0 overflow-y-auto mt-2.5">
               {showSteps || showTeardownSteps ? (
                 <div className="space-y-1.5">
@@ -194,6 +201,8 @@ export default function BenchCard({
                 </div>
               ) : bench.error ? (
                 <p className="text-11 text-danger-text line-clamp-2">{bench.error}</p>
+              ) : isSpecbench ? (
+                <SpecBenchCardSummary bench={bench} />
               ) : (
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   {componentEntries.map(([name, component]) => (
@@ -375,5 +384,17 @@ export default function BenchCard({
         }}
       />
     </>
+  );
+}
+
+function BranchLine({ branch, className }: { branch: string; className: string }) {
+  return (
+    <div
+      data-testid="bench-card-branch"
+      className={`flex items-center gap-1.5 text-12 text-text-secondary ${className}`}
+    >
+      <GitBranch size={12} className="shrink-0 text-text-secondary" />
+      <span className="truncate">{branch}</span>
+    </div>
   );
 }
