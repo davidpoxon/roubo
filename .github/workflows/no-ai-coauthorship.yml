@@ -77,7 +77,7 @@ jobs:
             echo "<!-- no-ai-coauthor-sticky-comment -->"
             echo "## AI coding agent co-authorship detected"
             echo ""
-            echo "Roubo commits and pull requests carry the human author's identity only. One or more commit messages or the PR body credits an AI coding agent as a co-author, or carries an AI-attribution footer."
+            echo "Roubo commits and pull requests credit no AI coding agent. One or more commit messages or the PR body credits an AI coding agent as a co-author, or carries an AI-attribution footer."
             echo ""
             echo '```'
             cat ai-coauthor-output.txt

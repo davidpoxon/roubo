@@ -71,7 +71,7 @@ commits will be blocked from merging until every commit is signed off.
 
 When you run `npm install` in your clone, Roubo configures a local
 `commit-msg` git hook that rejects commits missing a `Signed-off-by:`
-line matching your configured git email. If a commit is rejected, re-commit
+line matching the commit's author email. If a commit is rejected, re-commit
 with `git commit -s` or amend with `git commit --amend --signoff`. The
 hook is the same check the PR-time workflow runs, just earlier.
 
@@ -107,10 +107,15 @@ is signed off.
 
 ### Bot exemption
 
-Automated dependency-update bots (currently Dependabot) are exempt from
-the per-commit sign-off requirement. The DCO is an attestation of human
-authorship; a bot cannot meaningfully attest to that. The allowlist of
-exempt author emails lives in [.github/workflows/dco.yml](.github/workflows/dco.yml).
+Two bots are exempt from the per-commit sign-off requirement: Dependabot,
+and `poxon-agent[bot]`, the maintainer's GitHub App, which authors commits
+and pull requests for the maintainer to review. The DCO is an attestation
+of human authorship; a bot cannot meaningfully attest to that. For an
+app-authored pull request the maintainer gives that attestation when
+merging it: the squash commit ends with the maintainer's `Signed-off-by:`
+line. The allowlist of exempt author emails lives in
+[.github/workflows/dco-reusable.yml](.github/workflows/dco-reusable.yml),
+and the local hook carries the same list.
 
 ### If you forgot to sign off
 
@@ -189,7 +194,7 @@ By making a contribution to this project, I certify that:
 7. A maintainer will merge once CI passes and the change has been
    approved.
 
-Commits and PR bodies credit the human author only. Do not add a
+Commits and PR bodies credit no AI coding agent. Do not add a
 `Co-Authored-By:` trailer that credits an AI coding agent, or a
 "Generated with ..." attribution footer. The `no-ai-coauthorship` check
 fails the PR if any commit in the range, or the PR body, carries one.
