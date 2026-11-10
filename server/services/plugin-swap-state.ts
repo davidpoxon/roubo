@@ -112,6 +112,28 @@ export function isPluginStale(pluginId: string): boolean {
   return stale.has(pluginId);
 }
 
+/**
+ * The bench numbers of `benches`, ascending and once each. A notice names a
+ * bench by its number, so two projects' benches with one number read as one.
+ */
+export function benchNumbersOf(benches: Iterable<SwapBenchRef>): number[] {
+  const ids = new Set<number>();
+  for (const { benchId } of benches) ids.add(benchId);
+  return [...ids].sort((a, b) => a - b);
+}
+
+/** The bench numbers, ascending and once each, that a swap of `pluginId` left stale. */
+export function staleBenchIds(pluginId: string): number[] {
+  const keys = stale.get(pluginId);
+  if (!keys) return [];
+  return benchNumbersOf(
+    [...keys].map((key) => {
+      const [projectId, benchId] = JSON.parse(key) as [string, number];
+      return { projectId, benchId };
+    }),
+  );
+}
+
 /** Whether a swap of any plugin left bench `benchId` of `projectId` stale. */
 export function isBenchStaleFromSwap(projectId: string, benchId: number): boolean {
   const key = benchRefKey(projectId, benchId);

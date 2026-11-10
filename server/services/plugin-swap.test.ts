@@ -432,6 +432,7 @@ describe("swapProcess (HR-FR-009)", () => {
     await expect(pluginManager.swapProcess("database")).rejects.toMatchObject({
       code: "plugin-swap-refused",
       reason: "imperative",
+      benchIds: [2],
     });
     expect(record().pid).toBe(pid);
     expect(isAlive(pid)).toBe(true);
