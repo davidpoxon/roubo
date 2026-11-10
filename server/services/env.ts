@@ -462,6 +462,11 @@ const loginShellLayer = new Map<string, string>();
  * would append to a folder it never created and lose every later line, and
  * under NODE_ENV=test a plugin log stream opened or rotated under the default
  * plugins root would throw, while streams already open kept writing.
+ *
+ * So these keys are read once, at boot. A reload does not drop an edit of one
+ * silently: `loadEnvFileReport()` names each one whose line a save changed to
+ * a value a relaunch would apply, and the state dir watch sends a notice that
+ * a relaunch is needed.
  */
 const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   "ROUBO_PORT",
@@ -492,6 +497,34 @@ function isExplicitEnv(key: string): boolean {
 }
 
 /**
+ * The .env line of each boot-only key as the last load read it, undefined when
+ * the file had no line for it. A reload reports a boot-only key only when its
+ * line differs from this, so a later save that leaves the line as it was does
+ * not report it again.
+ */
+const bootOnlyLines = new Map<string, string | undefined>();
+
+/**
+ * The boot-only keys that were explicit env at the first load. Their .env line
+ * would not apply after a relaunch either, so a reload never reports them.
+ * The judgement is made at boot because the server publishes its bound port
+ * into ROUBO_PORT after it, which would otherwise read as explicit env.
+ */
+const bootOnlyExplicit = new Set<string>();
+
+/** What one load of $ROUBO_DIR/.env did. */
+export interface EnvFileLoadReport {
+  /** The keys whose process.env value the load changed. */
+  changed: string[];
+  /**
+   * The boot-only keys whose line this load found changed, to a value that
+   * differs from the one the process holds: they apply only after a relaunch.
+   * Always empty on the first load.
+   */
+  needsRelaunch: string[];
+}
+
+/**
  * Loads $ROUBO_DIR/.env and merges vars into process.env, and returns the keys
  * whose process.env value it changed. A process.env value from outside .env
  * and the login-shell import takes precedence (explicit env wins); a value the
@@ -503,13 +536,39 @@ function isExplicitEnv(key: string): boolean {
  * relaunch would: .env overrides a key that holds the login shell's value, and
  * a key whose line is dropped goes back to the login shell's value, or is
  * removed when the shell has none. It changes no key that something else has
- * set since, and never the boot-only keys.
+ * set since, and never the boot-only keys: `loadEnvFileReport()` also names
+ * the boot-only keys a save changed, which need a relaunch.
  */
 export function loadEnvFile(): string[] {
+  return loadEnvFileReport().changed;
+}
+
+/**
+ * `loadEnvFile()`, which also reports each boot-only key (`BOOT_ONLY_ENV_KEYS`)
+ * that this load found changed and that only a relaunch would apply. A key is
+ * reported when, on a reload, its .env line differs from the line the last
+ * load read (a value changed, a line added or a line dropped), the key was not
+ * explicit env at boot, and the value a relaunch would give it (the new line,
+ * else the login shell's value, else none) differs from the one the process
+ * holds. process.env is not changed for it.
+ */
+export function loadEnvFileReport(): EnvFileLoadReport {
   const first = !envFileLoaded;
   envFileLoaded = true;
   const values = readEnvFileValues();
   const changed: string[] = [];
+  const needsRelaunch: string[] = [];
+  for (const key of BOOT_ONLY_ENV_KEYS) {
+    const line = values.get(key);
+    const before = bootOnlyLines.get(key);
+    bootOnlyLines.set(key, line);
+    if (first) {
+      if (isExplicitEnv(key)) bootOnlyExplicit.add(key);
+      continue;
+    }
+    if (line === before || bootOnlyExplicit.has(key)) continue;
+    if ((line ?? loginShellLayer.get(key)) !== process.env[key]) needsRelaunch.push(key);
+  }
   for (const [key, value] of values) {
     if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
     if (isExplicitEnv(key)) {
@@ -538,7 +597,7 @@ export function loadEnvFile(): string[] {
     }
     envFileApplied.delete(key);
   }
-  return changed;
+  return { changed, needsRelaunch };
 }
 
 /**
@@ -557,5 +616,7 @@ export function readEnvValue(key: string): string | undefined {
 export function resetEnvFileLoads(): void {
   envFileApplied.clear();
   loginShellLayer.clear();
+  bootOnlyLines.clear();
+  bootOnlyExplicit.clear();
   envFileLoaded = false;
 }

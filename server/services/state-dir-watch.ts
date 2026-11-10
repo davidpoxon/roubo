@@ -56,7 +56,7 @@ import {
 import * as benchManager from "./bench-manager.js";
 import type { BenchStateEditRef } from "./bench-manager.js";
 import * as credentialStore from "./credential-store.js";
-import { loadEnvFile } from "./env.js";
+import { loadEnvFile, loadEnvFileReport } from "./env.js";
 import { loadConsentState } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
@@ -448,14 +448,35 @@ export function envFileAppliedNotice(changed: number): string {
   return `Environment file applied: ${changed} ${changed === 1 ? "key" : "keys"} changed.`;
 }
 
+/** "A", "A and B", "A, B and C". */
+function listKeys(keys: string[]): string {
+  if (keys.length <= 1) return keys.join("");
+  return `${keys.slice(0, -1).join(", ")} and ${keys[keys.length - 1]}`;
+}
+
+/**
+ * The notice of one save of .env: "Environment file applied: 1 key changed."
+ * when only keys that apply at once changed, "Environment file:
+ * ROUBO_APP_LOG_DIR needs a relaunch to apply." when only boot-only keys did,
+ * and both sentences, the count first, when a save changed both kinds.
+ */
+export function envFileNotice(changed: number, needsRelaunch: string[]): string {
+  if (needsRelaunch.length === 0) return envFileAppliedNotice(changed);
+  const relaunch = `${listKeys(needsRelaunch)} ${needsRelaunch.length === 1 ? "needs" : "need"} a relaunch to apply.`;
+  if (changed === 0) return `Environment file: ${relaunch}`;
+  return `${envFileAppliedNotice(changed)} ${relaunch}`;
+}
+
 async function handleEnvFile(): Promise<HandlerResult> {
   // Load .env again (HR-FR-011): each key it adds, changes or removes reaches
   // process.env, and so every component, terminal and plugin process started
   // from now on. Explicit env still wins, and the boot-only keys stay as boot
-  // set them. An edit that changes no key, such as a comment, sends no notice.
-  const changed = loadEnvFile();
-  if (changed.length === 0) return "ignored";
-  return applied({ summary: envFileAppliedNotice(changed.length) });
+  // set them: a save that changes one is named in the notice, which says a
+  // relaunch is needed to apply it. An edit that changes no key, such as a
+  // comment, sends no notice.
+  const { changed, needsRelaunch } = loadEnvFileReport();
+  if (changed.length === 0 && needsRelaunch.length === 0) return "ignored";
+  return applied({ summary: envFileNotice(changed.length, needsRelaunch) });
 }
 
 /** The handler of one state file of the state dir. */

@@ -361,7 +361,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // projects.json, state.json, auth.json, plugins-consent.json,
   // plugins-state.json, settings.json or .env applies with no relaunch, while
   // the app's own writes of them are not applied again (HR-FR-011, HR-FR-012,
-  // HR-FR-013).
+  // HR-FR-013). The boot-only keys of .env are the exception: a save that
+  // changes one sends a notice that a relaunch is needed.
   console.log("Starting state file watcher...");
   try {
     await stateDirWatch.startStateDirWatch();

@@ -69,7 +69,7 @@ import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
-import { cleanEnv, resetEnvFileLoads } from "./env.js";
+import { cleanEnv, loadEnvFile, resetEnvFileLoads } from "./env.js";
 import { startDeviceFlow } from "./github-oauth.js";
 import { LAST_GOOD_LINE, inputNoticeText } from "../../client/src/lib/input-changed";
 import {
@@ -80,6 +80,7 @@ import {
   benchRevertedNotice,
   benchUnmatchedNotice,
   envFileAppliedNotice,
+  envFileNotice,
   jsonParseError,
   startStateDirWatch,
   stopStateDirWatch,
@@ -807,7 +808,13 @@ describe("state dir watch", () => {
 });
 
 describe("state dir watch of .env", () => {
-  const KEYS = ["KEY_A", "KEY_B", "GITHUB_CLIENT_ID"] as const;
+  const KEYS = [
+    "KEY_A",
+    "KEY_B",
+    "GITHUB_CLIENT_ID",
+    "ROUBO_APP_LOG_DIR",
+    "ROUBO_USER_PLUGINS_DIR",
+  ] as const;
   const saved = new Map<string, string | undefined>();
 
   beforeEach(() => {
@@ -906,12 +913,99 @@ describe("state dir watch of .env", () => {
     expect(lines.join("\n")).not.toContain("Iv1.second");
     expect(JSON.stringify(hoisted.events)).not.toContain("Iv1.second");
   });
+
+  /** Load .env as boot does, so the boot-only keys are judged from this state. */
+  function boot(): void {
+    resetEnvFileLoads();
+    loadEnvFile();
+  }
+
+  it("HR-TC-024 a save that changes ROUBO_APP_LOG_DIR alone says it needs a relaunch, once", async () => {
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0]).toEqual({
+      surface: "environment",
+      outcome: "applied",
+      summary: "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    });
+    expect(noticeOf(envEvents()[0])).toBe(
+      "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+
+    // A later save of another key does not name it again.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 1 key changed.");
+
+    // A comment-only save changes no key and sends no notice.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n# a note\n");
+    await sleep(600);
+    expect(envEvents()).toHaveLength(2);
+    expect(fileLines(".env", "applied")).toHaveLength(2);
+  });
+
+  it("HR-TC-024 a save that changes ROUBO_USER_PLUGINS_DIR and an ordinary key applies the one and names the other", async () => {
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_USER_PLUGINS_DIR=/edited/user\nKEY_A=1\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0].summary).toBe(
+      "Environment file applied: 1 key changed. ROUBO_USER_PLUGINS_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.KEY_A).toBe("1");
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBeUndefined();
+  });
+
+  it("HR-TC-024 a save that drops the ROUBO_USER_PLUGINS_DIR line boot applied says it needs a relaunch", async () => {
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_USER_PLUGINS_DIR=/boot/user\n");
+    boot();
+    // The watch's own run of that write finds nothing changed since boot.
+    await sleep(600);
+    expect(envEvents()).toEqual([]);
+
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0].summary).toBe(
+      "Environment file applied: 1 key changed. ROUBO_USER_PLUGINS_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
+  });
+
+  it("HR-TC-024 a save of a boot-only key that is explicit env sends no relaunch notice", async () => {
+    process.env.ROUBO_APP_LOG_DIR = "/from-launch";
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await sleep(600);
+
+    expect(envEvents()).toEqual([]);
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/from-launch");
+  });
 });
 
 describe("state dir watch notice copy", () => {
   it("counts the changed keys of .env", () => {
     expect(envFileAppliedNotice(1)).toBe("Environment file applied: 1 key changed.");
     expect(envFileAppliedNotice(3)).toBe("Environment file applied: 3 keys changed.");
+  });
+
+  it("HR-TC-024 names the boot-only keys of .env that need a relaunch", () => {
+    expect(envFileNotice(2, [])).toBe("Environment file applied: 2 keys changed.");
+    expect(envFileNotice(0, ["NODE_ENV"])).toBe(
+      "Environment file: NODE_ENV needs a relaunch to apply.",
+    );
+    expect(envFileNotice(0, ["ROUBO_USER_PLUGINS_DIR", "ROUBO_APP_LOG_DIR"])).toBe(
+      "Environment file: ROUBO_USER_PLUGINS_DIR and ROUBO_APP_LOG_DIR need a relaunch to apply.",
+    );
+    expect(envFileNotice(1, ["ROUBO_PORT", "ROUBO_APP_LOG_DIR", "NODE_ENV"])).toBe(
+      "Environment file applied: 1 key changed. ROUBO_PORT, ROUBO_APP_LOG_DIR and NODE_ENV need a relaunch to apply.",
+    );
   });
 
   it("names each bench by project, in order", () => {
