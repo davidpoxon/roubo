@@ -1503,10 +1503,13 @@ describe("Spec Bench review journey", () => {
           { name: `Escalated cases of gate ${GATE}` },
           { timeout: 3000 },
         );
-        const sittingCase = within(list)
+        const row = within(list)
           .getAllByTestId("sitting-case")
           .find((c) => c.dataset.caseId === GATE_CASE);
-        if (sittingCase === undefined) throw new Error(`the sitting lists no case ${GATE_CASE}`);
+        if (row === undefined) throw new Error(`the sitting lists no case ${GATE_CASE}`);
+        // The chosen case shows in the Case panel, on the TestBench case surface.
+        await user.click(within(row).getByRole("button"));
+        const sittingCase = screen.getByRole("region", { name: `Case ${GATE_CASE}` });
         await user.click(within(sittingCase).getByRole("button", { name: `Confirm ${GATE_CASE}` }));
         await requestAnswered(bench.id, "PUT", `testbench/cases/${GATE_CASE}/status`, 200);
         await waitFor(

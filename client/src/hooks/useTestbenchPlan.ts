@@ -20,17 +20,21 @@ export function testbenchPlanQueryKey(projectId: string, benchId: number) {
 // query before the worktree exists 404s with MissingPlanError. The caller passes
 // `enabled: ready` so the query only fires once the worktree is present; it
 // defaults to `true` so the gate is opt-in and existing callers are unaffected.
+// `refetchOnMount: "always"` reads the plan again on mount even while the cached
+// read is fresh, for a caller that must act on results as they are now (the
+// Spec Bench gate sitting holds its escalated split from that read).
 export function useTestbenchPlan(
   projectId: string,
   benchId: number,
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; refetchOnMount?: boolean | "always" } = {},
 ) {
-  const { enabled = true } = options;
+  const { enabled = true, refetchOnMount } = options;
   return useQuery({
     queryKey: testbenchPlanQueryKey(projectId, benchId),
     queryFn: () => api.fetchTestbenchPlan(projectId, benchId),
     retry: false,
     enabled,
+    ...(refetchOnMount !== undefined && { refetchOnMount }),
   });
 }
 

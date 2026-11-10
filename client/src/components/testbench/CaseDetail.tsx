@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button, Input, Label, TextField, ToggleButton } from "react-aria-components";
 import { X, ArrowRight, StickyNote, ChevronDown, Bot, Archive } from "lucide-react";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
@@ -71,6 +71,13 @@ interface CaseDetailProps {
   // so the panel uses this to move focus onto the archived entry the case landed
   // in and to announce the outcome. Omitted in a read-only render.
   onArchived?: (caseId: string) => void;
+  // Disables the case's status control and its observation marks. A gate
+  // sitting shows its cases before it opens, and nothing is marked until then.
+  marksDisabled?: boolean;
+  // Rendered under the case's heading, before its preconditions and steps: a
+  // gate sitting puts the case's Stage control here, since staging comes
+  // before the steps.
+  beforeSteps?: ReactNode;
 }
 
 const SECTION_LABEL = "font-mono text-11 uppercase tracking-label text-text-secondary mt-6 mb-2";
@@ -94,6 +101,8 @@ export default function CaseDetail({
   onNext,
   onMarked,
   onArchived,
+  marksDisabled = false,
+  beforeSteps,
 }: CaseDetailProps) {
   const markObservation = useMarkObservation();
   const setStatusOverride = useSetStatusOverride();
@@ -189,7 +198,7 @@ export default function CaseDetail({
               <StatusOverrideControl
                 derivedStatus={derivedStatus}
                 override={override}
-                isDisabled={setStatusOverride.isPending}
+                isDisabled={marksDisabled || setStatusOverride.isPending}
                 onChange={(next) =>
                   setStatusOverride.mutate(
                     {
@@ -228,6 +237,8 @@ export default function CaseDetail({
             </span>
             <span>observations marked</span>
           </div>
+
+          {beforeSteps !== undefined && <div className="mt-4">{beforeSteps}</div>}
 
           {testCase.preconditions && testCase.preconditions.length > 0 && (
             <>
@@ -269,7 +280,7 @@ export default function CaseDetail({
                         <ObservationMarkControl
                           expected={observation.expected}
                           value={mark?.result}
-                          isDisabled={markObservation.isPending}
+                          isDisabled={marksDisabled || markObservation.isPending}
                           onMark={(res) =>
                             markObservation.mutate(
                               {

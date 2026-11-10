@@ -1,7 +1,6 @@
 import type { DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
-import type { StatusTone } from "../ui/styles";
 
-// The words and tones a gate sitting reads as (SB-FR-023): the gate waits for
+// The words a gate sitting reads as (SB-FR-023): the gate waits for
 // its build until the pinned build passed its smoke check, then it is ready to
 // sit, and the operator is called; then the sitting opens.
 
@@ -14,12 +13,6 @@ const SITTING_LABELS: Record<DeliverySittingPhase, string> = {
   open: "sitting open",
 };
 
-const SITTING_TONES: Record<DeliverySittingPhase, StatusTone> = {
-  preparing: "preparing",
-  ready: "active",
-  open: "active",
-};
-
 /** The phase of a sitting; a sitting with no state reads as open. */
 export function sittingPhase(sitting: DeliverySittingView): DeliverySittingPhase {
   return sitting.state ?? "open";
@@ -28,8 +21,4 @@ export function sittingPhase(sitting: DeliverySittingView): DeliverySittingPhase
 /** The words a gate's sitting reads as: "waiting for build", "ready to sit". */
 export function sittingLabel(sitting: DeliverySittingView): string {
   return SITTING_LABELS[sittingPhase(sitting)];
-}
-
-export function sittingTone(sitting: DeliverySittingView): StatusTone {
-  return SITTING_TONES[sittingPhase(sitting)];
 }

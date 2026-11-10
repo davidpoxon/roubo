@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import type { CaseStatus, Note } from "@roubo/shared/testbench-contracts";
 import { useAppendNote } from "../../hooks/useTestbenchNotes";
 import { ApiError } from "../../lib/api";
+import { STATUS_DOT } from "./statusLabels";
 
 // Append-only notes rail (#464, FR-011/FR-012, US-006). Renders a per-case
 // timeline where every note is stamped author + timestamp + status-at-write,
@@ -24,17 +25,6 @@ interface NotesRailProps {
   caseId: string;
   notes: Note[];
 }
-
-// Status-at-write dot colour, aligned with the DESIGN.md "Status indicator"
-// token mapping. Kept local because no shared testbench status-colour source
-// exists yet; when one lands this should reference it.
-const STATUS_DOT: Record<CaseStatus, string> = {
-  not_started: "bg-status-idle",
-  in_progress: "bg-status-preparing",
-  passed: "bg-status-active",
-  failed: "bg-status-error",
-  blocked: "bg-text-body",
-};
 
 const STATUS_LABEL: Record<CaseStatus, string> = {
   not_started: "not started",

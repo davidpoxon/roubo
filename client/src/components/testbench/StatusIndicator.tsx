@@ -1,5 +1,5 @@
 import type { CaseStatus } from "@roubo/shared/testbench-contracts";
-import { STATUS_LABEL } from "./statusLabels";
+import { STATUS_DOT, STATUS_LABEL } from "./statusLabels";
 
 // Per-case status indicator (DESIGN.md "Status indicator", lines 322-338).
 //
@@ -8,17 +8,6 @@ import { STATUS_LABEL } from "./statusLabels";
 // status roles (status-idle / status-preparing / status-active / status-error,
 // and a strong neutral for blocked); the label restates the status as words so
 // it reads identically to a screen reader and to a colour-blind user.
-
-// Dot colour token per status. blocked takes the strong neutral text-body tone so
-// it stays distinct from not_started's status-idle without reusing
-// status-error (reserved for failed).
-const STATUS_DOT: Record<CaseStatus, string> = {
-  not_started: "bg-status-idle",
-  in_progress: "bg-status-preparing",
-  passed: "bg-status-active",
-  failed: "bg-status-error",
-  blocked: "bg-text-body",
-};
 
 const STATUS_TEXT: Record<CaseStatus, string> = {
   not_started: "text-text-secondary",

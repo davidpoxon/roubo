@@ -1311,14 +1311,12 @@ function testBenchTab(): HTMLElement {
   return screen.getByRole("tab", { name: /test bench/i });
 }
 
+// The phase the sitting's banner reads.
 function sittingPhase(): string | undefined {
-  const phases = within(screen.getByTestId("specbench-testbench")).getByRole("list", {
-    name: "Sitting phases",
+  const banner = within(screen.getByTestId("specbench-testbench")).getByRole("region", {
+    name: `Gate ${GATE} sitting`,
   });
-  const current = within(phases)
-    .getAllByRole("listitem")
-    .find((item) => item.getAttribute("aria-current") === "step");
-  return current?.dataset.phase;
+  return banner.dataset.state;
 }
 
 function sittingCases(): HTMLElement[] {
@@ -1326,10 +1324,16 @@ function sittingCases(): HTMLElement[] {
   return within(list).getAllByTestId("sitting-case");
 }
 
-function sittingCase(caseId: string): HTMLElement {
+// Chooses a case in the sitting's Cases list and returns the Case panel that
+// shows it on the TestBench case surface.
+async function openSittingCase(
+  user: ReturnType<typeof userEvent.setup>,
+  caseId: string,
+): Promise<HTMLElement> {
   const found = sittingCases().find((item) => item.dataset.caseId === caseId);
   if (found === undefined) throw new Error(`the sitting lists no case ${caseId}`);
-  return found;
+  await user.click(within(found).getByRole("button"));
+  return screen.getByRole("region", { name: `Case ${caseId}` });
 }
 
 beforeAll(async () => {
@@ -1509,7 +1513,7 @@ describe("Spec Bench gate sitting journey", () => {
       `the recipe of ${FIRST_CASE} replays in the pin, step by step, and the staged state shows: staged at the gate commit ${heads.B}, look for "${OBSERVATION}"`,
       owners(["stage", "pin", "contracts", "hostResolver"]),
       async () => {
-        const item = sittingCase(FIRST_CASE);
+        const item = await openSittingCase(user, FIRST_CASE);
         await user.click(within(item).getByRole("button", { name: `Stage ${FIRST_CASE}` }));
         await requestAnswered(bench.id, "POST", `testbench/cases/${FIRST_CASE}/stage`, 200);
 
@@ -1540,13 +1544,12 @@ describe("Spec Bench gate sitting journey", () => {
       `both marks land in test-results.json with the operator, ${OPERATOR.name}, as author, and a fix unit, ${FIX_REF}, is filed below ${GATE}, which shows blocked`,
       owners(["adapter", "hostResolver"]),
       async () => {
-        await user.click(
-          within(sittingCase(FIRST_CASE)).getByRole("button", { name: /Case status/ }),
-        );
+        const first = await openSittingCase(user, FIRST_CASE);
+        await user.click(within(first).getByRole("button", { name: /Case status/ }));
         await user.click(await screen.findByRole("option", { name: "Passed" }));
         await requestAnswered(bench.id, "PUT", `testbench/cases/${FIRST_CASE}/status`, 200);
 
-        const second = sittingCase(SECOND_CASE);
+        const second = await openSittingCase(user, SECOND_CASE);
         await user.click(
           within(second).getByRole("button", { name: `Mark ${SECOND_CASE} Not met with evidence` }),
         );
@@ -1597,12 +1600,14 @@ describe("Spec Bench gate sitting journey", () => {
         // The gate shows blocked on the sitting, by the fix unit of the case.
         await waitFor(
           () =>
-            expect(screen.getByTestId("sitting-gate-blocked")).toHaveTextContent(
-              `The gate is blocked by a fix unit: ${FIX_REF} (${SECOND_CASE})`,
+            expect(screen.getByTestId("delivery-gate-sitting-blocked")).toHaveTextContent(
+              `Blocked by a fix unit filed for cases marked Not met: ${FIX_REF} (${SECOND_CASE})`,
             ),
           { timeout: 3000 },
         );
-        expect(sittingCase(SECOND_CASE)).toHaveTextContent(`Fix unit ${FIX_REF} blocks the gate.`);
+        expect(screen.getByRole("region", { name: `Case ${SECOND_CASE}` })).toHaveTextContent(
+          `Fix unit ${FIX_REF} blocks the gate.`,
+        );
       },
     );
 
