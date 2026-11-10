@@ -448,17 +448,20 @@ let envFileLoaded = false;
 const loginShellLayer = new Map<string, string>();
 
 /**
- * Keys only the first load applies. The server binds its port, resolves its
- * state dir and picks its mode once at boot, and publishes the bound port back
- * into ROUBO_PORT; plugin discovery reads its two plugin roots once at boot.
- * The app log reads ROUBO_APP_LOG_DIR on each write but creates the folder and
- * counts its bytes once. NODE_ENV is a process mode too: plugin discovery picks
- * the isolation probes from it once, and the plugin log guard reads it on each
- * write. A later edit of these in .env must not reach process.env, or a
- * per-call read of a plugin root would move away from the root the plugins
- * were found in, the app log would write to a folder it never created and lose
- * every later line, and the plugin logs would follow a mode the rest of the
- * process never took.
+ * Keys only the first load applies. The server binds its port once at boot and
+ * publishes the bound port back into ROUBO_PORT. ROUBO_PRODUCTION picks the
+ * state dir, where this .env lives, once at module load, and boot checks
+ * ROUBO_E2E against it; nothing here reads ROUBO_DIR. Plugin discovery reads
+ * its two plugin roots once at boot. The app log reads ROUBO_APP_LOG_DIR on
+ * each write but creates the folder and counts its bytes only on the first
+ * write and after a rotation. NODE_ENV is read once by plugin discovery, to
+ * pick the isolation probes, and by the app log install, and the plugin log
+ * guard reads it on each open or rotation of a plugin log stream. A later edit
+ * of these in .env must not reach process.env, or a per-call read of a plugin
+ * root would move away from the root the plugins were found in, the app log
+ * would append to a folder it never created and lose every later line, and
+ * under NODE_ENV=test a plugin log stream opened or rotated under the default
+ * plugins root would throw, while streams already open kept writing.
  */
 const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   "ROUBO_PORT",
