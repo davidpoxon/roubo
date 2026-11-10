@@ -34,7 +34,8 @@ if [ -z "$author_email" ]; then
 fi
 
 # Bot authors are exempt, as in CI. Keep this case in step with bot_authors
-# in roubo's .github/workflows/dco-reusable.yml.
+# in roubo's .github/workflows/dco-reusable.yml;
+# scripts/dco-commit-msg-hook.test.ts fails when the two lists differ.
 case "$author_email" in
   "49699333+dependabot[bot]@users.noreply.github.com" | \
   "354874856+poxon-agent[bot]@users.noreply.github.com")

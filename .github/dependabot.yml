@@ -4,10 +4,11 @@
 # Notes on this repo:
 # - npm workspaces (shared/, server/, client/, electron/) are declared in the
 #   root package.json, so a single `npm` entry at `/` covers every workspace.
-# - The DCO check in .github/workflows/dco.yml requires every commit to carry a
-#   `Signed-off-by:` trailer matching the author email. Dependabot cannot emit
-#   that trailer, so its author email is on the bot allowlist in dco.yml and
-#   its commits are exempt from the per-commit check.
+# - The DCO check in .github/workflows/dco-reusable.yml requires every commit
+#   to carry a `Signed-off-by:` trailer matching the author email. Dependabot
+#   cannot emit that trailer, so its author email is on the bot allowlist
+#   (`bot_authors`) in dco-reusable.yml and its commits are exempt from the
+#   per-commit check. dco.yml is only the thin caller of that workflow.
 
 version: 2
 updates:

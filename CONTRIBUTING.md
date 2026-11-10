@@ -115,7 +115,8 @@ app-authored pull request the maintainer gives that attestation when
 merging it: the squash commit ends with the maintainer's `Signed-off-by:`
 line. The allowlist of exempt author emails lives in
 [.github/workflows/dco-reusable.yml](.github/workflows/dco-reusable.yml),
-and the local hook carries the same list.
+and the local hook carries the same list. `scripts/dco-commit-msg-hook.test.ts`
+fails when the two lists differ.
 
 ### If you forgot to sign off
 
