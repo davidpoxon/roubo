@@ -602,6 +602,33 @@ describe("A provisional gate", () => {
     expect(badgeY).not.toHaveClass("bg-bg-hover");
   });
 
+  it("SB-TC-094 a provisional case in a sitting that is not open yet shows its mark, and Confirm waits for the sitting", async () => {
+    const user = userEvent.setup();
+    const snapshot: DeliverySnapshotResponse = {
+      ...foldDelivery({
+        record: autoRecord([X, Y]),
+        events: [
+          provisional(8, [
+            [X, "met"],
+            [Y, "not_met"],
+          ]),
+        ],
+      }),
+      sitting: { gateId: GATE, state: "ready" },
+    };
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot);
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: `Escalated cases of gate ${GATE}` });
+    const caseX = await openCase(user, list, X);
+    expect(within(caseX).getByTestId(`provisional-mark-badge-${X}`)).toHaveTextContent(
+      "Met · provisional",
+    );
+    const confirm = within(caseX).getByRole("button", { name: `Confirm ${X}` });
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(api.setStatusOverride).not.toHaveBeenCalled();
+  });
+
   it("SB-TC-094 gate.confirmed for both cases takes the gate out of the provisional state on the map and removes its card", async () => {
     const record = autoRecord([X, Y]);
     const marked = provisional(8, [

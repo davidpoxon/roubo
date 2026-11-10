@@ -18,7 +18,7 @@ import {
 } from "@roubo/shared/testbench-contracts";
 import { expectNoAxeFindings } from "../../test/axe";
 import { fourUnitRecord } from "../../test/delivery-fixtures";
-import { renderWithProviders } from "../../test/renderWithProviders";
+import { makeQueryClient, renderWithProviders } from "../../test/renderWithProviders";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -561,6 +561,7 @@ describe("Spec Bench test bench tab", () => {
   });
 
   it("the banner says the build is coming up while the sitting prepares, and names a failed smoke check", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(
       snapshot({
         gateId: "gate-after-b",
@@ -587,8 +588,83 @@ describe("Spec Bench test bench tab", () => {
     // Open the sitting waits for a ready build; Close the sitting is offered.
     expect(screen.getByRole("button", { name: "Open the sitting" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close the sitting" })).toBeEnabled();
-    expect(screen.queryByRole("list", { name: /cases of gate/ })).not.toBeInTheDocument();
+    // The cases can be read while the build comes up, and nothing on them can
+    // be staged or marked until the sitting opens.
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const panel = await openCase(user, list, "FX-TC-001");
+    for (const name of [
+      "Stage FX-TC-001",
+      "Mark FX-TC-001 Met",
+      "Mark FX-TC-001 Not met with evidence",
+      "Mark FX-TC-001 Still blocked",
+    ]) {
+      expect(within(panel).getByRole("button", { name })).toBeDisabled();
+    }
   });
+  it("reads the split again for a sitting of another gate, and holds a split only from a read made since the tab mounted", async () => {
+    const verification = {
+      tier: "b" as const,
+      confidence: "high" as const,
+      evidence: [],
+      author: { name: "verify", email: "verify@example.test" },
+      timestamp: "2026-10-16T10:00:00Z",
+    };
+    const passed = (caseIds: string[]): Record<string, CaseResult> =>
+      Object.fromEntries(
+        CASES.map((id) => [
+          id,
+          {
+            observationMarks: {},
+            derivedStatus: caseIds.includes(id) ? "passed" : "in_progress",
+            notes: [],
+            verification,
+          } satisfies CaseResult,
+        ]),
+      );
+    let caseResults = passed(["FX-TC-001"]);
+    vi.mocked(api.fetchTestbenchPlan).mockImplementation(async () => ({
+      plan,
+      results: { updatedAt: "2026-10-16T10:00:00Z", caseResults },
+      stale: false,
+      planHash: "hash",
+      recovered: false,
+    }));
+    // Both gates judge both cases.
+    const twoGates = (gateId: string): DeliverySnapshotResponse => {
+      const record = fourUnitRecord();
+      record.stack.gates = record.stack.gates.map((gate) => ({ ...gate, cases: CASES }));
+      return { ...foldDelivery({ record, events: [] }), sitting: { gateId, state: "open" } };
+    };
+    vi.mocked(api.fetchDelivery).mockResolvedValue(twoGates("gate-after-b"));
+    const queryClient = makeQueryClient();
+    const { unmount } = renderWithProviders(<SpecBenchTestBench bench={bench} />, { queryClient });
+    expect(await screen.findByTestId("sitting-counts")).toHaveTextContent(
+      "1 of 2 passed by automation · 1 escalated to you",
+    );
+
+    // Verification passes FX-TC-002 too, and the sitting moves to the gate
+    // after C: its split is read from the new results, not held from B's.
+    caseResults = passed(CASES);
+    vi.mocked(api.fetchDelivery).mockResolvedValue(twoGates("gate-after-c"));
+    await queryClient.invalidateQueries();
+    await waitFor(() =>
+      expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
+        "2 of 2 passed by automation · 0 escalated to you",
+      ),
+    );
+
+    // The tab mounts again from the cached read while results written while it
+    // was away are fetched: the split follows the new read.
+    unmount();
+    caseResults = passed([]);
+    renderWithProviders(<SpecBenchTestBench bench={bench} />, { queryClient });
+    await waitFor(() =>
+      expect(screen.getByTestId("sitting-counts")).toHaveTextContent(
+        "0 of 2 passed by automation · 2 escalated to you",
+      ),
+    );
+  });
+
   it("a case keeps its staged state and its evidence draft while another case is chosen", async () => {
     const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(

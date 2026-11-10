@@ -215,10 +215,12 @@ function passedByAutomation(result: CaseResult | undefined): boolean {
 // The ids of the gate's cases that automation passed. An operator's
 // observation mark recomputes a case's derived status, so a live reading would
 // move a case between the lists, change the counts and change the chosen case.
-// So the split is read once, when the sitting is open and its cases have
-// loaded, and held for the gate while this tab stays mounted. Before the
-// sitting opens nothing can be marked here, so the split is read live. A case
-// that joins the gate later counts as escalated.
+// So the split is read once, when the sitting is open and a read of its cases
+// made since this tab mounted has loaded, and held for the gate while this tab
+// stays mounted. A cached read can be older than results written while the
+// tab was away, so it is not held. Before the sitting opens nothing can be
+// marked here, so the split is read live. A case that joins the gate later
+// counts as escalated.
 function useAutomationPassed(
   gateId: string,
   open: boolean,
@@ -232,7 +234,8 @@ function useAutomationPassed(
       .filter((testCase) => passedByAutomation(ownValue(caseResults, testCase.id)))
       .map((testCase) => testCase.id),
   );
-  if (open && plan.isSuccess && cases.length > 0) setFrozen({ gateId, passed: live });
+  if (open && plan.isSuccess && plan.isFetchedAfterMount && !plan.isFetching && cases.length > 0)
+    setFrozen({ gateId, passed: live });
   return live;
 }
 
