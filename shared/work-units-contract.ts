@@ -82,8 +82,10 @@ export type DesignReference = z.infer<typeof DesignReferenceSchema>;
 // the submodule first (`roubo/shared/**`). Delivery tooling compares these
 // lists to decide which units with no dependency between them can run at the
 // same time, and a unit's diff can be checked against its own list. The
-// pattern rejects an absolute path and any `..` segment, so a glob cannot
-// leave the repository; it is a `pattern` in the generated JSON Schema too.
+// pattern rejects a leading `/` and any literal `..` path segment; it is a
+// `pattern` in the generated JSON Schema too. Glob syntax such as `{..,x}` can
+// still spell a parent segment, so a consumer must match these globs against
+// repository-relative paths and never expand them on the filesystem.
 export const TouchGlobSchema = z
   .string()
   .min(1)
