@@ -107,7 +107,13 @@ export default function GateSitting({
       )}
       {facts}
       {blocked && (
-        <p data-testid="delivery-gate-sitting-blocked" className="min-w-0 text-text-body">
+        // The status line above already carries the blocker, so a screen
+        // reader does not read it twice.
+        <p
+          aria-hidden="true"
+          data-testid="delivery-gate-sitting-blocked"
+          className="min-w-0 text-text-body"
+        >
           {blockerLine}
         </p>
       )}

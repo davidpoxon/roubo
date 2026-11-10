@@ -4,7 +4,7 @@
 // the Case panel, which shows the chosen case on the TestBench case surface,
 // marked through the case status route.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { axe } from "vitest-axe";
@@ -743,6 +743,84 @@ describe("Spec Bench test bench tab", () => {
       "Screenshot chosen: banner.png",
     );
     expect(api.stageTestbenchCase).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a stage answer that lands while another case is chosen for the case that was staged", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    let answer: (report: Awaited<ReturnType<typeof api.stageTestbenchCase>>) => void = () => {};
+    vi.mocked(api.stageTestbenchCase).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: "Stage FX-TC-001" }));
+    await waitFor(() => expect(api.stageTestbenchCase).toHaveBeenCalledTimes(1));
+
+    // The answer lands while the second case is chosen.
+    const second = await openCase(user, list, "FX-TC-002");
+    await act(async () => {
+      answer({
+        caseId: "FX-TC-001",
+        unitId: "FX-UNIT-B",
+        commit: "0123456",
+        observation: { description: "The banner reads staged" },
+        steps: [],
+      });
+    });
+    expect(within(second).getByRole("button", { name: "Stage FX-TC-002" })).toBeEnabled();
+    expect(screen.queryByRole("region", { name: /Staged state/ })).not.toBeInTheDocument();
+
+    const again = await openCase(user, list, "FX-TC-001");
+    expect(
+      within(again).getByRole("region", { name: "Staged state of FX-TC-001" }),
+    ).toHaveTextContent("FX-TC-001 is staged at commit 0123456");
+  });
+
+  it("keeps a mark in flight and a refused mark's error with their own case", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    let refuse: (error: Error) => void = () => {};
+    vi.mocked(api.setStatusOverride).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const first = await openCase(user, list, "FX-TC-001");
+    await user.click(within(first).getByRole("button", { name: "Mark FX-TC-001 Met" }));
+    await waitFor(() =>
+      expect(within(first).getByRole("button", { name: "Mark FX-TC-001 Met" })).toBeDisabled(),
+    );
+
+    // The mark in flight disables only its own case's Mark row.
+    const second = await openCase(user, list, "FX-TC-002");
+    expect(within(second).getByRole("button", { name: "Mark FX-TC-002 Met" })).toBeEnabled();
+
+    // The refusal lands while the second case is chosen: its error stays with
+    // the first case.
+    await act(async () => {
+      refuse(new api.ApiError("FX-TC-001 cannot be marked now", 409, "CONFLICT"));
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    const again = await openCase(user, list, "FX-TC-001");
+    expect(within(again).getByRole("alert")).toHaveTextContent("FX-TC-001 cannot be marked now");
+    expect(within(again).getByRole("button", { name: "Mark FX-TC-001 Met" })).toBeEnabled();
+
+    // The error does not follow the operator to another case.
+    await openCase(user, list, "FX-TC-002");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows the first case of the new list when the chosen case is not in it", async () => {

@@ -344,22 +344,41 @@ describe("DecisionPile", () => {
     expect(announcer).toHaveTextContent("decision-a overturned: one file per stack is applied.");
   });
 
-  it("raises nothing for a request naming an overturned decision, so the open card stays on top", () => {
-    const events = [
-      FIRST,
-      SECOND,
-      decisionEvent(10, "decision.defaulted", { decision_id: "decision-b" }),
-      decisionEvent(11, "decision.overturned", { decision_id: "decision-b", option: OPTIONS[1] }),
-    ];
-    renderWithProviders(
+  it("raises nothing for a request naming an overturned decision, so the raised card stays on top", () => {
+    const THIRD = raised(10, "decision-c", "2026-10-16T10:10:00Z");
+    const open = [FIRST, SECOND, THIRD];
+    const { rerender } = renderWithProviders(
       <DecisionPile
         projectId="demo"
         benchId={3}
-        snapshot={snapshotOf(events)}
-        raiseRequest={{ decisionId: "decision-b", nonce: 1 }}
+        snapshot={snapshotOf(open)}
+        raiseRequest={{ decisionId: "decision-a", nonce: 1 }}
       />,
     );
     expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
+
+    // decision-b is overturned and applied, so it leaves the cards. A request
+    // that names it raises nothing: decision-a stays on top, not the newest card.
+    rerender(
+      <DecisionPile
+        projectId="demo"
+        benchId={3}
+        snapshot={snapshotOf([
+          ...open,
+          decisionEvent(11, "decision.defaulted", { decision_id: "decision-b" }),
+          decisionEvent(12, "decision.overturned", {
+            decision_id: "decision-b",
+            option: OPTIONS[1],
+          }),
+        ])}
+        raiseRequest={{ decisionId: "decision-b", nonce: 2 }}
+      />,
+    );
+    expect(screen.getByTestId("decision-card-decision-a")).toHaveAttribute("data-position", "top");
+    expect(screen.getByTestId("decision-card-decision-c")).toHaveAttribute(
+      "data-position",
+      "lower",
+    );
     expect(screen.queryByTestId("decision-card-decision-b")).not.toBeInTheDocument();
     expect(screen.getByTestId("decision-applied-decision-b")).toBeInTheDocument();
   });
