@@ -70,19 +70,25 @@ function stub({
   benches,
   projectsLoading = false,
   benchesLoading = false,
+  projectsError = false,
+  benchesError = false,
 }: {
   projects?: RegisteredProject[];
   benches?: Bench[];
   projectsLoading?: boolean;
   benchesLoading?: boolean;
+  projectsError?: boolean;
+  benchesError?: boolean;
 }) {
   mockedUseProjects.mockReturnValue({
     data: projects,
     isLoading: projectsLoading,
+    isError: projectsError,
   } as unknown as UseQueryResult<RegisteredProject[]>);
   mockedUseAllBenches.mockReturnValue({
     data: benches,
     isLoading: benchesLoading,
+    isError: benchesError,
   } as unknown as UseQueryResult<Bench[]>);
 }
 
@@ -95,6 +101,7 @@ function renderView() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   mockedUseProjectIntegration.mockReturnValue({ data: undefined } as unknown as ReturnType<
     typeof useProjectIntegration
   >);
@@ -186,6 +193,40 @@ describe("AllBenchesView", () => {
     renderView();
     const section = screen.getByRole("region", { name: /gone/ });
     expect(within(section).getByText("feat/orphan")).toBeInTheDocument();
+    // There is no project page for it, so the heading is not a link and no
+    // integration is requested for the unknown id.
+    expect(within(section).queryByRole("link")).toBeNull();
+    expect(mockedUseProjectIntegration).not.toHaveBeenCalledWith("gone");
+    expect(mockedUseProjectIntegration).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows an error, not the empty state, when benches fail to load", () => {
+    stub({ projects: [makeProject("proj-a", "Alpha")], benches: undefined, benchesError: true });
+    renderView();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load benches");
+    expect(screen.queryByText(/No benches yet/)).toBeNull();
+  });
+
+  it("shows an error, not unregistered sections, when projects fail to load", () => {
+    stub({
+      projects: undefined,
+      benches: [makeBench({ projectId: "proj-a" })],
+      projectsError: true,
+    });
+    renderView();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByTestId("bench-card")).toBeNull();
+  });
+
+  it("keeps showing benches when a refetch fails after a good load", () => {
+    stub({
+      projects: [makeProject("proj-a", "Alpha")],
+      benches: [makeBench({ projectId: "proj-a", branch: "feat/a" })],
+      benchesError: true,
+    });
+    renderView();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("feat/a")).toBeInTheDocument();
   });
 
   it("passes each project's active integration to its bench cards", () => {
