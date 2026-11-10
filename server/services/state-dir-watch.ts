@@ -434,9 +434,12 @@ async function handleSettings(absPath: string): Promise<HandlerResult> {
   }
   // Read again, so the last good settings are the ones the edit left. A
   // missing file reads as the built-in defaults. The notice names each setting
-  // the edit changed (HR-FR-011).
-  const before = state.settingsInEffect();
-  const after = state.loadSettings();
+  // the edit changed from the settings last announced or written (HR-FR-011),
+  // not from the last good ones: a missing file does not move those, and any
+  // read of the file since the edit has moved them already.
+  const before = state.lastAnnouncedSettings();
+  const after = read.kind === "missing" ? state.builtInSettings() : state.loadSettings();
+  state.noteAnnouncedSettings(after);
   return applied({ summary: settingsAppliedNotice(changedSettingNames(before, after)) });
 }
 
@@ -621,9 +624,10 @@ export interface StateDirWatchOptions {
 export async function startStateDirWatch(options: StateDirWatchOptions = {}): Promise<InputWatch> {
   if (active) return active;
   // Read settings.json once, so a hand edit that breaks it later still has
-  // last good settings to serve.
+  // last good settings to serve, and a hand edit that parses is named from
+  // what the file held when the watch armed.
   try {
-    state.loadSettings();
+    state.noteAnnouncedSettings(state.loadSettings());
   } catch {
     // A settings file that cannot be read has no last good value to keep.
   }

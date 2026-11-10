@@ -26,7 +26,6 @@ vi.mock("./state.js", async (importOriginal) => {
     loadProjects: () => ({ projects: [] }),
     // The real one reads the process's own state dir, never the temp one.
     loadSettings: vi.fn(() => ({ theme: "dark" })),
-    settingsInEffect: vi.fn(() => ({ theme: "dark" })),
   };
 });
 vi.mock("./sse.js", async (importOriginal) => {
@@ -603,7 +602,7 @@ describe("state dir watch", () => {
 
   it("HR-TC-023 a hand edit of the default agent in settings.json names the setting in its notice", async () => {
     const jigs = { autoInject: true, autoExecute: true };
-    vi.mocked(state.settingsInEffect).mockReturnValueOnce({
+    state.noteAnnouncedSettings({
       theme: "dark",
       jigs: { ...jigs, defaultAgentPluginId: "claude-code" },
     });
@@ -624,6 +623,45 @@ describe("state dir watch", () => {
       summary: "Settings applied: default agent.",
     });
     expect(noticeOf(hoisted.events[0])).toBe("Settings applied: default agent.");
+  });
+
+  it("HR-TC-023 deleting settings.json then restoring it names the setting each time", async () => {
+    // loadSettings as the real one reads the temp state dir: the built-in
+    // settings with the file's theme, or the built-in settings when the file is
+    // missing.
+    const settingsFile = path.join(dir, "settings.json");
+    vi.mocked(state.loadSettings).mockImplementation(() =>
+      fs.existsSync(settingsFile)
+        ? {
+            ...state.builtInSettings(),
+            theme: (JSON.parse(fs.readFileSync(settingsFile, "utf-8")) as { theme: "light" }).theme,
+          }
+        : state.builtInSettings(),
+    );
+    try {
+      state.noteAnnouncedSettings(state.loadSettings());
+
+      fs.rmSync(settingsFile);
+      await waitFor(() => hoisted.events.length === 1);
+      expect(hoisted.events[0]).toEqual({
+        surface: "settings",
+        outcome: "applied",
+        summary: "Settings applied: theme.",
+      });
+
+      // A read of the file between an edit and the watch's run does not hide
+      // the edit from the notice.
+      fs.writeFileSync(settingsFile, JSON.stringify({ theme: "light" }));
+      state.loadSettings();
+      await waitFor(() => hoisted.events.length === 2);
+      expect(hoisted.events[1]).toEqual({
+        surface: "settings",
+        outcome: "applied",
+        summary: "Settings applied: theme.",
+      });
+    } finally {
+      vi.mocked(state.loadSettings).mockImplementation(() => ({ theme: "dark" }));
+    }
   });
 
   it("invalid JSON in any state file is rejected and nothing of it is applied", async () => {

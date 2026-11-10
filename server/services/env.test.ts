@@ -262,6 +262,76 @@ describe("loadEnvFile called again", () => {
     process.env.ROUBO_TEST_RELOAD = "explicit";
     expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("explicit");
   });
+
+  /** The boot import of the login shell, exporting `vars`. */
+  async function importShell(vars: Record<string, string>): Promise<void> {
+    vi.mocked(execFileSync).mockReturnValue(envOutput(vars));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+  }
+
+  it("HR-TC-024 a key added to .env overrides the login shell's value, as a relaunch does", async () => {
+    const { readEnvValue } = await import("./env.js");
+    await load("");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+
+    expect(await load("ROUBO_TEST_RELOAD=from-file")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-file");
+
+    // Dropping the line again puts the shell's value back.
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-shell");
+  });
+
+  it("HR-TC-024 a .env line dropped by a save falls back to the login shell's value, as a relaunch does", async () => {
+    const { readEnvValue } = await import("./env.js");
+    // Boot: .env loads first and wins, the shell only fills gaps.
+    await load("ROUBO_TEST_RELOAD=from-file");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-shell");
+
+    expect(await load("ROUBO_TEST_RELOAD=from-file")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+  });
+
+  it("HR-TC-024 explicit env still wins over both .env and the login shell", async () => {
+    process.env.ROUBO_TEST_RELOAD = "explicit";
+    await load("ROUBO_TEST_RELOAD=from-file");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(await load("ROUBO_TEST_RELOAD=edited")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("explicit");
+  });
+
+  it("HR-TC-025 a GITHUB_CLIENT_ID added to .env is read over the login shell's value", async () => {
+    delete process.env.GITHUB_CLIENT_ID;
+    const { readEnvValue } = await import("./env.js");
+    await load("");
+    await importShell({ GITHUB_CLIENT_ID: "shell-client-id" });
+    expect(readEnvValue("GITHUB_CLIENT_ID")).toBe("shell-client-id");
+    // Seen at the next call, before the watch has reloaded the file.
+    vi.mocked(fs.readFileSync).mockReturnValue("GITHUB_CLIENT_ID=file-client-id");
+    expect(readEnvValue("GITHUB_CLIENT_ID")).toBe("file-client-id");
+  });
+
+  it("keeps the plugin roots as boot set them, since plugin discovery reads them once", async () => {
+    delete process.env.ROUBO_USER_PLUGINS_DIR;
+    delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    await load("ROUBO_USER_PLUGINS_DIR=/boot/user\nROUBO_BUNDLED_PLUGINS_DIR=/boot/bundled");
+    expect(
+      await load("ROUBO_USER_PLUGINS_DIR=/edited/user\nROUBO_BUNDLED_PLUGINS_DIR=/edited/bundled"),
+    ).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
+    expect(process.env.ROUBO_BUNDLED_PLUGINS_DIR).toBe("/boot/bundled");
+  });
 });
 
 describe("importLoginShellEnv", () => {

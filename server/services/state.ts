@@ -545,17 +545,39 @@ export function loadSettings(opts?: { throwOnCorrupt?: boolean }): UserPreferenc
 }
 
 /**
- * The settings in effect now, without reading the file: the last good
- * settings, or the built-in defaults when none has parsed yet. A reader of a
- * changed settings.json compares its new read with these.
+ * The settings last announced or written: what the state dir watch compares a
+ * changed settings.json with, so its notice names each setting the change
+ * moved. A read of settings.json never moves it, so a request that reads the
+ * file between a hand edit and the watch's run does not hide the edit. The
+ * watch sets it when it arms and on each run for settings.json, the built-in
+ * defaults when the file is missing, and every write of settings.json sets it
+ * to what was written. Null until either has happened in this process.
  */
-export function settingsInEffect(): UserPreferences {
+let announcedSettings: UserPreferences | null = null;
+
+/**
+ * The settings last announced or written, or, before either, the last good
+ * settings, or the built-in defaults when none has parsed yet.
+ */
+export function lastAnnouncedSettings(): UserPreferences {
+  if (announcedSettings !== null) return structuredClone(announcedSettings);
   return lastGoodSettings === null ? defaultSettings() : structuredClone(lastGoodSettings);
 }
 
-/** Forget the last settings that parsed. For tests. */
+/** Record `settings` as the settings last announced, the state dir watch's baseline. */
+export function noteAnnouncedSettings(settings: UserPreferences): void {
+  announcedSettings = structuredClone(settings);
+}
+
+/** The built-in settings, which a missing settings.json reads as. */
+export function builtInSettings(): UserPreferences {
+  return defaultSettings();
+}
+
+/** Forget the last settings that parsed, and the settings last announced. For tests. */
 export function resetLastGoodSettings(): void {
   lastGoodSettings = null;
+  announcedSettings = null;
 }
 
 /** The settings a parsed settings.json holds, legacy keys migrated and defaults filled in. */
@@ -611,15 +633,17 @@ export function saveSettings(data: UserPreferences) {
 /**
  * Write settings.json and make what was written the last good settings, so a
  * later hand edit that leaves the file unparseable serves this write rather
- * than the read before it (HR-TC-034). Every writer of settings.json goes
- * through here. The state dir watch takes the write as a self-write and runs
- * no handler for it, but it still clears an open notice that rejected the file,
- * since the write leaves the file valid.
+ * than the read before it (HR-TC-034), and the settings last announced, so the
+ * state dir watch names what a later hand edit changes from this write. Every
+ * writer of settings.json goes through here. The state dir watch takes the
+ * write as a self-write and runs no handler for it, but it still clears an open
+ * notice that rejected the file, since the write leaves the file valid.
  */
 function writeSettingsFile(payload: unknown): void {
   const text = JSON.stringify(payload, null, 2);
   atomicWrite(SETTINGS_FILE, text);
   lastGoodSettings = parseSettings(JSON.parse(text));
+  announcedSettings = structuredClone(lastGoodSettings);
 }
 
 /**
