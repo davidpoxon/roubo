@@ -283,11 +283,13 @@ export function createBench(
     // to focusedSpecPath rather than to an issue/branch. A Spec Bench
     // ("specbench", SB-FR-001) binds to its spec folder and names how it binds
     // to its delivery in `deliveryMode`, and in launch mode who decides in the
-    // delivery in `decisionMode` (SB-FR-031).
+    // delivery in `decisionMode` (SB-FR-031) and the agent plugin the delivery
+    // session launches with in `agentPluginId` (#1616; absent: the default).
     variant?: "testbench" | "specbench";
     focusedSpecPath?: string;
     deliveryMode?: SpecBenchBindMode;
     decisionMode?: SpecBenchDecisionMode;
+    agentPluginId?: string;
   } = {},
 ): Promise<Bench | CreateBenchWithIssueResponse> {
   const body: CreateBenchRequest = {};
@@ -305,6 +307,8 @@ export function createBench(
       mode: opts.deliveryMode,
       ...(opts.deliveryMode === "launch" &&
         opts.decisionMode && { decisionMode: opts.decisionMode }),
+      ...(opts.deliveryMode === "launch" &&
+        opts.agentPluginId && { agentPluginId: opts.agentPluginId }),
     };
   }
   return request(`/projects/${projectId}/benches`, {

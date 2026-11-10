@@ -31,7 +31,22 @@ const hoisted = vi.hoisted(() => ({
   persisted: [] as PersistedBench[],
   // The terminal sessions that are live; any other session id reads as ended.
   liveSessions: new Set<string>(),
+  // The agent plugin ids the registry resolves as available; any other id
+  // resolves as the real registry answers it, which is not installed.
+  availableAgents: new Set<string>(),
 }));
+
+vi.mock("./agent-plugin-registry.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./agent-plugin-registry.js")>();
+  return {
+    ...actual,
+    resolveAgent: vi.fn((pluginId: string) =>
+      hoisted.availableAgents.has(pluginId)
+        ? { pluginId, manifest: { id: pluginId, kind: "agent" }, connection: {} }
+        : actual.resolveAgent(pluginId),
+    ),
+  };
+});
 
 vi.mock("./state.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./state.js")>();
@@ -209,6 +224,7 @@ beforeEach(() => {
 
   launches = [];
   hoisted.liveSessions.clear();
+  hoisted.availableAgents.clear();
   setDeliveryLaunchExecutor({
     launch: async (req) => {
       launches.push(req);
@@ -1299,5 +1315,86 @@ describe("Decision mode at set-up", () => {
     expect(launches).toHaveLength(2);
     expect(launches[1].descriptor.resume).toBe("demo-delivery-1");
     expect(launches[1].descriptor).not.toHaveProperty("decisionMode");
+  });
+});
+
+describe("Delivery agent at set-up", () => {
+  async function createWithDelivery(delivery: Record<string, unknown>) {
+    const res = await request(app).post("/demo/benches").send({
+      variant: "specbench",
+      focusedSpecPath: ".specifications/fixture-spec",
+      delivery,
+    });
+    if (res.status !== 201) return { res, bench: undefined };
+    await benchManager.whenWorkspaceProvisioned("demo", res.body.id);
+    await whenDeliveryBound("demo", res.body.id);
+    return { res, bench: benchManager.getBench("demo", res.body.id) };
+  }
+
+  it("a launch with a chosen agent plugin launches with it, and keeps it on the bench", async () => {
+    hoisted.availableAgents.add("agent-two");
+    const { res, bench } = await createWithDelivery({ mode: "launch", agentPluginId: "agent-two" });
+    expect(res.status).toBe(201);
+    expect(res.body.deliveryAgentPluginId).toBe("agent-two");
+    expect(launches).toHaveLength(1);
+    expect(launches[0].agentPluginId).toBe("agent-two");
+    expect(bench?.deliveryAgentPluginId).toBe("agent-two");
+    expect(lastPersisted(res.body.id)?.deliveryAgentPluginId).toBe("agent-two");
+  });
+
+  it("a launch with no chosen agent plugin names none, so the launch resolves the default", async () => {
+    const { res, bench } = await createWithDelivery({ mode: "launch" });
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty("deliveryAgentPluginId");
+    expect(bench).not.toHaveProperty("deliveryAgentPluginId");
+    expect(state.toPersistedBench(bench as Bench)).not.toHaveProperty("deliveryAgentPluginId");
+    expect(launches).toHaveLength(1);
+    expect(launches[0]).not.toHaveProperty("agentPluginId");
+  });
+
+  for (const [label, agentPluginId] of [
+    ["an agent plugin that is not available", "agent-gone"],
+    ["an empty agent plugin id", ""],
+    ["a non-string agent plugin id", 7],
+  ] as const) {
+    it(`answers ${label} with 400 INVALID_AGENT and creates no bench`, async () => {
+      const { res } = await createWithDelivery({ mode: "launch", agentPluginId });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("INVALID_AGENT");
+      expect(benchManager.getBenches("demo")).toEqual([]);
+      expect(fs.readdirSync(hoisted.workspaces)).toEqual([]);
+      expect(launches).toHaveLength(0);
+    });
+  }
+
+  it("attach ignores the agent plugin and keeps none", async () => {
+    const { res, bench } = await createWithDelivery({
+      mode: "attach",
+      agentPluginId: "agent-gone",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty("deliveryAgentPluginId");
+    expect(bench).not.toHaveProperty("deliveryAgentPluginId");
+    expect(launches).toHaveLength(0);
+  });
+
+  it("a resume after a restart launches with the chosen agent plugin", async () => {
+    hoisted.availableAgents.add("agent-two");
+    const { bench } = await createWithDelivery({ mode: "launch", agentPluginId: "agent-two" });
+    if (!bench) throw new Error("bench not created");
+    writeRecord(bench, fixtureRecord());
+    hoisted.liveSessions.delete("session-1");
+
+    // The restart: the bench comes back from its persisted record only.
+    hoisted.persisted = [state.toPersistedBench(bench)];
+    benchManager.dropProjectBenches("demo");
+    benchManager.initialize();
+    expect(benchManager.getBench("demo", bench.id)?.deliveryAgentPluginId).toBe("agent-two");
+
+    const resumed = await request(app).post(`/demo/benches/${bench.id}/delivery/resume`).send({});
+    expect(resumed.status).toBe(202);
+    expect(launches).toHaveLength(2);
+    expect(launches[1].descriptor.resume).toBe("demo-delivery-1");
+    expect(launches[1].agentPluginId).toBe("agent-two");
   });
 });

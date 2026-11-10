@@ -1693,6 +1693,13 @@ export interface SpecBenchDeliveryRequest {
    * attach mode, where the running delivery already has its mode.
    */
   decisionMode?: SpecBenchDecisionMode;
+  /**
+   * Launch mode only: the agent plugin the delivery session launches with.
+   * Absent means the default agent plugin, resolved at launch. An id that names
+   * no available agent plugin is a 400 `INVALID_AGENT`. Ignored in attach mode,
+   * where the running delivery already has its session.
+   */
+  agentPluginId?: string;
 }
 
 /**
@@ -1885,6 +1892,12 @@ export interface Bench {
    * card names the current mode.
    */
   deliveryDecisionMode?: SpecBenchDecisionMode;
+  /**
+   * Spec Bench only: the agent plugin chosen at set-up for a launch-mode bench.
+   * Every launch of the bench's delivery session uses it. Absent means the
+   * default agent plugin, resolved at each launch.
+   */
+  deliveryAgentPluginId?: string;
   /** Spec Bench only: the pin worktree of the open gate sitting, if any. */
   gatePin?: BenchGatePin;
   /** Spec Bench only: hash of the token the delivery session presents. */
@@ -2281,6 +2294,8 @@ export interface PersistedBench {
   deliveryBindMode?: SpecBenchBindMode;
   /** Persisted mirror of Bench.deliveryDecisionMode. Spec Bench only. */
   deliveryDecisionMode?: SpecBenchDecisionMode;
+  /** Persisted mirror of Bench.deliveryAgentPluginId. Spec Bench only. */
+  deliveryAgentPluginId?: string;
   /** Persisted mirror of Bench.gatePin. Spec Bench only. */
   gatePin?: BenchGatePin;
   /** Persisted mirror of Bench.deliveryTokenHash. Spec Bench only. */
