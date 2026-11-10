@@ -92,8 +92,8 @@ export function setPluginEnabled(pluginId: string, enabled: boolean): PluginEnab
 
 /**
  * Read-modify-write of one plugin's value, `"awaiting-consent"` and
- * `"disabled-awaiting-consent"` included (HR-FR-008). Seeds a missing file as `setPluginEnabled` does. Always returns
- * the freshly persisted state.
+ * `"disabled-awaiting-consent"` included (HR-FR-008). Seeds a missing file
+ * as `setPluginEnabled` does. Always returns the freshly persisted state.
  */
 export function setPluginEnableValue(
   pluginId: string,
