@@ -262,6 +262,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -887,7 +888,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench attach journey", () => {
+describe("Spec Bench attach journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-007: Operator attaches a Spec Bench to a delivery started elsewhere", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();

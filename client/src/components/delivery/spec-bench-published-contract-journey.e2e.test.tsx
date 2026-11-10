@@ -279,6 +279,7 @@ import { useNotificationStream } from "../../hooks/useNotificationStream";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -995,7 +996,7 @@ async function setUpAttachedSpecBench(
   return { benchId, descriptor };
 }
 
-describe("Spec Bench published contract journey", () => {
+describe("Spec Bench published contract journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-018: Tooling author opens a Spec Bench from the published contract alone", async () => {
     const user = userEvent.setup();
 

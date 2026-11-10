@@ -260,6 +260,7 @@ import { useDeepLink } from "../../hooks/useDeepLink";
 import BenchDashboard from "../BenchDashboard";
 import BenchesTab from "../BenchesTab";
 import BenchDetail from "../BenchDetail";
+import { JOURNEY_TIMEOUT_MS } from "../../test/journey-timeout";
 
 // ── Owning slices (this journey's blocked-by set) ──
 //
@@ -900,7 +901,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-describe("Spec Bench decision journey", () => {
+describe("Spec Bench decision journey", { timeout: JOURNEY_TIMEOUT_MS }, () => {
   it("SB-TC-044: Operator answers a question from the inbox without blocking the delivery", async () => {
     const user = userEvent.setup();
     const tooling = new FakeDeliveryTooling();
