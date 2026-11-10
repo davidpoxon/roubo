@@ -31,16 +31,30 @@ function workflowBotAuthors(): string[] {
   return emails;
 }
 
-/** The emails in the hook's bot-exemption `case` pattern. */
+/**
+ * The emails in the hook's bot-exemption `case` pattern. Every alternative
+ * must be one double-quoted literal: an unquoted alternative could be a glob
+ * that widens the exemption past the emails a quoted-string scan would see.
+ */
 function hookBotAuthors(): string[] {
   const block = readFileSync(HOOK, "utf8").match(
     /^case "\$author_email" in\n([\s\S]*?)\)\n\s*exit 0\n/m,
   )?.[1];
-  const emails = block === undefined ? [] : quotedStrings(block);
-  if (emails.length === 0) {
-    throw new Error(`no bot emails found in the case block of ${HOOK}`);
+  if (block === undefined) {
+    throw new Error(`no bot-exemption case block found in ${HOOK}`);
   }
-  return emails;
+  return block
+    .replace(/\\\n/g, " ")
+    .split("|")
+    .map((alternative) => {
+      const literal = alternative.trim().match(/^"([^"]+)"$/)?.[1];
+      if (literal === undefined) {
+        throw new Error(
+          `case alternative ${alternative.trim()} in ${HOOK} is not one quoted email`,
+        );
+      }
+      return literal;
+    });
 }
 
 let repo: string;
