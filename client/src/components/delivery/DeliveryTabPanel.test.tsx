@@ -37,6 +37,7 @@ import {
   openCasesView,
   openCostView,
   openDecisionsView,
+  openSteeringView,
   returnToMap,
 } from "../../test/delivery-views";
 
@@ -857,6 +858,36 @@ describe("The Delivery tab's views (#1620)", () => {
     expect(screen.getByTestId("delivery-view-map")).toBeVisible();
     expect(screen.getByTestId("delivery-decisions-steering")).not.toBeVisible();
     expect(link).toHaveFocus();
+  });
+
+  it("opens decisions and steering from the rail's Next boundary panel with the focus in the steering note, and the crumb returns to the link", async () => {
+    vi.mocked(api.fetchDelivery).mockResolvedValue(snapshot());
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    const link = await openSteeringView();
+
+    const view = screen.getByRole("region", { name: "Decisions and steering" });
+    expect(view).toBeVisible();
+    expect(screen.getByTestId("delivery-view-map")).not.toBeVisible();
+    expect(within(view).getByRole("textbox", { name: "Steering note" })).toHaveFocus();
+
+    await returnToMap();
+    expect(screen.getByTestId("delivery-view-map")).toBeVisible();
+    expect(link).toHaveFocus();
+  });
+
+  it("focuses the steering panel when no unit boundary is ahead and the note is disabled", async () => {
+    const done = record();
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      createDeliveryReducer().fold({
+        record: { ...done, units: done.units.map((unit) => ({ ...unit, status: "done" })) },
+        events: [],
+      }),
+    );
+    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+    await openSteeringView();
+
+    expect(screen.getByRole("textbox", { name: "Steering note" })).toBeDisabled();
+    expect(screen.getByTestId("delivery-steering-target")).toHaveFocus();
   });
 
   it("opens cost, health and controls from the rail, and its Bench crumb also returns to the map", async () => {

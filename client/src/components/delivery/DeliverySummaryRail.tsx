@@ -171,11 +171,16 @@ function queuedText(item: BoundaryQueueItem): string {
   return item.kind === "steering-note" ? item.note : `${item.role}: ${item.tier}`;
 }
 
+// The header's "steer" link opens the decisions view on the Steering panel,
+// with the focus in the steering note, even with no boundary ahead: the view
+// still lists the notes and says why the composer is disabled.
 export function NextBoundaryPanel({
   snapshot,
+  onOpenSteering,
   className,
 }: {
   snapshot: DeliverySnapshot;
+  onOpenSteering: () => void;
   className?: string;
 }) {
   const { boundary, queued } = selectBoundaryPanel(snapshot);
@@ -187,12 +192,20 @@ export function NextBoundaryPanel({
       label="Boundary summary"
       {...(className !== undefined && { className })}
       meta={
-        boundary === null ? undefined : (
-          <span className="font-mono">
-            {boundary.unitId}
-            {unit === undefined ? "" : ` · ${unit.status}`}
-          </span>
-        )
+        <>
+          {boundary !== null && (
+            <>
+              <span className="font-mono">
+                {boundary.unitId}
+                {unit === undefined ? "" : ` · ${unit.status}`}
+              </span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <PanelLink label="Write a steering note" onPress={onOpenSteering}>
+            steer
+          </PanelLink>
+        </>
       }
     >
       {boundary === null ? (
