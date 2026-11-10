@@ -74,7 +74,6 @@ import type { DeliveryControl } from "./delivery-control-contract";
 import {
   evaluateGate,
   indexResolutions,
-  isCaseMet,
   readCaseResult,
   type GateLifecycle,
   type GateState,
@@ -206,9 +205,10 @@ export interface DeliveryCaseProgress {
 }
 
 // Progress counts test cases met and requirements covered (SB-FR-011), never
-// units done. The counted cases are the gating cases of the record's gates, and a
-// requirement is covered when every plan case that links it is met, gating or not
-// (see `computeProgress`). `caseList` holds one entry per counted case, in plan order.
+// units done. The counted cases are the gating cases of the record's gates. A
+// requirement is counted when a counted case links it, and covered when every
+// counted case that links it is met (see `computeProgress`). `caseList` holds one
+// entry per counted case, in plan order.
 export interface DeliveryProgress {
   cases: DeliveryProgressCount;
   requirements: DeliveryProgressCount;
@@ -1367,16 +1367,15 @@ function verifyUnitOf(gate: DeliveryGate): VerifyUnit {
 // decides which result it is read by, an override wins over the derived status,
 // and an orphaned or absent result is not met, exactly as the gate reads it.
 //
-// A requirement is covered when every plan case that links it is met, gating or
-// not. A counted case is met as its gate reads it. Any other plan case (one no
-// gate names, or one the level/type policy leaves out) is met only when its
-// current result (results whose `planHash` is the record's plan hash, read
-// through `readCaseResult` with the lifecycle's resolutions) reads as met by
-// `isCaseMet`: no current result, an unresolvable pointer, or a failed, blocked
-// or unverified result is not met. A case the lifecycle retires ends its
-// obligation, as it leaves a gate's set, so it never holds a requirement open;
-// a requirement that only retired cases link is not counted. `requirements.total`
-// is the number of requirements that a plan case still in force links.
+// Requirements are judged by the counted cases only, the cases the delivery
+// verifies. A requirement is counted when a counted plan case links it, and
+// covered when every counted plan case that links it is met as its gate reads
+// it. A plan case that no gate names, or that the level/type policy leaves out,
+// neither counts a requirement nor holds one open, whatever its result: no gate
+// of the delivery verifies it, so it would cap the stat for the whole delivery.
+// A case the lifecycle retires leaves the gate's set, so it does not count either.
+// `requirements.total` is the number of requirements that a counted plan case
+// links.
 //
 // `caseList` holds one entry per counted case, in plan order, then any gating id
 // the plan lacks in gate order. Each entry carries the result the case is read
@@ -1436,15 +1435,11 @@ function computeProgress(
       prUrl: metByUnit?.pr_url ?? null,
     });
   }
-  // Every plan case in force that links a requirement, gating or not.
+  // Every counted plan case that links a requirement. A gate already drops a
+  // retired case from its set, so no counted case is retired.
   for (const planCase of plan.cases) {
-    if (resolutionById.get(planCase.id)?.status === "retired") continue;
-    const gatingMet = metById.get(planCase.id);
-    const caseMet =
-      gatingMet !== undefined
-        ? gatingMet
-        : current !== undefined &&
-          isCaseMet(readCaseResult(planCase.id, current.caseResults, resolutionById, lifecycle));
+    const caseMet = metById.get(planCase.id);
+    if (caseMet === undefined) continue;
     for (const requirementId of planCase.linked_requirement_ids) {
       const entry = requirementCases.get(requirementId) ?? { total: 0, met: 0 };
       entry.total += 1;
