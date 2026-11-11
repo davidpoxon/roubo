@@ -506,7 +506,11 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     });
     expect(settled.decisionsById["decision-2"].rationale).toBe("The operator's files carry them.");
     expect(settled.decisionsById["decision-2"].review).toBeUndefined();
-    expect(settled.review).toEqual({ status: "none", unreviewed: [] });
+    expect(settled.review).toEqual({
+      status: "none",
+      unreviewed: [],
+      closed_at: "2026-10-16T10:00:00Z",
+    });
     expect(selectReviewStack(settled)).toEqual([]);
     expect(record.decisions[1].review).toEqual({ status: "unreviewed" });
     expect(record.review.unreviewed).toEqual(["decision-2"]);
@@ -552,7 +556,11 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
         ["gate.confirmed", { gate_id: "gate-after-c" }],
       ),
     });
-    expect(settled.review).toEqual({ status: "none", unreviewed: [] });
+    expect(settled.review).toEqual({
+      status: "none",
+      unreviewed: [],
+      closed_at: "2026-10-16T10:00:00Z",
+    });
     expect(selectReviewStack(settled)).toEqual([]);
     expect(record.review.unreviewed).toEqual(["decision-2"]);
   });
@@ -586,6 +594,7 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       status: "open",
       trigger: "boundary",
       unreviewed: ["decision-2"],
+      opened_at: "2026-10-16T10:00:00Z",
     });
   });
 
@@ -600,6 +609,7 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
       status: "open",
       trigger: "boundary",
       unreviewed: ["decision-2"],
+      opened_at: "2026-10-16T10:00:00Z",
     });
     expect(selectReviewStack(emptied).map((card) => card.id)).toEqual([
       "decision-2",
@@ -615,7 +625,11 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
         ["review.opened", { unreviewed: ["decision-1", "decision-9", "decision-1"] }],
       ),
     });
-    expect(widened.review).toEqual({ status: "open", unreviewed: ["decision-1", "decision-2"] });
+    expect(widened.review).toEqual({
+      status: "open",
+      unreviewed: ["decision-1", "decision-2"],
+      opened_at: "2026-10-16T10:00:00Z",
+    });
     expect(selectReviewStack(widened).map((card) => card.id)).toEqual([
       "decision-2",
       "gate-after-c",
@@ -632,8 +646,59 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
         ["review.opened", { trigger: "manual", unreviewed: ["decision-2"] }],
       ),
     });
-    expect(nothing.review).toEqual({ status: "none", trigger: "manual", unreviewed: [] });
+    // Called, opened and closed in the one event.
+    const at = "2026-10-16T10:00:00Z";
+    expect(nothing.review).toEqual({
+      status: "none",
+      trigger: "manual",
+      unreviewed: [],
+      called_at: at,
+      opened_at: at,
+      closed_at: at,
+    });
     expect(selectReviewStack(nothing)).toEqual([]);
+  });
+
+  it("stamps when the review was called, opened and closed from the events that move it (#1680)", () => {
+    const record = fixtureRecord();
+    const at = (minute: number) => `2026-10-16T10:${String(minute).padStart(2, "0")}:00Z`;
+    const timed = (...specs: Array<[number, string, Record<string, unknown>]>) =>
+      stream(...specs.map(([, type, payload]) => [type, payload] as [string, typeof payload])).map(
+        (entry, index) => ({ ...entry, ts: at(specs[index][0]) }),
+      );
+    const events = timed(
+      // The writer's own opening time wins over the event's.
+      [5, "review.opened", { trigger: "boundary", unreviewed: ["decision-2"], opened_at: at(4) }],
+      [10, "review.outcome", { decision_id: "decision-2", status: "accepted" }],
+      [15, "gate.confirmed", { gate_id: "gate-after-c" }],
+      [20, "decision.decided", { decision_id: "decision-1", chosen: "one file per stack" }],
+    );
+    // The fixture's review is already pending, so its call time is unknown.
+    const closed = foldDelivery({ record, events: events.slice(0, 3) });
+    expect(closed.review).toEqual({
+      status: "none",
+      trigger: "boundary",
+      unreviewed: [],
+      opened_at: at(4),
+      closed_at: at(15),
+    });
+    // A new agent decision calls the next review; the last opening and close stay.
+    const called = foldDelivery({ record, events });
+    expect(called.review).toMatchObject({
+      status: "pending",
+      unreviewed: ["decision-1"],
+      called_at: at(20),
+      opened_at: at(4),
+      closed_at: at(15),
+    });
+
+    // An opening time that is not a timestamp falls back to the event's.
+    const loose = foldDelivery({
+      record,
+      events: timed([7, "review.opened", { unreviewed: ["decision-2"], opened_at: "soon" }]),
+    });
+    expect(loose.review.opened_at).toBe(at(7));
+    expect(loose.review.called_at).toBeUndefined();
   });
 
   it("SB-TC-098: a record whose review says none while a card waits folds to a review that names the card", () => {
@@ -729,7 +794,12 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     });
     expect(accepted.decisionsById["decision-2"].chosen).toBe("reject it");
     // gate-after-c is still provisional, so the review stays open.
-    expect(accepted.review).toEqual({ status: "open", trigger: "boundary", unreviewed: [] });
+    expect(accepted.review).toEqual({
+      status: "open",
+      trigger: "boundary",
+      unreviewed: [],
+      opened_at: "2026-10-16T10:00:00Z",
+    });
 
     const overturned = foldDelivery({
       record,
@@ -744,7 +814,11 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     expect(overturned.decisionsById["decision-2"].review).toEqual({ status: "overturned" });
     expect(overturned.decisionsById["decision-2"].chosen).toBe("accept it");
     // Nothing waits any more: the review is none.
-    expect(overturned.review).toEqual({ status: "none", unreviewed: [] });
+    expect(overturned.review).toEqual({
+      status: "none",
+      unreviewed: [],
+      closed_at: "2026-10-16T10:00:00Z",
+    });
 
     const badOption = foldDelivery({
       record,
@@ -969,7 +1043,11 @@ describe("foldDelivery event handlers", () => {
         ["delivery.planned", { gates }],
       ),
     });
-    expect(nothing.review).toEqual({ status: "none", unreviewed: [] });
+    expect(nothing.review).toEqual({
+      status: "none",
+      unreviewed: [],
+      closed_at: "2026-10-16T10:00:00Z",
+    });
     expect(selectReviewStack(nothing)).toEqual([]);
 
     // A new provisional gate in the list makes the review pending again.
@@ -981,7 +1059,13 @@ describe("foldDelivery event handlers", () => {
         ["delivery.planned", { gates: [{ ...gates[0], status: "provisional" }] }],
       ),
     });
-    expect(provisional.review).toEqual({ status: "pending", unreviewed: [] });
+    // It closed at the confirmation and was called again by the plan.
+    expect(provisional.review).toEqual({
+      status: "pending",
+      unreviewed: [],
+      called_at: "2026-10-16T10:00:00Z",
+      closed_at: "2026-10-16T10:00:00Z",
+    });
     expect(selectReviewStack(provisional).map((card) => card.id)).toEqual(["gate-x"]);
   });
 
