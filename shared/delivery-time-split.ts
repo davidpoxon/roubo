@@ -2,13 +2,15 @@
 // unit's, split into four states whose parts add up to the window.
 //
 // The split is derived from the record and the event history only. The record
-// carries no session, unit or gate times, so the states are replayed from the
-// events' `ts`, the decisions' `raised_at` and `decided_at`, and the
-// lifecycle's `started_at` and `ended_at`:
+// carries no unit or gate times, so the states are replayed from the events'
+// `ts`, the decisions' `raised_at` and `decided_at`, the sessions'
+// `started_at` and `ended_at` (#1684), and the lifecycle's `started_at` and
+// `ended_at`:
 //
-// - no live session: the lifecycle is `paused` (every session closed) or
-//   `wound_down` (a wind-down session is open), so the time from a wind-down
-//   to its resume counts here;
+// - no live session: no session of the record is live, or the lifecycle is
+//   `paused` (every session closed) or `wound_down` (a wind-down session is
+//   open), so the time from a session's end to the next session's start, and
+//   from a wind-down to its resume, counts here;
 // - agent working: a unit is running, or the session is live and nothing else
 //   below applies;
 // - at a gate: a gate whose units are all done has not passed;
@@ -20,23 +22,28 @@
 // that a done unit whose gate has not passed counts as at a gate, since it
 // waits on that gate (or on the units the gate also follows).
 //
-// The decisions, the review and the lifecycle are read from the record with
-// the events above its `last_event_seq` folded on (`foldDelivery`), so an event
-// the record has not taken in yet still counts.
+// The decisions, the review, the sessions and the lifecycle are read from the
+// record with the events above its `last_event_seq` folded on (`foldDelivery`),
+// so an event the record has not taken in yet still counts. A session still
+// open counts as live up to the window's end: a session that crashed is dated
+// only once the tooling sees it, when a later session resumes the delivery.
 //
-// Two parts cannot be derived exactly:
+// Two parts cannot always be derived exactly:
 // - A review's close sends no event and leaves no time in the record (#1680),
 //   so an open review is closed at its last outcome when the folded record no
 //   longer shows it open, and `reviewCloseInferred` says so.
-// - A session that ends without a pause leaves the lifecycle `running`, and
-//   the record holds no session times (#1684), so the time after it counts as
-//   agent working until the next lifecycle change.
+// - A record without `sessions` (a tooling that cannot date its sessions)
+//   leaves the lifecycle alone to say when no session was live. A session
+//   that ends without a pause leaves the lifecycle `running`, so the time
+//   after it counts as agent working until the next lifecycle change, and
+//   `sessionTimesUnknown` says so.
 import {
   GATE_PROVISIONAL_STATUS,
   type DeliveryDecision,
   type DeliveryEvent,
   type DeliveryLifecycle,
   type DeliveryRecord,
+  type DeliverySession,
 } from "./delivery-observation-contract";
 import {
   classifyUnitStatus,
@@ -82,6 +89,9 @@ export interface DeliveryTimeSplit extends DeliveryTimeSpan {
     historyTruncated: boolean;
     // A review's close time was inferred (see the header).
     reviewCloseInferred: boolean;
+    // The record carries no session times, so only the lifecycle says when no
+    // session was live (see the header).
+    sessionTimesUnknown: boolean;
   };
 }
 
@@ -261,7 +271,24 @@ function reviewHolds(
   return { holds, inferred };
 }
 
-const covers = (interval: Interval, at: number) => interval.from <= at && at < interval.to;
+const covers = (interval: { from: number; to: number }, at: number) =>
+  interval.from <= at && at < interval.to;
+
+// The time each session was live, from `started_at` until `ended_at`, or until
+// the window's end while it has not ended. Undefined when the record carries no
+// sessions. A session whose times do not read, or that ends before it starts,
+// was never live.
+function sessionSpans(sessions: readonly DeliverySession[] | undefined, end: number) {
+  if (sessions === undefined) return undefined;
+  const spans: { from: number; to: number }[] = [];
+  for (const session of sessions) {
+    const from = parseTime(session.started_at);
+    if (from === undefined) continue;
+    const to = session.ended_at == null ? end : parseTime(session.ended_at);
+    if (to !== undefined && to > from) spans.push({ from, to });
+  }
+  return spans;
+}
 
 /**
  * The delivery's elapsed time, and each started unit's, split into agent
@@ -291,6 +318,7 @@ export function deriveDeliveryTimeSplit({
     end,
   );
   const holds = [...decisionIntervals, ...review.holds];
+  const live = sessionSpans(current.sessions, end);
 
   // The state before the first event. A unit, gate or lifecycle that an event
   // of the history moves starts where the delivery starts; one that no event
@@ -410,9 +438,9 @@ export function deriveDeliveryTimeSplit({
   // The boundaries where a state can change, inside the window.
   const cuts = new Set<number>([start, end]);
   for (const { at } of timed) cuts.add(at);
-  for (const hold of holds) {
-    cuts.add(hold.from);
-    cuts.add(hold.to);
+  for (const span of [...holds, ...(live ?? [])]) {
+    cuts.add(span.from);
+    cuts.add(span.to);
   }
   const bounds = [...cuts].filter((at) => at >= start && at <= end).sort((a, b) => a - b);
 
@@ -430,13 +458,15 @@ export function deriveDeliveryTimeSplit({
     const length = to - from;
     if (length <= 0) continue;
 
-    const noSession = NO_SESSION_STATES.has(lifecycleState.toLowerCase());
-    const live = holds.filter((hold) => covers(hold, from));
+    const noSession =
+      NO_SESSION_STATES.has(lifecycleState.toLowerCase()) ||
+      (live !== undefined && !live.some((span) => covers(span, from)));
+    const waiting = holds.filter((hold) => covers(hold, from));
     let state: DeliveryTimeState;
     if (noSession) state = "no_session";
     else if ([...unitKind.values()].includes("running")) state = "agent";
     else if (gates.some((gate) => gateReached(gate.id))) state = "gate";
-    else if (live.length > 0) state = "operator";
+    else if (waiting.length > 0) state = "operator";
     else state = "agent";
     parts[state] += length;
 
@@ -448,7 +478,7 @@ export function deriveDeliveryTimeSplit({
       if (noSession) unitState = "no_session";
       else if (kind === "running") unitState = "agent";
       else if (isDoneKind(kind) || after.some(gateReached)) unitState = "gate";
-      else if (live.some((hold) => hold.units.has(unitId))) unitState = "operator";
+      else if (waiting.some((hold) => hold.units.has(unitId))) unitState = "operator";
       else unitState = "agent";
       const span = unitSpans.get(unitId) ?? { from, to, parts: emptyParts() };
       span.to = to;
@@ -485,6 +515,7 @@ export function deriveDeliveryTimeSplit({
     notes: {
       historyTruncated: truncated,
       reviewCloseInferred: review.inferred,
+      sessionTimesUnknown: live === undefined,
     },
   };
 }

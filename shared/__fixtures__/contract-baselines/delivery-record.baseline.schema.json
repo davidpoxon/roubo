@@ -4,11 +4,11 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "https://roubo.dev/schema/delivery-record/v1.0.0.json"
+      "const": "https://roubo.dev/schema/delivery-record/v1.3.0.json"
     },
     "schemaVersion": {
       "type": "string",
-      "const": "1.0.0"
+      "const": "1.3.0"
     },
     "delivery_id": {
       "type": "string",
@@ -333,6 +333,17 @@
         "spent_usd": {
           "type": "number",
           "minimum": 0
+        },
+        "by_role": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
         }
       },
       "required": ["estimate_usd", "soft_budget_usd", "spent_usd"],
@@ -348,6 +359,10 @@
         "type": "object",
         "properties": {
           "tier": {
+            "type": "string",
+            "minLength": 1
+          },
+          "effort": {
             "type": "string",
             "minLength": 1
           }
@@ -396,6 +411,25 @@
           "unit_id": {
             "type": "string",
             "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "pr_url": {
+            "type": "string"
           }
         },
         "required": ["kind", "detail", "detected_at"],
@@ -463,6 +497,37 @@
       "required": ["state", "armed", "started_at"],
       "additionalProperties": {}
     },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "started_at"],
+        "additionalProperties": {}
+      }
+    },
     "last_event_seq": {
       "type": "integer",
       "minimum": 0,
@@ -496,7 +561,7 @@
     "updated_at"
   ],
   "additionalProperties": {},
-  "$id": "https://roubo.dev/schema/delivery-record/v1.0.0.json",
+  "$id": "https://roubo.dev/schema/delivery-record/v1.3.0.json",
   "title": "Delivery record",
   "description": "One document describing a spec delivery at a point in time (SB-FR-005). Unknown keys are kept: a minor version adds fields, a major version removes them."
 }

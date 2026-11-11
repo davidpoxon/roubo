@@ -1,11 +1,11 @@
 {
   "delivery-record.schema.json": {
-    "version": "1.0.0",
-    "sha256": "36fd5cadafec4c75af48fbc1154bd6a1225bac8bc42b951ec3b5c4ff4546e27c"
+    "version": "1.3.0",
+    "sha256": "3fa7b91007cef2ac2374f9c35cbca8d5bd849259bdec0fbf350d68dfe1efb100"
   },
   "delivery-event.schema.json": {
-    "version": "2.0.0",
-    "sha256": "5dfd0da1ff1b65eb4ad9b9ee4e77581d587719b32e40daa3d60358e8fa2bfcb0"
+    "version": "2.2.0",
+    "sha256": "a9a79155aa71fc665eb73d36cd8709e43ce034167f322890b657bcef7ab54107"
   },
   "delivery-control.schema.json": {
     "version": "1.0.0",

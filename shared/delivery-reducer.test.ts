@@ -1002,6 +1002,55 @@ describe("foldDelivery event handlers", () => {
     });
   });
 
+  it("#1684: the snapshot carries the record's sessions, and a record without them has none", () => {
+    const record = fixtureRecord();
+    expect(foldDelivery({ record, events: [] }).sessions).toEqual([
+      { id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: null },
+    ]);
+    const without = { ...fixtureRecord() };
+    delete without.sessions;
+    expect(foldDelivery({ record: without, events: [] }).sessions).toBeUndefined();
+  });
+
+  it("#1684: session.ended dates a session's end, and session.started adds one or moves its start", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: stream(
+        // An end sent after the fact: earlier than the event's own ts.
+        ["session.ended", { id: "S1", ended_at: "2026-10-16T09:12:00Z" }],
+        ["session.started", { id: "S2", started_at: "2026-10-16T09:18:00Z" }],
+        ["session.started", { id: "S2", started_at: "2026-10-16T09:17:00Z", extra: 1 }],
+      ),
+    });
+    expect(snapshot.sessions).toEqual([
+      { id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: "2026-10-16T09:12:00Z" },
+      { id: "S2", started_at: "2026-10-16T09:17:00Z", ended_at: null },
+    ]);
+    // The record the fold started from is unchanged.
+    expect(record.sessions).toEqual([
+      { id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: null },
+    ]);
+  });
+
+  it("#1684: a session event starts the list on a record that carries none, and an end of an unknown session is skipped", () => {
+    const record = { ...fixtureRecord() };
+    delete record.sessions;
+    const snapshot = foldDelivery({
+      record,
+      events: stream(
+        ["session.ended", { id: "S9", ended_at: "2026-10-16T09:05:00Z" }],
+        ["session.started", { id: "S1", started_at: "2026-10-16T09:00:00Z" }],
+        ["session.started", { id: "S2" }],
+        ["session.ended", { id: "S2", ended_at: "2026-10-16T09:30:00Z" }],
+      ),
+    });
+    expect(snapshot.sessions).toEqual([
+      { id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: null },
+    ]);
+    expect(snapshot.seq).toBe(11);
+  });
+
   it("unit.changed addresses the unit by the envelope's unit_id and merges the payload", () => {
     const record = fixtureRecord();
     const snapshot = foldDelivery({

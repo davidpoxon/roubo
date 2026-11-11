@@ -173,7 +173,11 @@ describe("deriveDeliveryTimeSplit", () => {
     });
     expect(unitSpan(split, "A")?.to).toBe(iso(45));
     expect(minutes(unitSpan(split, "B"))).toMatchObject({ total: 15, agent: 15 });
-    expect(split.notes).toEqual({ historyTruncated: false, reviewCloseInferred: false });
+    expect(split.notes).toEqual({
+      historyTruncated: false,
+      reviewCloseInferred: false,
+      sessionTimesUnknown: false,
+    });
   });
 
   it("counts the time from a wind-down to its resume as no live session", () => {
@@ -194,6 +198,114 @@ describe("deriveDeliveryTimeSplit", () => {
     );
     expect(minutes(split)).toMatchObject({ total: 60, agent: 30, no_session: 30 });
     expect(minutes(unitSpan(split, "A"))).toMatchObject({ total: 60, agent: 30, no_session: 30 });
+  });
+
+  describe("session times (#1684)", () => {
+    // A runs from minute 0 to 60 and the lifecycle stays running throughout:
+    // only the sessions say when no session was live.
+    const runningHistory = () =>
+      history([
+        lifecycleTo(0, "running"),
+        unitTo(0, "A", "running"),
+        unitTo(60, "A", "done"),
+        gateTo(60, "passed"),
+        lifecycleTo(60, "complete"),
+      ]);
+    const complete = { state: "complete", armed: false, started_at: iso(0), ended_at: iso(60) };
+
+    it("counts the time between a session's end and the next session's start as no live session", () => {
+      const split = derive(
+        record({
+          lifecycle: complete,
+          sessions: [
+            { id: "S1", started_at: iso(0), ended_at: iso(20) },
+            { id: "S2", started_at: iso(35), ended_at: iso(60) },
+          ],
+        }),
+        runningHistory(),
+      );
+      expect(minutes(split)).toEqual({
+        total: 60,
+        agent: 45,
+        operator: 0,
+        gate: 0,
+        no_session: 15,
+      });
+      expect(minutes(unitSpan(split, "A"))).toMatchObject({ total: 60, agent: 45, no_session: 15 });
+      expect(split.notes.sessionTimesUnknown).toBe(false);
+    });
+
+    it("counts time as live while any one of several sessions is, and none before the first", () => {
+      const split = derive(
+        record({
+          lifecycle: complete,
+          sessions: [
+            { id: "S1", started_at: iso(10), ended_at: iso(30) },
+            { id: "S2", started_at: iso(20), ended_at: null },
+          ],
+        }),
+        runningHistory(),
+      );
+      expect(minutes(split)).toMatchObject({ total: 60, agent: 50, no_session: 10 });
+    });
+
+    it("keeps the lifecycle's no live session while a session is open, as for a wind-down", () => {
+      const split = derive(
+        record({ lifecycle: complete, sessions: [{ id: "S1", started_at: iso(0) }] }),
+        history([
+          lifecycleTo(0, "running"),
+          unitTo(0, "A", "running"),
+          lifecycleTo(20, "wound_down"),
+          lifecycleTo(50, "running"),
+          unitTo(60, "A", "done"),
+          gateTo(60, "passed"),
+          lifecycleTo(60, "complete"),
+        ]),
+      );
+      expect(minutes(split)).toMatchObject({ total: 60, agent: 30, no_session: 30 });
+    });
+
+    it("reads the session events above the record, with an end dated after the fact", () => {
+      const rec = record({
+        lifecycle: { state: "running", armed: true, started_at: iso(0), ended_at: null },
+        units: [unitOf("A", "running"), unitOf("B", "pending")],
+        sessions: [{ id: "S1", started_at: iso(0), ended_at: null }],
+        last_event_seq: 2,
+      });
+      const split = derive(
+        rec,
+        history([
+          lifecycleTo(0, "running"),
+          unitTo(0, "A", "running"),
+          // Sent at minute 40, when S2 resumed, for an end at minute 20.
+          [40, "session.started", { id: "S2", started_at: iso(35) }],
+          [40, "session.ended", { id: "S1", ended_at: iso(20) }],
+        ]),
+        60,
+        { behind: true },
+      );
+      expect(split.open).toBe(true);
+      expect(minutes(split)).toMatchObject({ total: 60, agent: 45, no_session: 15 });
+    });
+
+    it("counts the time after the last session ended as no live session, up to now", () => {
+      const split = derive(
+        record({
+          lifecycle: { state: "running", armed: true, started_at: iso(0), ended_at: null },
+          units: [unitOf("A", "running"), unitOf("B", "pending")],
+          sessions: [{ id: "S1", started_at: iso(0), ended_at: iso(10) }],
+        }),
+        history([lifecycleTo(0, "running"), unitTo(0, "A", "running")]),
+        30,
+      );
+      expect(minutes(split)).toMatchObject({ total: 30, agent: 10, no_session: 20 });
+    });
+
+    it("falls back on the lifecycle and says so when the record carries no sessions", () => {
+      const split = derive(record({ lifecycle: complete, sessions: undefined }), runningHistory());
+      expect(minutes(split)).toMatchObject({ total: 60, agent: 60, no_session: 0 });
+      expect(split.notes.sessionTimesUnknown).toBe(true);
+    });
   });
 
   it("counts an open decision as waiting only while no agent works", () => {

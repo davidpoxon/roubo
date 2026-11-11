@@ -55,6 +55,15 @@
 // carries it, and so does the `roles.applied` read-back. A record or an event
 // without it still reads, and an event stamped at an earlier minor of the same
 // major still validates (see validateDeliveryEvent).
+//
+// Record 1.3.0 and event 2.2.0 (#1684) say when each session of the delivery
+// started and ended. The record carries an optional `sessions` list, and two
+// event types move it: `session.started` and `session.ended`. Each payload
+// carries its own time, because the tooling can date a session's end only
+// after the fact (a session that crashed ended when it was last seen, which
+// the tooling knows once a later session resumes the delivery), so the
+// envelope's `ts` is not the bound. A record without `sessions` says nothing
+// about its sessions; a reader then falls back on the lifecycle.
 
 import { z } from "zod";
 
@@ -63,11 +72,11 @@ import { z } from "zod";
 // Each published document carries a `$schema` URI whose path embeds a semver
 // and a matching `schemaVersion` string. The two schemas version independently.
 
-export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.2.0.json";
-export const DELIVERY_RECORD_SCHEMA_VERSION = "1.2.0";
+export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.3.0.json";
+export const DELIVERY_RECORD_SCHEMA_VERSION = "1.3.0";
 
-export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.1.0.json";
-export const DELIVERY_EVENT_SCHEMA_VERSION = "2.1.0";
+export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.2.0.json";
+export const DELIVERY_EVENT_SCHEMA_VERSION = "2.2.0";
 
 // ── Shared scalars ──
 
@@ -336,6 +345,22 @@ export const DeliveryLifecycleSchema = z
   .loose();
 export type DeliveryLifecycle = z.infer<typeof DeliveryLifecycleSchema>;
 
+// ── sessions[] ──
+//
+// One entry per session of the delivery (1.3.0, #1684), oldest first. `id` is
+// the tooling's own name for the session. A session is live from `started_at`
+// until `ended_at`; a null or absent `ended_at` means it has not ended, as far
+// as the tooling knows. Several sessions can be live at once. The list is
+// optional: a tooling that cannot date its sessions leaves it out.
+export const DeliverySessionSchema = z
+  .object({
+    id: IdSchema,
+    started_at: TimestampSchema,
+    ended_at: TimestampSchema.nullable().optional(),
+  })
+  .loose();
+export type DeliverySession = z.infer<typeof DeliverySessionSchema>;
+
 // ── mode ──
 //
 // `value` is the mode in effect. `pending` is the mode a switch asked for that
@@ -391,6 +416,7 @@ export const DeliveryRecordSchema = z
     drift: z.array(DeliveryDriftSchema),
     seams: z.record(IdSchema, DeliverySeamSchema),
     lifecycle: DeliveryLifecycleSchema,
+    sessions: z.array(DeliverySessionSchema).optional(),
     // The `seq` of the last event folded into this record, 0 before any.
     last_event_seq: z.number().int().min(0),
     updated_at: TimestampSchema,
@@ -627,15 +653,44 @@ export const SeamRanPayloadSchema = DeliverySeamSchema.partial().extend({
   seam: IdSchema.optional(),
 });
 
+// ── Session event payloads (#1684) ──
+//
+// One typed payload per session event type: the session's entry of the record
+// (see "sessions[]"), or the part of it that moved. Unlike a section patch,
+// each names its session by `id` and carries its time, both required: an event
+// without them says nothing.
+
+// A session of the delivery started (1.3.0, #1684), named by `id`, at
+// `started_at`.
+export const SessionStartedPayloadSchema = z
+  .object({
+    id: IdSchema,
+    started_at: TimestampSchema,
+  })
+  .loose();
+export type SessionStartedPayload = z.infer<typeof SessionStartedPayloadSchema>;
+
+// A session of the delivery ended, at `ended_at`. The tooling may send it
+// after the fact, so `ended_at` can be earlier than the envelope's `ts`.
+export const SessionEndedPayloadSchema = z
+  .object({
+    id: IdSchema,
+    ended_at: TimestampSchema,
+  })
+  .loose();
+export type SessionEndedPayload = z.infer<typeof SessionEndedPayloadSchema>;
+
 // ── The delivery event union ──
 //
 // Every event type the reducer applies, each with the payload it carries: the
-// seven decision-mode types and the fourteen section types. The validator
+// seven decision-mode types, the fourteen section types and the two session types. The validator
 // reads this table by own key, so a type it does not list goes to the
 // catch-all.
 export const DELIVERY_EVENT_PAYLOADS = {
   "delivery.planned": DeliveryPlannedPayloadSchema,
   "lifecycle.changed": LifecycleChangedPayloadSchema,
+  "session.started": SessionStartedPayloadSchema,
+  "session.ended": SessionEndedPayloadSchema,
   "roles.applied": RolesAppliedPayloadSchema,
   "unit.changed": UnitChangedPayloadSchema,
   "gate.changed": GateChangedPayloadSchema,
@@ -670,6 +725,13 @@ export const DECISION_MODE_EVENT_TYPES = [
   "gate.confirmed",
 ] as const satisfies readonly DeliveryEventType[];
 export type DecisionModeEventType = (typeof DECISION_MODE_EVENT_TYPES)[number];
+
+// The two session types (#1684), a subset of the union's types.
+export const SESSION_EVENT_TYPES = [
+  "session.started",
+  "session.ended",
+] as const satisfies readonly DeliveryEventType[];
+export type SessionEventType = (typeof SESSION_EVENT_TYPES)[number];
 
 // One envelope: the fields every event carries, with the member's `type` and
 // payload.

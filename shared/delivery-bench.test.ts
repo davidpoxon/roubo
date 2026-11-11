@@ -171,6 +171,20 @@ describe("checkDeliveryRecord", () => {
     expect(check.record.roles["unit-coder"]).toEqual({ tier: "fast" });
   });
 
+  it("reads a 1.2.0 record, which carries no sessions, as the version it knows (#1684)", () => {
+    const record = fixture();
+    delete record.sessions;
+    const check = checkDeliveryRecord({
+      ...record,
+      $schema: "https://roubo.dev/schema/delivery-record/v1.2.0.json",
+      schemaVersion: "1.2.0",
+    });
+    expect(check.ok).toBe(true);
+    if (!check.ok) return;
+    expect(check.record.schemaVersion).toBe(DELIVERY_RECORD_SCHEMA_VERSION);
+    expect(check.record.sessions).toBeUndefined();
+  });
+
   it("checks the version before the sections, and the sections before the fields", () => {
     const record = fixture();
     delete record.units;
