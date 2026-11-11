@@ -482,6 +482,51 @@ describe("deriveDeliveryTimeSplit", () => {
       expect(minutes(split)).toMatchObject({ operator: 0 });
       expect(split.notes.reviewCloseInferred).toBe(true);
     });
+
+    // #1680: the record says when the latest review closed.
+    const reviewed = { ...agentDecision, review: { status: "accepted" as const } };
+    const closedRecord = (closedAt: string, calledAt?: string) =>
+      record({
+        review: {
+          status: "none",
+          unreviewed: [],
+          ...(calledAt === undefined ? {} : { called_at: calledAt }),
+          opened_at: iso(10),
+          closed_at: closedAt,
+        },
+        lifecycle: { state: "complete", armed: false, started_at: iso(0), ended_at: iso(30) },
+        decisions: [reviewed],
+      });
+
+    it("closes a review at the record's closed_at and infers nothing", () => {
+      const split = derive(closedRecord(iso(18)), rows(false));
+      expect(minutes(split)).toMatchObject({ total: 30, agent: 22, operator: 8 });
+      expect(split.notes.reviewCloseInferred).toBe(false);
+      expectSums(split);
+    });
+
+    it.each([
+      ["before it opened", 8],
+      ["as it opened", 10],
+    ])("closes at closed_at when the review was called %s", (_when, calledAt) => {
+      const split = derive(closedRecord(iso(18), iso(calledAt)), rows(false));
+      expect(minutes(split)).toMatchObject({ total: 30, agent: 22, operator: 8 });
+      expect(split.notes.reviewCloseInferred).toBe(false);
+    });
+
+    it("infers the close when a later review was called after the last opening", () => {
+      // The later review was called at 15 and closed at 20 with no opening, so
+      // closed_at is its close, not the open review's.
+      const split = derive(closedRecord(iso(20), iso(15)), rows(false));
+      expect(minutes(split)).toMatchObject({ operator: 0 });
+      expect(split.notes.reviewCloseInferred).toBe(true);
+    });
+
+    it("infers the close when the record's closed_at is older than the last opening", () => {
+      const split = derive(closedRecord(iso(5)), rows(false));
+      expect(minutes(split)).toMatchObject({ operator: 0 });
+      expect(split.notes.reviewCloseInferred).toBe(true);
+    });
   });
 
   it("ends a complete delivery whose record dropped ended_at at its completion event", () => {

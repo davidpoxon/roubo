@@ -184,8 +184,8 @@ describe("delivery observation contract: generated schema", () => {
     "SB-TC-010: $file is zod in shared with a versioned $id and its committed JSON equals a fresh render",
     async ({ file, id, version, schema }) => {
       // The zod source carries the $id, and the id embeds the version: the
-      // record at 1.3.0 and the event union at 2.2.0 (the session times).
-      expect(version).toBe(file === "delivery-record.schema.json" ? "1.3.0" : "2.2.0");
+      // record at 1.4.0 (the review times) and the event union at 2.2.0 (the session times).
+      expect(version).toBe(file === "delivery-record.schema.json" ? "1.4.0" : "2.2.0");
       expect(id.endsWith(`/v${version}.json`)).toBe(true);
       expect(schema.meta()?.$id).toBe(id);
 
@@ -384,6 +384,32 @@ describe("delivery observation contract: record fixture", () => {
       expect(broken.ok).toBe(false);
       if (!broken.ok) {
         expect(broken.errors.some((e) => e.startsWith("roles.unit-coder.effort"))).toBe(true);
+      }
+    }
+  });
+
+  it("#1680: the review carries optional called, opened and closed times, and a review without them still conforms", () => {
+    const fixture = loadFixture();
+    // The committed fixture's review carries no time, as a record written
+    // before 1.4.0 does.
+    const review = fixture.review as Record<string, unknown>;
+    expect(["called_at", "opened_at", "closed_at"].some((key) => key in review)).toBe(false);
+    expect(validateDeliveryRecord(fixture).ok).toBe(true);
+
+    const times = {
+      called_at: "2026-10-16T09:20:00Z",
+      opened_at: "2026-10-16T09:25:00+10:00",
+      closed_at: "2026-10-16T09:40:00Z",
+    };
+    const timed = validateDeliveryRecord({ ...fixture, review: { ...review, ...times } });
+    expect(timed.ok).toBe(true);
+    if (timed.ok) expect(timed.data.review).toMatchObject(times);
+
+    for (const key of Object.keys(times)) {
+      for (const value of ["2026-10-16", "soon", 3]) {
+        const broken = validateDeliveryRecord({ ...fixture, review: { ...review, [key]: value } });
+        expect(broken.ok).toBe(false);
+        if (!broken.ok) expect(broken.errors.some((e) => e.startsWith(`review.${key}`))).toBe(true);
       }
     }
   });

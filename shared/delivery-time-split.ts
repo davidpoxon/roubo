@@ -29,9 +29,13 @@
 // only once the tooling sees it, when a later session resumes the delivery.
 //
 // Two parts cannot always be derived exactly:
-// - A review's close sends no event and leaves no time in the record (#1680),
-//   so an open review is closed at its last outcome when the folded record no
-//   longer shows it open, and `reviewCloseInferred` says so.
+// - A review's close sends no event. The record's `review.closed_at` (1.4.0,
+//   #1680) says when the latest review closed, so a review the history leaves
+//   open closes there, unless the record's `called_at` shows a later review
+//   was called after it opened. A record from a writer before 1.4.0 has no
+//   close time. In either case the review is closed at its last outcome when
+//   the folded record no longer shows it open, and `reviewCloseInferred` says
+//   so.
 // - A record without `sessions` (a tooling that cannot date its sessions)
 //   leaves the lifecycle alone to say when no session was live. A session
 //   that ends without a pause leaves the lifecycle `running`, so the time
@@ -44,6 +48,7 @@ import {
   type DeliveryLifecycle,
   type DeliveryRecord,
   type DeliverySession,
+  type DeliveryReview,
 } from "./delivery-observation-contract";
 import {
   classifyUnitStatus,
@@ -87,7 +92,8 @@ export interface DeliveryTimeSplit extends DeliveryTimeSpan {
     // unit or gate that a later event moves counts as not yet started, and one
     // that no event moves holds its record value.
     historyTruncated: boolean;
-    // A review's close time was inferred (see the header).
+    // A review's close time was inferred: the record has no `closed_at` for
+    // it (see the header).
     reviewCloseInferred: boolean;
     // The record carries no session times, so only the lifecycle says when no
     // session was live (see the header).
@@ -226,9 +232,11 @@ function decisionHolds(
 // The time each review was open: from `review.opened` until every decision it
 // listed has an outcome, or a later review opens. A review still open at the
 // end of the history runs to the window's end while the folded record shows it
-// open, and otherwise closes at its last outcome (the inferred close).
+// open. Otherwise it closes at the record's `closed_at` when that is not
+// before its opening and no later review was called (`called_at` after the
+// opening), else at its last outcome (the inferred close).
 function reviewHolds(
-  reviewOpen: boolean,
+  review: DeliveryReview,
   decisions: ReadonlyMap<string, DeliveryDecision>,
   timed: readonly Timed[],
   end: number,
@@ -261,8 +269,16 @@ function reviewHolds(
   }
   let inferred = false;
   if (current) {
-    if (reviewOpen) {
+    const closedAt = parseTime(review.closed_at);
+    // A review called after `current` opened is a later review, which can be
+    // called and close with no `review.opened`: the close is then its own.
+    const calledAt = parseTime(review.called_at);
+    const ownClose = closedAt !== undefined && closedAt >= current.from;
+    const laterCall = calledAt !== undefined && calledAt > current.from;
+    if (review.status === "open") {
       hold(current, end);
+    } else if (ownClose && !laterCall) {
+      hold(current, Math.min(closedAt, end));
     } else {
       inferred = true;
       hold(current, current.last);
@@ -312,7 +328,7 @@ export function deriveDeliveryTimeSplit({
   const { start, end, open } = windowOf(current.lifecycle, timed, now);
   const decisionIntervals = decisionHolds(decisions, timed, end);
   const review = reviewHolds(
-    current.review.status === "open",
+    current.review,
     new Map(decisions.map((decision) => [decision.id, decision])),
     timed,
     end,

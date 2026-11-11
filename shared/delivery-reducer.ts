@@ -50,6 +50,7 @@ import {
   DELIVERY_MODES,
   GATE_PROVISIONAL_STATUS,
   PROVISIONAL_MARKS,
+  isDeliveryTimestamp,
   type DecisionReview,
   type DeliveryBudget,
   type DeliveryDecision,
@@ -710,7 +711,7 @@ const onDeliveryPlanned: EventHandler = (state, event) => {
     };
     // The new list can add or drop an unconfirmed provisional gate, which
     // moves what the review waits on.
-    next.review = settleReview(next, next.review);
+    next.review = settleReview(next, next.review, event.ts);
   }
   if (isRecord(payload.budget)) {
     next = { ...next, budget: merge(next.budget, pickBudget(payload.budget, next.budget)) };
@@ -826,7 +827,7 @@ const onGateChanged: EventHandler = (state, event) => {
     provisionalAt: trackProvisionalAt(state.provisionalAt, before, gates[index], event.ts),
   };
   // A status word alone can move a gate into or out of the provisional state.
-  next.review = settleReview(next, state.review);
+  next.review = settleReview(next, state.review, event.ts);
   return next;
 };
 
@@ -857,10 +858,14 @@ const onDecisionRaised: EventHandler = (state, event) => {
   // A raise replaces the decision whole, so an agent's earlier choice and its
   // review state go with it: bring the list into line with the decisions, so
   // the list, the status and the review stack agree.
-  next.review = settleReview(next, {
-    ...state.review,
-    unreviewed: reconcileUnreviewed(next, state.review.unreviewed),
-  });
+  next.review = settleReview(
+    next,
+    {
+      ...state.review,
+      unreviewed: reconcileUnreviewed(next, state.review.unreviewed),
+    },
+    event.ts,
+  );
   return next;
 };
 
@@ -1067,11 +1072,21 @@ const onModeChanged: EventHandler = (state, event) => {
 // a gate became provisional or confirmed. `none` when nothing waits, else
 // `pending` until a `review.opened` sets `open`; an open review stays open
 // while anything waits.
-function settleReview(state: FoldState, review: DeliveryReview): DeliveryReview {
+//
+// `at` is the time of the event that moved the section (#1680): a review that
+// leaves `none` takes it as `called_at`, and one that goes back to `none` as
+// `closed_at`. Without an event (the first snapshot) no time is stamped, since
+// the fold cannot know when the record's own state began.
+function settleReview(state: FoldState, review: DeliveryReview, at?: string): DeliveryReview {
   const anyGate = state.gates.some(isUnconfirmedProvisionalGate);
   const waiting = review.unreviewed.length > 0 || anyGate;
-  if (!waiting) return { ...review, status: "none" };
-  if (review.status === "none") return { ...review, status: "pending" };
+  if (!waiting) {
+    if (review.status === "none") return review;
+    return { ...review, status: "none", ...(at !== undefined ? { closed_at: at } : {}) };
+  }
+  if (review.status === "none") {
+    return { ...review, status: "pending", ...(at !== undefined ? { called_at: at } : {}) };
+  }
   return review;
 }
 
@@ -1127,15 +1142,23 @@ const onDecisionDecided: EventHandler = (state, event) => {
   setOwnValue(next.decisionsById, id, decision);
   const listed = state.review.unreviewed.includes(id);
   if (author === AGENT_AUTHOR && !listed) {
-    next.review = settleReview(next, {
-      ...state.review,
-      unreviewed: [...state.review.unreviewed, id],
-    });
+    next.review = settleReview(
+      next,
+      {
+        ...state.review,
+        unreviewed: [...state.review.unreviewed, id],
+      },
+      event.ts,
+    );
   } else if (author !== AGENT_AUTHOR && listed) {
-    next.review = settleReview(next, {
-      ...state.review,
-      unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
-    });
+    next.review = settleReview(
+      next,
+      {
+        ...state.review,
+        unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
+      },
+      event.ts,
+    );
   }
   return next;
 };
@@ -1163,12 +1186,18 @@ function reconcileUnreviewed(state: FoldState, listed: readonly string[]): strin
 
 const onReviewOpened: EventHandler = (state, event) => {
   const payload = event.payload as ReviewOpenedPayload;
-  const review: DeliveryReview = { ...state.review, status: "open" };
+  // The writer sends the review's own `opened_at` in the payload, outside the
+  // typed keys; without a valid one the event's time is the opening.
+  const sentAt = (payload as Record<string, unknown>).opened_at;
+  const openedAt = isDeliveryTimestamp(sentAt) ? sentAt : event.ts;
+  const review: DeliveryReview = { ...state.review, status: "open", opened_at: openedAt };
+  // A review called and opened in one step was called when it opened.
+  if (state.review.status === "none") review.called_at = openedAt;
   if (isString(payload.trigger)) review.trigger = payload.trigger;
   const listed = isStringArray(payload.unreviewed) ? payload.unreviewed : state.review.unreviewed;
   review.unreviewed = reconcileUnreviewed(state, listed);
   // An opened review with nothing to review settles at once.
-  return { ...state, review: settleReview(state, review) };
+  return { ...state, review: settleReview(state, review, event.ts) };
 };
 
 const onReviewOutcome: EventHandler = (state, event) => {
@@ -1195,10 +1224,14 @@ const onReviewOutcome: EventHandler = (state, event) => {
   const decision = merge(current, patch as Partial<DeliveryDecision>);
   const next = { ...state, decisionsById: { ...state.decisionsById } };
   setOwnValue(next.decisionsById, id, decision);
-  next.review = settleReview(next, {
-    ...state.review,
-    unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
-  });
+  next.review = settleReview(
+    next,
+    {
+      ...state.review,
+      unreviewed: state.review.unreviewed.filter((entry) => entry !== id),
+    },
+    event.ts,
+  );
   return next;
 };
 
@@ -1255,7 +1288,7 @@ const onGateProvisional: EventHandler = (state, event) => {
     gates,
     provisionalAt: trackProvisionalAt(state.provisionalAt, undefined, gates[index], event.ts),
   };
-  next.review = settleReview(next, state.review);
+  next.review = settleReview(next, state.review, event.ts);
   return next;
 };
 
@@ -1288,7 +1321,7 @@ const onGateConfirmed: EventHandler = (state, event) => {
     gates,
     provisionalAt: trackProvisionalAt(state.provisionalAt, gate, gates[index], event.ts),
   };
-  next.review = settleReview(next, state.review);
+  next.review = settleReview(next, state.review, event.ts);
   return next;
 };
 

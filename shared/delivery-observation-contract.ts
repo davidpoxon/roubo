@@ -64,6 +64,11 @@
 // the tooling knows once a later session resumes the delivery), so the
 // envelope's `ts` is not the bound. A record without `sessions` says nothing
 // about its sessions; a reader then falls back on the lifecycle.
+//
+// Record 1.4.0 (#1680) adds three optional times to the `review` section:
+// `called_at`, `opened_at` and `closed_at`. A review that becomes `pending` or
+// closes sends no event, so without them a reader cannot tell when either
+// happened. The event schema did not change and stays at 2.2.0.
 
 import { z } from "zod";
 
@@ -72,8 +77,8 @@ import { z } from "zod";
 // Each published document carries a `$schema` URI whose path embeds a semver
 // and a matching `schemaVersion` string. The two schemas version independently.
 
-export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.3.0.json";
-export const DELIVERY_RECORD_SCHEMA_VERSION = "1.3.0";
+export const DELIVERY_RECORD_SCHEMA_ID = "https://roubo.dev/schema/delivery-record/v1.4.0.json";
+export const DELIVERY_RECORD_SCHEMA_VERSION = "1.4.0";
 
 export const DELIVERY_EVENT_SCHEMA_ID = "https://roubo.dev/schema/delivery-event/v2.2.0.json";
 export const DELIVERY_EVENT_SCHEMA_VERSION = "2.2.0";
@@ -82,6 +87,12 @@ export const DELIVERY_EVENT_SCHEMA_VERSION = "2.2.0";
 
 // An RFC 3339 timestamp with any offset, e.g. 2026-10-16T09:30:00Z.
 const TimestampSchema = z.iso.datetime({ offset: true });
+
+// True when `value` is a timestamp the contract accepts, so a reader that
+// copies a time out of an open payload into the record keeps the record valid.
+export function isDeliveryTimestamp(value: unknown): value is string {
+  return TimestampSchema.safeParse(value).success;
+}
 // A non-empty identifier: a unit id, a gate id, a decision id, a stack name.
 const IdSchema = z.string().min(1);
 // An open status word. See the compatibility posture above.
@@ -380,11 +391,20 @@ export type DeliveryMode = z.infer<typeof DeliveryModeSchema>;
 // says what opened the review (a boundary, a gate, the operator); the contract
 // gives it no vocabulary. `unreviewed` lists the decisions whose review is
 // still `unreviewed`, oldest first.
+//
+// The times (1.4.0, #1680) describe the latest review: `called_at` is when the
+// status last left `none` (to `pending`, or straight to `open`), `opened_at`
+// when it last became `open`, and `closed_at` when it last went back to `none`.
+// A later review moves them again, so a `closed_at` before `opened_at` belongs
+// to an earlier review. A writer that does not know a time leaves its key out.
 export const DeliveryReviewSchema = z
   .object({
     status: DeliveryReviewStatusSchema,
     trigger: BoundedLineSchema.optional(),
     unreviewed: z.array(IdSchema),
+    called_at: TimestampSchema.optional(),
+    opened_at: TimestampSchema.optional(),
+    closed_at: TimestampSchema.optional(),
   })
   .loose();
 export type DeliveryReview = z.infer<typeof DeliveryReviewSchema>;
