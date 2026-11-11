@@ -7,7 +7,8 @@ import { useSystemStatus } from "../hooks/useSystemStatus";
 // App-wide band for a server condition that degrades every bench until Roubo
 // restarts (#1487). Today that is one condition: the boot-time import of the
 // login-shell environment failed, so terminals and agent sessions run on the
-// launch environment's minimal PATH. The log alone hid this, and the symptom
+// launch environment's minimal PATH plus the fallback dirs that exist on disk.
+// The log alone hid this, and the symptom
 // ("command not found" inside a session) points nowhere near the cause.
 //
 // An attention banner in the ProjectDeclaredSourceOffer position and style: the

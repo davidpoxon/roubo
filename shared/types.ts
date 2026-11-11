@@ -3207,7 +3207,8 @@ export interface SettingsResponse extends UserPreferences {
  * Outcome of the boot-time import of the login-shell environment (#1487).
  * `not-run` means the server has not attempted it yet. `failed` means every
  * attempt failed, so terminals and agent sessions run on the launch
- * environment's PATH until the server restarts.
+ * environment's PATH, plus the fallback dirs that exist on disk, until the
+ * server restarts.
  */
 export type LoginShellImportStatus =
   | { state: "not-run" }
