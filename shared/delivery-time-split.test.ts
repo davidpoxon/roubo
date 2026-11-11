@@ -505,8 +505,11 @@ describe("deriveDeliveryTimeSplit", () => {
       expectSums(split);
     });
 
-    it("closes at closed_at when the review was called before it opened", () => {
-      const split = derive(closedRecord(iso(18), iso(8)), rows(false));
+    it.each([
+      ["before it opened", 8],
+      ["as it opened", 10],
+    ])("closes at closed_at when the review was called %s", (_when, calledAt) => {
+      const split = derive(closedRecord(iso(18), iso(calledAt)), rows(false));
       expect(minutes(split)).toMatchObject({ total: 30, agent: 22, operator: 8 });
       expect(split.notes.reviewCloseInferred).toBe(false);
     });
