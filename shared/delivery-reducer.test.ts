@@ -699,6 +699,22 @@ describe("foldDelivery decision-mode handlers (SB-FR-040)", () => {
     });
     expect(loose.review.opened_at).toBe(at(7));
     expect(loose.review.called_at).toBeUndefined();
+
+    // A review opened from none was called when the writer says it opened.
+    const fromNone = foldDelivery({
+      record,
+      events: timed(
+        [10, "review.outcome", { decision_id: "decision-2", status: "accepted" }],
+        [15, "gate.confirmed", { gate_id: "gate-after-c" }],
+        [25, "review.opened", { unreviewed: ["decision-2"], opened_at: at(22) }],
+      ),
+    });
+    expect(fromNone.review).toMatchObject({
+      status: "none",
+      called_at: at(22),
+      opened_at: at(22),
+      closed_at: at(25),
+    });
   });
 
   it("SB-TC-098: a record whose review says none while a card waits folds to a review that names the card", () => {

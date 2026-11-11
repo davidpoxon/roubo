@@ -31,9 +31,11 @@
 // Two parts cannot always be derived exactly:
 // - A review's close sends no event. The record's `review.closed_at` (1.4.0,
 //   #1680) says when the latest review closed, so a review the history leaves
-//   open closes there. A record from a writer before 1.4.0 has no close time:
-//   the review is then closed at its last outcome when the folded record no
-//   longer shows it open, and `reviewCloseInferred` says so.
+//   open closes there, unless the record's `called_at` shows a later review
+//   was called after it opened. A record from a writer before 1.4.0 has no
+//   close time. In either case the review is closed at its last outcome when
+//   the folded record no longer shows it open, and `reviewCloseInferred` says
+//   so.
 // - A record without `sessions` (a tooling that cannot date its sessions)
 //   leaves the lifecycle alone to say when no session was live. A session
 //   that ends without a pause leaves the lifecycle `running`, so the time
@@ -231,7 +233,8 @@ function decisionHolds(
 // listed has an outcome, or a later review opens. A review still open at the
 // end of the history runs to the window's end while the folded record shows it
 // open. Otherwise it closes at the record's `closed_at` when that is not
-// before its opening, else at its last outcome (the inferred close).
+// before its opening and no later review was called (`called_at` after the
+// opening), else at its last outcome (the inferred close).
 function reviewHolds(
   review: DeliveryReview,
   decisions: ReadonlyMap<string, DeliveryDecision>,
@@ -267,9 +270,14 @@ function reviewHolds(
   let inferred = false;
   if (current) {
     const closedAt = parseTime(review.closed_at);
+    // A review called after `current` opened is a later review, which can be
+    // called and close with no `review.opened`: the close is then its own.
+    const calledAt = parseTime(review.called_at);
+    const ownClose = closedAt !== undefined && closedAt >= current.from;
+    const laterCall = calledAt !== undefined && calledAt > current.from;
     if (review.status === "open") {
       hold(current, end);
-    } else if (closedAt !== undefined && closedAt >= current.from) {
+    } else if (ownClose && !laterCall) {
       hold(current, Math.min(closedAt, end));
     } else {
       inferred = true;

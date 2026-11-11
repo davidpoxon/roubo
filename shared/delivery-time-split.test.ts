@@ -485,9 +485,15 @@ describe("deriveDeliveryTimeSplit", () => {
 
     // #1680: the record says when the latest review closed.
     const reviewed = { ...agentDecision, review: { status: "accepted" as const } };
-    const closedRecord = (closedAt: string) =>
+    const closedRecord = (closedAt: string, calledAt?: string) =>
       record({
-        review: { status: "none", unreviewed: [], opened_at: iso(10), closed_at: closedAt },
+        review: {
+          status: "none",
+          unreviewed: [],
+          ...(calledAt === undefined ? {} : { called_at: calledAt }),
+          opened_at: iso(10),
+          closed_at: closedAt,
+        },
         lifecycle: { state: "complete", armed: false, started_at: iso(0), ended_at: iso(30) },
         decisions: [reviewed],
       });
@@ -497,6 +503,20 @@ describe("deriveDeliveryTimeSplit", () => {
       expect(minutes(split)).toMatchObject({ total: 30, agent: 22, operator: 8 });
       expect(split.notes.reviewCloseInferred).toBe(false);
       expectSums(split);
+    });
+
+    it("closes at closed_at when the review was called before it opened", () => {
+      const split = derive(closedRecord(iso(18), iso(8)), rows(false));
+      expect(minutes(split)).toMatchObject({ total: 30, agent: 22, operator: 8 });
+      expect(split.notes.reviewCloseInferred).toBe(false);
+    });
+
+    it("infers the close when a later review was called after the last opening", () => {
+      // The later review was called at 15 and closed at 20 with no opening, so
+      // closed_at is its close, not the open review's.
+      const split = derive(closedRecord(iso(20), iso(15)), rows(false));
+      expect(minutes(split)).toMatchObject({ operator: 0 });
+      expect(split.notes.reviewCloseInferred).toBe(true);
     });
 
     it("infers the close when the record's closed_at is older than the last opening", () => {
