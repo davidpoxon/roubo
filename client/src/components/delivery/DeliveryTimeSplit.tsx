@@ -17,9 +17,9 @@ import { utcMinute } from "./delivery-timeline-model";
 // words, each duration also in a long form for the screen reader. The panel
 // holds no control, so it adds no Tab stop. The split comes from GET
 // /delivery/time, which the delivery view and a unit's drill-in share. The
-// delivery's notes name what the record cannot date: a session that ends
-// without a pause, always, and a truncated history or an inferred review close
-// when the split says so.
+// delivery's notes name what the record cannot date, each only when the split
+// says so: a session's end (a record without session times, #1684), a
+// truncated history, and an inferred review close.
 
 const TIME_STATE_LABEL: Record<DeliveryTimeState, string> = {
   agent: "Agent working",
@@ -104,9 +104,12 @@ function TimeSplitBody({ span, testId }: { span: DeliveryTimeSpan; testId: strin
 }
 
 function Notes({ split }: { split: DeliveryTimeSplitData }) {
-  const notes: string[] = [
-    "A session that ends without a pause counts as agent working until the delivery is paused, wound down or resumed: the record does not say when a session ends.",
-  ];
+  const notes: string[] = [];
+  if (split.notes.sessionTimesUnknown) {
+    notes.push(
+      "A session that ends without a pause counts as agent working until the delivery is paused, wound down or resumed: the record does not say when a session ends.",
+    );
+  }
   if (split.notes.historyTruncated) {
     notes.push(
       "The event history does not reach back to the start: before its first event, a unit or gate that later changes counts as not yet started.",
@@ -117,6 +120,7 @@ function Notes({ split }: { split: DeliveryTimeSplitData }) {
       "The record does not say when a review closed, so a review counts until its last outcome.",
     );
   }
+  if (notes.length === 0) return null;
   return (
     <ul
       data-testid="delivery-time-notes"

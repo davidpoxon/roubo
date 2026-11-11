@@ -39,7 +39,7 @@ function split(overrides: Partial<DeliveryTimeSplitData> = {}): DeliveryTimeSpli
         parts: { agent: 30 * MIN, operator: 10 * MIN, gate: 0, no_session: 0 },
       },
     ],
-    notes: { historyTruncated: false, reviewCloseInferred: false },
+    notes: { historyTruncated: false, reviewCloseInferred: false, sessionTimesUnknown: false },
     ...overrides,
   };
 }
@@ -79,26 +79,41 @@ describe("DeliveryTimeSplit", () => {
     expect(within(panel).getByTestId("delivery-time-bar-agent").style.width).toBe(
       `${String((65 / 120) * 100)}%`,
     );
-    // The record never dates a session's end, so that note always shows; the
-    // others only when the split says so.
-    const notes = within(panel).getByTestId("delivery-time-notes");
-    expect(notes).toHaveTextContent("A session that ends without a pause counts as agent working");
-    expect(notes).not.toHaveTextContent("does not reach back");
-    expect(notes).not.toHaveTextContent("does not say when a review closed");
+    // The record dates its sessions and nothing else is inferred: no notes.
+    expect(within(panel).queryByTestId("delivery-time-notes")).not.toBeInTheDocument();
     expect(api.fetchDeliveryTime).toHaveBeenCalledWith("demo", 3);
   });
 
   it("names the range of an ended delivery and the parts the record cannot date", async () => {
     vi.mocked(api.fetchDeliveryTime).mockResolvedValue(
-      split({ open: false, notes: { historyTruncated: true, reviewCloseInferred: true } }),
+      split({
+        open: false,
+        notes: { historyTruncated: true, reviewCloseInferred: true, sessionTimesUnknown: true },
+      }),
     );
     renderWithProviders(<DeliveryTimeSplit projectId="demo" benchId={3} seq={9} />);
     const notes = await screen.findByTestId("delivery-time-notes");
+    expect(notes).toHaveTextContent("A session that ends without a pause counts as agent working");
     expect(notes).toHaveTextContent("does not say when a review closed");
     expect(notes).toHaveTextContent("does not reach back to the start");
     expect(screen.getByRole("region", { name: "Time of the delivery" })).toHaveTextContent(
       "2026-10-16 09:00 UTC to 2026-10-16 11:00 UTC",
     );
+  });
+
+  it("names a session's end as undated only when the record carries no session times (#1684)", async () => {
+    vi.mocked(api.fetchDeliveryTime).mockResolvedValue(
+      split({
+        notes: { historyTruncated: false, reviewCloseInferred: false, sessionTimesUnknown: true },
+      }),
+    );
+    renderWithProviders(<DeliveryTimeSplit projectId="demo" benchId={3} seq={9} />);
+    const notes = await screen.findByTestId("delivery-time-notes");
+    expect(notes).toHaveTextContent(
+      "A session that ends without a pause counts as agent working until the delivery is paused, wound down or resumed: the record does not say when a session ends.",
+    );
+    expect(notes).not.toHaveTextContent("does not reach back");
+    expect(notes).not.toHaveTextContent("does not say when a review closed");
   });
 
   it("shows one unit's split, or names a unit that has not started", async () => {
@@ -124,7 +139,7 @@ describe("DeliveryTimeSplit", () => {
     const at = "2026-10-16T09:00:00.000Z";
     vi.mocked(api.fetchDeliveryTime).mockResolvedValue(
       split({
-        notes: { historyTruncated: true, reviewCloseInferred: false },
+        notes: { historyTruncated: true, reviewCloseInferred: false, sessionTimesUnknown: false },
         units: [{ unitId: "C", from: at, to: at, totalMs: 0, parts: zero }],
       }),
     );
@@ -186,7 +201,9 @@ describe("DeliveryTimeSplit", () => {
   for (const theme of THEMES) {
     it(`has no axe findings in ${theme}`, async () => {
       vi.mocked(api.fetchDeliveryTime).mockResolvedValue(
-        split({ notes: { historyTruncated: true, reviewCloseInferred: true } }),
+        split({
+          notes: { historyTruncated: true, reviewCloseInferred: true, sessionTimesUnknown: true },
+        }),
       );
       const { container } = renderInTheme(
         <QueryClientProvider client={makeQueryClient()}>

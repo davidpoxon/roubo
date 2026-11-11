@@ -64,6 +64,7 @@ import {
   type DeliveryReview,
   type DeliveryRole,
   type DeliverySeam,
+  type DeliverySession,
   type DeliverySteering,
   type DeliveryUnit,
   type ProvisionalCase,
@@ -264,6 +265,10 @@ export interface DeliverySnapshot {
   jams: string[];
   drift: DeliveryDrift[];
   lifecycle: DeliveryLifecycle;
+  // Each session of the delivery, oldest first (#1684), or undefined when the
+  // record carries none and no session event came: the tooling cannot date its
+  // sessions, so a reader falls back on the lifecycle.
+  sessions?: DeliverySession[];
   seams: Record<string, DeliverySeam>;
   progress: DeliveryProgress;
   staleness: DeliveryStaleness;
@@ -414,6 +419,18 @@ export interface DeliveryPlannedPayload {
 }
 
 export type LifecycleChangedPayload = Partial<DeliveryLifecycle>;
+
+// A session started or ended (#1684), named by `id`. Unlike a section
+// patch, each needs both its keys; the handler skips an event without them.
+export interface SessionStartedPayload {
+  id?: string;
+  started_at?: string;
+}
+
+export interface SessionEndedPayload {
+  id?: string;
+  ended_at?: string;
+}
 
 // The tooling applied a change of one role's tier, effort or both (SB-FR-021):
 // one role per event, named by the payload key `role`, as the role-change
@@ -571,6 +588,7 @@ interface FoldState {
   health: DeliveryHealth;
   drift: DeliveryDrift[];
   lifecycle: DeliveryLifecycle;
+  sessions?: DeliverySession[];
   seams: Record<string, DeliverySeam>;
 }
 
@@ -718,6 +736,34 @@ const onLifecycleChanged: EventHandler = (state, event) => {
   if (isString(payload.ended_at) || payload.ended_at === null) patch.ended_at = payload.ended_at;
   if (Object.keys(patch).length === 0) return state;
   return { ...state, lifecycle: merge(state.lifecycle, patch) };
+};
+
+// A `session.started` adds the session, or moves the start of one the list
+// already holds, keeping its other keys. On a record that carries no sessions
+// it starts the list: a tooling that sends session events sends every session.
+const onSessionStarted: EventHandler = (state, event) => {
+  const payload = event.payload as SessionStartedPayload;
+  if (!isString(payload.id) || !isString(payload.started_at)) return state;
+  const id = payload.id;
+  const sessions = [...(state.sessions ?? [])];
+  const index = sessions.findIndex((session) => session.id === id);
+  if (index === -1) sessions.push({ id, started_at: payload.started_at, ended_at: null });
+  else sessions[index] = { ...sessions[index], started_at: payload.started_at };
+  return { ...state, sessions };
+};
+
+// A `session.ended` dates the end of a session the list holds. The tooling may
+// send it after the fact, so `ended_at`, not the event's `ts`, is the end. The
+// end of a session the list does not hold is skipped: it has no start.
+const onSessionEnded: EventHandler = (state, event) => {
+  const payload = event.payload as SessionEndedPayload;
+  if (!isString(payload.id) || !isString(payload.ended_at)) return state;
+  const id = payload.id;
+  const sessions = [...(state.sessions ?? [])];
+  const index = sessions.findIndex((session) => session.id === id);
+  if (index === -1) return state;
+  sessions[index] = { ...sessions[index], ended_at: payload.ended_at };
+  return { ...state, sessions };
 };
 
 // A `roles.applied` makes the payload's tier and effort the role's current
@@ -1252,6 +1298,8 @@ const onGateConfirmed: EventHandler = (state, event) => {
 export const EVENT_HANDLERS: Readonly<Record<string, EventHandler>> = {
   "delivery.planned": onDeliveryPlanned,
   "lifecycle.changed": onLifecycleChanged,
+  "session.started": onSessionStarted,
+  "session.ended": onSessionEnded,
   "roles.applied": onRolesApplied,
   "unit.changed": onUnitChanged,
   "gate.changed": onGateChanged,
@@ -1301,6 +1349,7 @@ function stateFromRecord(record: DeliveryRecord): FoldState {
     health: record.health,
     drift: record.drift,
     lifecycle: record.lifecycle,
+    sessions: record.sessions,
     seams: record.seams,
   };
   // A valid record can still carry a review section that disagrees with its
@@ -1539,6 +1588,7 @@ function deriveSnapshot(state: FoldState, inputs: DeliveryFoldInputs): DeliveryS
     jams,
     drift: state.drift,
     lifecycle: state.lifecycle,
+    sessions: state.sessions,
     seams: state.seams,
     progress: computeProgress(record, state, gatesById, plan, results, lifecycle),
     staleness: computeStaleness(record.updated_at, state.lastEventAt, now),

@@ -21,6 +21,7 @@ import {
   DeliveryEventSchema,
   DeliveryGateSchema,
   DeliveryRecordSchema,
+  SESSION_EVENT_TYPES,
   validateDeliveryEvent,
   validateDeliveryRecord,
 } from "./delivery-observation-contract.js";
@@ -183,8 +184,8 @@ describe("delivery observation contract: generated schema", () => {
     "SB-TC-010: $file is zod in shared with a versioned $id and its committed JSON equals a fresh render",
     async ({ file, id, version, schema }) => {
       // The zod source carries the $id, and the id embeds the version: the
-      // record at 1.2.0 and the event union at 2.1.0 (the effort of a role).
-      expect(version).toBe(file === "delivery-record.schema.json" ? "1.2.0" : "2.1.0");
+      // record at 1.3.0 and the event union at 2.2.0 (the session times).
+      expect(version).toBe(file === "delivery-record.schema.json" ? "1.3.0" : "2.2.0");
       expect(id.endsWith(`/v${version}.json`)).toBe(true);
       expect(schema.meta()?.$id).toBe(id);
 
@@ -223,6 +224,7 @@ describe("delivery observation contract: generated schema", () => {
     expect(DECISION_MODE_EVENT_TYPES.every((type) => DELIVERY_EVENT_TYPES.includes(type))).toBe(
       true,
     );
+    expect(SESSION_EVENT_TYPES.every((type) => DELIVERY_EVENT_TYPES.includes(type))).toBe(true);
   });
 });
 
@@ -274,6 +276,37 @@ describe("delivery observation contract: record fixture", () => {
     expect(notString.ok).toBe(false);
     if (!notString.ok) {
       expect(notString.errors.some((e) => e.startsWith("units.0.pr_url"))).toBe(true);
+    }
+  });
+
+  it("#1684: the record carries an optional sessions list, each with its start and an optional end", () => {
+    const fixture = loadFixture();
+    const sessions = [
+      { id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: "2026-10-16T09:12:00Z" },
+      { id: "S2", started_at: "2026-10-16T09:18:00Z", ended_at: null },
+      { id: "S3", started_at: "2026-10-16T09:19:00Z" },
+    ];
+    const withSessions = validateDeliveryRecord({ ...fixture, sessions });
+    expect(withSessions.ok).toBe(true);
+    if (withSessions.ok) expect(withSessions.data.sessions).toEqual(sessions);
+
+    const without = { ...fixture };
+    delete without.sessions;
+    expect(validateDeliveryRecord(without).ok).toBe(true);
+
+    const cases: [unknown, string][] = [
+      [[{ started_at: "2026-10-16T09:00:00Z" }], "sessions.0.id"],
+      [[{ id: "S1" }], "sessions.0.started_at"],
+      [
+        [{ id: "S1", started_at: "2026-10-16T09:00:00Z", ended_at: "later" }],
+        "sessions.0.ended_at",
+      ],
+      [{ S1: {} }, "sessions"],
+    ];
+    for (const [value, prefix] of cases) {
+      const result = validateDeliveryRecord({ ...fixture, sessions: value });
+      expect(result.ok, JSON.stringify(value)).toBe(false);
+      if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix))).toBe(true);
     }
   });
 
@@ -713,6 +746,7 @@ describe("delivery observation contract: event envelope", () => {
   it("SB-FR-006: a known section type takes a sparse patch and keeps unknown payload keys", () => {
     for (const type of DELIVERY_EVENT_TYPES) {
       if ((DECISION_MODE_EVENT_TYPES as readonly string[]).includes(type)) continue;
+      if ((SESSION_EVENT_TYPES as readonly string[]).includes(type)) continue;
       const result = validateDeliveryEvent({ ...minimalEvent, type, payload: { extra: true } });
       expect(result, type).toEqual(expect.objectContaining({ ok: true }));
     }
@@ -1043,6 +1077,64 @@ describe("delivery observation contract: event envelope", () => {
       expect(result.ok, JSON.stringify(event)).toBe(false);
       if (!result.ok) expect(result.errors.some((e) => e.startsWith(prefix))).toBe(true);
     }
+  });
+
+  it("#1684: a session event names its session and carries its time, and keeps unknown payload keys", () => {
+    const started = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "session.started",
+      unit_id: undefined,
+      payload: { id: "S1", started_at: "2026-10-16T09:00:00Z", extra: true },
+    });
+    expect(started.ok).toBe(true);
+    if (started.ok) {
+      expect(started.data.payload).toEqual({
+        id: "S1",
+        started_at: "2026-10-16T09:00:00Z",
+        extra: true,
+      });
+    }
+    // An end the tooling dates after the fact: `ended_at` before the envelope's `ts`.
+    const ended = validateDeliveryEvent({
+      ...minimalEvent,
+      type: "session.ended",
+      ts: "2026-10-16T10:00:00Z",
+      payload: { id: "S1", ended_at: "2026-10-16T09:20:00+10:00" },
+    });
+    expect(ended.ok).toBe(true);
+  });
+
+  it("#1684: a session event without its session or its time, or with a bad time, fails at the field", () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ["session.started", {}, "payload.id:"],
+      ["session.started", { id: "S1" }, "payload.started_at:"],
+      ["session.started", { id: "", started_at: "2026-10-16T09:00:00Z" }, "payload.id:"],
+      ["session.started", { id: "S1", started_at: "soon" }, "payload.started_at:"],
+      ["session.ended", { ended_at: "2026-10-16T09:00:00Z" }, "payload.id:"],
+      ["session.ended", { id: "S1" }, "payload.ended_at:"],
+      ["session.ended", { id: "S1", ended_at: null }, "payload.ended_at:"],
+    ];
+    for (const [type, payload, prefix] of cases) {
+      const result = validateDeliveryEvent({ ...minimalEvent, type, payload });
+      expect(result.ok, `${type} ${JSON.stringify(payload)}`).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((e) => e.startsWith(prefix)),
+          `${type}: ${result.errors.join("; ")}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("#1684: an event stamped at 2.1.0, before the session types, still validates", () => {
+    const result = validateDeliveryEvent({
+      ...minimalEvent,
+      $schema: "https://roubo.dev/schema/delivery-event/v2.1.0.json",
+      schemaVersion: "2.1.0",
+      type: "lifecycle.changed",
+      payload: { state: "paused" },
+    });
+    expect(result.ok).toBe(true);
   });
 
   it("rejects a zero seq, an empty type, a non-object payload and a bad timestamp", () => {
