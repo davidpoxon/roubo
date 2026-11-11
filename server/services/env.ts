@@ -59,11 +59,15 @@ function parseEnvFile(): Array<{ key: string; raw: string }> {
 }
 
 /**
- * Well-known directories containing CLI binaries for common macOS GUI apps.
- * Appended to PATH as a fallback when shell resolution does not include them
- * (e.g. VS Code not yet configured via "Shell Command: Install 'code' command in PATH").
+ * Well-known macOS CLI directories, appended to PATH as a fallback when shell
+ * resolution does not include them: the Homebrew prefixes (Apple silicon, then
+ * Intel), for when the login-shell import failed and launchd's bare PATH is all
+ * the server has, and the CLI dirs of common GUI apps (e.g. VS Code not
+ * yet configured via "Shell Command: Install 'code' command in PATH").
  */
 const WELL_KNOWN_CLI_DIRS_DARWIN: string[] = [
+  "/opt/homebrew/bin",
+  "/usr/local/bin",
   "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
 ];
 
@@ -108,8 +112,9 @@ export function getLoginShellImportStatus(): LoginShellImportStatus {
  * already present are prepended, preserving any paths injected by the launch
  * environment. ~/.local/bin (the standard user-local binary dir used by native
  * installers such as Claude Code) is then prepended when it exists on disk, and
- * the well-known macOS GUI CLI dirs appended, so tools installed there are found
- * even when the user's profile does not export them.
+ * the well-known macOS CLI dirs (the Homebrew prefixes and GUI app CLI dirs)
+ * appended, so tools installed there are found even when the user's profile does
+ * not export them or the import failed.
  *
  * Each attempt gets LOGIN_SHELL_IMPORT_TIMEOUT_MS, and a timed-out attempt is
  * retried once (#1487): after a cold reboot, a profile that loads nvm can take
@@ -200,7 +205,8 @@ export function importLoginShellEnv(): void {
   }
 
   // Append well-known CLI directories that exist on disk but aren't in PATH yet.
-  // These act as a fallback for GUI apps whose CLIs aren't symlinked into PATH.
+  // These act as a fallback for Homebrew and for GUI apps whose CLIs aren't
+  // symlinked into PATH.
   // Runs even when the import above failed, so the fallback is always available.
   if (process.platform === "darwin") {
     const currentParts = new Set(process.env.PATH?.split(":") ?? []);

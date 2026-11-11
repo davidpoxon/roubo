@@ -575,6 +575,49 @@ describe("importLoginShellEnv well-known CLI dirs", () => {
     );
   });
 
+  // A bench session whose login-shell import failed started without Homebrew's
+  // bin, so `gh` was not found. The fallback must reach the session
+  // env (cleanEnv) and resolve `gh` under either Homebrew prefix.
+  it.each(["/opt/homebrew/bin", "/usr/local/bin"])(
+    "resolves gh from a session env when it is installed under %s and the import failed",
+    async (prefix) => {
+      Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+      process.env.PATH = "/usr/bin:/bin";
+      vi.mocked(fs.existsSync).mockImplementation((p) => p === prefix);
+      mockFs({ files: [`${prefix}/gh`] });
+      const { importLoginShellEnv, cleanEnv, resolveAgentCommand } = await import("./env.js");
+      importLoginShellEnv();
+      const sessionPath = cleanEnv().PATH;
+      expect(sessionPath).toBe(`/usr/bin:/bin:${prefix}`);
+      expect(resolveAgentCommand("gh", sessionPath)).toBe("gh");
+    },
+  );
+
+  it("appends the Homebrew prefixes before the VS Code CLI dir, Apple silicon first", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    process.env.PATH = "/usr/bin:/bin";
+    vi.mocked(fs.existsSync).mockImplementation(
+      (p) =>
+        p === "/opt/homebrew/bin" ||
+        p === "/usr/local/bin" ||
+        p === "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
+    );
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.PATH).toBe(
+      "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
+    );
+  });
+
+  it("does not append a Homebrew prefix that is already in PATH", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    process.env.PATH = "/opt/homebrew/bin:/usr/bin:/bin";
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === "/opt/homebrew/bin");
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+    expect(process.env.PATH).toBe("/opt/homebrew/bin:/usr/bin:/bin");
+  });
+
   it("does not append macOS well-known CLI dirs on non-darwin platforms", async () => {
     Object.defineProperty(process, "platform", { value: "linux", configurable: true });
     process.env.PATH = "/usr/bin:/bin";
@@ -611,7 +654,7 @@ describe("importLoginShellEnv well-known CLI dirs", () => {
     const { importLoginShellEnv } = await import("./env.js");
     importLoginShellEnv();
     expect(process.env.PATH).toBe(
-      `${os.homedir()}/.local/bin:/usr/bin:/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin`,
+      `${os.homedir()}/.local/bin:/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin`,
     );
   });
 
