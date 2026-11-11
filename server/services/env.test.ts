@@ -576,10 +576,11 @@ describe("importLoginShellEnv well-known CLI dirs", () => {
   });
 
   // A bench session whose login-shell import failed started without Homebrew's
-  // bin, so `gh` was not found. The fallback must reach the session
-  // env (cleanEnv) and resolve `gh` under either Homebrew prefix.
+  // bin, so `gh` was not found. The fallback must reach the child-process env
+  // (cleanEnv) and resolve `gh` under either Homebrew prefix. The bench terminal
+  // env built in terminal.ts is covered by terminal-homebrew-path.test.ts.
   it.each(["/opt/homebrew/bin", "/usr/local/bin"])(
-    "resolves gh from a session env when it is installed under %s and the import failed",
+    "resolves gh from a child-process env when it is installed under %s and the import failed",
     async (prefix) => {
       Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
       process.env.PATH = "/usr/bin:/bin";
