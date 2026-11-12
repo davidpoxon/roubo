@@ -77,6 +77,7 @@ vi.mock("../lib/testbench-store.js", async () => {
     MissingPlanError: actual.MissingPlanError,
     UnsafePathError: actual.UnsafePathError,
     readPlanAndResults: vi.fn(),
+    toGateResults: actual.toGateResults,
     appendNote: vi.fn(async () => ({ id: "n1" })),
   };
 });

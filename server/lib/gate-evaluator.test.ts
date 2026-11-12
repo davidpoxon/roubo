@@ -929,3 +929,103 @@ describe("evaluateGate: a narrowed set names the cases lifecycle excluded (SATCA
     expect(state.lifecycleExcludedCaseIds).toEqual(["TC-1", "TC-2"]);
   });
 });
+
+// #1407: under a stale results file, staleness is judged per gate over its own
+// gating cases. The caller threads the cases whose result is current for the plan
+// (`currency`), and a gate is stale while one of its gating cases is not among
+// them.
+describe("evaluateGate: staleness is judged per gating case (#1407)", () => {
+  const STALE_FILE_HASH = "sha256-plan-v0";
+
+  function staleResults(
+    caseResults: Record<string, CaseResult>,
+    currentIds: string[],
+    currencyHash: string = PLAN_HASH,
+  ): GateResults {
+    return {
+      caseResults,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      planHash: STALE_FILE_HASH,
+      currency: { planHash: currencyHash, caseIds: currentIds },
+    };
+  }
+
+  const p = plan([
+    planCase("TC-1", 1, "functional"),
+    planCase("TC-2", 1, "functional"),
+    planCase("TC-3", 1, "functional"),
+  ]);
+  const recorded = {
+    "TC-1": caseResult("passed"),
+    "TC-2": caseResult("passed"),
+    "TC-3": caseResult("passed"),
+  };
+
+  it("passes a gate whose cases are all current while a gate over a stale case reads stale", () => {
+    const current = staleResults(recorded, ["TC-1", "TC-2"]);
+
+    const gateA = evaluateGate(makeGate(["TC-1", "TC-2"], ["WU-1"]), current, PLAN_HASH, p);
+    expect(gateA.status).toBe("passed");
+    expect(gateA.unresolvedCaseIds).toEqual([]);
+
+    const gateB = evaluateGate(makeGate(["TC-2", "TC-3"], ["WU-2"]), current, PLAN_HASH, p);
+    expect(gateB.status).toBe("stale");
+    expect(gateB.unresolvedCaseIds).toEqual(["TC-3"]);
+    expect(gateB.coveringUnitIds).toEqual(["WU-2"]);
+  });
+
+  it("names a stale gate's current unresolved cases alongside its stale ones", () => {
+    const current = staleResults({ ...recorded, "TC-1": caseResult("failed") }, ["TC-1", "TC-2"]);
+    const state = evaluateGate(makeGate(["TC-1", "TC-2", "TC-3"]), current, PLAN_HASH, p);
+    expect(state.status).toBe("stale");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1", "TC-3"]);
+  });
+
+  it("classifies a gate with no stale case by the normal ladder", () => {
+    const current = staleResults({ ...recorded, "TC-1": caseResult("failed") }, ["TC-1", "TC-2"]);
+    const state = evaluateGate(makeGate(["TC-1", "TC-2"]), current, PLAN_HASH, p);
+    expect(state.status).toBe("failed");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+  });
+
+  it("reads an absent gating case under a stale file as stale, not pending", () => {
+    const current = staleResults({ "TC-1": caseResult("passed") }, ["TC-1"]);
+    const state = evaluateGate(makeGate(["TC-1", "TC-2"]), current, PLAN_HASH, p);
+    expect(state.status).toBe("stale");
+    expect(state.unresolvedCaseIds).toEqual(["TC-2"]);
+  });
+
+  it("reads the whole gate stale without a currency, as before", () => {
+    const state = evaluateGate(
+      makeGate(["TC-1"]),
+      results(recorded, STALE_FILE_HASH),
+      PLAN_HASH,
+      p,
+    );
+    expect(state.status).toBe("stale");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+  });
+
+  it("ignores a currency computed for another plan hash", () => {
+    const current = staleResults(recorded, ["TC-1"], "sha256-some-other-plan");
+    const state = evaluateGate(makeGate(["TC-1"]), current, PLAN_HASH, p);
+    expect(state.status).toBe("stale");
+    expect(state.unresolvedCaseIds).toEqual(["TC-1"]);
+  });
+
+  it("judges a same-spec superseded case by the case its chain landed on", () => {
+    const sp = plan([
+      supersededBy(planCase("TC-1", 1, "functional"), "TC-9"),
+      planCase("TC-9", 1, "functional"),
+    ]);
+    const gate = makeGate(["TC-1"]);
+    const landed = { "TC-9": caseResult("passed") };
+
+    expect(
+      evaluateGate(gate, staleResults(landed, ["TC-9"]), PLAN_HASH, sp, lifecycleFor(sp)).status,
+    ).toBe("passed");
+    expect(
+      evaluateGate(gate, staleResults(landed, []), PLAN_HASH, sp, lifecycleFor(sp)).status,
+    ).toBe("stale");
+  });
+});

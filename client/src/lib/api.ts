@@ -870,6 +870,10 @@ export interface TestbenchPlanResponse {
   plan: TestCasesPlan;
   results: BenchResults | null;
   stale: boolean;
+  // The recorded case ids whose result is current for this plan (#1407): every
+  // recorded id when `stale` is false, else only those whose case body has not
+  // changed since they were judged. Optional so an older server still parses.
+  currentCaseIds?: string[];
   planHash: string;
   // sha256 over the raw test-cases.json bytes the server read (#1167). Echoed
   // back as the `If-Match` precondition on a lifecycle write, which is how an

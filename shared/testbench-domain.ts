@@ -98,10 +98,22 @@ export interface ReconcileClassification {
 export interface ReconcileResult {
   classification: ReconcileClassification;
   // A non-destructive reconciled BenchResults: orphans flagged, changed cases'
-  // snapshot refreshed and derivedStatus recomputed from their kept marks, every
-  // other datum copied verbatim. The caller persists this; reconcile never
-  // deletes.
+  // derivedStatus recomputed from their kept marks, every other datum copied
+  // verbatim. A changed case's snapshot is refreshed only when the results are
+  // fresh (see ReconcileOptions); under stale results it keeps the snapshot of
+  // the body its marks were judged against, so it stays stale (#1407). The
+  // caller persists this; reconcile never deletes.
   nextResults: BenchResults;
+}
+
+export interface ReconcileOptions {
+  // True when the results file's planHash is the current plan hash, so every
+  // recorded result is current (see currentResultCaseIds). Only then does a
+  // changed case's snapshot move to the current body: that upgrades a legacy
+  // result with no snapshot, and it never makes an old judgement read as
+  // current. Under stale results a changed case keeps its old snapshot and stays
+  // stale until it is judged again (#1407).
+  fresh: boolean;
 }
 
 // Gather every observation id defined across a plan case's steps, so a changed
@@ -121,7 +133,11 @@ function planCaseObservationIds(plan: TestCasesPlan, caseId: string): string[] {
   return ids;
 }
 
-export function reconcile(plan: TestCasesPlan, results: BenchResults): ReconcileResult {
+export function reconcile(
+  plan: TestCasesPlan,
+  results: BenchResults,
+  options: ReconcileOptions,
+): ReconcileResult {
   const planCanonById = new Map<string, string>();
   for (const planCase of plan.cases) {
     planCanonById.set(planCase.id, canonicalizeCase(planCase));
@@ -167,11 +183,16 @@ export function reconcile(plan: TestCasesPlan, results: BenchResults): Reconcile
     nextCaseResults[caseId] = copyCaseResult(result);
   }
 
-  // changed cases: keep every mark, note, and override; only refresh the
-  // per-case snapshot and recompute derivedStatus from the kept marks.
+  // changed cases: keep every mark, note, and override; recompute derivedStatus
+  // from the kept marks. The per-case snapshot moves to the current body only
+  // under fresh results: under stale results the marks were judged against an
+  // older body, and refreshing the snapshot would make them read as current
+  // (#1407).
   for (const caseId of classification.changed) {
     const next = nextCaseResults[caseId];
-    next.caseCanon = planCanonById.get(caseId);
+    if (options.fresh) {
+      next.caseCanon = planCanonById.get(caseId);
+    }
     next.derivedStatus = deriveStatus(planCaseObservationIds(plan, caseId), next.observationMarks);
   }
 
@@ -187,6 +208,76 @@ export function reconcile(plan: TestCasesPlan, results: BenchResults): Reconcile
       updatedAt: results.updatedAt,
     },
   };
+}
+
+// ── Per-case result currency (#1407) ──
+//
+// The file-level planHash claims that EVERY recorded result belongs to the
+// current plan. Under stale results (a stored planHash that is not the plan's), a
+// result can still be current on its own: its caseCanon snapshot equals
+// canonicalizeCase of its case in the current plan, so the case body it was
+// judged against has not changed. These two predicates are the one definition of
+// that rule, shared by the store's write side (which stamps planHash only when no
+// live recorded case is stale) and by the read side (the store's currentCaseIds,
+// which the gate evaluator judges each gating case by). They follow the same rule
+// as the other writer of test-results.json, so neither writer can make a result
+// the other judged stale read as current.
+
+// The recorded case ids whose result is current for the plan, in plan order then
+// recorded order. `fresh` is true when the file planHash is the current plan
+// hash: every recorded result is then current. Otherwise a result is current only
+// when its case is in the plan and its caseCanon equals the case's canonical
+// body; a result with no caseCanon, one whose case left the plan, or one judged
+// against an older body is not current.
+export function currentResultCaseIds(
+  plan: TestCasesPlan,
+  caseResults: Record<string, CaseResult>,
+  fresh: boolean,
+): string[] {
+  const recorded = Object.keys(caseResults);
+  if (fresh) {
+    const planOrder = plan.cases.map((c) => c.id).filter((id) => Object.hasOwn(caseResults, id));
+    const inPlan = new Set(planOrder);
+    return [...planOrder, ...recorded.filter((id) => !inPlan.has(id))];
+  }
+  return plan.cases
+    .filter(
+      (planCase) =>
+        Object.hasOwn(caseResults, planCase.id) &&
+        caseResults[planCase.id].caseCanon === canonicalizeCase(planCase),
+    )
+    .map((planCase) => planCase.id);
+}
+
+// The live recorded case ids that hold a stale planHash, in plan order. Empty
+// when `fresh`. A live recorded case is a plan case with no lifecycle block
+// (retired and superseded both end its own obligation, as the gate evaluator and
+// the other writer of test-results.json read it) that has a recorded result. It
+// holds the stamp when its result is not current, or when its statusOverride
+// stands over a verdict judged against another body (a verdictCanon that is not
+// the case's current body): the override is current, but the file stamp would
+// claim the verdict under it is current too, and clearing the override would
+// then show that verdict as current. A result whose case left the plan is an
+// orphan and never holds the stamp.
+export function staleResultCaseIds(
+  plan: TestCasesPlan,
+  caseResults: Record<string, CaseResult>,
+  fresh: boolean,
+): string[] {
+  if (fresh) {
+    return [];
+  }
+  const current = new Set(currentResultCaseIds(plan, caseResults, false));
+  return plan.cases
+    .filter((planCase) => {
+      if (planCase.lifecycle !== undefined || !Object.hasOwn(caseResults, planCase.id)) {
+        return false;
+      }
+      if (!current.has(planCase.id)) return true;
+      const verdictCanon = caseResults[planCase.id].statusOverride?.verdictCanon;
+      return verdictCanon !== undefined && verdictCanon !== canonicalizeCase(planCase);
+    })
+    .map((planCase) => planCase.id);
 }
 
 // Deep-copy a CaseResult so reconcile/purge never mutate the caller's input

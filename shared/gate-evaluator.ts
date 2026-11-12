@@ -35,6 +35,15 @@
 // never false-pass: an absent, orphaned, or stale case is read as pending/stale,
 // never as passed.
 //
+// As of #1407 staleness is judged per gate, over its own gating cases. Under a
+// stale results file (a stored planHash that is not the current one) a result is
+// still current when its case body has not changed since it was judged; the
+// caller threads that per-case verdict in as `GateResults.currency`. A gate is
+// stale while one of its gating cases has no current result, so re-judging one
+// gate's cases after a plan edit clears that gate without making another gate's
+// old results read as current. A caller that threads no currency keeps the
+// whole-file rule: every gate is stale under a stale file.
+//
 // The evaluation rule is encoded as an explicit, auditable precedence ladder
 // (the truth table fixed in .specifications/verify-gate/verify-gate.md, the
 // "results-to-passed rule" section, and VG-FR-004 / VG-FR-005).
@@ -109,12 +118,44 @@ export interface GateState {
 }
 
 // The slice of the recorded results the evaluator needs. `readPlanAndResults`
-// returns `{ plan, results, stale, planHash, recovered }`; the caller threads the
-// `results` (BenchResults, or null when no results exist yet) plus the file's own
-// `planHash` so the staleness rule (results.planHash !== currentPlanHash) can be
-// decided inside this pure function rather than depending on the store's
-// pre-computed `stale` flag. Passing `null` models "no results recorded yet".
-export type GateResults = (BenchResults & { planHash: string }) | null;
+// returns `{ plan, results, stale, currentCaseIds, planHash, recovered }`; the
+// caller threads the `results` (BenchResults, or null when no results exist yet)
+// plus the file's own `planHash` so the staleness rule (results.planHash !==
+// currentPlanHash) can be decided inside this pure function rather than depending
+// on the store's pre-computed `stale` flag. Passing `null` models "no results
+// recorded yet".
+//
+// `currency`, when present, names the recorded case ids whose result is current
+// for the plan whose hash is `currency.planHash` (the store's `currentCaseIds`,
+// #1407). The evaluator uses it only when `currency.planHash` is the hash it is
+// judging against, so a currency computed for another plan never counts.
+export interface ResultCurrency {
+  planHash: string;
+  caseIds: readonly string[];
+}
+export type GateResults = (BenchResults & { planHash: string; currency?: ResultCurrency }) | null;
+
+// The recorded results a judge of `currentPlanHash` may read (#1407): every
+// result when the file planHash is that hash; only the results that `currency`
+// names as current when the file is stale and `currency` was computed for that
+// hash; null when the file is stale and no usable currency was threaded, which
+// reads as stale throughout. Shared with the delivery reducer so the case result
+// it shows is one the gate judged by. Pure: returns a new object, never the
+// caller's when it filters.
+export function currentCaseResults(
+  results: NonNullable<GateResults>,
+  currentPlanHash: string,
+): BenchResults["caseResults"] | null {
+  if (results.planHash === currentPlanHash) {
+    return results.caseResults;
+  }
+  const currency = results.currency;
+  if (currency === undefined || currency.planHash !== currentPlanHash) {
+    return null;
+  }
+  const current = new Set(currency.caseIds);
+  return Object.fromEntries(Object.entries(results.caseResults).filter(([id]) => current.has(id)));
+}
 
 // The caller-threaded lifecycle view (#1164, SATCA-FR-008..SATCA-FR-012).
 //
@@ -231,11 +272,13 @@ export function isCaseMet(result: CaseResult | undefined): boolean {
 //
 // `gate`            the VerifyUnit; `implements.test_case_ids` is the gating set,
 //                   `covers` the WU- ids it spans.
-// `results`         the recorded results (`{ caseResults, planHash }`), or null
-//                   when none exist yet. Null is treated as stale (the plan has
-//                   never been verified against), never as passed.
-// `currentPlanHash` the freshly computed hash of the live plan; the gate is stale
-//                   when the results' planHash does not match it.
+// `results`         the recorded results (`{ caseResults, planHash, currency? }`),
+//                   or null when none exist yet. Null is treated as stale (the
+//                   plan has never been verified against), never as passed.
+// `currentPlanHash` the freshly computed hash of the live plan. When the results'
+//                   planHash does not match it, the gate is stale while one of
+//                   its gating cases has no current result (`currentCaseResults`;
+//                   without a usable `currency`, no result is current).
 // `plan`            optional. When supplied, the gating set is narrowed to the
 //                   default policy (L1/L2 + e2e_flow, L3/L4 excluded) using each
 //                   case's level/type from the plan. When omitted, the gate's
@@ -332,31 +375,51 @@ export function evaluateGate(
     };
   }
 
-  // (1) STALE: results absent, or the results' planHash does not match the live
-  // plan hash. The batch must be re-verified; stale never reads as passed.
-  if (results === null || results.planHash !== currentPlanHash) {
-    return {
-      status: "stale",
-      unresolvedCaseIds: [...gatingCaseIds],
-      gatingCaseIds: [...gatingCaseIds],
-      coveringUnitIds: gatingCaseIds.length > 0 ? coveringUnitIds : [],
-      emptyReason: null,
-      lifecycleExcludedCaseIds,
-    };
+  // (1) STALE: results absent, or a gating case with no current result. With a
+  // matching planHash every result is current; under a stale file only the
+  // results `currency` names are (#1407), and with no usable currency none are,
+  // so the whole gate is stale as before. Stale never reads as passed.
+  const wholeGateStale = (): GateState => ({
+    status: "stale",
+    unresolvedCaseIds: [...gatingCaseIds],
+    gatingCaseIds: [...gatingCaseIds],
+    coveringUnitIds: gatingCaseIds.length > 0 ? coveringUnitIds : [],
+    emptyReason: null,
+    lifecycleExcludedCaseIds,
+  });
+  if (results === null) {
+    return wholeGateStale();
   }
-
-  const caseResults = results.caseResults;
+  const caseResults = currentCaseResults(results, currentPlanHash);
+  if (caseResults === null) {
+    return wholeGateStale();
+  }
+  const fileFresh = results.planHash === currentPlanHash;
 
   // Classify each gating case once, by reading its effective status (and its
   // absence / orphaned markers), so the rungs below are a pure read over this.
+  //
+  // Under a stale file, a gating case whose result source has no current result
+  // is stale: an absent result is not current either (the other writer of
+  // test-results.json reads it the same way). A superseded case is judged by the
+  // case its chain landed on, read through the same `readCaseResult` as its
+  // status; a cross-spec landing reads `lifecycle.resultsBySlug`, which the
+  // caller already limits to that spec's current results.
   let anyFailedOrBlocked = false;
   let anyPending = false;
+  let anyStale = false;
   const unresolvedCaseIds: string[] = [];
 
   for (const id of gatingCaseIds) {
     // Where this case's status is read from follows its lifecycle resolution
     // (see `readCaseResult`): an unresolvable pointer reads as absent.
     const result = readCaseResult(id, caseResults, resolutionById, lifecycle);
+
+    if (result === undefined && !fileFresh) {
+      anyStale = true;
+      unresolvedCaseIds.push(id);
+      continue;
+    }
 
     // Absent from results (or unresolvable), or retained-but-orphaned, reads as
     // pending: the case is unverified, never passed (VG-FR-004, VG-NFR-007).
@@ -375,6 +438,20 @@ export function evaluateGate(
       unresolvedCaseIds.push(id);
     }
     // status === "passed": resolved, contributes nothing to the unresolved set.
+  }
+
+  // STALE dominates the results-driven rungs: the gate's unresolved set names
+  // its stale cases together with its current cases that are not passed, in
+  // gating order.
+  if (anyStale) {
+    return {
+      status: "stale",
+      unresolvedCaseIds,
+      gatingCaseIds: [...gatingCaseIds],
+      coveringUnitIds,
+      emptyReason: null,
+      lifecycleExcludedCaseIds,
+    };
   }
 
   // (2) FAILED: any gating case effective status is failed or blocked.

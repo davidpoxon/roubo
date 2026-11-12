@@ -216,18 +216,11 @@ function evaluateLoadedGate(
 
   let state: GateState;
   try {
-    const { plan, results, planHash, stale } = testbenchStore.readPlanAndResults(resultsRoot, slug);
-    // `readPlanAndResults` strips the stored planHash from `results`, exposing the
-    // freshness comparison as its `stale` flag instead. The evaluator decides
-    // staleness from `results.planHash !== currentPlanHash`, so thread a planHash
-    // that reflects the store's verdict: the live hash when fresh, a
-    // guaranteed-mismatching sentinel when stale. Passing the live hash on both
-    // sides would leave the staleness rung unreachable for a results-present gate,
-    // letting stale (plan-changed) all-passed results read as `passed`, a
-    // fail-closed regression (VG-NFR-007). A null results view models "no results
-    // recorded yet" and reads as stale.
-    const gateResults =
-      results === null ? null : { ...results, planHash: stale ? `${planHash}::stale` : planHash };
+    const read = testbenchStore.readPlanAndResults(resultsRoot, slug);
+    const { plan, planHash } = read;
+    // A null results view models "no results recorded yet" and reads as stale;
+    // toGateResults explains the stale sentinel and the per-case currency (#1407).
+    const gateResults = testbenchStore.toGateResults(read);
     // Lifecycle is threaded in the same way the plan is: loaded here, never by
     // the pure evaluator (#1164, SATCA-FR-012). The spec's own manifest is read
     // from the project repo, and each referenced spec from its own resolved

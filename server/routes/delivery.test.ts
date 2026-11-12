@@ -57,6 +57,7 @@ import * as benchManager from "../services/bench-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import { forgetDeliveryEventLog, ingestDeliveryEvents } from "../services/delivery-event-log.js";
 import { computePlanHash } from "../lib/testbench-store.js";
+import { canonicalizeCase } from "@roubo/shared/testbench-canonicalize";
 import router from "./delivery.js";
 
 const FIXTURE_RECORD = fileURLToPath(
@@ -239,6 +240,28 @@ describe("GET /:projectId/benches/:id/delivery", () => {
       expect(res.status).toBe(200);
       expect(res.body.progress.cases).toEqual({ met: 0, total: 3 });
       expect(res.body.gatesById["gate-after-b"].state.status).toBe("stale");
+    });
+
+    // #1407: under a stale file a result is still current when its caseCanon is
+    // the case's current body, so a gate whose own cases are all current reads
+    // through the stale stamp.
+    it("judges a gate by its current cases when the results file carries an older plan hash", async () => {
+      const hash = computePlanHash(plan);
+      writeRecord({ ...fixtureRecord(), plan_hash: hash });
+      writeSpec("an-older-plan-hash");
+      const resultsPath = path.join(specFolder, "test-results.json");
+      const file = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
+      for (const testCase of plan.cases.slice(0, 2)) {
+        file.caseResults[testCase.id].caseCanon = canonicalizeCase(testCase);
+      }
+      fs.writeFileSync(resultsPath, JSON.stringify(file));
+
+      const res = await request(app).get(base);
+
+      expect(res.status).toBe(200);
+      expect(res.body.gatesById["gate-after-b"].state.status).toBe("passed");
+      expect(res.body.progress.cases).toEqual({ met: 2, total: 3 });
+      expect(res.body.progress.caseList[0].result).toMatchObject({ derivedStatus: "passed" });
     });
 
     it("SB-TC-022 leaves a retired case out of the progress totals and the gate's set", async () => {
