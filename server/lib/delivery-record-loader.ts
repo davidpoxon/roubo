@@ -39,7 +39,7 @@ import {
 import { deliveryEventsAfterRecord } from "../services/delivery-event-log.js";
 import { runCommand } from "../services/exec.js";
 import { broadcastBenchDecisionMode } from "../services/sse.js";
-import { MissingPlanError, readPlanAndResults } from "./testbench-store.js";
+import { MissingPlanError, readPlanAndResults, toGateResults } from "./testbench-store.js";
 import { buildPlanLifecycle } from "./plan-lifecycle.js";
 import {
   assertRealpathWithin,
@@ -169,8 +169,10 @@ export function benchDeliveryOutboxPath(
  * delivery fold takes them for gate state and progress (SB-FR-011): the
  * `test-cases.json` and `test-results.json` beside the record. The results
  * carry the live plan hash when they are current and a hash that matches
- * nothing when the plan changed since they were written, so stale results never
- * count a case met (the gates route threads them the same way). The lifecycle is
+ * nothing when the plan changed since they were written, with the per-case
+ * currency for the live plan, so a stale result never counts a case met and a
+ * case whose result is current still does (#1407; the gates route threads them
+ * the same way). The lifecycle is
  * built as the gates route builds it (`buildPlanLifecycle`), with the spec's own
  * manifest and every referenced spec read from the workspace, so a retired case
  * leaves the gates and the progress totals and a superseded one reads its
@@ -183,14 +185,14 @@ export function loadBenchDeliveryVerifyInputs(
 ): Pick<DeliveryFoldInputs, "plan" | "results" | "lifecycle"> {
   const slug = path.basename(bench.focusedSpecPath ?? "");
   try {
-    const { plan, results, planHash, stale } = readPlanAndResults(bench.workspacePath, slug);
+    const loaded = readPlanAndResults(bench.workspacePath, slug);
+    const { plan } = loaded;
     const workspace = bench.workspacePath;
     const lifecycle = buildPlanLifecycle(plan, slug, workspace, () => workspace);
+    const results = toGateResults(loaded);
     return {
       plan,
-      ...(results !== null && {
-        results: { ...results, planHash: stale ? `${planHash}::stale` : planHash },
-      }),
+      ...(results !== null && { results }),
       ...(lifecycle !== undefined && { lifecycle }),
     };
   } catch (err) {

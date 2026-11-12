@@ -86,6 +86,9 @@
               },
               "timestamp": {
                 "type": "string"
+              },
+              "verdictCanon": {
+                "type": ["string", "null"]
               }
             },
             "required": ["status", "author", "timestamp"],

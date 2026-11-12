@@ -88,6 +88,7 @@ vi.mock("../lib/testbench-store.js", async () => {
     MissingPlanError: actual.MissingPlanError,
     UnsafePathError: actual.UnsafePathError,
     readPlanAndResults: vi.fn(),
+    toGateResults: actual.toGateResults,
     appendNote: vi.fn(async () => ({ id: "n1" })),
   };
 });
@@ -187,6 +188,7 @@ function planAndResults(cases: Case[], caseResults: Record<string, CaseResult> |
     plan: { cases } as never,
     results: caseResults === null ? null : { caseResults, updatedAt: "2026-01-01T00:00:00.000Z" },
     stale: false,
+    currentCaseIds: caseResults === null ? [] : Object.keys(caseResults),
     planHash: PLAN_HASH,
     recovered: caseResults === null,
   };
@@ -423,11 +425,45 @@ describe("GET /:projectId/gates/:gateId", () => {
         "TC-002": caseResult("passed"),
       }),
       stale: true,
+      currentCaseIds: [],
     } as never);
     const res = await request(app).get("/p1/gates/WU-100");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("stale");
     expect(res.body.unresolvedCaseIds).toEqual(["TC-001", "TC-002"]);
+  });
+
+  // #1407: under a stale file the store names the cases whose result is still
+  // current for the plan, and the gate is stale only while one of its own gating
+  // cases is missing from that list.
+  it("reads stale while one gating case has no current result under stale results", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      ...planAndResults([planCase("TC-001", 1), planCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("passed"),
+      }),
+      stale: true,
+      currentCaseIds: ["TC-001"],
+    } as never);
+    const res = await request(app).get("/p1/gates/WU-100");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("stale");
+    expect(res.body.unresolvedCaseIds).toEqual(["TC-002"]);
+  });
+
+  it("passes once every gating case holds a current result under stale results", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      ...planAndResults([planCase("TC-001", 1), planCase("TC-002", 1)], {
+        "TC-001": caseResult("passed"),
+        "TC-002": caseResult("passed"),
+      }),
+      stale: true,
+      currentCaseIds: ["TC-001", "TC-002"],
+    } as never);
+    const res = await request(app).get("/p1/gates/WU-100");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("passed");
+    expect(res.body.unresolvedCaseIds).toEqual([]);
   });
 });
 
@@ -1248,6 +1284,7 @@ describe("GET /:projectId/gates lifecycle-aware evaluation (#1164, SATCA-FR-008,
       plan: { specSlug, cases } as never,
       results: { caseResults, updatedAt: "2026-01-01T00:00:00.000Z" },
       stale: false,
+      currentCaseIds: Object.keys(caseResults),
       planHash: PLAN_HASH,
       recovered: false,
     };
@@ -1392,6 +1429,7 @@ describe("GET /:projectId/gates lifecycle-aware evaluation (#1164, SATCA-FR-008,
             "TC-009": caseResult("passed"),
           }),
           stale: true,
+          currentCaseIds: [],
         },
       });
       const res = await request(app).get("/p1/gates");
@@ -1400,6 +1438,25 @@ describe("GET /:projectId/gates lifecycle-aware evaluation (#1164, SATCA-FR-008,
       // withheld, so the replacement's status is unknown rather than an old pass.
       expect(res.body.gates[0].status).not.toBe("passed");
       expect(res.body.gates[0].unresolvedCaseIds).toEqual(["TC-001"]);
+    });
+
+    // #1407: a stale target spec still contributes the results that are current
+    // against its own plan, so a pointer landing on one of them reads its status.
+    it("reads the replacement's status when its result is current under the target's stale file", async () => {
+      storeBySlug({
+        alpha: originPlan(),
+        beta: {
+          ...lifecyclePlanAndResults("beta", [planCase("TC-009", 1), planCase("TC-010", 1)], {
+            "TC-009": caseResult("passed"),
+            "TC-010": caseResult("passed"),
+          }),
+          stale: true,
+          currentCaseIds: ["TC-009"],
+        },
+      });
+      const res = await request(app).get("/p1/gates");
+      expect(res.status).toBe(200);
+      expect(res.body.gates[0].status).toBe("passed");
     });
 
     it("does not report passed when the target spec cannot be read at all", async () => {

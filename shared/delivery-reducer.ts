@@ -71,13 +71,15 @@ import {
   type ProvisionalCase,
   type ProvisionalMark,
 } from "./delivery-observation-contract";
-import type { BenchResults, CaseResult, TestCasesPlan } from "./testbench-contracts";
+import type { CaseResult, TestCasesPlan } from "./testbench-contracts";
 import type { DeliveryControl } from "./delivery-control-contract";
 import {
+  currentCaseResults,
   evaluateGate,
   indexResolutions,
   readCaseResult,
   type GateLifecycle,
+  type GateResults,
   type GateState,
   type VerifyUnit,
 } from "./gate-evaluator";
@@ -85,8 +87,10 @@ import {
 // ── Inputs ──
 
 // The recorded results the fold reads for gate state and progress, as the gate
-// evaluator takes them: the `caseResults` body plus the file's own `planHash`.
-export type DeliveryResults = BenchResults & { planHash: string };
+// evaluator takes them: the `caseResults` body plus the file's own `planHash`,
+// and the per-case `currency` that lets a gate whose own cases are current read
+// past a stale file (#1407).
+export type DeliveryResults = NonNullable<GateResults>;
 
 export interface DeliveryFoldInputs {
   record: DeliveryRecord;
@@ -1501,8 +1505,13 @@ function computeProgress(
     }
   }
   const resolutionById = indexResolutions(lifecycle);
+  // The results a case's shown result is read from: the ones the gates judged
+  // by, so a case that is current under a stale file still shows its result
+  // (#1407), and a stale one shows none.
   const current =
-    results !== undefined && results.planHash === record.plan_hash ? results : undefined;
+    results === undefined
+      ? undefined
+      : (currentCaseResults(results, record.plan_hash) ?? undefined);
   const planCaseById = new Map(plan.cases.map((planCase) => [planCase.id, planCase]));
   const countedIds = [
     ...plan.cases.map((planCase) => planCase.id).filter((id) => metById.has(id)),
@@ -1515,9 +1524,7 @@ function computeProgress(
     const caseMet = metById.get(id) === true;
     if (caseMet) met += 1;
     const result =
-      current === undefined
-        ? undefined
-        : readCaseResult(id, current.caseResults, resolutionById, lifecycle);
+      current === undefined ? undefined : readCaseResult(id, current, resolutionById, lifecycle);
     const metBy = caseMet ? unitThatMet(state.gates, id) : null;
     const metByUnit = metBy === null ? undefined : ownValue(state.unitsById, metBy);
     caseList.push({

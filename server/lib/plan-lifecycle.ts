@@ -14,11 +14,11 @@
 // Returns undefined when the plan carries no lifecycle block at all: there is
 // nothing to resolve, the evaluator's lifecycle-free path is byte-identical, and
 // the common case does no extra I/O.
-import type { GateLifecycle } from "./gate-evaluator.js";
+import { currentCaseResults, type GateLifecycle } from "./gate-evaluator.js";
 import { collectReferencedSlugs, resolvePlan } from "@roubo/shared/lifecycle-resolver";
 import type { ResolverPlan, ResolverSpecLifecycle } from "@roubo/shared/lifecycle-resolver";
 import type { BenchResults, TestCasesPlan } from "@roubo/shared/testbench-contracts";
-import { readPlanAndResults } from "./testbench-store.js";
+import { readPlanAndResults, toGateResults } from "./testbench-store.js";
 import { readSpecLifecycle } from "./testbench-spec-lifecycle.js";
 
 // Read one spec's lifecycle record without letting a bad slug or an unreadable
@@ -65,11 +65,16 @@ export function buildPlanLifecycle(
     try {
       const loaded = readPlanAndResults(root, referenced);
       plans.set(referenced, loaded.plan);
-      // Fail-closed (VG-NFR-007): a referenced spec whose recorded results are
-      // stale against its own plan contributes no status, so a pointer landing
-      // there reads as unresolved rather than borrowing an out-of-date pass.
-      if (loaded.results !== null && !loaded.stale) {
-        resultsBySlug.set(referenced, loaded.results);
+      // Fail-closed (VG-NFR-007): a referenced spec contributes only the results
+      // that are current against its own plan (#1407): all of them when its file
+      // is fresh, else only the cases whose body has not changed since they were
+      // judged. A pointer landing on any other case reads as unresolved rather
+      // than borrowing an out-of-date pass.
+      const gateResults = toGateResults(loaded);
+      const caseResults =
+        gateResults === null ? null : currentCaseResults(gateResults, loaded.planHash);
+      if (loaded.results !== null && caseResults !== null) {
+        resultsBySlug.set(referenced, { updatedAt: loaded.results.updatedAt, caseResults });
       }
     } catch {
       // Missing, unreadable, invalid, or an unsafe slug: leave it unsupplied.

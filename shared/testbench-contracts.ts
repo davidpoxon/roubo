@@ -237,6 +237,15 @@ export const StatusOverrideSchema = z
     status: CaseStatusSchema,
     author: AuthorSchema,
     timestamp: z.string(),
+    // The caseCanon of the body that the verdict under this override (its marks
+    // or machine verification) was judged against, so clearing the override can
+    // restore it (#1407). Setting an override stamps the case's caseCanon with
+    // the current body, which would otherwise make an older verdict read as
+    // current once the override is gone. Null when that body is not known.
+    // Absent when nothing was judged under the override, or on an override
+    // written before this field existed or by a writer that does not set it.
+    // Optional, so no schemaVersion bump.
+    verdictCanon: z.string().nullable().optional(),
   })
   .strict();
 export type StatusOverride = z.infer<typeof StatusOverrideSchema>;

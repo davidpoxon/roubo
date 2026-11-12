@@ -107,6 +107,7 @@ export interface StatusOverride {
   status: CaseStatus;
   author: Author;
   timestamp: string;
+  verdictCanon?: string | null;
 }
 
 // An append-only note (FR-011). statusAtWrite captures the effective status at

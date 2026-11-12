@@ -1508,6 +1508,45 @@ describe("foldDelivery gate state and progress (SB-FR-011)", () => {
     expect(snapshot.progress.caseList.map((entry) => entry.result)).toEqual([null, null, null]);
   });
 
+  // #1407: under a stale file, a gate whose own cases all hold a current result
+  // is judged by them, and those cases show their result; a stale case does not.
+  it("judges a gate by its current cases under a stale file and shows only their results", () => {
+    const record = fixtureRecord();
+    const passed = caseResult("passed");
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: PLAN,
+      results: {
+        ...results("another-hash", {
+          "DEMO-TC-001": passed,
+          "DEMO-TC-002": passed,
+          "DEMO-TC-003": passed,
+        }),
+        currency: { planHash: record.plan_hash, caseIds: ["DEMO-TC-001", "DEMO-TC-002"] },
+      },
+    });
+    expect(snapshot.gatesById["gate-after-b"].state.status).toBe("passed");
+    expect(snapshot.gatesById["gate-after-c"].state.status).toBe("stale");
+    expect(snapshot.progress.cases).toEqual({ met: 2, total: 3 });
+    expect(snapshot.progress.caseList.map((entry) => entry.result)).toEqual([passed, passed, null]);
+  });
+
+  it("ignores a currency computed for a plan other than the record's", () => {
+    const record = fixtureRecord();
+    const snapshot = foldDelivery({
+      record,
+      events: [],
+      plan: PLAN,
+      results: {
+        ...results("another-hash", { "DEMO-TC-001": caseResult("passed") }),
+        currency: { planHash: "a-third-hash", caseIds: ["DEMO-TC-001"] },
+      },
+    });
+    expect(snapshot.gatesById["gate-after-b"].state.status).toBe("stale");
+    expect(snapshot.progress.cases.met).toBe(0);
+  });
+
   it("SB-TC-022 lists each counted case with its verify record and the unit that met it", () => {
     const record = fixtureRecord();
     const passed = caseResult("passed");

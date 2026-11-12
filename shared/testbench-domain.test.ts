@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { deriveStatus, purgeOrphans, reconcile } from "./testbench-domain.js";
+import {
+  currentResultCaseIds,
+  deriveStatus,
+  purgeOrphans,
+  reconcile,
+  staleResultCaseIds,
+} from "./testbench-domain.js";
 import { canonicalizeCase } from "./testbench-canonicalize.js";
 import type {
   Author,
@@ -120,7 +126,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
 
-    const { classification } = reconcile(plan, results);
+    const { classification } = reconcile(plan, results, { fresh: true });
     expect(classification.added).toEqual(["TC-004"]);
     expect(classification.unchanged).toEqual(["TC-001"]);
     expect(classification.changed).toEqual(["TC-002"]);
@@ -136,7 +142,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       },
       updatedAt: "T0",
     };
-    const { classification } = reconcile(plan, results);
+    const { classification } = reconcile(plan, results, { fresh: true });
     expect(classification.changed).toEqual(["TC-001"]);
     expect(classification.unchanged).toEqual([]);
   });
@@ -181,7 +187,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       updatedAt: "T0",
     };
 
-    const { classification, nextResults } = reconcile(plan, results);
+    const { classification, nextResults } = reconcile(plan, results, { fresh: true });
     expect(classification.unchanged).toEqual(["TC-001", "TC-002"]);
     expect(classification.changed).toEqual(["TC-003"]);
     // An unchanged case's stored snapshot is left exactly as authored: the
@@ -204,7 +210,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       },
       updatedAt: "T0",
     };
-    reconcile(plan, results);
+    reconcile(plan, results, { fresh: true });
     expect(results.caseResults["TC-001"].orphaned).toBeUndefined();
   });
 
@@ -260,7 +266,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       updatedAt: "T3",
     };
 
-    const { classification, nextResults } = reconcile(newPlan, results);
+    const { classification, nextResults } = reconcile(newPlan, results, { fresh: true });
 
     expect(classification).toEqual({
       added: ["TC-004"],
@@ -276,8 +282,8 @@ describe("reconcile (spike-407 AC3 classification)", () => {
     expect(next["TC-001"].notes.map((n) => n.id)).toEqual(["N1"]);
     expect(next["TC-001"].orphaned).toBeUndefined();
 
-    // TC-002 (changed): every mark, note, override kept; only caseCanon refreshed
-    // and derivedStatus recomputed from the kept (fail) mark.
+    // TC-002 (changed, fresh results): every mark, note, override kept; only
+    // caseCanon refreshed and derivedStatus recomputed from the kept (fail) mark.
     expect(next["TC-002"].observationMarks.O1).toEqual(mark("fail"));
     expect(next["TC-002"].statusOverride).toEqual({
       status: "blocked",
@@ -338,11 +344,136 @@ describe("purgeOrphans (spike-407 AC5, separate explicit operation)", () => {
     };
 
     // reconcile alone never deletes: the orphaned result is still present.
-    const { nextResults } = reconcile(plan, results);
+    const { nextResults } = reconcile(plan, results, { fresh: true });
     expect(nextResults.caseResults["TC-001"].orphaned).toBe(true);
 
     // only the explicit purge removes it.
     const purged = purgeOrphans(nextResults);
     expect(purged.caseResults["TC-001"]).toBeUndefined();
+  });
+});
+
+// #1407: under stale results a changed case keeps the snapshot of the body its
+// marks were judged against, so a confirmed reconcile cannot make them current.
+describe("reconcile under stale results (#1407)", () => {
+  it("keeps a changed case's old snapshot when the results are not fresh", () => {
+    const oldBody = buildCase("TC-001", "original wording");
+    const newBody = buildCase("TC-001", "reworded wording");
+    const results: BenchResults = {
+      caseResults: {
+        "TC-001": {
+          observationMarks: { O1: mark("pass") },
+          derivedStatus: "passed",
+          notes: [],
+          caseCanon: canonicalizeCase(oldBody),
+        },
+      },
+      updatedAt: "T0",
+    };
+
+    const { classification, nextResults } = reconcile(buildPlan([newBody]), results, {
+      fresh: false,
+    });
+
+    expect(classification.changed).toEqual(["TC-001"]);
+    expect(nextResults.caseResults["TC-001"].caseCanon).toBe(canonicalizeCase(oldBody));
+    expect(nextResults.caseResults["TC-001"].observationMarks.O1).toEqual(mark("pass"));
+    expect(nextResults.caseResults["TC-001"].derivedStatus).toBe("passed");
+  });
+
+  it("leaves a changed case with no snapshot without one when the results are not fresh", () => {
+    const body = buildCase("TC-001", "obs one");
+    const results: BenchResults = {
+      caseResults: {
+        "TC-001": { observationMarks: {}, derivedStatus: "not_started", notes: [] },
+      },
+      updatedAt: "T0",
+    };
+
+    const { nextResults } = reconcile(buildPlan([body]), results, { fresh: false });
+
+    expect(nextResults.caseResults["TC-001"].caseCanon).toBeUndefined();
+  });
+});
+
+describe("per-case result currency (#1407)", () => {
+  const live = buildCase("TC-001", "obs one");
+  const edited = buildCase("TC-002", "reworded");
+  const editedOld = buildCase("TC-002", "original");
+  const noSnapshot = buildCase("TC-003", "obs three");
+  const retired: Case = {
+    ...buildCase("TC-004", "reworded"),
+    lifecycle: { state: "retired", reason: "gone" },
+  };
+  const superseded: Case = {
+    ...buildCase("TC-005", "reworded"),
+    lifecycle: { state: "superseded", replacement: "TC-001" },
+  };
+  const plan = buildPlan([live, edited, noSnapshot, retired, superseded]);
+
+  function result(caseCanon?: string) {
+    return {
+      observationMarks: { O1: mark("pass") },
+      derivedStatus: "passed" as const,
+      notes: [],
+      ...(caseCanon !== undefined && { caseCanon }),
+    };
+  }
+
+  const caseResults = {
+    "TC-ORPHAN": result("whatever"),
+    "TC-001": result(canonicalizeCase(live)),
+    "TC-002": result(canonicalizeCase(editedOld)),
+    "TC-003": result(),
+    "TC-004": result(canonicalizeCase(buildCase("TC-004", "original"))),
+    "TC-005": result(canonicalizeCase(buildCase("TC-005", "original"))),
+  };
+
+  it("reads every recorded result as current when the results are fresh", () => {
+    expect(currentResultCaseIds(plan, caseResults, true)).toEqual([
+      "TC-001",
+      "TC-002",
+      "TC-003",
+      "TC-004",
+      "TC-005",
+      "TC-ORPHAN",
+    ]);
+    expect(staleResultCaseIds(plan, caseResults, true)).toEqual([]);
+  });
+
+  it("reads only a result whose snapshot matches the current body as current when stale", () => {
+    expect(currentResultCaseIds(plan, caseResults, false)).toEqual(["TC-001"]);
+  });
+
+  it("names only the live recorded cases without a current result as stale", () => {
+    // TC-002 (older body) and TC-003 (no snapshot) hold the stamp. The retired
+    // and superseded cases end their own obligation, and the orphan left the plan.
+    expect(staleResultCaseIds(plan, caseResults, false)).toEqual(["TC-002", "TC-003"]);
+  });
+
+  it("names no stale case when every live recorded case is current", () => {
+    expect(staleResultCaseIds(plan, { "TC-001": result(canonicalizeCase(live)) }, false)).toEqual(
+      [],
+    );
+  });
+
+  it("names a current case whose override stands over a verdict judged against another body", () => {
+    const overridden = (verdictCanon: string | null | undefined) => ({
+      "TC-001": {
+        ...result(canonicalizeCase(live)),
+        statusOverride: {
+          status: "passed" as const,
+          author: { name: "A", email: "a@example.com" },
+          timestamp: "2026-01-01T00:00:00.000Z",
+          ...(verdictCanon !== undefined && { verdictCanon }),
+        },
+      },
+    });
+    // The override is current, so the result reads current either way.
+    expect(currentResultCaseIds(plan, overridden("older body"), false)).toEqual(["TC-001"]);
+    expect(staleResultCaseIds(plan, overridden("older body"), false)).toEqual(["TC-001"]);
+    expect(staleResultCaseIds(plan, overridden(null), false)).toEqual(["TC-001"]);
+    expect(staleResultCaseIds(plan, overridden(canonicalizeCase(live)), false)).toEqual([]);
+    expect(staleResultCaseIds(plan, overridden(undefined), false)).toEqual([]);
   });
 });
