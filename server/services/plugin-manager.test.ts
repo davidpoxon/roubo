@@ -1063,9 +1063,10 @@ describe("agent plugins (#1026)", () => {
 });
 
 describe("per-bench BrokerContext registry (#686)", () => {
-  function makeCtx(pluginId: string, benchId: number): BrokerContext {
+  function makeCtx(pluginId: string, benchId: number, projectId = "demo"): BrokerContext {
     return {
       pluginId,
+      projectId,
       benchId,
       ports: {},
       reportStatus: () => {},
@@ -1080,51 +1081,79 @@ describe("per-bench BrokerContext registry (#686)", () => {
   });
 
   it("resolves null when no bench is bound to the plugin", () => {
-    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo")).toBeNull();
   });
 
   it("resolves the registered context for a single bound bench", () => {
     const ctx = makeCtx("p", 1);
-    pluginManager.registerBrokerContext("p", 1, ctx);
-    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(ctx);
+    pluginManager.registerBrokerContext("p", ctx);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo")).toBe(ctx);
   });
 
   it("routes each call to its own bench when a plugin backs several (#687)", () => {
     const a = makeCtx("p", 1);
     const b = makeCtx("p", 2);
-    pluginManager.registerBrokerContext("p", 1, a);
-    pluginManager.registerBrokerContext("p", 2, b);
+    pluginManager.registerBrokerContext("p", a);
+    pluginManager.registerBrokerContext("p", b);
     // A call naming bench 1 resolves bench 1's context, even though bench 2
     // registered later: exact-key routing, no most-recent-wins fallback.
-    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(a);
-    expect(pluginManager.__test.resolveBrokerContext("p", 2)).toBe(b);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo")).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("p", 2, "demo")).toBe(b);
   });
 
   it("resolves null for a benchId with no bound context (no fallback to a sibling)", () => {
     const a = makeCtx("p", 1);
     const b = makeCtx("p", 2);
-    pluginManager.registerBrokerContext("p", 1, a);
-    pluginManager.registerBrokerContext("p", 2, b);
-    pluginManager.unregisterBrokerContext("p", 2);
+    pluginManager.registerBrokerContext("p", a);
+    pluginManager.registerBrokerContext("p", b);
+    pluginManager.unregisterBrokerContext("p", "demo", 2);
     // Bench 2 is gone; a call naming bench 2 resolves null rather than falling
     // back to bench 1.
-    expect(pluginManager.__test.resolveBrokerContext("p", 2)).toBeNull();
-    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("p", 2, "demo")).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo")).toBe(a);
   });
 
   it("resolves null once the bench for the plugin is unregistered", () => {
-    pluginManager.registerBrokerContext("p", 1, makeCtx("p", 1));
-    pluginManager.unregisterBrokerContext("p", 1);
-    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBeNull();
+    pluginManager.registerBrokerContext("p", makeCtx("p", 1));
+    pluginManager.unregisterBrokerContext("p", "demo", 1);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo")).toBeNull();
   });
 
   it("keeps each plugin's contexts isolated", () => {
     const a = makeCtx("a", 1);
     const b = makeCtx("b", 1);
-    pluginManager.registerBrokerContext("a", 1, a);
-    pluginManager.registerBrokerContext("b", 1, b);
-    expect(pluginManager.__test.resolveBrokerContext("a", 1)).toBe(a);
-    expect(pluginManager.__test.resolveBrokerContext("b", 1)).toBe(b);
+    pluginManager.registerBrokerContext("a", a);
+    pluginManager.registerBrokerContext("b", b);
+    expect(pluginManager.__test.resolveBrokerContext("a", 1, "demo")).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("b", 1, "demo")).toBe(b);
+  });
+
+  // #1499: bench ids restart at 1 in each project, so two projects' bench 1 on
+  // one plugin are two contexts.
+  it("keeps two projects' contexts for the same bench id apart (#1499)", () => {
+    const a = makeCtx("p", 1, "demo-a");
+    const b = makeCtx("p", 1, "demo-b");
+    pluginManager.registerBrokerContext("p", a);
+    pluginManager.registerBrokerContext("p", b);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo-a")).toBe(a);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo-b")).toBe(b);
+    pluginManager.unregisterBrokerContext("p", "demo-a", 1);
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo-a")).toBeNull();
+    expect(pluginManager.__test.resolveBrokerContext("p", 1, "demo-b")).toBe(b);
+  });
+
+  it("routes a call with no projectId (an older SDK) while its bench id is unambiguous (#1499)", () => {
+    const a = makeCtx("p", 1, "demo-a");
+    pluginManager.registerBrokerContext("p", a);
+    pluginManager.registerBrokerContext("p", makeCtx("p", 2, "demo-b"));
+    pluginManager.registerBrokerContext("q", makeCtx("q", 1, "demo-b"));
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBe(a);
+  });
+
+  it("resolves null for a call with no projectId when several projects share its bench id (#1499)", () => {
+    pluginManager.registerBrokerContext("p", makeCtx("p", 1, "demo-a"));
+    pluginManager.registerBrokerContext("p", makeCtx("p", 1, "demo-b"));
+    expect(pluginManager.__test.resolveBrokerContext("p", 1)).toBeNull();
   });
 });
 

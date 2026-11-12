@@ -34,18 +34,24 @@ function extractContext(params: unknown): unknown {
 }
 
 /**
- * Read the bench routing key (benchId + componentName) off a lifecycle call's
- * BenchContext. Returns null when the shape does not carry both, so the handler
- * runs without an ambient routing context rather than with a partial one.
+ * Read the bench routing key (benchId + componentName, and projectId when
+ * present) off a lifecycle call's BenchContext. Returns null when the shape does
+ * not carry benchId and componentName, so the handler runs without an ambient
+ * routing context rather than with a partial one. A missing or non-string
+ * projectId is left out rather than failing the routing: the host still routes
+ * by benchId while that is unambiguous (#1499).
  */
 function readRouting(benchContext: unknown): HostRoutingContext | null {
   if (!benchContext || typeof benchContext !== "object") return null;
-  const { benchId, componentName } = benchContext as {
+  const { projectId, benchId, componentName } = benchContext as {
+    projectId?: unknown;
     benchId?: unknown;
     componentName?: unknown;
   };
   if (typeof benchId !== "number" || typeof componentName !== "string") return null;
-  return { benchId, componentName };
+  return typeof projectId === "string"
+    ? { projectId, benchId, componentName }
+    : { benchId, componentName };
 }
 
 /**
@@ -127,8 +133,8 @@ export function defineComponentPlugin(
       // Bind the in-flight lifecycle call's routing context for the duration of
       // the handler, so any host.* broker call it makes is stamped with this
       // bench/component (#687). `translate` receives `{ config, context }`; the
-      // imperative hooks receive the BenchContext directly. Both carry benchId
-      // and componentName. When the params do not carry a usable context (an
+      // imperative hooks receive the BenchContext directly. Both carry projectId,
+      // benchId and componentName. When the params do not carry a usable context (an
       // unexpected shape), dispatch the handler without a routing context: a
       // broker call inside it then throws the "outside a lifecycle handler"
       // error rather than mis-routing.

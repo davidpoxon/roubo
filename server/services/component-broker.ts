@@ -114,20 +114,35 @@ export interface CreateBrokerOptions {
  * How a registered set of broker handlers obtains the BrokerContext to service a
  * call. A component plugin is spawned ONCE per plugin and multiplexes benches
  * over the single shared connection (architecture.md 'Components'), but a
- * BrokerContext is per-(pluginId, benchId): it carries that bench's ports,
- * permission check, and audit sink. Every broker call now carries the `benchId`
- * it acts for in its params (the SDK stamps it from the in-flight lifecycle
- * call, #687), so the resolver routes the call to the exact bench by that key
- * rather than guessing. A host that owns the per-plugin connection registers the
- * handlers once and supplies this resolver; privileged calls then accumulate
- * audit entries into the originating bench's AuditLog. A plain BrokerContext (the
- * unit-test shape) is accepted too and is wrapped into a constant resolver that
- * ignores the benchId.
+ * BrokerContext is per-(pluginId, projectId, benchId): it carries that bench's
+ * ports, permission check, and audit sink. Every broker call carries the
+ * `benchId` it acts for in its params (the SDK stamps it from the in-flight
+ * lifecycle call, #687), and an SDK from #1499 on also stamps the bench's
+ * `projectId`, since bench ids restart at 1 in each project. The resolver routes
+ * the call to the exact bench by that key rather than guessing; `projectId` is
+ * `undefined` for a plugin built on an older SDK. A host that owns the
+ * per-plugin connection registers the handlers once and supplies this resolver;
+ * privileged calls then accumulate audit entries into the originating bench's
+ * AuditLog. A plain BrokerContext (the unit-test shape) is accepted too and is
+ * wrapped into a constant resolver that ignores the routing key.
  *
- * Returning `null` (no bench bound to this plugin for the given benchId) makes a
+ * Returning `null` (no bench bound to this plugin for the given key) makes a
  * privileged call fail with an internal-error rather than crashing the host.
  */
-export type BrokerContextResolver = (benchId: number) => BrokerContext | null;
+export type BrokerContextResolver = (
+  benchId: number,
+  projectId: string | undefined,
+) => BrokerContext | null;
+
+/**
+ * The `projectId` a broker call names in its params, or `undefined` when it
+ * names none (a plugin built on an SDK from before #1499) or names a non-string.
+ * Optional on the wire, so its absence is never an invalid-params error.
+ */
+function readProjectId(params: unknown): string | undefined {
+  const projectId = (params as { projectId?: unknown } | undefined)?.projectId;
+  return typeof projectId === "string" ? projectId : undefined;
+}
 
 function invalidParams(method: string, message: string): never {
   throw new ResponseError(INVALID_PARAMS_CODE, `${method}: ${message}`, {
@@ -328,14 +343,15 @@ export function registerBrokerHandlers(
   // ignores the benchId.
   const resolve: BrokerContextResolver = typeof ctx === "function" ? ctx : () => ctx;
 
-  // Resolve the per-bench context for a privileged call by the `benchId` the
-  // call carries in its params, or throw an internal-error when no bench is bound
-  // to this connection's plugin for that id (resolver returned null). A
+  // Resolve the per-bench context for a privileged call by the `benchId` (and,
+  // when stamped, the `projectId`) the call carries in its params, or throw an
+  // internal-error when no bench is bound to this connection's plugin for that
+  // key (resolver returned null). A
   // privileged call with no context cannot be audited or permission-checked, so
   // it must not reach the host delegate.
   const requireCtx = (method: string, params: unknown): BrokerContext => {
     const benchId = requireNumber(method, "benchId", (params as { benchId?: unknown })?.benchId);
-    const resolved = resolve(benchId);
+    const resolved = resolve(benchId, readProjectId(params));
     if (!resolved) {
       throw new ResponseError(INTERNAL_ERROR_CODE, `${method}: no active bench context`, {
         code: "no-broker-context",
@@ -351,7 +367,7 @@ export function registerBrokerHandlers(
   const resolveCtxLoose = (params: unknown): BrokerContext | null => {
     const benchId = (params as { benchId?: unknown })?.benchId;
     if (typeof benchId !== "number" || !Number.isFinite(benchId)) return null;
-    return resolve(benchId);
+    return resolve(benchId, readProjectId(params));
   };
 
   // --- host.process.* (delegate to process-manager) -------------------------
@@ -373,7 +389,7 @@ export function registerBrokerHandlers(
         // reap it (#887, AC4). Recorded after a successful spawn: the process is
         // live and owned by the host, mirroring the LifecycleEngine's long-lived
         // process path (lifecycle-engine.ts runProcess).
-        led?.recordProcess(ctx.pluginId, ctx.benchId, id);
+        led?.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, id);
         return result;
       } catch (err) {
         wrapInternal(method, log, err);
@@ -397,7 +413,7 @@ export function registerBrokerHandlers(
       // Record before the (blocking) run so a host crash mid-run still leaves a
       // ledger entry the cleanup sweep can reap (#887, AC4), mirroring the
       // LifecycleEngine's one-shot path (lifecycle-engine.ts runOneshot).
-      led?.recordProcess(ctx.pluginId, ctx.benchId, id);
+      led?.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, id);
       let result: { exitCode: number; timedOut: boolean };
       try {
         result = await pm.runProcess(id, command, args, env, cwd, timeoutMs);

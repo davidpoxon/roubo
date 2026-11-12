@@ -235,59 +235,85 @@ function isAgentPlugin(entry: PluginEntry): boolean {
   return entry.record.manifest?.kind === "agent";
 }
 
-// HostComponentBroker runtime wiring (F2.1, #686; precise routing #687).
+// HostComponentBroker runtime wiring (F2.1, #686; precise routing #687, #1499).
 //
 // A component plugin is spawned ONCE per plugin and multiplexes benches over the
 // single shared connection (architecture.md 'Components'), but a BrokerContext is
-// per-(pluginId, benchId): it carries that bench's ports, permission check, and
-// the recordAudit sink wired to its per-bench AuditLog. We reconcile the two
-// lifetimes with a per-(pluginId, benchId) registry: spawnPlugin registers the
-// broker handlers ONCE on a component plugin's connection, backed by a resolver
-// that reads this registry; bench-manager registers a per-bench BrokerContext
-// when a bench provisions a plugin-bound component and drops it on teardown.
+// per bench: it carries that bench's ports, permission check, and the
+// recordAudit sink wired to its per-bench AuditLog. We reconcile the two
+// lifetimes with a per-(pluginId, projectId, benchId) registry: spawnPlugin
+// registers the broker handlers ONCE on a component plugin's connection, backed
+// by a resolver that reads this registry; bench-manager registers a per-bench
+// BrokerContext when a bench provisions a plugin-bound component and drops it on
+// teardown. The project is part of the key because bench ids restart at 1 in
+// each project, so two projects' bench 1 on one plugin are two contexts (#1499).
 //
-// Every broker call carries the `benchId` it acts for in its params (#687): the
-// SDK stamps it from the in-flight lifecycle call, so the resolver looks the
-// context up by the exact (pluginId, benchId) key. A call from any bench
-// resolves to that bench's own context (correct ports, correct audit
-// attribution), even when several benches concurrently share one plugin
-// connection. A call naming a benchId with no bound context returns null, which
-// the broker surfaces as a no-broker-context internal error.
+// Every broker call carries the `benchId` it acts for in its params (#687), and
+// an SDK from #1499 on also stamps its `projectId`: the SDK reads both from the
+// in-flight lifecycle call, so the resolver looks the context up by the exact
+// key. A call from any bench resolves to that bench's own context (correct
+// ports, correct audit attribution), even when several benches concurrently
+// share one plugin connection. A plugin built on an older SDK stamps no
+// `projectId`; its call resolves only when exactly one project has a context
+// for that benchId, since picking one of several would misroute it. A call that
+// matches no bound context returns null, which the broker surfaces as a
+// no-broker-context internal error.
 const brokerContexts = new Map<string, BrokerContext>();
 
-function brokerContextKey(pluginId: string, benchId: number): string {
-  return `${pluginId}:${benchId}`;
+function brokerContextKey(pluginId: string, projectId: string, benchId: number): string {
+  // JSON keeps the parts apart: a plugin or project id may itself contain ':'.
+  return JSON.stringify([pluginId, projectId, benchId]);
 }
 
 /**
  * Register the per-bench BrokerContext a component plugin's broker handlers
- * service for `benchId`. Called by bench-manager when a bench provisions a
- * plugin-bound component. The broker handlers themselves are registered once on
- * the plugin's connection at spawn; this only supplies the context they resolve
- * against, so privileged broker calls accumulate AuditEntry rows into the right
- * per-bench AuditLog (#686).
+ * service for `ctx.projectId`'s bench `ctx.benchId`. Called by bench-manager
+ * when a bench provisions a plugin-bound component. The broker handlers
+ * themselves are registered once on the plugin's connection at spawn; this only
+ * supplies the context they resolve against, so privileged broker calls
+ * accumulate AuditEntry rows into the right per-bench AuditLog (#686).
  */
-export function registerBrokerContext(pluginId: string, benchId: number, ctx: BrokerContext): void {
-  brokerContexts.set(brokerContextKey(pluginId, benchId), ctx);
+export function registerBrokerContext(pluginId: string, ctx: BrokerContext): void {
+  brokerContexts.set(brokerContextKey(pluginId, ctx.projectId, ctx.benchId), ctx);
 }
 
 /**
- * Drop the per-bench BrokerContext for `(pluginId, benchId)`. Called by
- * bench-manager on bench teardown alongside clearAuditLog, so a torn-down bench's
- * context does not leak into a later bench that reuses the same id.
+ * Drop the per-bench BrokerContext for `(pluginId, projectId, benchId)`. Called
+ * by bench-manager on bench teardown alongside clearAuditLog, so a torn-down
+ * bench's context does not leak into a later bench that reuses the same id.
  */
-export function unregisterBrokerContext(pluginId: string, benchId: number): void {
-  brokerContexts.delete(brokerContextKey(pluginId, benchId));
+export function unregisterBrokerContext(
+  pluginId: string,
+  projectId: string,
+  benchId: number,
+): void {
+  brokerContexts.delete(brokerContextKey(pluginId, projectId, benchId));
 }
 
 /**
- * Resolve the BrokerContext for a plugin's connection by the `benchId` the call
- * named in its params: an exact (pluginId, benchId) lookup, or `null` when no
- * bench with that id is currently bound. The broker handlers call this per
- * request (see BrokerContextResolver in component-broker.ts).
+ * Resolve the BrokerContext for a plugin's connection by the `benchId` and
+ * `projectId` the call named in its params: an exact lookup, or `null` when no
+ * bench with that key is currently bound. Without a `projectId` (a plugin built
+ * on an SDK from before #1499) it resolves the one context bound for that
+ * benchId, or `null` when none or several projects have one. The broker
+ * handlers call this per request (see BrokerContextResolver in
+ * component-broker.ts).
  */
-function resolveBrokerContext(pluginId: string, benchId: number): BrokerContext | null {
-  return brokerContexts.get(brokerContextKey(pluginId, benchId)) ?? null;
+function resolveBrokerContext(
+  pluginId: string,
+  benchId: number,
+  projectId: string | undefined,
+): BrokerContext | null {
+  if (projectId !== undefined) {
+    return brokerContexts.get(brokerContextKey(pluginId, projectId, benchId)) ?? null;
+  }
+  let match: BrokerContext | null = null;
+  for (const ctx of brokerContexts.values()) {
+    if (ctx.pluginId !== pluginId || ctx.benchId !== benchId) continue;
+    if (match) return null;
+    match = ctx;
+  }
+  return match;
 }
 
 // AC5 (#676): record an OS-attributed blocked attempt where the backend can
@@ -1334,15 +1360,19 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
     // expose the broker surface, so they keep the v1 host handlers only.
     if (isComponentPlugin(entry)) {
       const pluginId = entry.record.id;
-      registerBrokerHandlers(connection, (benchId) => resolveBrokerContext(pluginId, benchId), {
-        // Wire the real ResourceOwnershipLedger so a process the broker spawns
-        // on this plugin's behalf is tracked and reaped by crash cleanup / the
-        // startup sweep (#887, AC4).
-        ledger,
-        log: (level, text) => {
-          writeLog(entry, "host", text, level).catch(() => {});
+      registerBrokerHandlers(
+        connection,
+        (benchId, projectId) => resolveBrokerContext(pluginId, benchId, projectId),
+        {
+          // Wire the real ResourceOwnershipLedger so a process the broker spawns
+          // on this plugin's behalf is tracked and reaped by crash cleanup / the
+          // startup sweep (#887, AC4).
+          ledger,
+          log: (level, text) => {
+            writeLog(entry, "host", text, level).catch(() => {});
+          },
         },
-      });
+      );
     }
     // Agent plugins (#1026) deliberately register NOTHING here. An agent plugin
     // is spawned-and-RPC like an integration plugin: it answers
@@ -2561,11 +2591,15 @@ export const __test = {
   incompatibleRangeMessage(declared: string | undefined, hostVersion?: string): string | null {
     return incompatibleRangeMessage(declared, hostVersion);
   },
-  // #686 / #687: the per-call resolver the broker handlers read, exposed so tests
-  // can assert which bench context a multiplexed connection resolves the named
-  // benchId to.
-  resolveBrokerContext(pluginId: string, benchId: number): BrokerContext | null {
-    return resolveBrokerContext(pluginId, benchId);
+  // #686 / #687 / #1499: the per-call resolver the broker handlers read, exposed
+  // so tests can assert which bench context a multiplexed connection resolves the
+  // named benchId (and projectId) to.
+  resolveBrokerContext(
+    pluginId: string,
+    benchId: number,
+    projectId?: string,
+  ): BrokerContext | null {
+    return resolveBrokerContext(pluginId, benchId, projectId);
   },
   setIsolationProbes(probes: IsolationProbes | null): void {
     setIsolationProbes(probes);

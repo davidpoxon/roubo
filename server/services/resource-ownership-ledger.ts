@@ -17,18 +17,26 @@ import { loadState, saveState } from "./state.js";
  * `resourceOwnership` field is optional and additive: a state.json written
  * before it existed loads unchanged with no migration.
  *
- * The ledger is stored as a flat array keyed on (pluginId, benchId) rather than
- * a nested `Record<pluginId, ...>` so a plugin-supplied `pluginId` is never used
- * as an object key, keeping the persisted shape off the CodeQL prototype-
- * pollution surface.
+ * The ledger is stored as a flat array keyed on (pluginId, projectId, benchId)
+ * rather than a nested `Record<pluginId, ...>` so a plugin-supplied `pluginId`
+ * is never used as an object key, keeping the persisted shape off the CodeQL
+ * prototype-pollution surface. The key carries the project because bench ids
+ * restart at 1 in each project (#1499). A row written before #1499 has no
+ * `projectId`; only `clearEntry` with an `undefined` project matches it, which
+ * is how the startup sweep and the crash cleanup clear the rows they replay.
  *
  * Out of scope here: the cleanup sweep that consumes the ledger (#657)
  * and the LifecycleEngine wiring that calls these methods (#650). This
  * module is the callable data-store the engine and the sweep build on.
  */
 
-function sameKey(entry: ResourceOwnershipEntry, pluginId: string, benchId: number): boolean {
-  return entry.pluginId === pluginId && entry.benchId === benchId;
+function sameKey(
+  entry: ResourceOwnershipEntry,
+  pluginId: string,
+  projectId: string | undefined,
+  benchId: number,
+): boolean {
+  return entry.pluginId === pluginId && entry.projectId === projectId && entry.benchId === benchId;
 }
 
 /**
@@ -42,61 +50,71 @@ function addUnique(list: string[], value: string): void {
 }
 
 /**
- * Finds the existing entry for (pluginId, benchId) in `entries`, or creates,
- * appends, and returns a fresh empty one. Mutates `entries` in place.
+ * Finds the existing entry for (pluginId, projectId, benchId) in `entries`, or
+ * creates, appends, and returns a fresh empty one. Mutates `entries` in place.
  */
 function getOrCreateEntry(
   entries: ResourceOwnershipEntry[],
   pluginId: string,
+  projectId: string,
   benchId: number,
 ): ResourceOwnershipEntry {
-  let entry = entries.find((e) => sameKey(e, pluginId, benchId));
+  let entry = entries.find((e) => sameKey(e, pluginId, projectId, benchId));
   if (!entry) {
-    entry = { pluginId, benchId, processIds: [], composeProjects: [] };
+    entry = { pluginId, projectId, benchId, processIds: [], composeProjects: [] };
     entries.push(entry);
   }
   return entry;
 }
 
 /**
- * Records a host-spawned process id under (pluginId, benchId). Idempotent: a
- * process id already recorded for the entry is not duplicated.
+ * Records a host-spawned process id under (pluginId, projectId, benchId).
+ * Idempotent: a process id already recorded for the entry is not duplicated.
  */
-export function recordProcess(pluginId: string, benchId: number, processId: string): void {
+export function recordProcess(
+  pluginId: string,
+  projectId: string,
+  benchId: number,
+  processId: string,
+): void {
   const data = loadState();
   const entries = data.resourceOwnership ?? [];
-  const entry = getOrCreateEntry(entries, pluginId, benchId);
+  const entry = getOrCreateEntry(entries, pluginId, projectId, benchId);
   addUnique(entry.processIds, processId);
   data.resourceOwnership = entries;
   saveState(data);
 }
 
 /**
- * Records a compose project name under (pluginId, benchId). Idempotent: a
- * compose project already recorded for the entry is not duplicated.
+ * Records a compose project name under (pluginId, projectId, benchId).
+ * Idempotent: a compose project already recorded for the entry is not
+ * duplicated.
  */
 export function recordComposeProject(
   pluginId: string,
+  projectId: string,
   benchId: number,
   composeProject: string,
 ): void {
   const data = loadState();
   const entries = data.resourceOwnership ?? [];
-  const entry = getOrCreateEntry(entries, pluginId, benchId);
+  const entry = getOrCreateEntry(entries, pluginId, projectId, benchId);
   addUnique(entry.composeProjects, composeProject);
   data.resourceOwnership = entries;
   saveState(data);
 }
 
 /**
- * Removes the ledger entry for (pluginId, benchId) entirely. Called when a
- * component is stopped or a bench is torn down. A no-op (still persisted) when
- * no matching entry exists, so callers need not check first.
+ * Removes the ledger entry for (pluginId, projectId, benchId) entirely. Called
+ * when a component is stopped or a bench is torn down. A no-op (still
+ * persisted) when no matching entry exists, so callers need not check first.
+ * Pass an `undefined` projectId to clear a row written before #1499, as the
+ * callers that replay `getAllEntries()` do with each row's own key.
  */
-export function clearEntry(pluginId: string, benchId: number): void {
+export function clearEntry(pluginId: string, projectId: string | undefined, benchId: number): void {
   const data = loadState();
   const entries = data.resourceOwnership ?? [];
-  data.resourceOwnership = entries.filter((e) => !sameKey(e, pluginId, benchId));
+  data.resourceOwnership = entries.filter((e) => !sameKey(e, pluginId, projectId, benchId));
   saveState(data);
 }
 
@@ -118,18 +136,23 @@ function persistAfterRemoval(
 }
 
 /**
- * Removes a single process id from the (pluginId, benchId) entry, leaving any
- * sibling process ids and compose projects on that entry intact. This is the
- * per-resource counterpart to `clearEntry`: because entries key on
- * (pluginId, benchId) and NOT per component, two components bound to the same
- * plugin share one entry, so a normal stop of one must drop only its own rows
+ * Removes a single process id from the (pluginId, projectId, benchId) entry,
+ * leaving any sibling process ids and compose projects on that entry intact.
+ * This is the per-resource counterpart to `clearEntry`: because entries key on
+ * the bench and NOT per component, two components bound to the same plugin
+ * share one entry, so a normal stop of one must drop only its own rows
  * (FR-015). The entry itself is dropped once it holds no processes and no
  * compose projects. A no-op (still persisted) when the entry or id is absent.
  */
-export function removeProcess(pluginId: string, benchId: number, processId: string): void {
+export function removeProcess(
+  pluginId: string,
+  projectId: string,
+  benchId: number,
+  processId: string,
+): void {
   const data = loadState();
   const entries = data.resourceOwnership ?? [];
-  const entry = entries.find((e) => sameKey(e, pluginId, benchId));
+  const entry = entries.find((e) => sameKey(e, pluginId, projectId, benchId));
   if (!entry) {
     data.resourceOwnership = entries;
     saveState(data);
@@ -140,19 +163,21 @@ export function removeProcess(pluginId: string, benchId: number, processId: stri
 }
 
 /**
- * Removes a single compose project name from the (pluginId, benchId) entry,
- * leaving any sibling rows intact, and drops the entry once it is empty. The
- * compose-project counterpart to `removeProcess`; see it for the shared-entry
- * rationale. A no-op (still persisted) when the entry or name is absent.
+ * Removes a single compose project name from the (pluginId, projectId, benchId)
+ * entry, leaving any sibling rows intact, and drops the entry once it is empty.
+ * The compose-project counterpart to `removeProcess`; see it for the
+ * shared-entry rationale. A no-op (still persisted) when the entry or name is
+ * absent.
  */
 export function removeComposeProject(
   pluginId: string,
+  projectId: string,
   benchId: number,
   composeProject: string,
 ): void {
   const data = loadState();
   const entries = data.resourceOwnership ?? [];
-  const entry = entries.find((e) => sameKey(e, pluginId, benchId));
+  const entry = entries.find((e) => sameKey(e, pluginId, projectId, benchId));
   if (!entry) {
     data.resourceOwnership = entries;
     saveState(data);
@@ -163,18 +188,23 @@ export function removeComposeProject(
 }
 
 /**
- * Returns the ledger entry for (pluginId, benchId), or undefined when none
- * exists. The returned object is the live in-memory copy from this load; treat
- * it as read-only and re-load before mutating.
+ * Returns the ledger entry for (pluginId, projectId, benchId), or undefined
+ * when none exists. The returned object is the live in-memory copy from this
+ * load; treat it as read-only and re-load before mutating.
  */
-export function getEntry(pluginId: string, benchId: number): ResourceOwnershipEntry | undefined {
+export function getEntry(
+  pluginId: string,
+  projectId: string,
+  benchId: number,
+): ResourceOwnershipEntry | undefined {
   const data = loadState();
-  return (data.resourceOwnership ?? []).find((e) => sameKey(e, pluginId, benchId));
+  return (data.resourceOwnership ?? []).find((e) => sameKey(e, pluginId, projectId, benchId));
 }
 
 /**
- * Returns every ledger entry. The primary input to the F1.12 startup sweep,
- * which replays the ledger to reap escaped resources after a host restart.
+ * Returns every ledger entry, across every project. The primary input to the
+ * F1.12 startup sweep, which replays the ledger to reap escaped resources after
+ * a host restart. Rows written before #1499 come back without a `projectId`.
  */
 export function getAllEntries(): ResourceOwnershipEntry[] {
   const data = loadState();

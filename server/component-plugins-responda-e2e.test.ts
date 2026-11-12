@@ -401,9 +401,9 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
         // host runs the database to running before the dependents start (#659).
         expect(startOrder).toEqual([]);
         // The ledger recorded the compose project under the database plugin.
-        expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
-          RESPONDA_COMPOSE,
-        );
+        expect(
+          ledger.getEntry(DB_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID)?.composeProjects,
+        ).toContain(RESPONDA_COMPOSE);
         // The engine resolves the containerId through the same seam the broker uses
         // after composeUp (getContainerId(projectName, service), where projectName
         // comes from the journey's getComposeProjectName) and attaches it to the
@@ -562,16 +562,18 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
       "the run recorded the process ids; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",
       async () => {
         expect(liveComposeProjects.has(RESPONDA_COMPOSE)).toBe(true);
-        expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.composeProjects).toContain(
-          RESPONDA_COMPOSE,
-        );
+        expect(
+          ledger.getEntry(DB_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID)?.composeProjects,
+        ).toContain(RESPONDA_COMPOSE);
         // The run recorded the process ids the reap must account for: the migration
         // under the database plugin, and each process component under the process
         // plugin (the PIDs an integrated stop would terminate).
-        expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)?.processIds).toContain(
-          `${DB_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_DB}:migration`,
-        );
-        expect(ledger.getEntry(PROCESS_PLUGIN_ID, RESPONDA_BENCH_ID)?.processIds).toEqual(
+        expect(
+          ledger.getEntry(DB_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID)?.processIds,
+        ).toContain(`${DB_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_DB}:migration`);
+        expect(
+          ledger.getEntry(PROCESS_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID)?.processIds,
+        ).toEqual(
           expect.arrayContaining([
             `${PROCESS_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_API}`,
             `${PROCESS_PLUGIN_ID}:${RESPONDA_BENCH_ID}:${RESPONDA_WEB}`,
@@ -586,8 +588,12 @@ describe("Dogfood-parity E2E (CP-TC-033): responda bench runs entirely on plugin
           await benchManager.sweepOrphanedComposeProjects();
           expect(downSpy).toHaveBeenCalledWith(RESPONDA_COMPOSE);
           expect([...liveComposeProjects].filter((p) => p.startsWith("roubo-"))).toEqual([]);
-          expect(ledger.getEntry(DB_PLUGIN_ID, RESPONDA_BENCH_ID)).toBeUndefined();
-          expect(ledger.getEntry(PROCESS_PLUGIN_ID, RESPONDA_BENCH_ID)).toBeUndefined();
+          expect(
+            ledger.getEntry(DB_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID),
+          ).toBeUndefined();
+          expect(
+            ledger.getEntry(PROCESS_PLUGIN_ID, RESPONDA_PROJECT_ID, RESPONDA_BENCH_ID),
+          ).toBeUndefined();
         } finally {
           downSpy.mockRestore();
         }
@@ -716,9 +722,9 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
       "the run recorded the process id; after the real orphan sweep no roubo-* compose project remains and the ledger entry is cleared",
       async () => {
         expect(liveComposeProjects.has(ROUBO_COMPOSE)).toBe(true);
-        expect(ledger.getEntry(PROCESS_PLUGIN_ID, ROUBO_BENCH_ID)?.processIds).toContain(
-          `${PROCESS_PLUGIN_ID}:${ROUBO_BENCH_ID}:${ROUBO_SERVER}`,
-        );
+        expect(
+          ledger.getEntry(PROCESS_PLUGIN_ID, ROUBO_PROJECT_ID, ROUBO_BENCH_ID)?.processIds,
+        ).toContain(`${PROCESS_PLUGIN_ID}:${ROUBO_BENCH_ID}:${ROUBO_SERVER}`);
         const downSpy = vi
           .spyOn(dockerService, "composeDownByProject")
           .mockImplementation(async (projectName: string) => {
@@ -728,7 +734,7 @@ describe("Dogfood-parity E2E (CP-TC-034): roubo bench starts identically on plug
           await benchManager.sweepOrphanedComposeProjects();
           expect(downSpy).toHaveBeenCalledWith(ROUBO_COMPOSE);
           expect([...liveComposeProjects].filter((p) => p.startsWith("roubo-"))).toEqual([]);
-          expect(ledger.getEntry(DB_PLUGIN_ID, ROUBO_BENCH_ID)).toBeUndefined();
+          expect(ledger.getEntry(DB_PLUGIN_ID, ROUBO_PROJECT_ID, ROUBO_BENCH_ID)).toBeUndefined();
         } finally {
           downSpy.mockRestore();
         }

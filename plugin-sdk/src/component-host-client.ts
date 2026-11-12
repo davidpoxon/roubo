@@ -19,8 +19,14 @@ let activeConnection: MessageConnection | null = null;
  * by hand: each lifecycle handler dispatch sets the routing context for the
  * duration of the call (see defineComponentPlugin), and every outgoing host.*
  * request/notification reads it back here.
+ *
+ * `projectId` names the bench's project. Bench ids restart at 1 in each
+ * project, so the host needs it to tell two projects' bench 1 apart (#1499).
+ * It is optional: a context without it still routes, and the host then
+ * resolves the bench by `benchId` alone while that is unambiguous.
  */
 export interface HostRoutingContext {
+  projectId?: string;
   benchId: number;
   componentName: string;
 }
@@ -29,7 +35,7 @@ const routingStore = new AsyncLocalStorage<HostRoutingContext>();
 
 /**
  * Run `fn` with the given routing context bound, so any host.* call it makes
- * (synchronously or via awaited continuations) stamps `benchId` /
+ * (synchronously or via awaited continuations) stamps `projectId` / `benchId` /
  * `componentName` onto its params. Used by defineComponentPlugin to wrap each
  * lifecycle handler dispatch.
  */
@@ -57,18 +63,22 @@ function requireConnection(): MessageConnection {
 }
 
 /**
- * The bench this broker call acts for. A host.* call made outside any lifecycle
- * handler (no ambient routing context) cannot be routed, so it throws here
- * rather than silently mis-resolving: the host has no way to attribute it.
+ * The bench this broker call acts for, as the params fields the host routes
+ * by: `benchId`, plus `projectId` when the lifecycle call carried one. A host.*
+ * call made outside any lifecycle handler (no ambient routing context) cannot
+ * be routed, so it throws here rather than silently mis-resolving: the host has
+ * no way to attribute it.
  */
-function requireBenchId(method: string): number {
+function requireBench(method: string): { projectId?: string; benchId: number } {
   const ctx = routingStore.getStore();
   if (!ctx) {
     throw new Error(
       `@roubo/plugin-sdk: ${method} called outside a lifecycle handler; the host cannot route it to a bench.`,
     );
   }
-  return ctx.benchId;
+  return ctx.projectId === undefined
+    ? { benchId: ctx.benchId }
+    : { projectId: ctx.projectId, benchId: ctx.benchId };
 }
 
 function requireComponentName(method: string): string {
@@ -99,7 +109,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.process.start";
       return requireConnection().sendRequest<{ pid: number }>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async run(params: {
@@ -113,28 +123,28 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.process.run";
       return requireConnection().sendRequest<ProcessRunResult>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async stop(params: { id: string }): Promise<void> {
       const method = "host.process.stop";
       await requireConnection().sendRequest<null>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async status(params: { id: string }): Promise<ProcessStatusResult> {
       const method = "host.process.status";
       return requireConnection().sendRequest<ProcessStatusResult>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async logs(params: { id: string }): Promise<string[]> {
       const method = "host.process.logs";
       return requireConnection().sendRequest<string[]>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
   }),
@@ -149,7 +159,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.docker.composeUp";
       return requireConnection().sendRequest<{ containerId: string }>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async waitForHealthy(params: {
@@ -160,7 +170,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.docker.waitForHealthy";
       return requireConnection().sendRequest<{ healthy: boolean }>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async composeRunInit(params: {
@@ -172,7 +182,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.docker.composeRunInit";
       await requireConnection().sendRequest<null>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async composeStop(params: {
@@ -184,7 +194,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.docker.composeStop";
       await requireConnection().sendRequest<null>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async composeDown(params: {
@@ -195,14 +205,14 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.docker.composeDown";
       await requireConnection().sendRequest<null>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     async assignContainer(params: { componentName: string; containerId: string }): Promise<void> {
       const method = "host.docker.assignContainer";
       await requireConnection().sendRequest<null>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
   }),
@@ -211,7 +221,7 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.ports.get";
       return requireConnection().sendRequest<number>(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
   }),
@@ -220,14 +230,14 @@ export const host: ComponentHostClient = Object.freeze({
       const method = "host.component.reportStatus";
       void requireConnection().sendNotification(method, {
         ...status,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
       });
     },
     reportLog(params: { source: "stdout" | "stderr"; text: string; ts: number }): void {
       const method = "host.component.reportLog";
       void requireConnection().sendNotification(method, {
         ...params,
-        benchId: requireBenchId(method),
+        ...requireBench(method),
         componentName: requireComponentName(method),
       });
     },

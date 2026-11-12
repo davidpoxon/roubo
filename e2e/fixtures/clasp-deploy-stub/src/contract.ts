@@ -111,7 +111,7 @@ export function buildContract(host: ComponentHostClient): ImperativeComponentCon
     cleanup(_context: BenchContext): void {
       // One-shot lifecycle: the deploy command already ran to completion, so
       // there is no long-lived process to reap here. The host clears the
-      // resource ledger for (pluginId, benchId) after cleanup returns.
+      // resource ledger for (pluginId, projectId, benchId) after cleanup returns.
       lastStatus = "stopped";
     },
   };

@@ -666,6 +666,7 @@ describe("lifecycle-engine runDescriptor", () => {
 
       expect(h.led.recordComposeProject).toHaveBeenCalledWith(
         "db-plugin",
+        "proj1",
         3,
         "roubo-proj1-bench-3",
       );
@@ -685,7 +686,7 @@ describe("lifecycle-engine runDescriptor", () => {
         ledger: h.led,
       });
 
-      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:api");
+      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", "proj1", 3, "db-plugin:3:api");
     });
 
     it("records the process for a oneshot descriptor", async () => {
@@ -702,7 +703,12 @@ describe("lifecycle-engine runDescriptor", () => {
         ledger: h.led,
       });
 
-      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:deploy");
+      expect(h.led.recordProcess).toHaveBeenCalledWith(
+        "db-plugin",
+        "proj1",
+        3,
+        "db-plugin:3:deploy",
+      );
     });
 
     it("records the docker migration process so a crash mid-migration is reapable", async () => {
@@ -721,7 +727,12 @@ describe("lifecycle-engine runDescriptor", () => {
         ledger: h.led,
       });
 
-      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:db:migration");
+      expect(h.led.recordProcess).toHaveBeenCalledWith(
+        "db-plugin",
+        "proj1",
+        3,
+        "db-plugin:3:db:migration",
+      );
     });
 
     it("records the process one-time setup so a crash mid-setup is reapable", async () => {
@@ -739,7 +750,12 @@ describe("lifecycle-engine runDescriptor", () => {
         ledger: h.led,
       });
 
-      expect(h.led.recordProcess).toHaveBeenCalledWith("db-plugin", 3, "db-plugin:3:api:setup");
+      expect(h.led.recordProcess).toHaveBeenCalledWith(
+        "db-plugin",
+        "proj1",
+        3,
+        "db-plugin:3:api:setup",
+      );
     });
   });
 

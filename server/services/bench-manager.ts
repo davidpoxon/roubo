@@ -16,6 +16,7 @@ import type {
   ProvisioningStep,
   ProvisioningStepStatus,
   RegisteredProject,
+  ResourceOwnershipEntry,
   RouboConfig,
   BenchVariant,
   SpecBenchDeliveryRequest,
@@ -1159,8 +1160,8 @@ async function removeWorkspacesOf(
 
 /**
  * Clear's stop steps and cleanup, for a bench a forced unregister drops (#1441):
- * close terminals, stop component processes, take compose projects down, release
- * the bench's compose project from the ledger, then clearBenchRuntimeState.
+ * close terminals, stop component processes, take compose projects down, clear
+ * the bench's ledger rows, then clearBenchRuntimeState.
  * Unlike Clear, each step is best effort: a failure is logged and the rest still
  * run, because the unregister goes ahead regardless.
  */
@@ -1217,7 +1218,10 @@ async function stopBenchForUnregister(
     await attempt("reading the ledger", () => {
       recorded = ledger
         .getAllEntries()
-        .some((e) => e.benchId === benchId && e.composeProjects.includes(composeProject));
+        .some(
+          (e) =>
+            isLedgerRowOfBench(e, projectId, benchId) && e.composeProjects.includes(composeProject),
+        );
     });
   }
   if (dockerComposeFiles.size > 0 && fs.existsSync(workspacePath)) {
@@ -1232,19 +1236,19 @@ async function stopBenchForUnregister(
 
   // The ledger is the only record of the compose project once the bench is
   // dropped, so it stays when compose down failed: the startup sweep then takes
-  // the project down. Otherwise only this project's compose project is removed.
-  // Process ids carry no project id, so clearing the whole entry, as Clear does,
-  // could also drop another project's bench with the same id (#1499). The bench's
-  // process rows therefore stay until the startup sweep clears them.
+  // the project down. Its process rows go either way, since the processes were
+  // stopped above. Rows key on the project, so another project's bench with the
+  // same id keeps its rows (#1499).
   if (composeDownFailed) {
     console.warn(
       `[bench-manager] Force unregister of '${projectId}': bench ${benchId}'s compose ` +
         `project stays in the ledger, so the startup sweep takes it down`,
     );
-  } else {
-    await attempt("releasing its compose project from the ledger", () =>
-      releaseComposeProjectFromLedger(benchId, composeProject),
+    await attempt("releasing its processes from the ledger", () =>
+      releaseProcessesFromLedger(projectId, benchId),
     );
+  } else {
+    await attempt("clearing its ledger rows", () => clearLedgerForBench(projectId, benchId));
   }
 
   await attempt("clearing its state", () =>
@@ -1253,13 +1257,15 @@ async function stopBenchForUnregister(
 }
 
 /**
- * Removes `composeProject` from every ledger entry of `benchId`, leaving the
- * entries' other rows in place. An entry with nothing left is dropped.
+ * Removes every process id from the ledger entries of `projectId`'s bench
+ * `benchId`, leaving their compose projects in place for the startup sweep. An
+ * entry with nothing left is dropped.
  */
-function releaseComposeProjectFromLedger(benchId: number, composeProject: string): void {
+function releaseProcessesFromLedger(projectId: string, benchId: number): void {
   for (const entry of ledger.getAllEntries()) {
-    if (entry.benchId === benchId && entry.composeProjects.includes(composeProject)) {
-      ledger.removeComposeProject(entry.pluginId, benchId, composeProject);
+    if (!isLedgerRowOfBench(entry, projectId, benchId)) continue;
+    for (const processId of entry.processIds) {
+      ledger.removeProcess(entry.pluginId, projectId, benchId, processId);
     }
   }
 }
@@ -2215,10 +2221,10 @@ async function runTeardownBackground(
 
     // After the bench's processes and compose projects are stopped, drop its
     // ledger entries (#657): the resources are gone, so the startup orphan
-    // sweep must not later try to reap them. Scoped to this bench's id across
-    // every owning plugin. The ledger has no project id, so this also clears
-    // another project's bench with the same id (#1499).
-    clearLedgerForBench(benchId);
+    // sweep must not later try to reap them. Scoped to this project's bench
+    // across every owning plugin, so another project's bench with the same id
+    // keeps its rows (#1499).
+    clearLedgerForBench(projectId, benchId);
     clearBenchRuntimeState(projectId, benchId, Object.keys(bench.components));
 
     // Step 4: Save permissions from workspace before removal
@@ -2359,15 +2365,41 @@ function clearBenchRuntimeState(
 }
 
 /**
- * Clears every resource-ownership ledger entry for `benchId`, across all owning
- * plugins (#657). The ledger keys on (pluginId, benchId), so a single
- * bench may have entries under several plugins; teardown removes them all once
- * the bench's resources are stopped, so the startup sweep never re-reaps them.
+ * Whether a ledger row belongs to `projectId`'s bench `benchId`. Bench ids
+ * restart at 1 in each project, so the bench id alone is not enough (#1499). A
+ * row written before #1499 has no project id and matches no bench; the startup
+ * sweep reaps it at boot.
  */
-function clearLedgerForBench(benchId: number): void {
+function isLedgerRowOfBench(
+  entry: ResourceOwnershipEntry,
+  projectId: string,
+  benchId: number,
+): boolean {
+  return entry.projectId === projectId && entry.benchId === benchId;
+}
+
+/**
+ * Names a ledger row's bench for a log line: "project 'p' bench 1", or just
+ * "bench 1" for a row written before #1499, which recorded no project.
+ */
+function ledgerRowBench(entry: ResourceOwnershipEntry): string {
+  return entry.projectId === undefined
+    ? `bench ${entry.benchId}`
+    : `project '${entry.projectId}' bench ${entry.benchId}`;
+}
+
+/**
+ * Clears every resource-ownership ledger entry for `projectId`'s bench
+ * `benchId`, across all owning plugins (#657). The ledger keys on
+ * (pluginId, projectId, benchId), so a single bench may have entries under
+ * several plugins; teardown removes them all once the bench's resources are
+ * stopped, so the startup sweep never re-reaps them. Another project's bench
+ * with the same id keeps its entries (#1499).
+ */
+function clearLedgerForBench(projectId: string, benchId: number): void {
   for (const entry of ledger.getAllEntries()) {
-    if (entry.benchId === benchId) {
-      ledger.clearEntry(entry.pluginId, entry.benchId);
+    if (isLedgerRowOfBench(entry, projectId, benchId)) {
+      ledger.clearEntry(entry.pluginId, projectId, benchId);
     }
   }
 }
@@ -2440,7 +2472,7 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
       await processManager.stopProcess(processId).catch((err) => {
         console.warn(
           `[bench-manager] pre-restart cleanup: stopProcess(${processId}) failed for ` +
-            `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
+            `plugin '${pluginId}' ${ledgerRowBench(entry)}: ${err}`,
         );
       });
     }
@@ -2453,17 +2485,17 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
           // existing warn-on-failure below is kept.
           console.info(
             `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) succeeded for ` +
-              `plugin '${pluginId}' bench ${entry.benchId}`,
+              `plugin '${pluginId}' ${ledgerRowBench(entry)}`,
           );
         })
         .catch((err) => {
           console.warn(
             `[bench-manager] pre-restart cleanup: composeDown(${composeProject}) failed for ` +
-              `plugin '${pluginId}' bench ${entry.benchId}: ${err}`,
+              `plugin '${pluginId}' ${ledgerRowBench(entry)}: ${err}`,
           );
         });
     }
-    ledger.clearEntry(entry.pluginId, entry.benchId);
+    ledger.clearEntry(entry.pluginId, entry.projectId, entry.benchId);
   }
 }
 
@@ -2590,11 +2622,11 @@ export async function sweepOrphanedComposeProjects(): Promise<void> {
       await dockerService.composeDownByProject(composeProject).catch((err) => {
         console.warn(
           `[bench-manager] startup sweep: composeDown(${composeProject}) failed for ` +
-            `plugin '${entry.pluginId}' bench ${entry.benchId}: ${err}`,
+            `plugin '${entry.pluginId}' ${ledgerRowBench(entry)}: ${err}`,
         );
       });
     }
-    ledger.clearEntry(entry.pluginId, entry.benchId);
+    ledger.clearEntry(entry.pluginId, entry.projectId, entry.benchId);
   }
 }
 
@@ -3294,7 +3326,7 @@ const LIVE_COMPONENT_STATUSES = new Set(["running", "starting", "stopping"]);
 /**
  * Whether any component OTHER than `excludeName` in the bench is still live
  * (running / starting / stopping) and bound to `pluginId`. Such a sibling shares
- * both the (pluginId, benchId) ledger entry and the per-bench compose project
+ * both the (pluginId, projectId, benchId) ledger entry and the per-bench compose project
  * name, so stopping this component must not drop the shared compose-project row
  * out from under it (FR-015). Uses the resolved binding, matching how the ledger
  * keys its entries.
@@ -3338,7 +3370,7 @@ export async function stopComponent(
   // Imperative (escape-hatch) plugins own their processes/containers, so teardown
   // means driving their stop then cleanup hooks (#887, AC1) rather than the
   // descriptor path (which never ran: there is no translate). The plugin reaps
-  // its own resources; the host then clears the ledger for (pluginId, benchId)
+  // its own resources; the host then clears the bench's ledger entry for the plugin
   // so the orphan sweep does not later try to reap released resources.
   if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") {
     await stopImperativeComponent(projectId, benchId, componentName, binding.pluginId, bench);
@@ -3392,14 +3424,14 @@ export async function stopComponent(
   // Drop this component's own resource-ownership rows so a normal stop leaves no
   // dangling ledger entry for the orphan sweep to re-reap (CP-TC-033 S008-O03,
   // CP-TC-056 S002). Removal is per-resource, never a whole-entry clear: the
-  // ledger keys on (pluginId, benchId), so a sibling component bound to the same
-  // plugin keeps its rows. The engine records the component's process ids under
+  // ledger keys on (pluginId, projectId, benchId), not per component, so a
+  // sibling component bound to the same plugin keeps its rows. The engine records the component's process ids under
   // `<pluginId>:<benchId>:<name>` plus the `:migration` / `:setup` phase ids.
   if (!isNotBound(binding)) {
     const enginePidBase = `${binding.pluginId}:${benchId}:${componentName}`;
-    ledger.removeProcess(binding.pluginId, benchId, enginePidBase);
-    ledger.removeProcess(binding.pluginId, benchId, `${enginePidBase}:migration`);
-    ledger.removeProcess(binding.pluginId, benchId, `${enginePidBase}:setup`);
+    ledger.removeProcess(binding.pluginId, projectId, benchId, enginePidBase);
+    ledger.removeProcess(binding.pluginId, projectId, benchId, `${enginePidBase}:migration`);
+    ledger.removeProcess(binding.pluginId, projectId, benchId, `${enginePidBase}:setup`);
     // The compose project name is per bench (one project, many services), so drop
     // it only when no other still-live component bound to this plugin shares it.
     if (
@@ -3409,6 +3441,7 @@ export async function stopComponent(
     ) {
       ledger.removeComposeProject(
         binding.pluginId,
+        projectId,
         benchId,
         dockerService.getComposeProjectName(projectId, benchId),
       );
@@ -3429,7 +3462,7 @@ export async function stopComponent(
  * this bench/component even after a host restart dropped the live context. Each
  * hook is best-effort: a failing hook is logged and teardown still completes, so
  * a misbehaving plugin can never wedge a bench in `stopping`. After cleanup the
- * host clears the ledger for (pluginId, benchId), but only when no sibling
+ * host clears the bench's ledger entry for the plugin, but only when no sibling
  * component of this bench still shares the plugin: the ledger has no
  * per-component attribution, so an eager clear would drop a still-live sibling's
  * tracked processes (#887, AC4).
@@ -3482,7 +3515,7 @@ async function stopImperativeComponent(
     );
   }
 
-  // The ledger keys entries on (pluginId, benchId) with a flat processId array
+  // The ledger keys entries on (pluginId, projectId, benchId) with a flat processId array
   // and no per-component attribution, so clearing it here would drop a SIBLING
   // component's still-live broker-spawned process ids when two components of one
   // bench share this imperative plugin (a supported config, see
@@ -3498,7 +3531,7 @@ async function stopImperativeComponent(
     return !isNotBound(siblingBinding) && siblingBinding.pluginId === pluginId;
   });
   if (!siblingStillLive) {
-    ledger.clearEntry(pluginId, benchId);
+    ledger.clearEntry(pluginId, projectId, benchId);
   }
 }
 
@@ -3596,7 +3629,7 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
   // per-component stop intentionally left in place) so a stopped-then-idle bench
   // keeps no stale ownership rows (CP-TC-033 S008-O03, CP-TC-056 S002). Mirrors
   // teardown's clearLedgerForBench.
-  clearLedgerForBench(benchId);
+  clearLedgerForBench(projectId, benchId);
 }
 
 function updateBenchStatus(bench: Bench) {
@@ -3864,6 +3897,7 @@ function registerBrokerContextForBench(
 
   const ctx: BrokerContext = {
     pluginId,
+    projectId,
     benchId,
     // The component this context is being registered for. An imperative plugin's
     // reportStatus notification carries no `name`, so the broker routes that push
@@ -3871,7 +3905,7 @@ function registerBrokerContextForBench(
     componentName,
     ports,
     reportStatus: buildReportStatus(projectId, benchId),
-    // The registry keys a BrokerContext by (pluginId, benchId), so when two
+    // The registry keys a BrokerContext by (pluginId, projectId, benchId), so when two
     // components in one bench share a plugin the later provision overwrites this
     // ctx. That is fine: both reportStatus and reportLog route by the component
     // the call names in its params (reportStatus via params.name, reportLog via
@@ -3885,7 +3919,7 @@ function registerBrokerContextForBench(
     // wiring: the broker handler guards it with `?.`, and container-assignment
     // routing is not in scope for the audit wiring (#686).
   };
-  pluginManager.registerBrokerContext(pluginId, benchId, ctx);
+  pluginManager.registerBrokerContext(pluginId, ctx);
 }
 
 /**
@@ -3903,7 +3937,7 @@ function unregisterBrokerContextsForBench(projectId: string, benchId: number): v
     if (!isNotBound(binding)) pluginIds.add(binding.pluginId);
   }
   for (const pluginId of pluginIds) {
-    pluginManager.unregisterBrokerContext(pluginId, benchId);
+    pluginManager.unregisterBrokerContext(pluginId, projectId, benchId);
   }
 }
 

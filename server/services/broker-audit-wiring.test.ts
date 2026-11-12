@@ -36,6 +36,7 @@ function makeConnection(): JsonRpcConnection & {
 }
 
 const PROJECT = "wiring-project";
+const OTHER_PROJECT = "other-wiring-project";
 const PLUGIN = "component-db";
 
 // Fake host delegates so a successful privileged call does not try to spawn a
@@ -65,7 +66,7 @@ function fakeDocker(): DockerLike {
 function register(connection: JsonRpcConnection): void {
   registerBrokerHandlers(
     connection,
-    (benchId) => pluginManager.__test.resolveBrokerContext(PLUGIN, benchId),
+    (benchId, projectId) => pluginManager.__test.resolveBrokerContext(PLUGIN, benchId, projectId),
     {
       processManager: fakeProcessManager(),
       docker: fakeDocker(),
@@ -73,18 +74,23 @@ function register(connection: JsonRpcConnection): void {
   );
 }
 
-function buildBenchContext(benchId: number, allowed: Set<BrokerPermissionCategory>): BrokerContext {
+function buildBenchContext(
+  benchId: number,
+  allowed: Set<BrokerPermissionCategory>,
+  projectId = PROJECT,
+): BrokerContext {
   // Mirrors registerBrokerContextForBench in bench-manager: recordAudit is wired
   // to the per-bench AuditLog, hasPermission reflects the plugin's declared
   // broker categories.
   return {
     pluginId: PLUGIN,
+    projectId,
     benchId,
     ports: { web: 4000 + benchId },
     reportStatus: () => {},
     reportLog: () => {},
     hasPermission: (category) => allowed.has(category),
-    recordAudit: (entry: AuditEntry) => benchManager.recordAuditEntry(PROJECT, benchId, entry),
+    recordAudit: (entry: AuditEntry) => benchManager.recordAuditEntry(projectId, benchId, entry),
   };
 }
 
@@ -102,7 +108,6 @@ describe("HostComponentBroker live wiring accumulates audit entries (#686)", () 
     // Provision a bench: bench-manager would call registerBrokerContext here.
     pluginManager.registerBrokerContext(
       PLUGIN,
-      1,
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
 
@@ -126,7 +131,6 @@ describe("HostComponentBroker live wiring accumulates audit entries (#686)", () 
     // Bench declares no docker category, so a docker broker call is denied.
     pluginManager.registerBrokerContext(
       PLUGIN,
-      1,
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
 
@@ -150,12 +154,10 @@ describe("HostComponentBroker live wiring accumulates audit entries (#686)", () 
     // Both benches bind to the same plugin connection concurrently.
     pluginManager.registerBrokerContext(
       PLUGIN,
-      1,
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
     pluginManager.registerBrokerContext(
       PLUGIN,
-      2,
       buildBenchContext(2, new Set<BrokerPermissionCategory>(["process"])),
     );
 
@@ -170,15 +172,43 @@ describe("HostComponentBroker live wiring accumulates audit entries (#686)", () 
     expect(benchManager.queryAuditLog(PROJECT, 2)[0].benchId).toBe(2);
   });
 
+  // #1499: bench ids restart at 1 in each project, so the SDK stamps projectId
+  // and two projects' bench 1 on one plugin each audit to their own log.
+  it("routes two projects' bench 1 to their own audit logs by the param projectId (#1499)", async () => {
+    const connection = makeConnection();
+    register(connection);
+    const allowed = new Set<BrokerPermissionCategory>(["process"]);
+    pluginManager.registerBrokerContext(PLUGIN, buildBenchContext(1, allowed));
+    pluginManager.registerBrokerContext(PLUGIN, buildBenchContext(1, allowed, OTHER_PROJECT));
+
+    await connection.handlers.get("host.process.stop")?.({
+      projectId: PROJECT,
+      benchId: 1,
+      id: "a",
+    });
+    await connection.handlers.get("host.process.stop")?.({
+      projectId: OTHER_PROJECT,
+      benchId: 1,
+      id: "b",
+    });
+
+    expect(benchManager.queryAuditLog(PROJECT, 1)).toHaveLength(1);
+    expect(benchManager.queryAuditLog(OTHER_PROJECT, 1)).toHaveLength(1);
+    // A call with no projectId (a plugin on an older SDK) cannot tell the two
+    // apart, so it is refused rather than audited to the wrong project.
+    await expect(
+      connection.handlers.get("host.process.stop")?.({ benchId: 1, id: "c" }),
+    ).rejects.toMatchObject({ code: -32603 });
+  });
+
   it("dropping the context on teardown stops the connection from auditing the bench", async () => {
     const connection = makeConnection();
     register(connection);
     pluginManager.registerBrokerContext(
       PLUGIN,
-      1,
       buildBenchContext(1, new Set<BrokerPermissionCategory>(["process"])),
     );
-    pluginManager.unregisterBrokerContext(PLUGIN, 1);
+    pluginManager.unregisterBrokerContext(PLUGIN, PROJECT, 1);
 
     // With no context bound, a privileged call fails internal-error rather than
     // crashing the host, and nothing is recorded.

@@ -1601,6 +1601,12 @@ export interface SandboxedSpawn {
 export interface BrokerContext {
   /** The plugin this broker serves; stamped onto every audit entry. */
   pluginId: string;
+  /**
+   * The project of the bench this broker is scoped to. Bench ids restart at 1
+   * in each project, so the host keys broker contexts and ledger rows on it
+   * alongside `benchId` (#1499).
+   */
+  projectId: string;
   /** The bench this broker is scoped to; stamped onto every audit entry. */
   benchId: number;
   /**
@@ -2357,9 +2363,15 @@ export interface PersistedBench {
 export interface ResourceOwnershipEntry {
   /** The plugin that owns these resources. May be plugin-supplied; never used as an object key. */
   pluginId: string;
-  /** The bench the resources belong to. */
+  /**
+   * The project the bench belongs to. Part of the key because bench ids restart
+   * at 1 in each project (#1499). Absent only on a row written before #1499;
+   * the startup sweep reaps and clears such a row like any other.
+   */
+  projectId?: string;
+  /** The bench the resources belong to, within `projectId`. */
   benchId: number;
-  /** Opaque process-manager ids the host spawned for this (plugin, bench). */
+  /** Opaque process-manager ids the host spawned for this (plugin, project, bench). */
   processIds: string[];
   /** Compose project names (the `roubo-<projectId>-bench-<N>` convention) the host brought up. */
   composeProjects: string[];
@@ -2368,8 +2380,8 @@ export interface ResourceOwnershipEntry {
 export interface PersistedState {
   benches: PersistedBench[];
   /**
-   * ResourceOwnershipLedger (FR-015): per-plugin, per-bench record of host-owned
-   * processes and compose projects. Optional and additive, so a state.json
+   * ResourceOwnershipLedger (FR-015): per-plugin, per-project, per-bench record
+   * of host-owned processes and compose projects. Optional and additive, so a state.json
    * written before this field existed loads unchanged (no schema migration).
    */
   resourceOwnership?: ResourceOwnershipEntry[];

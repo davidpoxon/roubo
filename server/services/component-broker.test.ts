@@ -130,6 +130,7 @@ function setup(
   const log = vi.fn();
   const ctx: BrokerContext = {
     pluginId: "plugin-under-test",
+    projectId: "demo",
     benchId: 7,
     componentName: opts.componentName,
     ports: opts.ports ?? { web: 3001, db: 5433 },
@@ -596,7 +597,7 @@ describe("ledger tracking of broker-spawned processes (#887)", () => {
       env: {},
       cwd: "/work",
     });
-    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", 7, "svc-1");
+    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", "demo", 7, "svc-1");
   });
 
   it("records a host.process.run process (before the blocking run)", async () => {
@@ -607,7 +608,7 @@ describe("ledger tracking of broker-spawned processes (#887)", () => {
       env: {},
       cwd: "/work",
     });
-    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", 7, "deploy-1");
+    expect(h.recordProcess).toHaveBeenCalledWith("plugin-under-test", "demo", 7, "deploy-1");
   });
 
   it("does not record when no ledger is wired", async () => {
@@ -805,6 +806,7 @@ describe("default services binding", () => {
     const connection = makeConnection();
     const ctx: BrokerContext = {
       pluginId: "p",
+      projectId: "demo",
       benchId: 1,
       ports: {},
       reportStatus: vi.fn(),
@@ -924,6 +926,7 @@ describe("per-call BrokerContext resolver (#686; precise routing #687, multiplex
     const logs: Array<{ componentName: string; text: string }> = [];
     return {
       pluginId: "plugin-under-test",
+      projectId: "demo",
       benchId,
       ports: { web: 3000 + benchId },
       reportStatus: vi.fn(),
@@ -935,9 +938,9 @@ describe("per-call BrokerContext resolver (#686; precise routing #687, multiplex
     };
   }
 
-  // A registry keyed by benchId, exactly mirroring plugin-manager's exact-key
-  // resolver: the broker call carries its benchId in params and routes to that
-  // bench's context, with no most-recent-wins fallback (#687).
+  // A registry keyed by benchId within one project, mirroring plugin-manager's
+  // exact-key resolver: the broker call carries its benchId in params and routes
+  // to that bench's context, with no most-recent-wins fallback (#687).
   function makeRegistryResolver(contexts: Map<number, BrokerContext>) {
     return (benchId: number) => contexts.get(benchId) ?? null;
   }
