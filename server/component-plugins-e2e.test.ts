@@ -585,7 +585,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
         expect(statuses.at(-1)?.status).toBe("running");
         // The ledger (real persistence into the isolated state.json) records the
         // compose project for this bench under the plugin id.
-        const entry = ledger.getEntry(PLUGIN_ID, BENCH_ID);
+        const entry = ledger.getEntry(PLUGIN_ID, PROJECT_ID, BENCH_ID);
         expect(entry?.composeProjects).toContain(COMPOSE_PROJECT);
       },
     );
@@ -635,7 +635,9 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
         // Precondition: the bench's compose project is live and ledger-recorded
         // (set up by S009 through real engine + ledger code).
         expect(liveComposeProjects.has(COMPOSE_PROJECT)).toBe(true);
-        expect(ledger.getEntry(PLUGIN_ID, BENCH_ID)?.composeProjects).toContain(COMPOSE_PROJECT);
+        expect(ledger.getEntry(PLUGIN_ID, PROJECT_ID, BENCH_ID)?.composeProjects).toContain(
+          COMPOSE_PROJECT,
+        );
 
         const downSpy = vi
           .spyOn(dockerService, "composeDownByProject")
@@ -648,7 +650,7 @@ describe("Component-plugin E2E (CP-TC-027): author scaffolds, consumer binds and
           expect(downSpy).toHaveBeenCalledWith(COMPOSE_PROJECT);
           expect([...liveComposeProjects].filter((p) => p.startsWith("roubo-"))).toEqual([]);
           // ...and cleared the ledger entry as part of the same sweep (S011-O03).
-          expect(ledger.getEntry(PLUGIN_ID, BENCH_ID)).toBeUndefined();
+          expect(ledger.getEntry(PLUGIN_ID, PROJECT_ID, BENCH_ID)).toBeUndefined();
         } finally {
           downSpy.mockRestore();
         }

@@ -70,11 +70,14 @@ export interface LifecycleEngineDeps {
  * host-side; `reportStatus` is the push sink (the caller wires it to SSE).
  */
 export interface LifecycleContext {
-  /** The owning plugin id, the ledger key alongside benchId (FR-015). */
+  /** The owning plugin id, part of the ledger key (FR-015). */
   pluginId: string;
-  /** The numeric project id, used to derive the compose project name. */
+  /**
+   * The project id, used to derive the compose project name and part of the
+   * ledger key, since bench ids restart at 1 in each project (#1499).
+   */
   projectId: string;
-  /** The bench number, the ledger key alongside pluginId (FR-015). */
+  /** The bench number within the project, part of the ledger key (FR-015). */
   benchId: number;
   /** The component this descriptor provisions. */
   componentName: string;
@@ -258,7 +261,7 @@ async function runDocker(
   }
   // Record the compose project as soon as it is up (AC5), so the orphan sweep
   // can reap it even if a later phase throws.
-  led.recordComposeProject(ctx.pluginId, ctx.benchId, projectName);
+  led.recordComposeProject(ctx.pluginId, ctx.projectId, ctx.benchId, projectName);
 
   push(ctx, "starting", phases, "Waiting for healthy");
   const healthy = await docker.waitForHealthy(projectName, descriptor.service);
@@ -303,7 +306,7 @@ async function runDocker(
     const migrationId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:migration`;
     // Record before spawning (AC5): a host crash mid-migration (up to
     // MIGRATION_TIMEOUT_MS) must leave a ledger entry the orphan sweep can reap.
-    led.recordProcess(ctx.pluginId, ctx.benchId, migrationId);
+    led.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, migrationId);
     const { exitCode } = await withShellHint(migrationCommand, shell, () =>
       pm.runProcess(
         migrationId,
@@ -387,7 +390,7 @@ async function runProcess(
     const setupId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}:setup`;
     // Record before spawning (AC5): an unbounded setup (e.g. `npm install`)
     // interrupted by a host crash must be reapable by the orphan sweep.
-    led.recordProcess(ctx.pluginId, ctx.benchId, setupId);
+    led.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, setupId);
     const { exitCode } = await withShellHint(setupCommand, descriptor.shell, () =>
       pm.runProcess(setupId, file, args, env, cwd, 0),
     );
@@ -405,7 +408,7 @@ async function runProcess(
   const { pid } = await withShellHint(descriptor.command, descriptor.shell, () =>
     pm.startProcess(processId, file, args, env, cwd),
   );
-  led.recordProcess(ctx.pluginId, ctx.benchId, processId);
+  led.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, processId);
 
   // `process` declares a `url.template` only: startProcess returns as soon as
   // the child is spawned, so there is no completed output for a regex (#1207).
@@ -435,7 +438,7 @@ async function runOneshot(
     throw new Error("oneshot command is empty");
   }
   const processId = `${ctx.pluginId}:${ctx.benchId}:${ctx.componentName}`;
-  led.recordProcess(ctx.pluginId, ctx.benchId, processId);
+  led.recordProcess(ctx.pluginId, ctx.projectId, ctx.benchId, processId);
 
   const { exitCode, timedOut } = await withShellHint(descriptor.command, descriptor.shell, () =>
     pm.runProcess(processId, file, args, env, cwd, descriptor.timeoutMs ?? 0),

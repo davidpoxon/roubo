@@ -81,10 +81,16 @@ afterEach(() => {
 describe("recordProcess", () => {
   it("creates an entry and records the process id when none exists", () => {
     seedState({ benches: [] });
-    ledger.recordProcess("plugin-a", 1, "proc-1");
+    ledger.recordProcess("plugin-a", "demo", 1, "proc-1");
     const written = lastWritten();
     expect(written.resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["proc-1"],
+        composeProjects: [],
+      },
     ]);
   });
 
@@ -92,10 +98,16 @@ describe("recordProcess", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.recordProcess("plugin-a", 1, "proc-2");
+    ledger.recordProcess("plugin-a", "demo", 1, "proc-2");
     expect(lastWritten().resourceOwnership?.[0].processIds).toEqual(["proc-1", "proc-2"]);
   });
 
@@ -103,21 +115,33 @@ describe("recordProcess", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.recordProcess("plugin-a", 1, "proc-1");
+    ledger.recordProcess("plugin-a", "demo", 1, "proc-1");
     expect(lastWritten().resourceOwnership?.[0].processIds).toEqual(["proc-1"]);
   });
 
-  it("keys entries by (pluginId, benchId): same plugin, different bench is a distinct entry", () => {
+  it("keys entries by (pluginId, projectId, benchId): same plugin, different bench is a distinct entry", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.recordProcess("plugin-a", 2, "proc-9");
+    ledger.recordProcess("plugin-a", "demo", 2, "proc-9");
     const entries = lastWritten().resourceOwnership ?? [];
     expect(entries).toHaveLength(2);
     expect(entries.find((e) => e.benchId === 2)?.processIds).toEqual(["proc-9"]);
@@ -127,11 +151,12 @@ describe("recordProcess", () => {
 describe("recordComposeProject", () => {
   it("records a compose project name following the roubo-<projectId>-bench-<N> convention", () => {
     seedState({ benches: [] });
-    ledger.recordComposeProject("plugin-db", 3, "roubo-myproj-bench-3");
+    ledger.recordComposeProject("plugin-db", "demo", 3, "roubo-myproj-bench-3");
     const written = lastWritten();
     expect(written.resourceOwnership).toEqual([
       {
         pluginId: "plugin-db",
+        projectId: "demo",
         benchId: 3,
         processIds: [],
         composeProjects: ["roubo-myproj-bench-3"],
@@ -145,13 +170,14 @@ describe("recordComposeProject", () => {
       resourceOwnership: [
         {
           pluginId: "plugin-db",
+          projectId: "demo",
           benchId: 3,
           processIds: [],
           composeProjects: ["roubo-myproj-bench-3"],
         },
       ],
     });
-    ledger.recordComposeProject("plugin-db", 3, "roubo-myproj-bench-3");
+    ledger.recordComposeProject("plugin-db", "demo", 3, "roubo-myproj-bench-3");
     expect(lastWritten().resourceOwnership?.[0].composeProjects).toEqual(["roubo-myproj-bench-3"]);
   });
 
@@ -159,10 +185,16 @@ describe("recordComposeProject", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-x", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-x",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.recordComposeProject("plugin-x", 1, "roubo-p-bench-1");
+    ledger.recordComposeProject("plugin-x", "demo", 1, "roubo-p-bench-1");
     const entry = lastWritten().resourceOwnership?.[0];
     expect(entry?.processIds).toEqual(["proc-1"]);
     expect(entry?.composeProjects).toEqual(["roubo-p-bench-1"]);
@@ -170,14 +202,20 @@ describe("recordComposeProject", () => {
 });
 
 describe("clearEntry", () => {
-  it("removes the matching (pluginId, benchId) entry", () => {
+  it("removes the matching (pluginId, projectId, benchId) entry", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.clearEntry("plugin-a", 1);
+    ledger.clearEntry("plugin-a", "demo", 1);
     expect(lastWritten().resourceOwnership).toEqual([]);
   });
 
@@ -185,12 +223,30 @@ describe("clearEntry", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
-        { pluginId: "plugin-a", benchId: 2, processIds: ["proc-2"], composeProjects: [] },
-        { pluginId: "plugin-b", benchId: 1, processIds: ["proc-3"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 2,
+          processIds: ["proc-2"],
+          composeProjects: [],
+        },
+        {
+          pluginId: "plugin-b",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-3"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.clearEntry("plugin-a", 1);
+    ledger.clearEntry("plugin-a", "demo", 1);
     const remaining = lastWritten().resourceOwnership ?? [];
     expect(remaining).toHaveLength(2);
     expect(remaining.map((e) => `${e.pluginId}:${e.benchId}`)).toEqual([
@@ -203,18 +259,30 @@ describe("clearEntry", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.clearEntry("plugin-z", 99);
+    ledger.clearEntry("plugin-z", "demo", 99);
     expect(lastWritten().resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["proc-1"],
+        composeProjects: [],
+      },
     ]);
   });
 
   it("tolerates a state file with no resourceOwnership field", () => {
     seedState({ benches: [] });
-    ledger.clearEntry("plugin-a", 1);
+    ledger.clearEntry("plugin-a", "demo", 1);
     expect(lastWritten().resourceOwnership).toEqual([]);
   });
 });
@@ -226,15 +294,22 @@ describe("removeProcess", () => {
       resourceOwnership: [
         {
           pluginId: "plugin-a",
+          projectId: "demo",
           benchId: 1,
           processIds: ["plugin-a:1:web", "plugin-a:1:worker"],
           composeProjects: [],
         },
       ],
     });
-    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    ledger.removeProcess("plugin-a", "demo", 1, "plugin-a:1:web");
     expect(lastWritten().resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:worker"], composeProjects: [] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["plugin-a:1:worker"],
+        composeProjects: [],
+      },
     ]);
   });
 
@@ -242,10 +317,16 @@ describe("removeProcess", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["plugin-a:1:web"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    ledger.removeProcess("plugin-a", "demo", 1, "plugin-a:1:web");
     expect(lastWritten().resourceOwnership).toEqual([]);
   });
 
@@ -255,15 +336,22 @@ describe("removeProcess", () => {
       resourceOwnership: [
         {
           pluginId: "plugin-a",
+          projectId: "demo",
           benchId: 1,
           processIds: ["plugin-a:1:db:migration"],
           composeProjects: ["roubo-p-bench-1"],
         },
       ],
     });
-    ledger.removeProcess("plugin-a", 1, "plugin-a:1:db:migration");
+    ledger.removeProcess("plugin-a", "demo", 1, "plugin-a:1:db:migration");
     expect(lastWritten().resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-p-bench-1"],
+      },
     ]);
   });
 
@@ -271,18 +359,30 @@ describe("removeProcess", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["plugin-a:1:web"],
+          composeProjects: [],
+        },
       ],
     });
-    ledger.removeProcess("plugin-z", 99, "plugin-z:99:web");
+    ledger.removeProcess("plugin-z", "demo", 99, "plugin-z:99:web");
     expect(lastWritten().resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: ["plugin-a:1:web"], composeProjects: [] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["plugin-a:1:web"],
+        composeProjects: [],
+      },
     ]);
   });
 
   it("tolerates a state file with no resourceOwnership field", () => {
     seedState({ benches: [] });
-    ledger.removeProcess("plugin-a", 1, "plugin-a:1:web");
+    ledger.removeProcess("plugin-a", "demo", 1, "plugin-a:1:web");
     expect(lastWritten().resourceOwnership).toEqual([]);
   });
 });
@@ -294,16 +394,18 @@ describe("removeComposeProject", () => {
       resourceOwnership: [
         {
           pluginId: "plugin-a",
+          projectId: "demo",
           benchId: 1,
           processIds: ["plugin-a:1:db:migration"],
           composeProjects: ["roubo-p-bench-1"],
         },
       ],
     });
-    ledger.removeComposeProject("plugin-a", 1, "roubo-p-bench-1");
+    ledger.removeComposeProject("plugin-a", "demo", 1, "roubo-p-bench-1");
     expect(lastWritten().resourceOwnership).toEqual([
       {
         pluginId: "plugin-a",
+        projectId: "demo",
         benchId: 1,
         processIds: ["plugin-a:1:db:migration"],
         composeProjects: [],
@@ -315,10 +417,16 @@ describe("removeComposeProject", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-p-bench-1"],
+        },
       ],
     });
-    ledger.removeComposeProject("plugin-a", 1, "roubo-p-bench-1");
+    ledger.removeComposeProject("plugin-a", "demo", 1, "roubo-p-bench-1");
     expect(lastWritten().resourceOwnership).toEqual([]);
   });
 
@@ -326,31 +434,45 @@ describe("removeComposeProject", () => {
     seedState({
       benches: [],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: [],
+          composeProjects: ["roubo-p-bench-1"],
+        },
       ],
     });
-    ledger.removeComposeProject("plugin-a", 1, "roubo-other-bench-9");
+    ledger.removeComposeProject("plugin-a", "demo", 1, "roubo-other-bench-9");
     expect(lastWritten().resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: [], composeProjects: ["roubo-p-bench-1"] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-p-bench-1"],
+      },
     ]);
   });
 });
 
 describe("getEntry", () => {
-  it("returns the entry for (pluginId, benchId) when present", () => {
+  it("returns the entry for (pluginId, projectId, benchId) when present", () => {
     seedState({
       benches: [],
       resourceOwnership: [
         {
           pluginId: "plugin-a",
+          projectId: "demo",
           benchId: 1,
           processIds: ["proc-1"],
           composeProjects: ["roubo-p-bench-1"],
         },
       ],
     });
-    expect(ledger.getEntry("plugin-a", 1)).toEqual({
+    expect(ledger.getEntry("plugin-a", "demo", 1)).toEqual({
       pluginId: "plugin-a",
+      projectId: "demo",
       benchId: 1,
       processIds: ["proc-1"],
       composeProjects: ["roubo-p-bench-1"],
@@ -359,20 +481,32 @@ describe("getEntry", () => {
 
   it("returns undefined when no entry matches", () => {
     seedState({ benches: [], resourceOwnership: [] });
-    expect(ledger.getEntry("plugin-a", 1)).toBeUndefined();
+    expect(ledger.getEntry("plugin-a", "demo", 1)).toBeUndefined();
   });
 
   it("returns undefined when the state file has no resourceOwnership field", () => {
     seedState({ benches: [] });
-    expect(ledger.getEntry("plugin-a", 1)).toBeUndefined();
+    expect(ledger.getEntry("plugin-a", "demo", 1)).toBeUndefined();
   });
 });
 
 describe("getAllEntries", () => {
   it("returns every entry", () => {
     const entries = [
-      { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
-      { pluginId: "plugin-b", benchId: 2, processIds: [], composeProjects: ["roubo-q-bench-2"] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["proc-1"],
+        composeProjects: [],
+      },
+      {
+        pluginId: "plugin-b",
+        projectId: "demo",
+        benchId: 2,
+        processIds: [],
+        composeProjects: ["roubo-q-bench-2"],
+      },
     ];
     seedState({ benches: [], resourceOwnership: entries });
     expect(ledger.getAllEntries()).toEqual(entries);
@@ -393,16 +527,17 @@ describe("restart survival (AC: the ledger survives a host restart)", () => {
   it("a recorded entry is read back after a simulated restart (load -> record -> reload)", () => {
     // Start from a fresh state file.
     seedState({ benches: [] });
-    ledger.recordProcess("plugin-a", 1, "proc-1");
-    ledger.recordComposeProject("plugin-a", 1, "roubo-p-bench-1");
+    ledger.recordProcess("plugin-a", "demo", 1, "proc-1");
+    ledger.recordComposeProject("plugin-a", "demo", 1, "roubo-p-bench-1");
 
     // Simulate a host restart: the next load reads back exactly what was last
     // written to state.json on disk.
     const persisted = lastWritten();
     seedState(persisted);
 
-    expect(ledger.getEntry("plugin-a", 1)).toEqual({
+    expect(ledger.getEntry("plugin-a", "demo", 1)).toEqual({
       pluginId: "plugin-a",
+      projectId: "demo",
       benchId: 1,
       processIds: ["proc-1"],
       composeProjects: ["roubo-p-bench-1"],
@@ -427,7 +562,7 @@ describe("state.json preservation (AC: additive, no schema migration)", () => {
       notices: { "only-to-do-default-v1": "seeded" },
     });
 
-    ledger.recordProcess("plugin-a", 1, "proc-1");
+    ledger.recordProcess("plugin-a", "demo", 1, "proc-1");
 
     const written = lastWritten();
     expect(written.benches).toHaveLength(1);
@@ -436,7 +571,13 @@ describe("state.json preservation (AC: additive, no schema migration)", () => {
     expect(written.schemaVersion).toBe(1);
     expect(written.notices).toEqual({ "only-to-do-default-v1": "seeded" });
     expect(written.resourceOwnership).toEqual([
-      { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo",
+        benchId: 1,
+        processIds: ["proc-1"],
+        composeProjects: [],
+      },
     ]);
   });
 
@@ -453,14 +594,112 @@ describe("state.json preservation (AC: additive, no schema migration)", () => {
         },
       ],
       resourceOwnership: [
-        { pluginId: "plugin-a", benchId: 1, processIds: ["proc-1"], composeProjects: [] },
+        {
+          pluginId: "plugin-a",
+          projectId: "demo",
+          benchId: 1,
+          processIds: ["proc-1"],
+          composeProjects: [],
+        },
       ],
     });
 
-    ledger.clearEntry("plugin-a", 1);
+    ledger.clearEntry("plugin-a", "demo", 1);
 
     const written = lastWritten();
     expect(written.benches).toHaveLength(1);
     expect(written.resourceOwnership).toEqual([]);
+  });
+});
+
+// #1499: bench ids restart at 1 in each project, so the project is part of the key.
+describe("project scoping (#1499)", () => {
+  it("gives two projects with the same bench id separate rows", () => {
+    seedState({ benches: [] });
+    ledger.recordProcess("plugin-a", "demo-a", 1, "plugin-a:1:web");
+    ledger.recordProcess("plugin-a", "demo-b", 1, "plugin-a:1:web");
+    ledger.recordComposeProject("plugin-a", "demo-a", 1, "roubo-demo-a-bench-1");
+    ledger.recordComposeProject("plugin-a", "demo-b", 1, "roubo-demo-b-bench-1");
+    expect(lastWritten().resourceOwnership).toEqual([
+      {
+        pluginId: "plugin-a",
+        projectId: "demo-a",
+        benchId: 1,
+        processIds: ["plugin-a:1:web"],
+        composeProjects: ["roubo-demo-a-bench-1"],
+      },
+      {
+        pluginId: "plugin-a",
+        projectId: "demo-b",
+        benchId: 1,
+        processIds: ["plugin-a:1:web"],
+        composeProjects: ["roubo-demo-b-bench-1"],
+      },
+    ]);
+  });
+
+  it("clearing one project's bench leaves another project's bench with the same id", () => {
+    seedState({ benches: [] });
+    ledger.recordComposeProject("plugin-a", "demo-a", 1, "roubo-demo-a-bench-1");
+    ledger.recordComposeProject("plugin-a", "demo-b", 1, "roubo-demo-b-bench-1");
+    ledger.clearEntry("plugin-a", "demo-a", 1);
+    expect(lastWritten().resourceOwnership).toEqual([
+      {
+        pluginId: "plugin-a",
+        projectId: "demo-b",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-demo-b-bench-1"],
+      },
+    ]);
+  });
+
+  it("per-resource removal touches only the named project's row", () => {
+    seedState({ benches: [] });
+    ledger.recordProcess("plugin-a", "demo-a", 1, "plugin-a:1:web");
+    ledger.recordProcess("plugin-a", "demo-b", 1, "plugin-a:1:web");
+    ledger.removeProcess("plugin-a", "demo-a", 1, "plugin-a:1:web");
+    expect(ledger.getEntry("plugin-a", "demo-a", 1)).toBeUndefined();
+    expect(ledger.getEntry("plugin-a", "demo-b", 1)?.processIds).toEqual(["plugin-a:1:web"]);
+  });
+});
+
+// #1499: a state.json written before the project id existed still loads; its rows
+// carry no projectId, and only a clear with an undefined project matches them.
+describe("rows written before #1499", () => {
+  const legacyRow = {
+    pluginId: "plugin-db",
+    benchId: 1,
+    processIds: [],
+    composeProjects: ["roubo-demo-bench-1"],
+  };
+
+  it("load unchanged", () => {
+    seedState({ benches: [], resourceOwnership: [legacyRow] });
+    expect(ledger.getAllEntries()).toEqual([legacyRow]);
+  });
+
+  it("are not merged into a new project-scoped row for the same bench id", () => {
+    seedState({ benches: [], resourceOwnership: [legacyRow] });
+    ledger.recordComposeProject("plugin-db", "demo", 1, "roubo-demo-bench-1");
+    expect(lastWritten().resourceOwnership).toEqual([
+      legacyRow,
+      {
+        pluginId: "plugin-db",
+        projectId: "demo",
+        benchId: 1,
+        processIds: [],
+        composeProjects: ["roubo-demo-bench-1"],
+      },
+    ]);
+  });
+
+  it("are cleared by their own key, which has no project", () => {
+    seedState({
+      benches: [],
+      resourceOwnership: [legacyRow, { ...legacyRow, projectId: "demo" }],
+    });
+    ledger.clearEntry("plugin-db", undefined, 1);
+    expect(lastWritten().resourceOwnership).toEqual([{ ...legacyRow, projectId: "demo" }]);
   });
 });

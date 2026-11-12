@@ -311,8 +311,13 @@ function seedRunningBench(): void {
   };
 
   // Real ledger entries, persisted into the isolated state.json.
-  ledger.recordComposeProject(DB_PLUGIN_ID, BENCH_ID, COMPOSE_PROJECT);
-  ledger.recordProcess(API_PLUGIN_ID, BENCH_ID, `${API_PLUGIN_ID}:${BENCH_ID}:${API_COMPONENT}`);
+  ledger.recordComposeProject(DB_PLUGIN_ID, PROJECT_ID, BENCH_ID, COMPOSE_PROJECT);
+  ledger.recordProcess(
+    API_PLUGIN_ID,
+    PROJECT_ID,
+    BENCH_ID,
+    `${API_PLUGIN_ID}:${BENCH_ID}:${API_COMPONENT}`,
+  );
   liveComposeProjects.add(COMPOSE_PROJECT);
 
   // A startup log line so the restart-boundary assertion (S008) has a "before",
@@ -513,7 +518,7 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
       TC061_STEPS.ledgerReconciled,
       "the ledger entry for (dbPluginId, bench-1) has no composeProjects after the cleanup hook",
       () => {
-        const entry = ledger.getEntry(DB_PLUGIN_ID, BENCH_ID);
+        const entry = ledger.getEntry(DB_PLUGIN_ID, PROJECT_ID, BENCH_ID);
         expect(entry?.composeProjects ?? []).not.toContain(COMPOSE_PROJECT);
       },
     );
@@ -554,7 +559,9 @@ describe("Component-plugin crash-recovery E2E (CP-TC-061): crash, sibling surviv
         // (#892).
         expect(bench?.components[DB_COMPONENT].containerId).toBe(DB_CONTAINER_ID);
         // Re-provision re-recorded the compose project in the live ledger.
-        expect(ledger.getEntry(DB_PLUGIN_ID, BENCH_ID)?.composeProjects).toContain(COMPOSE_PROJECT);
+        expect(ledger.getEntry(DB_PLUGIN_ID, PROJECT_ID, BENCH_ID)?.composeProjects).toContain(
+          COMPOSE_PROJECT,
+        );
         expect(liveComposeProjects.has(COMPOSE_PROJECT)).toBe(true);
         // The api process component was never re-launched by the db recovery.
         expect(processManager.startProcess).not.toHaveBeenCalled();

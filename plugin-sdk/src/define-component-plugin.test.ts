@@ -290,10 +290,11 @@ describe("defineComponentPlugin", () => {
 
     await hostConnection.sendRequest("start", benchContext);
 
-    // The SDK stamps the in-flight lifecycle call's benchId onto every host.*
-    // request, so the host can route it to the right bench (#687). benchContext
-    // here carries benchId: 2.
+    // The SDK stamps the in-flight lifecycle call's projectId and benchId onto
+    // every host.* request, so the host can route it to the right bench (#687,
+    // #1499). benchContext here carries projectId: "proj-1" and benchId: 2.
     expect(captured.start).toEqual({
+      projectId: "proj-1",
       benchId: 2,
       id: "p1",
       command: "node",
@@ -302,6 +303,7 @@ describe("defineComponentPlugin", () => {
       cwd: "/ws",
     });
     expect(captured.run).toEqual({
+      projectId: "proj-1",
       benchId: 2,
       id: "p2",
       command: "deploy",
@@ -315,6 +317,39 @@ describe("defineComponentPlugin", () => {
       status: { alive: true },
       logs: ["line-1", "line-2"],
     });
+  });
+
+  it("stamps only benchId when the lifecycle call's context names no projectId (#1499)", async () => {
+    const { pluginStreams, hostConnection, dispose } = pairedConnection();
+    disposes.push(dispose);
+
+    let captured: unknown;
+    hostConnection.onRequest("host.ports.get", (p) => {
+      captured = p;
+      return 3000;
+    });
+
+    handles.push(
+      defineComponentPlugin(
+        {
+          async start() {
+            await host.ports.get({ componentName: "db" });
+          },
+          stop() {},
+          health(): ComponentStatus {
+            return { status: "running" };
+          },
+          cleanup() {},
+        },
+        { streams: pluginStreams },
+      ),
+    );
+
+    const withoutProject: Partial<BenchContext> = { ...benchContext };
+    delete withoutProject.projectId;
+    await hostConnection.sendRequest("start", withoutProject);
+
+    expect(captured).toEqual({ componentName: "db", benchId: 2 });
   });
 
   it("routes host.docker.* through the SDK to the host", async () => {
@@ -470,9 +505,10 @@ describe("defineComponentPlugin", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // The SDK stamps the in-flight lifecycle call's routing onto both
-    // notifications (#687): benchId on each, and componentName on reportLog so a
-    // bench with two components routes each component's logs to its own sink.
-    // benchContext here carries benchId: 2 and componentName: "db".
+    // notifications (#687): projectId and benchId on each (#1499), and
+    // componentName on reportLog so a bench with two components routes each
+    // component's logs to its own sink. benchContext here carries
+    // projectId: "proj-1", benchId: 2 and componentName: "db".
     expect(events).toEqual([
       {
         method: "reportLog",
@@ -480,11 +516,15 @@ describe("defineComponentPlugin", () => {
           source: "stdout",
           text: "deploying",
           ts: 1000,
+          projectId: "proj-1",
           benchId: 2,
           componentName: "db",
         },
       },
-      { method: "reportStatus", payload: { status: "completed", benchId: 2 } },
+      {
+        method: "reportStatus",
+        payload: { status: "completed", projectId: "proj-1", benchId: 2 },
+      },
     ]);
   });
 

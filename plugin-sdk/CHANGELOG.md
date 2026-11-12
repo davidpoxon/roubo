@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The
 
 `@roubo/plugin-sdk` and `@roubo/shared` are published in lockstep at the same version by `.github/workflows/sdk-release.yml`, so entries below cover both packages. The JSON-RPC protocol itself is additive: a newer host keeps working with an older SDK, so plugin authors upgrade only when they want new contract methods.
 
+## [Unreleased]
+
+The SDK now names the bench's project on every host broker call. Nothing is required of a plugin, and no existing plugin needs a change to build or run against it.
+
+### Changed
+
+- **`projectId` on host broker calls** (#1499). Bench ids restart at 1 in each project, so `benchId` alone does not name one bench when two projects share a component plugin. Every `host.*` request and notification a lifecycle handler makes now carries the `projectId` of the in-flight call's `BenchContext` beside its `benchId`, and the host routes the call to that project's bench. `host.capability.query` is not bench-routed and is unchanged.
+
+### Compatibility
+
+A plugin built on an older SDK sends no `projectId`. The host still routes its calls by `benchId` while only one project has a bench with that id bound to the plugin. When two projects have one, the host refuses the call with the `no-broker-context` error rather than route it to the wrong bench, so rebuild the plugin on this SDK to run it on benches of several projects at once.
+
 ## [0.8.0] - 2026-09-26
 
 One optional addition to the agent launch context, one new exported type, and one new agent launch failure class. Nothing is required of a plugin, and no existing plugin needs a change to build or run against it.

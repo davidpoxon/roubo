@@ -127,7 +127,12 @@ describe("process plugin parity (CP-US-002)", () => {
       { NODE_ENV: "test" },
       h.workspacePath,
     );
-    expect(h.deps.ledger.recordProcess).toHaveBeenCalledWith("process", 3, "process:3:api");
+    expect(h.deps.ledger.recordProcess).toHaveBeenCalledWith(
+      "process",
+      "proj1",
+      3,
+      "process:3:api",
+    );
     const final = h.statuses.at(-1);
     expect(final?.status).toBe("running");
     expect(final?.pid).toBe(4242);
@@ -256,6 +261,7 @@ describe("database plugin parity (CP-US-002)", () => {
     );
     expect(h.deps.ledger.recordComposeProject).toHaveBeenCalledWith(
       "database",
+      "proj1",
       3,
       "roubo-proj1-bench-3",
     );
