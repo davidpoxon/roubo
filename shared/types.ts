@@ -1565,11 +1565,12 @@ export interface SandboxEgressPolicy {
  * on the egress policy:
  *
  * - deny-all (no declared network hosts):
- *   `docker run --rm -i --network none -e ROUBO_PLUGIN_ID -v <pluginDir>:/roubo-plugin:ro
+ *   `docker run --rm -i --init [--name <containerName>] --network none
+ *   -e ROUBO_PLUGIN_ID -v <pluginDir>:/roubo-plugin:ro
  *   -w /roubo-plugin node:24-slim node /roubo-plugin/<entryRel>`
  *
  * - allow-listed (declared hosts present):
- *   `docker run --rm -i --cap-add NET_ADMIN
+ *   `docker run --rm -i --init [--name <containerName>] --cap-add NET_ADMIN
  *   -e ROUBO_PLUGIN_ID -e ROUBO_ALLOWED_HOSTS -e ROUBO_PLUGIN_ENTRY
  *   -v <pluginDir>:/roubo-plugin:ro -w /roubo-plugin
  *   roubo-plugin-egress:node24 sh -c '<iptables-setup>; exec node "$ROUBO_PLUGIN_ENTRY"'`
@@ -1590,6 +1591,8 @@ export interface SandboxedSpawn {
   args: string[];
   env: Record<string, string>;
   egress: SandboxEgressPolicy;
+  /** The docker container's `--name`, when the host named it (#1501). */
+  containerName?: string;
 }
 
 /**

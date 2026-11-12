@@ -32,6 +32,8 @@ import {
   detectIsolationCapabilities,
   ensureEgressImage,
   ensureImage,
+  removeSandboxContainer,
+  sandboxContainerName,
   selectTier,
   type IsolationProbes,
 } from "./plugin-isolation-sandbox.js";
@@ -182,6 +184,49 @@ interface PluginEntry {
 
 const plugins = new Map<string, PluginEntry>();
 let initialized = false;
+
+// The docker container name of each live docker-tier child (#1501), keyed by
+// the `docker run` CLI process. SIGKILL ends that process, not the container,
+// and a plugin that does not exit on stdin EOF keeps the container running, so
+// every exit of such a child is followed by a force-remove of the container by
+// this name. Keyed by child rather than held on the entry because a stop that
+// gives up on a child must still reach that child's container after a restart
+// has handed the entry to a new child.
+const sandboxContainers = new WeakMap<ChildProcess, string>();
+
+// The children a stopPluginProcess is ending. That stop removes the child's
+// container itself and awaits it, so the exit listener leaves those alone and
+// removes the container for every other exit: a crash, and a kill the host
+// makes outside a stop, such as the one after an RPC init failure (#1501).
+const stoppingChildren = new WeakSet<ChildProcess>();
+
+/**
+ * Force-remove a docker-tier child's container (#1501). Best-effort: a failure
+ * or a daemon that does not answer within SHUTDOWN_GRACE_MS is logged, never
+ * thrown, so a stop or the crash path is never blocked on it for longer.
+ */
+async function removePluginContainer(entry: PluginEntry, name: string): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), SHUTDOWN_GRACE_MS);
+    timer.unref();
+  });
+  try {
+    const outcome = await Promise.race([removeSandboxContainer(name), timeout]);
+    if (outcome === "timeout") {
+      await writeLog(entry, "host", `container removal timed out: ${name}`, "warn");
+    }
+  } catch (err) {
+    await writeLog(
+      entry,
+      "host",
+      `container removal failed: ${name}: ${(err as Error).message}`,
+      "warn",
+    ).catch(() => {});
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // Crash-cleanup / auto-recovery hooks (#657, FR-015 / FR-016).
 //
@@ -1205,6 +1250,9 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
           // needs it to find its binary and reach the daemon.
           pluginEnv,
           hostEnv: cleanEnv(),
+          // #1501: a name per spawn, so a stop can remove the container even
+          // when it outlives the SIGKILLed `docker run` CLI process.
+          containerName: sandboxContainerName(entry.record.id),
         });
   const spawnCommand = sandboxed ? sandboxed.command : process.execPath;
   // For the docker tier the entry and any e2e args are already baked into the
@@ -1238,6 +1286,8 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
       primaryFailed = true;
       primaryFailReason = "no pid returned";
       proc = null;
+    } else if (sandboxed?.containerName) {
+      sandboxContainers.set(proc, sandboxed.containerName);
     }
   } catch (err) {
     primaryFailed = true;
@@ -1328,6 +1378,15 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // the new child's connection and count the exit as its crash (#1387).
   child.on("exit", (code) => {
     if (entry.process !== child) return;
+    // #1501: a docker CLI that exits outside a stop (a crash, or the host's
+    // own kill after an RPC init failure) may leave its container running.
+    // Remove it without holding up a restart; the respawn gets a new name, so
+    // it never collides with this one. A stop removes the container itself
+    // and awaits it, in stopPluginProcess.
+    const containerName = sandboxContainers.get(child);
+    if (containerName && !stoppingChildren.has(child)) {
+      void removePluginContainer(entry, containerName);
+    }
     handleChildExit(entry, code);
   });
   attachStdioLogging(entry, child);
@@ -1621,6 +1680,7 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
   }
   const proc = entry.process;
   if (!proc || !proc.pid) return;
+  stoppingChildren.add(proc);
 
   // Resolve on the child's 'exit' only, never on the SIGKILL callback (#1387).
   // tree-kill calls back as soon as the signal is sent, before the exit event
@@ -1655,6 +1715,16 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
       });
     }
   });
+
+  // #1501: on the docker tier, the SIGTERM above reaches the plugin through the
+  // container's init process, so a plugin without a SIGTERM handler exits at
+  // once. A plugin that traps SIGTERM is SIGKILLed, but that ends the `docker
+  // run` CLI only, and the container keeps running when the plugin does not
+  // exit on stdin EOF. So the stop is complete only once the container is
+  // removed by name. On the usual path the CLI exited because the container
+  // did, and the removal finds it already gone.
+  const containerName = sandboxContainers.get(proc);
+  if (containerName) await removePluginContainer(entry, containerName);
 }
 
 export async function initialize(): Promise<void> {

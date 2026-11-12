@@ -11,6 +11,8 @@ import {
   deriveEgressPolicy,
   ensureEgressImage,
   ensureImage,
+  removeSandboxContainer,
+  sandboxContainerName,
   selectTier,
   DOCKER_CONTAINER_DIR,
   DOCKER_EGRESS_IMAGE,
@@ -33,6 +35,8 @@ let followProgressMock: (stream: unknown, cb: (err: Error | null) => void) => vo
   _stream,
   cb,
 ) => cb(null);
+let removeContainerMock: (name: string, opts: unknown) => Promise<unknown> = () =>
+  Promise.resolve();
 let buildImageMock: (
   context: unknown,
   opts: unknown,
@@ -54,6 +58,9 @@ vi.mock("dockerode", () => ({
     }
     buildImage(context: unknown, opts: unknown, cb: (err: Error | null, stream: unknown) => void) {
       return buildImageMock(context, opts, cb as Parameters<typeof buildImageMock>[2]);
+    }
+    getContainer(name: string) {
+      return { remove: (opts: unknown) => removeContainerMock(name, opts) };
     }
     modem = {
       followProgress: (stream: unknown, cb: (err: Error | null) => void) => {
@@ -167,7 +174,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", opts);
     expect(result).not.toBeNull();
     expect(result?.command).toBe("docker");
-    expect(result?.args.slice(0, 5)).toEqual(["run", "--rm", "-i", "--network", "none"]);
+    expect(result?.args.slice(0, 6)).toEqual(["run", "--rm", "-i", "--init", "--network", "none"]);
     expect(result?.egress).toEqual({ mode: "deny-all", allowedHosts: [] });
   });
 
@@ -274,6 +281,39 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn", () => {
     expect(result?.args[imageIdx + 2]).toBe(`${DOCKER_CONTAINER_DIR}/dist/index.js`);
     // The absolute host path must not appear.
     expect(result?.args).not.toContain(nestedEntry);
+  });
+
+  it("runs an init process as PID 1 on both egress paths, so node gets the forwarded SIGTERM (#1501)", () => {
+    // Without --init, node is PID 1 in the container and has no default SIGTERM
+    // action, so a plugin with no handler of its own waits out the whole
+    // shutdown grace on every stop. --init must precede the image, since every
+    // argument after the image is the container's own command.
+    for (const hosts of [[], ["api.example.com"]]) {
+      const args = buildSandboxedSpawn(manifest(hosts), "docker", opts)?.args ?? [];
+      const image = hosts.length === 0 ? DOCKER_IMAGE : DOCKER_EGRESS_IMAGE;
+      expect(args).toContain("--init");
+      expect(args.indexOf("--init")).toBeLessThan(args.indexOf(image));
+    }
+  });
+
+  it("names the container when the caller supplies a name, and returns it (#1501)", () => {
+    for (const hosts of [[], ["api.example.com"]]) {
+      const result = buildSandboxedSpawn(manifest(hosts), "docker", {
+        ...opts,
+        containerName: "roubo-plugin-demo-0a1b2c3d",
+      });
+      const args = result?.args ?? [];
+      const image = hosts.length === 0 ? DOCKER_IMAGE : DOCKER_EGRESS_IMAGE;
+      expect(args[args.indexOf("--name") + 1]).toBe("roubo-plugin-demo-0a1b2c3d");
+      expect(args.indexOf("--name")).toBeLessThan(args.indexOf(image));
+      expect(result?.containerName).toBe("roubo-plugin-demo-0a1b2c3d");
+    }
+  });
+
+  it("passes no --name when the caller supplies none (#1501)", () => {
+    const result = buildSandboxedSpawn(manifest([]), "docker", opts);
+    expect(result?.args).not.toContain("--name");
+    expect(result?.containerName).toBeUndefined();
   });
 
   it("degrades vz-vm / apple-container to null (no VM backend ships in this slice)", () => {
@@ -556,7 +596,7 @@ describe("plugin-isolation-sandbox: buildSandboxedSpawn allow-listed egress (#74
 
   it("deny-all path: --network none is present and uses the base image (unchanged)", () => {
     const result = buildSandboxedSpawn(manifest([]), "docker", opts);
-    expect(result?.args.slice(0, 5)).toEqual(["run", "--rm", "-i", "--network", "none"]);
+    expect(result?.args.slice(0, 6)).toEqual(["run", "--rm", "-i", "--init", "--network", "none"]);
     const imageIdx = result?.args.indexOf(DOCKER_IMAGE) ?? -1;
     expect(imageIdx).toBeGreaterThan(0);
     expect(result?.args[imageIdx + 1]).toBe("node");
@@ -695,5 +735,59 @@ describe("plugin-isolation-sandbox: defaultIsolationProbes (#684 real runtime de
     // lookup resolves false. This exercises the platform+arch guard passing and
     // the executable check returning the conservative answer.
     expect(await defaultIsolationProbes().appleContainer()).toBe(false);
+  });
+});
+
+describe("plugin-isolation-sandbox: sandboxContainerName (#1501)", () => {
+  it("prefixes the plugin id and appends a random 8-hex suffix", () => {
+    expect(sandboxContainerName("demo")).toMatch(/^roubo-plugin-demo-[0-9a-f]{8}$/);
+  });
+
+  it("gives two calls for the same plugin two names", () => {
+    expect(sandboxContainerName("demo")).not.toBe(sandboxContainerName("demo"));
+  });
+
+  it("replaces characters a docker container name cannot hold", () => {
+    expect(sandboxContainerName("@scope/demo plugin")).toMatch(
+      /^roubo-plugin-[a-zA-Z0-9_.-]+-[0-9a-f]{8}$/,
+    );
+  });
+});
+
+describe("plugin-isolation-sandbox: removeSandboxContainer (#1501)", () => {
+  afterEach(() => {
+    removeContainerMock = () => Promise.resolve();
+  });
+
+  it("force-removes the named container", async () => {
+    const calls: Array<[string, unknown]> = [];
+    removeContainerMock = (name, opts) => {
+      calls.push([name, opts]);
+      return Promise.resolve();
+    };
+    await removeSandboxContainer("roubo-plugin-demo-0a1b2c3d");
+    expect(calls).toEqual([["roubo-plugin-demo-0a1b2c3d", { force: true }]]);
+  });
+
+  it("treats a container that is already gone (404) as removed", async () => {
+    removeContainerMock = () =>
+      Promise.reject(Object.assign(new Error("No such container"), { statusCode: 404 }));
+    await expect(removeSandboxContainer("gone")).resolves.toBeUndefined();
+  });
+
+  it("treats a removal already in progress (409) as removed", async () => {
+    removeContainerMock = () =>
+      Promise.reject(
+        Object.assign(new Error("removal of container is already in progress"), {
+          statusCode: 409,
+        }),
+      );
+    await expect(removeSandboxContainer("going")).resolves.toBeUndefined();
+  });
+
+  it("rejects on any other daemon error", async () => {
+    removeContainerMock = () =>
+      Promise.reject(Object.assign(new Error("daemon unavailable"), { statusCode: 500 }));
+    await expect(removeSandboxContainer("x")).rejects.toThrow("daemon unavailable");
   });
 });

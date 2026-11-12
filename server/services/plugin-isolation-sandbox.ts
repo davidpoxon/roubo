@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type {
@@ -327,9 +328,11 @@ export function buildEgressSetupScript(hosts: string[]): string {
     // Define the re-resolution function and populate the chain for the first time.
     reresolveFunc,
     "roubo_reresolve",
-    // Background a periodic re-resolution loop. The node process runs as PID 1
-    // via exec, so when the container exits the shell exits too and the background
-    // loop dies with it (no leak, satisfies AC-1). The interval is controlled by
+    // Background a periodic re-resolution loop. The shell execs node, so node
+    // takes over the shell's process (the direct child of the --init process,
+    // #1501) and the loop is left running beside it. When node exits the init
+    // process exits, the container stops, and the kernel ends the loop with it
+    // (no leak, satisfies AC-1). The interval is controlled by
     // EGRESS_RERESOLVE_INTERVAL_SECONDS exported from the host module.
     `{ while true; do sleep ${EGRESS_RERESOLVE_INTERVAL_SECONDS}; roubo_reresolve; done; } &`,
   ];
@@ -432,6 +435,41 @@ export async function ensureEgressImage(): Promise<void> {
 }
 
 /**
+ * Make a fresh docker container name for one spawn of a plugin (#1501). The
+ * host passes it to buildSandboxedSpawn and keeps it, so a stop can remove the
+ * container by name even when the `docker run` CLI process was SIGKILLed and
+ * the container outlived it. A plugin id may hold characters a container name
+ * cannot (`[a-zA-Z0-9][a-zA-Z0-9_.-]*`), so each of those becomes `-`. The
+ * random suffix keeps the name of a respawn from colliding with a container of
+ * the same plugin that the daemon is still removing.
+ */
+export function sandboxContainerName(pluginId: string): string {
+  const safeId = pluginId.replace(/[^a-zA-Z0-9_.-]/g, "-");
+  return `roubo-plugin-${safeId}-${randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * Force-remove a plugin's sandbox container by name (#1501). Removing a running
+ * container kills it, so this is the stop of last resort for a container whose
+ * `docker run` CLI process is gone: SIGKILL ends the CLI, not the container,
+ * and a plugin that does not exit on stdin EOF keeps the container running.
+ * A container that is already gone (404) or is being removed (409) counts as
+ * removed; any other daemon error rejects so the caller can log it. Uses
+ * dockerode, lazy-imported as in ensureImage.
+ */
+export async function removeSandboxContainer(name: string): Promise<void> {
+  const { default: Dockerode } = await import("dockerode");
+  const docker = new Dockerode();
+  try {
+    await docker.getContainer(name).remove({ force: true });
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number }).statusCode;
+    if (statusCode === 404 || statusCode === 409) return;
+    throw err;
+  }
+}
+
+/**
  * Build the concrete sandboxed spawn for a non-floor tier. Returns `null` for
  * the `broker-only` floor: the host spawns the plugin directly, exactly as it
  * does today, so the floor path is byte-for-byte unchanged.
@@ -441,6 +479,14 @@ export async function ensureEgressImage(): Promise<void> {
  * mount. The entry script is resolved relative to the plugin directory so it is
  * addressable inside the container. Transport is JSON-RPC over `docker run -i`
  * raw stdio (no socket bridge).
+ *
+ * `--init` runs Docker's init process as PID 1 and node as its child (#1501).
+ * Node as PID 1 has no default SIGTERM action, so a plugin with no SIGTERM
+ * handler of its own ignored the SIGTERM the `docker run` CLI forwards, and
+ * every stop waited out the host's whole shutdown grace. The init process
+ * forwards the signal, and node exits on it. `containerName`, when given, is
+ * passed as `--name` and returned on the spawn, so the host can remove the
+ * container by name if it outlives the CLI process.
  *
  * `pluginEnv` and `hostEnv` are kept apart deliberately (#1377). `pluginEnv` is
  * the only environment that crosses into the container; `hostEnv` is what the
@@ -482,6 +528,8 @@ export function buildSandboxedSpawn(
     pluginEnv?: Record<string, string>;
     /** The `docker` CLI process's own environment; never forwarded into the container (#1377). */
     hostEnv?: Record<string, string>;
+    /** Passed as `--name`, so the host can remove the container by name (#1501). */
+    containerName?: string;
   },
 ): SandboxedSpawn | null {
   if (tier === "broker-only") return null;
@@ -495,7 +543,12 @@ export function buildSandboxedSpawn(
     // addressable at DOCKER_CONTAINER_DIR/<entryRel> inside the container.
     const entryRel = path.relative(options.pluginDir, options.entryPath);
 
-    const args: string[] = ["run", "--rm", "-i"];
+    // --init: Docker's init process is PID 1 and forwards SIGTERM to node, which
+    // then takes its default action and exits (#1501, see the docstring).
+    const args: string[] = ["run", "--rm", "-i", "--init"];
+    if (options.containerName !== undefined) {
+      args.push("--name", options.containerName);
+    }
 
     if (egress.mode === "deny-all") {
       // Deny all egress when the plugin declared no network hosts. --network
@@ -568,7 +621,13 @@ export function buildSandboxedSpawn(
     // own env (so the CLI can find its binary and reach the daemon) plus the
     // container env (so docker can resolve every name-only `-e KEY` above).
     // Only `containerEnv`'s keys are ever forwarded into the container itself.
-    return { command: "docker", args, env: { ...hostEnv, ...containerEnv }, egress };
+    return {
+      command: "docker",
+      args,
+      env: { ...hostEnv, ...containerEnv },
+      egress,
+      ...(options.containerName !== undefined ? { containerName: options.containerName } : {}),
+    };
   }
 
   // vz-vm / apple-container: modelled and selected-if-present, but no VM backend
