@@ -194,6 +194,12 @@ let initialized = false;
 // has handed the entry to a new child.
 const sandboxContainers = new WeakMap<ChildProcess, string>();
 
+// The children a stopPluginProcess is ending. That stop removes the child's
+// container itself and awaits it, so the exit listener leaves those alone and
+// removes the container for every other exit: a crash, and a kill the host
+// makes outside a stop, such as the one after an RPC init failure (#1501).
+const stoppingChildren = new WeakSet<ChildProcess>();
+
 /**
  * Force-remove a docker-tier child's container (#1501). Best-effort: a failure
  * or a daemon that does not answer within SHUTDOWN_GRACE_MS is logged, never
@@ -1346,12 +1352,13 @@ async function spawnPlugin(entry: PluginEntry): Promise<void> {
   // the new child's connection and count the exit as its crash (#1387).
   child.on("exit", (code) => {
     if (entry.process !== child) return;
-    // #1501: a docker CLI that exits on its own (a crash, not a stop) may leave
-    // its container running. Remove it without holding up the restart; the
-    // respawn gets a new name, so it never collides with this one. A stop
-    // removes the container itself and awaits it, in stopPluginProcess.
+    // #1501: a docker CLI that exits outside a stop (a crash, or the host's
+    // own kill after an RPC init failure) may leave its container running.
+    // Remove it without holding up a restart; the respawn gets a new name, so
+    // it never collides with this one. A stop removes the container itself
+    // and awaits it, in stopPluginProcess.
     const containerName = sandboxContainers.get(child);
-    if (containerName && !entry.intentionalStop) {
+    if (containerName && !stoppingChildren.has(child)) {
       void removePluginContainer(entry, containerName);
     }
     handleChildExit(entry, code);
@@ -1643,6 +1650,7 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
   }
   const proc = entry.process;
   if (!proc || !proc.pid) return;
+  stoppingChildren.add(proc);
 
   // Resolve on the child's 'exit' only, never on the SIGKILL callback (#1387).
   // tree-kill calls back as soon as the signal is sent, before the exit event

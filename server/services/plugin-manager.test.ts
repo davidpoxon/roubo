@@ -1335,7 +1335,8 @@ describe("component-plugin crash hooks (#657)", () => {
   }, 30_000);
 
   it("restart of a plugin that ignores SIGTERM fires no crash hooks and leaves one process (#1387)", async () => {
-    // A plugin that outlives SIGTERM (node as PID 1 on the Docker tier) is only
+    // A plugin that outlives SIGTERM (one that traps it, or, before #1501 added
+    // --init, any plugin on the Docker tier, where node was PID 1) is only
     // ended by the SIGKILL after the shutdown grace. Its exit must count as the
     // intentional stop restart() asked for, not as a crash of the process
     // restart() spawns next: a crash runs the pre-restart teardown
@@ -4050,6 +4051,50 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
         await waitFor(() => removals.length === 1);
         expect(removals[0]).toEqual({ name: first.name, opts: { force: true }, childExited: true });
       });
+
+      it("removes the container when the host kills the child after an RPC init failure", async () => {
+        // This kill is the host's own, outside a stop, so it counts as
+        // intentional for the restart budget, yet no stop removes the container.
+        runDockerOnHost();
+        const failure = Promise.reject(new Error("host handler wiring failed"));
+        failure.catch(() => {});
+        hostHandlersControl.gate = failure;
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+        expect(dockerChildren).toHaveLength(1);
+        const [first] = dockerChildren;
+
+        await waitFor(() => removals.length === 1, 8_000);
+        expect(findRecord(mgr.listInstalled(), "echo").lastError?.code).toBe("rpc-init-failed");
+        expect(removals[0]).toEqual({ name: first.name, opts: { force: true }, childExited: true });
+      }, 15_000);
+
+      it("gives up on a removal the daemon never answers after the grace, logs it, and completes the stop", async () => {
+        runDockerOnHost();
+        dockerRemoveMock = (name, opts) => {
+          removals.push({ name, opts, childExited: true });
+          return new Promise<never>(() => {});
+        };
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        const t0 = Date.now();
+        await mgr.disable("echo");
+        const elapsed = Date.now() - t0;
+
+        expect(removals).toHaveLength(1);
+        expect(elapsed).toBeGreaterThanOrEqual(pluginManager.SHUTDOWN_GRACE_MS - 100);
+        expect(elapsed).toBeLessThan(pluginManager.SHUTDOWN_GRACE_MS + 3_000);
+        await mgr.__test.flushLogs();
+        const logs = await mgr.readLogs("echo", "current", 200);
+        expect(
+          logs.some(
+            (line) => line.source === "host" && line.text.includes("container removal timed out"),
+          ),
+        ).toBe(true);
+      }, 20_000);
 
       it("logs a failed removal and still completes the stop", async () => {
         runDockerOnHost();
