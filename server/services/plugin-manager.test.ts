@@ -79,6 +79,9 @@ let dockerFollowProgressMock: (stream: unknown, cb: (err: Error | null) => void)
   _stream,
   cb,
 ) => cb(null);
+// removeSandboxContainer mock (#1501): a stop of a docker-tier plugin
+// force-removes its named container through getContainer(name).remove().
+let dockerRemoveMock: (name: string, opts: unknown) => Promise<unknown> = () => Promise.resolve();
 
 vi.mock("dockerode", () => ({
   default: class {
@@ -90,6 +93,9 @@ vi.mock("dockerode", () => ({
     }
     pull(image: string, cb: (err: Error | null, stream: unknown) => void) {
       return dockerPullMock(image, cb as Parameters<typeof dockerPullMock>[1]);
+    }
+    getContainer(name: string) {
+      return { remove: (opts: unknown) => dockerRemoveMock(name, opts) };
     }
     modem = {
       followProgress: (stream: unknown, cb: (err: Error | null) => void) => {
@@ -3903,6 +3909,200 @@ describe("PluginIsolationSandbox wiring (#676)", () => {
       } finally {
         delete process.env.FAKE_HOST_TOKEN;
       }
+    });
+
+    // #1501: a stop of a docker-tier plugin must leave no container running.
+    // SIGKILL ends the `docker run` CLI, not the container, so the host
+    // force-removes the container by the name it gave it. These tests answer
+    // the `docker` spawn with the real fixture run on the host, from the entry
+    // the docker argv names, so the stop paths run against a live child.
+    describe("docker-tier stop removes the named container (#1501)", () => {
+      interface DockerChild {
+        args: string[];
+        name: string;
+        child: ReturnType<SpawnFn>;
+      }
+      let dockerChildren: DockerChild[] = [];
+      let removals: Array<{ name: string; opts: unknown; childExited: boolean }> = [];
+
+      const runDockerOnHost = (): void => {
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] !== "docker") return realSpawn(...args);
+          const argv = args[1] as string[];
+          const mount = argv[argv.indexOf("-v") + 1].split(":")[0];
+          const containerEntry = argv[argv.indexOf("node") + 1];
+          const hostEntry = path.join(mount, path.relative("/roubo-plugin", containerEntry));
+          const child = realSpawn(process.execPath, [hostEntry], args[2]);
+          dockerChildren.push({ args: argv, name: argv[argv.indexOf("--name") + 1], child });
+          return child;
+        }) as SpawnFn;
+      };
+
+      const exited = (child: ReturnType<SpawnFn>): boolean =>
+        child.exitCode !== null || child.signalCode !== null;
+
+      beforeEach(() => {
+        dockerChildren = [];
+        removals = [];
+        dockerPingMock = () => Promise.resolve("OK");
+        dockerInspectMock = () => Promise.resolve({ Id: "sha256:abc" });
+        dockerRemoveMock = (name, opts) => {
+          const owner = dockerChildren.find((c) => c.name === name);
+          removals.push({ name, opts, childExited: owner ? exited(owner.child) : false });
+          return Promise.resolve();
+        };
+        process.env.NODE_ENV = "production";
+        delete process.env.ROUBO_E2E;
+      });
+
+      afterEach(async () => {
+        // Stop whatever a test left running here, while the removal mock still
+        // records: the enclosing describe resets the manager before the
+        // file-level shutdown runs, which would orphan a live child and let
+        // its exit land in the next test.
+        await mgr?.shutdown();
+        mgr = null;
+        dockerRemoveMock = () => Promise.resolve();
+      });
+
+      it("names each docker spawn and force-removes that container after the CLI exits on a stop", async () => {
+        runDockerOnHost();
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        expect(dockerChildren).toHaveLength(1);
+        const [spawned] = dockerChildren;
+        expect(spawned.args).toContain("--init");
+        expect(spawned.name).toMatch(/^roubo-plugin-echo-[0-9a-f]{8}$/);
+
+        await mgr.disable("echo");
+
+        expect(removals).toEqual([
+          { name: spawned.name, opts: { force: true }, childExited: true },
+        ]);
+      });
+
+      it("does not resolve the stop until the container removal settles", async () => {
+        runDockerOnHost();
+        let finishRemoval: () => void = () => {};
+        dockerRemoveMock = (name, opts) => {
+          removals.push({ name, opts, childExited: true });
+          return new Promise<void>((resolve) => {
+            finishRemoval = resolve;
+          });
+        };
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        let stopped = false;
+        const stop = mgr.disable("echo").then(() => {
+          stopped = true;
+        });
+        await waitFor(() => removals.length === 1);
+        await new Promise((r) => setTimeout(r, 50));
+        expect(stopped).toBe(false);
+        finishRemoval();
+        await stop;
+        expect(stopped).toBe(true);
+      });
+
+      it("removes the container of a plugin that ignores SIGTERM after the SIGKILL, and names the respawn afresh", async () => {
+        runDockerOnHost();
+        sandbox = await makeSandbox({ bundled: ["component-sigterm-immune"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+        await waitFor(() => {
+          const r = getManager()
+            .listInstalled()
+            .find((p) => p.id === "component-sigterm-immune");
+          return !!r && r.status === "enabled" && r.pid !== null;
+        });
+        // The fixture traps SIGTERM once it answers, so wait for that first.
+        expect(await mgr.invoke("component-sigterm-immune", "ping", {})).toBe("pong");
+        expect(dockerChildren).toHaveLength(1);
+        const [first] = dockerChildren;
+
+        await mgr.restart("component-sigterm-immune");
+
+        expect(first.child.signalCode).toBe("SIGKILL");
+        expect(removals).toEqual([{ name: first.name, opts: { force: true }, childExited: true }]);
+        expect(dockerChildren).toHaveLength(2);
+        expect(dockerChildren[1].name).toMatch(
+          /^roubo-plugin-component-sigterm-immune-[0-9a-f]{8}$/,
+        );
+        expect(dockerChildren[1].name).not.toBe(first.name);
+      }, 30_000);
+
+      it("removes the container of a docker child that exits unexpectedly", async () => {
+        runDockerOnHost();
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+        const [first] = dockerChildren;
+
+        process.kill(need(first.child.pid, "pid"), "SIGKILL");
+
+        await waitFor(() => removals.length === 1);
+        expect(removals[0]).toEqual({ name: first.name, opts: { force: true }, childExited: true });
+      });
+
+      it("logs a failed removal and still completes the stop", async () => {
+        runDockerOnHost();
+        dockerRemoveMock = () =>
+          Promise.reject(Object.assign(new Error("daemon unavailable"), { statusCode: 500 }));
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+
+        await expect(mgr.disable("echo")).resolves.toBeUndefined();
+
+        expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
+        await mgr.__test.flushLogs();
+        const logs = await mgr.readLogs("echo", "current", 200);
+        expect(
+          logs.some(
+            (line) =>
+              line.source === "host" &&
+              line.text.includes("container removal failed") &&
+              line.text.includes("daemon unavailable"),
+          ),
+        ).toBe(true);
+      });
+
+      it("removes no container when the docker spawn fell back to the floor", async () => {
+        const realSpawn = childProcessControl.real as (
+          ...a: Parameters<SpawnFn>
+        ) => ReturnType<SpawnFn>;
+        childProcessControl.override = ((...args: Parameters<SpawnFn>) => {
+          if (args[0] === "docker") throw new Error("spawn docker ENOENT");
+          return realSpawn(...args);
+        }) as SpawnFn;
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+        expect(findRecord(mgr.listInstalled(), "echo").status).toBe("enabled");
+
+        await mgr.disable("echo");
+
+        expect(removals).toEqual([]);
+      });
+
+      it("removes no container on a broker-only floor stop", async () => {
+        dockerPingMock = () => Promise.reject(new Error("daemon down"));
+        sandbox = await makeSandbox({ bundled: ["echo"] });
+        mgr = await loadManager();
+        await mgr.initialize();
+        expect(await mgr.__test.resolveIsolationTier()).toBe("broker-only");
+
+        await mgr.disable("echo");
+
+        expect(removals).toEqual([]);
+      });
     });
 
     // #746: isolation notices for the docker-mount-unshared condition.
