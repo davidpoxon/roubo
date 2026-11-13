@@ -130,7 +130,8 @@ describe("TestBenchPanel reconcile wiring (#487)", () => {
   // #1696: the panel reads the per-case currency. A case whose result is not
   // current carries a Stale label, and the banner names it, so it stays after a
   // Reconcile that leaves a changed case stale.
-  it("labels a stale case and names it in the banner", () => {
+  it("labels a stale case and names it in the banner", async () => {
+    const user = userEvent.setup();
     const passed = {
       observationMarks: {},
       derivedStatus: "passed" as const,
@@ -155,6 +156,13 @@ describe("TestBenchPanel reconcile wiring (#487)", () => {
     };
     expect(within(rowFor("TC-C")).getByText("Stale")).toBeInTheDocument();
     expect(within(rowFor("TC-A")).queryByText("Stale")).toBeNull();
+
+    // The open case's detail carries the label too, for the stale case only.
+    const inRows = screen.getAllByText("Stale").length;
+    await user.click(rowFor("TC-C"));
+    expect(screen.getAllByText("Stale")).toHaveLength(inRows + 1);
+    await user.click(rowFor("TC-A"));
+    expect(screen.getAllByText("Stale")).toHaveLength(inRows);
   });
 
   it("labels no case when the server sends no per-case currency", () => {

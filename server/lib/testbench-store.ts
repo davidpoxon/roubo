@@ -685,16 +685,20 @@ async function mutateCaseResult(
   if (currentCanon !== undefined && overrideCleared && verdictAfter) {
     const body = priorOverride.verdictCanon;
     if (body === undefined) {
-      // An override with no record: under fresh results everything is current,
-      // as before; under stale results the verdict's body is not known.
+      // An override with no record: a current case stays current, as before.
+      // Otherwise the verdict's body is not known: under stale results no
+      // caseCanon says so, and under a fresh file the case keeps the caseCanon
+      // of the other body it holds, which reads stale (#1696).
       if (caseFresh) caseResult.caseCanon = currentCanon;
-      else delete caseResult.caseCanon;
+      else if (!priorFresh) delete caseResult.caseCanon;
     } else {
       if (body === null) delete caseResult.caseCanon;
       else caseResult.caseCanon = body;
-      // A fresh file says every result is current, which is no longer true when
-      // the restored verdict was judged against another body.
-      restale = priorFresh && body !== currentCanon;
+      // A recorded body that is not the current one reads stale per case, even
+      // under a fresh file (#1696). An unknown body (null) leaves no caseCanon,
+      // which a fresh file reads as current, so only then does the file stamp
+      // give up its claim.
+      restale = priorFresh && body === null;
     }
   } else if (
     currentCanon !== undefined &&

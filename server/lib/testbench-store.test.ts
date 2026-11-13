@@ -749,7 +749,7 @@ describe("planHash stamping under stale results (#1407)", () => {
     expect(view.currentCaseIds).toEqual(["TC-001"]);
   });
 
-  it("empties a fresh planHash when a cleared override restores an older verdict", async () => {
+  it("reads a cleared override's older verdict as stale under a fresh file", async () => {
     await markOnlyFirstUnderV1();
     await setStatusOverride(repo, SLUG, "TC-001", "passed");
     // Another writer judged every live case current and stamped the file fresh,
@@ -762,7 +762,12 @@ describe("planHash stamping under stale results (#1407)", () => {
 
     await setStatusOverride(repo, SLUG, "TC-001", null);
 
-    expect(readFile().planHash).toBe("");
+    // The restored caseCanon names the older body, which reads stale per case
+    // (#1696), so the file stamp keeps its claim for the other cases.
+    expect(readFile().planHash).toBe(computePlanHash(plan));
+    expect(readFile().caseResults["TC-001"].caseCanon).toBe(
+      canonicalizeCase(twoCasePlan().cases[0]),
+    );
     const view = readPlanAndResults(repo, SLUG);
     expect(view.stale).toBe(true);
     expect(view.currentCaseIds).toEqual([]);
@@ -1026,6 +1031,45 @@ describe("per-mark and per-case currency (#1696)", () => {
     const view = readPlanAndResults(repo, SLUG);
     expect(view.stale).toBe(false);
     expect(view.currentCaseIds).toEqual(["TC-001", "TC-002"]);
+  });
+
+  it("keeps a restored case stale and other cases current when its override is cleared", async () => {
+    await freshFileWithRetiredStaleCase();
+    const oldCanon = readFile().caseResults["TC-002"].caseCanon;
+    // TC-001 becomes a legacy result with no caseCanon, current under a fresh file.
+    const file = readFile();
+    delete file.caseResults["TC-001"].caseCanon;
+    fs.writeFileSync(resultsFilePath(), JSON.stringify(file, null, 2));
+
+    await setStatusOverride(repo, SLUG, "TC-002", "blocked");
+    expect(readFile().caseResults["TC-002"].statusOverride?.verdictCanon).toBe(oldCanon);
+    await setStatusOverride(repo, SLUG, "TC-002", null);
+
+    expect(readFile().caseResults["TC-002"].caseCanon).toBe(oldCanon);
+    const view = readPlanAndResults(repo, SLUG);
+    expect(readFile().planHash).toBe(computePlanHash(editedTwoCasePlan()));
+    expect(view.currentCaseIds).toEqual(["TC-001"]);
+    expect(view.stale).toBe(true);
+  });
+
+  it("keeps a restored case stale when an override with no recorded body is cleared", async () => {
+    await freshFileWithRetiredStaleCase();
+    const file = readFile();
+    const record = file.caseResults["TC-002"];
+    const oldCanon = record.caseCanon;
+    // An override the other writer kept in place over the old body, or one
+    // written before #1407: no verdictCanon, and the old caseCanon stays.
+    record.statusOverride = {
+      status: "blocked",
+      author: record.observationMarks.O1.author,
+      timestamp: "2026-01-01T00:00:00.000Z",
+    };
+    fs.writeFileSync(resultsFilePath(), JSON.stringify(file, null, 2));
+
+    await setStatusOverride(repo, SLUG, "TC-002", null);
+
+    expect(readFile().caseResults["TC-002"].caseCanon).toBe(oldCanon);
+    expect(readPlanAndResults(repo, SLUG).currentCaseIds).toEqual(["TC-001"]);
   });
 
   it("still reads a legacy result with no caseCanon as current under a fresh file", async () => {
