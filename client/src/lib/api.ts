@@ -872,7 +872,10 @@ export interface TestbenchPlanResponse {
   stale: boolean;
   // The recorded case ids whose result is current for this plan (#1407): every
   // recorded id when `stale` is false, else only those whose case body has not
-  // changed since they were judged. Optional so an older server still parses.
+  // changed since they were judged (#1696: a case restored from retirement
+  // with a result judged against an older body is not current, whatever the
+  // file's hash). Filtered with the plan by `gateIds`. Optional so an older
+  // server still parses.
   currentCaseIds?: string[];
   planHash: string;
   // sha256 over the raw test-cases.json bytes the server read (#1167). Echoed

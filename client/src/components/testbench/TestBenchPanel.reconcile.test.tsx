@@ -127,6 +127,56 @@ describe("TestBenchPanel reconcile wiring (#487)", () => {
     );
   });
 
+  // #1696: the panel reads the per-case currency. A case whose result is not
+  // current carries a Stale label, and the banner names it, so it stays after a
+  // Reconcile that leaves a changed case stale.
+  it("labels a stale case and names it in the banner", async () => {
+    const user = userEvent.setup();
+    const passed = {
+      observationMarks: {},
+      derivedStatus: "passed" as const,
+      notes: [],
+    };
+    setPlan({
+      plan: plan([makeCase("TC-A"), makeCase("TC-C")]),
+      results: { caseResults: { "TC-A": passed, "TC-C": passed }, updatedAt: "t" },
+      stale: true,
+      currentCaseIds: ["TC-A"],
+    });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+
+    const banner = screen.getByTestId("staleness-banner");
+    expect(banner.textContent).toContain("TC-C");
+    expect(banner.textContent).not.toContain("TC-A");
+    const rows = screen.getAllByTestId("case-row");
+    const rowFor = (id: string): HTMLElement => {
+      const row = rows.find((r) => r.textContent?.includes(id));
+      if (row === undefined) throw new Error(`no row for ${id}`);
+      return row;
+    };
+    expect(within(rowFor("TC-C")).getByText("Stale")).toBeInTheDocument();
+    expect(within(rowFor("TC-A")).queryByText("Stale")).toBeNull();
+
+    // The open case's detail carries the label too, for the stale case only.
+    const inRows = screen.getAllByText("Stale").length;
+    await user.click(rowFor("TC-C"));
+    expect(screen.getAllByText("Stale")).toHaveLength(inRows + 1);
+    await user.click(rowFor("TC-A"));
+    expect(screen.getAllByText("Stale")).toHaveLength(inRows);
+  });
+
+  it("labels no case when the server sends no per-case currency", () => {
+    const passed = { observationMarks: {}, derivedStatus: "passed" as const, notes: [] };
+    setPlan({
+      plan: plan([makeCase("TC-A")]),
+      results: { caseResults: { "TC-A": passed }, updatedAt: "t" },
+      stale: true,
+    });
+    render(<TestBenchPanel projectId="p1" benchId={1} focusedSpecPath={FOCUSED} />);
+    expect(screen.getByTestId("staleness-banner")).toBeInTheDocument();
+    expect(screen.queryByText("Stale")).toBeNull();
+  });
+
   it("renders an orphaned result in the archived section", () => {
     const benchResults: BenchResults = {
       caseResults: {

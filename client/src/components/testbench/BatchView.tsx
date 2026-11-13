@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../../lib/api";
 import { useGate, useInvalidateGates, useSignOffGate, useReopenGate } from "../../hooks/useGates";
 import { testbenchPlanQueryKey } from "../../hooks/useTestbenchPlan";
-import { buildRollup, flattenRollup, effectiveCaseStatus } from "./rollup";
+import { buildRollup, flattenRollup, effectiveCaseStatus, staleCaseIdsOf } from "./rollup";
 import CaseList from "./CaseList";
 import CaseDetail from "./CaseDetail";
 import GateStatePanel from "./GateStatePanel";
@@ -64,6 +64,19 @@ export default function BatchView({
     retry: false,
   });
 
+  // The gate's live cases whose result was judged against an earlier version
+  // of the case (#1696). The route narrows the currency to the gate's cases.
+  const staleCaseIds = useMemo(
+    () =>
+      planQuery.data
+        ? staleCaseIdsOf(
+            planQuery.data.plan.cases,
+            planQuery.data.results,
+            planQuery.data.currentCaseIds,
+          )
+        : undefined,
+    [planQuery.data],
+  );
   const model = useMemo(
     () =>
       planQuery.data
@@ -71,9 +84,10 @@ export default function BatchView({
             planQuery.data.plan.cases,
             planQuery.data.results,
             planQuery.data.plan.specSlug,
+            staleCaseIds === undefined ? undefined : new Set(staleCaseIds),
           )
         : null,
-    [planQuery.data],
+    [planQuery.data, staleCaseIds],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
   const selectedCase = useMemo(
@@ -239,6 +253,7 @@ export default function BatchView({
                   benchId={benchId}
                   testCase={selectedCase}
                   result={planQuery.data.results?.caseResults[selectedCase.id]}
+                  stale={staleCaseIds?.includes(selectedCase.id) === true}
                   onBack={() => setSelectedCaseId(undefined)}
                   onMarked={handleMarked}
                   marksDisabled={readOnly}

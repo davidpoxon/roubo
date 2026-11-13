@@ -516,7 +516,16 @@ router.get(
         ...result.plan,
         cases: result.plan.cases.filter((c) => subsetCaseIds.has(c.id)),
       };
-      res.json({ ...result, plan: filteredPlan, filteredToGateIds: gateIds, lifecycle });
+      // The per-case currency follows the filter, so it names no case outside
+      // the filtered plan (#1696).
+      const currentCaseIds = result.currentCaseIds.filter((id) => subsetCaseIds.has(id));
+      res.json({
+        ...result,
+        plan: filteredPlan,
+        currentCaseIds,
+        filteredToGateIds: gateIds,
+        lifecycle,
+      });
     } catch (err) {
       handleError(res, err);
     }

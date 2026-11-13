@@ -11,7 +11,7 @@
 // "Reopen") after navigating away and back. A signed-off gate can be reopened.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import BatchView from "./BatchView";
 
@@ -295,6 +295,36 @@ describe("BatchView", () => {
     const row = await screen.findByTestId("case-row");
     fireEvent.click(row);
     expect(await screen.findByRole("button", { name: /File fix issue & block gate/ })).toBeTruthy();
+  });
+
+  it("labels a gate case whose result is stale, in its row and its detail (#1696)", async () => {
+    mockedApi.fetchGate.mockResolvedValue(gateState({ status: "stale" }) as never);
+    mockedApi.fetchTestbenchPlan.mockResolvedValue({
+      ...planWithCaseStatus("passed"),
+      stale: true,
+      currentCaseIds: [],
+    } as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    const row = await screen.findByTestId("case-row");
+    expect(within(row).getByText("Stale")).toBeTruthy();
+    // The gate state panel also reads "Stale"; the open case adds one more label.
+    const before = screen.getAllByText("Stale").length;
+    fireEvent.click(row);
+    await waitFor(() => expect(screen.getAllByText("Stale")).toHaveLength(before + 1));
+  });
+
+  it("labels no gate case when its result is current (#1696)", async () => {
+    mockedApi.fetchGate.mockResolvedValue(gateState({ status: "passed" }) as never);
+    mockedApi.fetchTestbenchPlan.mockResolvedValue({
+      ...planWithCaseStatus("passed"),
+      currentCaseIds: ["TC-024"],
+    } as never);
+
+    renderWithProviders(<BatchView projectId="p1" benchId={3} gateId="WU-099" onBack={() => {}} />);
+    fireEvent.click(await screen.findByTestId("case-row"));
+    await waitFor(() => expect(screen.getAllByText("A gating case")).toHaveLength(2));
+    expect(screen.queryByText("Stale")).toBeNull();
   });
 
   it("renders at most one primary button with a failed case selected (#1329)", async () => {

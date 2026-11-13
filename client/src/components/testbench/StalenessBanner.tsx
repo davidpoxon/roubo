@@ -14,19 +14,40 @@ import { AlertTriangle } from "lucide-react";
 // A read-only TestBench (a Spec Bench outside a gate sitting) passes no
 // onReconcile: the banner still says that the plan changed, but it offers no
 // Reconcile action, because the server refuses the write.
+//
+// `staleCaseIds` names the live cases whose result was judged against an earlier
+// version of the case (#1696). Staleness is per case, so a Reconcile keeps a
+// changed case stale until it is marked again: the banner then says which cases
+// hold it, rather than repeating that the plan changed.
 const STRINGS = {
   message: "The source plan changed since these results were recorded.",
   reconcile: "Reconcile",
 };
 
+// The most case ids the banner names before it counts the rest.
+const NAMED_CASE_LIMIT = 5;
+
+function staleCasesSentence(ids: readonly string[]): string {
+  const named = ids.slice(0, NAMED_CASE_LIMIT).join(", ");
+  const rest = ids.length - NAMED_CASE_LIMIT;
+  const list = rest > 0 ? `${named} and ${rest} more` : named;
+  const count = ids.length === 1 ? "1 case has" : `${ids.length} cases have`;
+  const them = ids.length === 1 ? "it" : "them";
+  return `${count} results recorded against an earlier version: ${list}. Mark ${them} again to update ${them}.`;
+}
+
 export default function StalenessBanner({
   stale,
+  staleCaseIds,
   onReconcile,
 }: {
   stale: boolean;
+  staleCaseIds?: readonly string[];
   onReconcile?: () => void;
 }) {
   if (!stale) return null;
+  const detail =
+    staleCaseIds !== undefined && staleCaseIds.length > 0 ? staleCasesSentence(staleCaseIds) : null;
 
   return (
     <div
@@ -35,7 +56,10 @@ export default function StalenessBanner({
       className="flex items-center gap-3 px-4 py-3 rounded-lg border border-accent-border bg-accent-muted"
     >
       <AlertTriangle size={16} className="text-accent-text shrink-0" aria-hidden />
-      <p className="flex-1 min-w-0 text-13 text-accent-text">{STRINGS.message}</p>
+      <p className="flex-1 min-w-0 text-13 text-accent-text">
+        {STRINGS.message}
+        {detail !== null && <> {detail}</>}
+      </p>
       {onReconcile !== undefined && (
         <Button
           onPress={onReconcile}

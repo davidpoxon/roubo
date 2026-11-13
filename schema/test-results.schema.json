@@ -50,6 +50,9 @@
                 },
                 "timestamp": {
                   "type": "string"
+                },
+                "caseCanonHash": {
+                  "type": "string"
                 }
               },
               "required": ["result", "author", "timestamp"],

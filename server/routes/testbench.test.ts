@@ -390,6 +390,7 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
       plan: { cases: [] } as never,
       results: null,
       stale: false,
+      currentCaseIds: [],
       planHash: "abc",
       recovered: true,
     });
@@ -409,6 +410,7 @@ describe("GET /:projectId/benches/:id/testbench/plan", () => {
         plan: { cases: [] } as never,
         results: null,
         stale: false,
+        currentCaseIds: [],
         planHash: "abc",
         recovered: false,
       });
@@ -550,6 +552,7 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
     },
     results: null,
     stale: false,
+    currentCaseIds: [],
     planHash: "abc",
     recovered: false,
   };
@@ -606,6 +609,19 @@ describe("GET plan with ?gateIds= subset filter (FR-008, AC2)", () => {
     expect(res.status).toBe(200);
     expect(res.body.plan.cases.map((c: { id: string }) => c.id)).toEqual(["TC-001", "TC-002"]);
     expect(res.body.filteredToGateIds).toEqual(["WU-100"]);
+  });
+
+  // #1696: the per-case currency follows the filter, so it names no case outside
+  // the filtered plan.
+  it("narrows currentCaseIds to the filtered cases", async () => {
+    vi.mocked(testbenchStore.readPlanAndResults).mockReturnValue({
+      ...fullPlan,
+      stale: true,
+      currentCaseIds: ["TC-001", "TC-003", "TC-004"],
+    } as never);
+    const res = await request(app).get("/p1/benches/1/testbench/plan?gateIds=WU-100");
+    expect(res.status).toBe(200);
+    expect(res.body.currentCaseIds).toEqual(["TC-001"]);
   });
 
   it("treats an unknown gate id as contributing nothing", async () => {

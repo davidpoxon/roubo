@@ -227,6 +227,14 @@ export const ObservationMarkSchema = z
     result: z.enum(["pass", "fail"]),
     author: AuthorSchema,
     timestamp: z.string(),
+    // The sha256 hex of the caseCanon of the body this mark was judged against
+    // (#1696). Under stale results a mark makes its case current only once every
+    // observation of the case holds a mark judged against the current body, so
+    // one new mark never makes the case's other old marks read as current. Absent
+    // on a mark written before this field existed or by a writer that does not
+    // set it: such a mark counts as judged against the case's own caseCanon.
+    // Optional, so no schemaVersion bump.
+    caseCanonHash: z.string().optional(),
   })
   .strict();
 export type ObservationMark = z.infer<typeof ObservationMarkSchema>;

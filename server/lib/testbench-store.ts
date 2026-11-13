@@ -25,7 +25,10 @@
 //     stampedPlanHash below). The hash covers the TESTABLE plan,
 //     not the whole file: canonicalize excludes the v1.2.0 lifecycle block, so
 //     retiring or superseding a case never marks recorded results stale (#1160).
-//     See computePlanHash below for the semantics and their consequence.
+//     See computePlanHash below for the semantics and their consequence. One of
+//     them is that restoring a case leaves the hash as it was, so a read also
+//     judges each live case by its own caseCanon and reports a case restored
+//     with an old result as stale under a matching hash (#1696).
 //   - AC4 (amended by #1167): no RESULTS write ever touches test-cases.json, so
 //     marking, overriding, noting, and reconciling still leave the source plan
 //     byte-identical. The absolute form of that invariant ("the source
@@ -86,6 +89,7 @@ import type { GateResults } from "@roubo/shared/gate-evaluator";
 import {
   currentResultCaseIds,
   deriveStatus,
+  noncurrentLiveCaseIds,
   purgeOrphans,
   reconcile as reconcileDomain,
   staleResultCaseIds,
@@ -349,14 +353,16 @@ export interface PlanAndResults {
   // the plan has changed since every recorded result was current (FR-016). A
   // write under stale results keeps the old planHash while any live recorded case
   // still holds a result judged against an older body (#1407), so this stays true
-  // until each of them is judged again.
+  // until each of them is judged again. Also true under a matching planHash while
+  // a live recorded case holds a caseCanon that is not its current body, such as
+  // a case restored with an old result (#1696; noncurrentLiveCaseIds).
   stale: boolean;
   // The recorded case ids whose result is current for this plan
-  // (currentResultCaseIds): every recorded id when `stale` is false, else only
-  // those whose caseCanon matches the case's current body. Empty when `results`
-  // is null. This is what lets staleness be judged per case on the read side: a
-  // gate is stale only while one of its own gating cases is missing from it
-  // (#1407).
+  // (currentResultCaseIds): under a matching planHash every recorded id except
+  // those whose recorded caseCanon names another body, else only those whose
+  // caseCanon matches the case's current body. Empty when `results` is null. This
+  // is what lets staleness be judged per case on the read side: a gate is stale
+  // only while one of its own gating cases is missing from it (#1407).
   currentCaseIds: string[];
   // The freshly computed sha256 of canonicalize(plan).
   planHash: string;
@@ -398,7 +404,9 @@ function fileResults(file: TestResultsFile): BenchResults {
 // gate, letting stale all-passed results read as `passed`, a fail-closed
 // regression (VG-NFR-007). The `currency` names the cases whose result is current
 // for this plan even under a stale file, so a gate is stale only while one of its
-// own gating cases is not among them (#1407). Null when no results are recorded.
+// own gating cases is not among them (#1407). A file whose planHash matches but
+// that holds a non-current live case reads as stale too (#1696), so the sentinel
+// makes the evaluator judge by `currency`. Null when no results are recorded.
 export function toGateResults(
   loaded: Pick<PlanAndResults, "results" | "planHash" | "stale" | "currentCaseIds">,
 ): GateResults {
@@ -466,12 +474,13 @@ export function readPlanAndResults(rootPath: string, slug: string): PlanAndResul
     };
   }
 
-  const stale = file.planHash !== planHash;
+  const fileFresh = file.planHash === planHash;
+  const stale = !fileFresh || noncurrentLiveCaseIds(plan, file.caseResults, true).length > 0;
   return {
     plan,
     results: fileResults(file),
     stale,
-    currentCaseIds: currentResultCaseIds(plan, file.caseResults, !stale),
+    currentCaseIds: currentResultCaseIds(plan, file.caseResults, fileFresh),
     planHash,
     caseFileFingerprint,
     recovered,
@@ -497,6 +506,12 @@ function stampedPlanHash(
   return file.planHash;
 }
 
+// The sha256 hex of a case's canonical body, as a mark records it
+// (ObservationMark.caseCanonHash, #1696).
+function canonHash(canon: string): string {
+  return createHash("sha256").update(canon, "utf8").digest("hex");
+}
+
 // Whether a result holds a verdict apart from any override: a mark, a machine
 // verification, or a derivedStatus other than not_started (the other writer of
 // test-results.json can record a verdict as a derivedStatus plus verification
@@ -511,19 +526,31 @@ function holdsVerdict(result: CaseResult): boolean {
 
 // The body that a case's verdict was judged against before a write, for a new
 // override to record: the prior override's record when it has one; the current
-// body when the results are fresh (every result is then current); null when it
-// is not known (a prior override with no record, or no snapshot); else the prior
+// body when the case's result was current under a fresh file; null when it is
+// not known (a prior override with no record, or no snapshot); else the prior
 // snapshot.
 function verdictBodyBefore(
   priorOverride: StatusOverride | undefined,
   priorCanon: string | undefined,
   currentCanon: string | undefined,
-  priorFresh: boolean,
+  caseFresh: boolean,
 ): string | null {
   if (priorOverride?.verdictCanon !== undefined) return priorOverride.verdictCanon;
-  if (priorFresh && currentCanon !== undefined) return currentCanon;
+  if (caseFresh && currentCanon !== undefined) return currentCanon;
   if (priorOverride !== undefined) return null;
   return priorCanon ?? null;
+}
+
+// What a mutation may read besides the case result it changes.
+interface MutateContext {
+  author: Author;
+  plan: TestCasesPlan;
+  // The hash of the case's current canonical body; undefined when the case id
+  // is not in the plan.
+  currentCanonHash: string | undefined;
+  // Whether the case's result was current before the write, so a mark that
+  // records no body of its own counts as judged against the current one (#1696).
+  caseCurrentBefore: boolean;
 }
 
 // ── Internal mutate helper ──
@@ -532,10 +559,14 @@ function verdictBodyBefore(
 // (case-scoped) CaseResult, refreshes updatedAt and (by the stampedPlanHash rule)
 // the file planHash, persists atomically, and returns the mutated CaseResult.
 //
-// The mutation returns whether it DETERMINES the case: a pass/fail mark or a set
-// override does; a note, a mark clear, or an override clear does not. Under fresh
-// results every write stamps the case's caseCanon, as before (#505). Under stale
-// results (#1407), after the write:
+// The mutation returns whether it DETERMINES the case: a set override does, and
+// so does a mark write (a mark or a clear) that leaves every observation of the
+// case with a mark judged against the current body (#1696; see markObservation);
+// a note, an override clear, or a mark write that leaves an old mark behind does
+// not. When the case's result is current under a fresh file (`caseFresh`: the
+// file planHash matches and the case records no other body), every write stamps
+// the case's caseCanon, as before (#505). Otherwise, as under stale results
+// (#1407), after the write:
 //   - a case that holds no verdict (no mark, no override, no machine
 //     verification, and a not_started derivedStatus) is stamped: nothing in it
 //     was judged against an older body;
@@ -561,7 +592,7 @@ async function mutateCaseResult(
   rootPath: string,
   slug: string,
   caseId: string,
-  mutate: (caseResult: CaseResult, author: Author, plan: TestCasesPlan) => boolean,
+  mutate: (caseResult: CaseResult, context: MutateContext) => boolean,
 ): Promise<CaseResult> {
   // caseId is user-controlled and used as a computed object key below
   // (file.caseResults[caseId]). Reject the prototype-polluting keys INLINE,
@@ -606,8 +637,19 @@ async function mutateCaseResult(
   const verdictBefore = holdsVerdict(caseResult);
   const planCase = plan.cases.find((c) => c.id === safeCaseId);
   const currentCanon = planCase === undefined ? undefined : canonicalizeCase(planCase);
+  // Whether the case's own result is current under a fresh file (#1696): a
+  // recorded caseCanon that names another body is stale whatever the file says.
+  const caseFresh = priorFresh && (priorCanon === undefined || priorCanon === currentCanon);
+  // Whether the case's result is current before the write, by either file state.
+  const caseCurrentBefore =
+    currentCanon !== undefined && (caseFresh || priorCanon === currentCanon);
 
-  const determines = mutate(caseResult, author, plan);
+  const determines = mutate(caseResult, {
+    author,
+    plan,
+    currentCanonHash: currentCanon === undefined ? undefined : canonHash(currentCanon),
+    caseCurrentBefore,
+  });
 
   const override = caseResult.statusOverride;
   const overrideSurvives = priorOverride !== undefined && override === priorOverride;
@@ -619,7 +661,7 @@ async function mutateCaseResult(
   if (override !== undefined && override !== priorOverride) {
     // A new override: record the body of the verdict it now stands over.
     const body = verdictBefore
-      ? verdictBodyBefore(priorOverride, priorCanon, currentCanon, priorFresh)
+      ? verdictBodyBefore(priorOverride, priorCanon, currentCanon, caseFresh)
       : undefined;
     if (body !== undefined) override.verdictCanon = body;
   } else if (overrideSurvives && override !== undefined) {
@@ -643,20 +685,24 @@ async function mutateCaseResult(
   if (currentCanon !== undefined && overrideCleared && verdictAfter) {
     const body = priorOverride.verdictCanon;
     if (body === undefined) {
-      // An override with no record: under fresh results everything is current,
-      // as before; under stale results the verdict's body is not known.
-      if (priorFresh) caseResult.caseCanon = currentCanon;
-      else delete caseResult.caseCanon;
+      // An override with no record: a current case stays current, as before.
+      // Otherwise the verdict's body is not known: under stale results no
+      // caseCanon says so, and under a fresh file the case keeps the caseCanon
+      // of the other body it holds, which reads stale (#1696).
+      if (caseFresh) caseResult.caseCanon = currentCanon;
+      else if (!priorFresh) delete caseResult.caseCanon;
     } else {
       if (body === null) delete caseResult.caseCanon;
       else caseResult.caseCanon = body;
-      // A fresh file says every result is current, which is no longer true when
-      // the restored verdict was judged against another body.
-      restale = priorFresh && body !== currentCanon;
+      // A recorded body that is not the current one reads stale per case, even
+      // under a fresh file (#1696). An unknown body (null) leaves no caseCanon,
+      // which a fresh file reads as current, so only then does the file stamp
+      // give up its claim.
+      restale = priorFresh && body === null;
     }
   } else if (
     currentCanon !== undefined &&
-    (priorFresh || (!verdictAfter && override === undefined) || (determines && !overrideSurvives))
+    (caseFresh || (!verdictAfter && override === undefined) || (determines && !overrideSurvives))
   ) {
     caseResult.caseCanon = currentCanon;
   }
@@ -684,7 +730,8 @@ export async function markObservation(
   observationId: string,
   result: "pass" | "fail" | null,
 ): Promise<CaseResult> {
-  return mutateCaseResult(rootPath, slug, caseId, (caseResult, author, plan) => {
+  return mutateCaseResult(rootPath, slug, caseId, (caseResult, context) => {
+    const { author, plan, currentCanonHash, caseCurrentBefore } = context;
     if (result === null) {
       // Rebuild the marks map without this observation rather than dynamically
       // deleting a computed key (#510).
@@ -696,14 +743,26 @@ export async function markObservation(
         result,
         author,
         timestamp: new Date().toISOString(),
+        ...(currentCanonHash !== undefined && { caseCanonHash: currentCanonHash }),
       };
     }
-    caseResult.derivedStatus = deriveStatus(
-      planCaseObservationIds(plan, caseId),
-      caseResult.observationMarks,
+    const observationIds = planCaseObservationIds(plan, caseId);
+    caseResult.derivedStatus = deriveStatus(observationIds, caseResult.observationMarks);
+    // The write determines the case only when every observation now holds a mark
+    // judged against the current body (#1696): one new mark beside an old one
+    // leaves the case judged against the old body. A mark with no recorded body
+    // counts as judged against the case's own, current only when the case was.
+    return (
+      currentCanonHash !== undefined &&
+      observationIds.length > 0 &&
+      observationIds.every((id) => {
+        const mark = caseResult.observationMarks[id];
+        if (mark === undefined) return false;
+        return mark.caseCanonHash === undefined
+          ? caseCurrentBefore
+          : mark.caseCanonHash === currentCanonHash;
+      })
     );
-    // A pass/fail mark is a determination; a clear asserts nothing new.
-    return result !== null;
   });
 }
 
@@ -722,7 +781,7 @@ export async function appendNote(
   }
 
   let appended: Note | undefined;
-  await mutateCaseResult(rootPath, slug, caseId, (caseResult, author) => {
+  await mutateCaseResult(rootPath, slug, caseId, (caseResult, { author }) => {
     const effective: CaseStatus = caseResult.statusOverride?.status ?? caseResult.derivedStatus;
     const note: Note = {
       id: randomUUID(),
@@ -749,7 +808,7 @@ export async function setStatusOverride(
   caseId: string,
   override: CaseStatus | null,
 ): Promise<CaseResult> {
-  return mutateCaseResult(rootPath, slug, caseId, (caseResult, author) => {
+  return mutateCaseResult(rootPath, slug, caseId, (caseResult, { author }) => {
     if (override === null) {
       // The effective status falls back to the verdict under the override.
       // mutateCaseResult restores the snapshot of the body that verdict was

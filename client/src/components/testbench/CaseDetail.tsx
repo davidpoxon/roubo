@@ -3,6 +3,8 @@ import { Button, Input, Label, TextField, ToggleButton } from "react-aria-compon
 import { X, ArrowRight, StickyNote, ChevronDown, Bot, Archive } from "lucide-react";
 import type { Case, CaseResult } from "@roubo/shared/testbench-contracts";
 import StatusIndicator from "./StatusIndicator";
+import CaseStateLabel from "./CaseStateLabel";
+import { STALE_CASE_LABEL, STALE_CASE_TITLE } from "./staleCase";
 import ObservationMarkControl from "./ObservationMarkControl";
 import StatusOverrideControl from "./StatusOverrideControl";
 import { NotesRail } from "./NotesRail";
@@ -81,6 +83,9 @@ interface CaseDetailProps {
   // gate sitting puts the case's Stage control here, since staging comes
   // before the steps.
   beforeSteps?: ReactNode;
+  // True when the case's recorded result was judged against an earlier version
+  // of the case (#1696): the header then carries a Stale label.
+  stale?: boolean;
 }
 
 const SECTION_LABEL = "font-mono text-11 uppercase tracking-label text-text-secondary mt-6 mb-2";
@@ -106,6 +111,7 @@ export default function CaseDetail({
   onArchived,
   marksDisabled = false,
   beforeSteps,
+  stale = false,
 }: CaseDetailProps) {
   const markObservation = useMarkObservation();
   const setStatusOverride = useSetStatusOverride();
@@ -194,6 +200,11 @@ export default function CaseDetail({
                 <span>{testCase.type}</span>
                 <span>{testCase.area}</span>
                 {testCase.priority && <span>{testCase.priority}</span>}
+                {stale && (
+                  <CaseStateLabel tone="attention" title={STALE_CASE_TITLE}>
+                    {STALE_CASE_LABEL}
+                  </CaseStateLabel>
+                )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">

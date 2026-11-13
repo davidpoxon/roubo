@@ -472,6 +472,28 @@ describe("Spec Bench test bench tab", () => {
       expect(item.style.animationDelay).toBe("");
     }
   });
+  it("labels the chosen case Stale when its result was judged against an earlier version of the case (#1696)", async () => {
+    const user = userEvent.setup();
+    const failed = { observationMarks: {}, derivedStatus: "failed" as const, notes: [] };
+    vi.mocked(api.fetchTestbenchPlan).mockResolvedValue({
+      plan,
+      results: { caseResults: { "FX-TC-001": failed, "FX-TC-002": failed }, updatedAt: "t" },
+      stale: true,
+      planHash: "hash",
+      recovered: false,
+      currentCaseIds: ["FX-TC-001"],
+    });
+    vi.mocked(api.fetchDelivery).mockResolvedValue(
+      snapshot({ gateId: "gate-after-b", state: "open" }),
+    );
+    renderWithProviders(<SpecBenchTestBench bench={bench} />);
+    const list = await screen.findByRole("list", { name: "Escalated cases of gate gate-after-b" });
+    const stalePanel = await openCase(user, list, "FX-TC-002");
+    expect(within(stalePanel).getByText("Stale")).toBeInTheDocument();
+    const currentPanel = await openCase(user, list, "FX-TC-001");
+    expect(within(currentPanel).queryByText("Stale")).toBeNull();
+  });
+
   it("the Mark row marks the chosen case Met and Still blocked through the case status route", async () => {
     const user = userEvent.setup();
     vi.mocked(api.fetchDelivery).mockResolvedValue(

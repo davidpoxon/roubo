@@ -31,6 +31,7 @@ export interface ObservationMark {
   result: "pass" | "fail";
   author: Author;
   timestamp: string;
+  caseCanonHash?: string;
 }
 
 // Reserved, all-optional guided-execution targeting field (FR-019). Ignored by
