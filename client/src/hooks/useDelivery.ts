@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Bench, SpecBenchDecisionMode, TerminalSession } from "@roubo/shared";
 import * as api from "../lib/api";
@@ -267,9 +268,12 @@ export function useModeSwitch(projectId: string, benchId: number) {
 /**
  * The main delivery session that the bench launched, from the bench's terminal
  * sessions. `session` is undefined while the bench has recorded none or the
- * list does not name it; `listed` is true once the list was read, so a
- * recorded session the list does not name is gone (closed from the Terminal).
- * The list is read only when the bench has recorded a session.
+ * list does not name it. `listed` is true once a list fetched after the hook
+ * first saw the recorded id was read, so a recorded session that list does not
+ * name is gone (closed from the Terminal). The list is shared with the Terminal
+ * tab, so a cached list from before the launch recorded the id does not count:
+ * it would read a session that has just started as gone. The list is read only
+ * when the bench has recorded a session.
  */
 export function useDeliverySession(bench: Bench): {
   session: TerminalSession | undefined;
@@ -279,10 +283,17 @@ export function useDeliverySession(bench: Bench): {
   const sessions = useTerminalSessions(bench.projectId, bench.id, {
     enabled: sessionId !== undefined,
   });
+  // When the hook first saw the recorded id, as the list's update time then:
+  // only a list read after it counts.
+  const [seen, setSeen] = useState(() => ({
+    id: sessionId,
+    baseline: sessions.dataUpdatedAt,
+  }));
+  if (seen.id !== sessionId) setSeen({ id: sessionId, baseline: sessions.dataUpdatedAt });
   if (sessionId === undefined) return { session: undefined, listed: false };
   return {
     session: (sessions.data ?? []).find((s) => s.id === sessionId),
-    listed: sessions.isSuccess,
+    listed: sessions.isSuccess && seen.id === sessionId && sessions.dataUpdatedAt > seen.baseline,
   };
 }
 

@@ -336,6 +336,25 @@ describe("DeliveryTabPanel", () => {
       expect(screen.getByTestId("delivery-startup")).toHaveAttribute("data-phase", "session-ended");
     });
 
+    it("does not read a just-recorded session as gone from a list cached before it started", async () => {
+      // The Terminal tab's list was read while the bench prepared, before the
+      // launch recorded its session; the next read has not answered yet.
+      const queryClient = makeQueryClient();
+      queryClient.setQueryData(["terminals", "demo", 3], []);
+      vi.mocked(api.fetchTerminals).mockReturnValue(new Promise(() => {}));
+      renderWithProviders(
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
+        { queryClient },
+      );
+
+      const startup = await screen.findByTestId("delivery-startup");
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(startup).toHaveAttribute("data-phase", "planning");
+      expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+    });
+
     it("offers the launch again once no session started within the grace period", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       try {

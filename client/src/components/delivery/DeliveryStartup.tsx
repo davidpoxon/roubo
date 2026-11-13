@@ -79,8 +79,9 @@ export default function DeliveryStartup({
           data-testid="delivery-startup-phase"
         />
         {elapsed !== null && (
-          // Out of the live region: the time changes every second, and only a
-          // change of phase or step is worth announcing.
+          // Hidden from assistive technology: the time changes every second
+          // inside the live region, and only a change of phase or step is
+          // worth announcing.
           <span
             aria-hidden="true"
             className="font-mono text-11 text-text-secondary"
