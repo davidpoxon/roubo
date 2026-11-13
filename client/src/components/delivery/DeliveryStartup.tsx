@@ -1,16 +1,15 @@
 import type { Bench } from "@roubo/shared";
 import Button from "../ui/Button";
 import StatusIndicator from "../ui/StatusIndicator";
-import type { StatusTone } from "../ui/styles";
 import { stepIcon, stepTextColor } from "../../lib/provisioning";
 import { useElapsed } from "../../hooks/useElapsed";
 import {
-  useDeliverySession,
   useDeliverySessionStartBlocked,
   useDeliverySpecSummary,
   useLaunchDelivery,
 } from "../../hooks/useDelivery";
-import { deliveryStartup, type DeliveryStartupPhase } from "./delivery-startup-model";
+import type { DeliveryStartupPhase } from "./delivery-startup-model";
+import { DELIVERY_STARTUP_HEAD, useDeliveryStartup } from "./delivery-startup";
 
 // DESIGN.md Delivery start-up: what the Delivery tab shows while a Spec Bench
 // has no delivery record yet. The record lands only after the session's
@@ -19,17 +18,8 @@ import { deliveryStartup, type DeliveryStartupPhase } from "./delivery-startup-m
 // status indicator and the time since the session started, what the spec holds,
 // and each start-up step. The Terminal is one press away while the session waits
 // for the operator. A launch-mode bench offers to launch its session again only
-// once the launch failed or the session ended without the record.
-
-const PHASE_HEAD: Record<DeliveryStartupPhase, { tone: StatusTone; label: string }> = {
-  starting: { tone: "preparing", label: "Starting the delivery" },
-  planning: { tone: "preparing", label: "Planning the delivery" },
-  "awaiting-operator": { tone: "preparing", label: "Waiting for you" },
-  "launch-failed": { tone: "error", label: "The delivery session did not start" },
-  "session-ended": { tone: "error", label: "The delivery session ended" },
-  "bench-unavailable": { tone: "idle", label: "The bench is unavailable" },
-  "attach-waiting": { tone: "preparing", label: "Waiting for the delivery" },
-};
+// once the launch failed, did not start within LAUNCH_GRACE_MS, or the session
+// ended or was closed without the record.
 
 const PHASE_NOTE: Record<DeliveryStartupPhase, string> = {
   starting: "The bench starts the delivery session. The map shows here once it writes the record.",
@@ -38,6 +28,8 @@ const PHASE_NOTE: Record<DeliveryStartupPhase, string> = {
   "awaiting-operator":
     "The delivery session needs your answer in the Terminal before it writes the record.",
   "launch-failed": "No session runs the delivery. Launch it again when the cause is fixed.",
+  "launch-stalled":
+    "No session has started the delivery yet. Launch it again if the Terminal shows none.",
   "session-ended": "No session runs the delivery. Launch it again to start the delivery.",
   "bench-unavailable": "The delivery starts when the bench is ready again.",
   "attach-waiting":
@@ -55,17 +47,22 @@ export default function DeliveryStartup({
   bench: Bench;
   onOpenTerminal?: (() => void) | undefined;
 }) {
-  const session = useDeliverySession(bench);
-  const { phase, steps } = deliveryStartup(bench, session);
-  const summary = useDeliverySpecSummary(bench.projectId, bench.id, true);
-  const waiting = PHASE_HEAD[phase].tone === "preparing";
-  const elapsed = useElapsed(session?.createdAt ?? bench.createdAt, waiting);
+  const startup = useDeliveryStartup(bench);
+  const phase = startup?.phase ?? "starting";
+  const steps = startup?.steps ?? [];
+  const session = startup?.session;
+  const summary = useDeliverySpecSummary(bench.projectId, bench.id);
+  const waiting = DELIVERY_STARTUP_HEAD[phase].tone === "preparing";
+  // The time since the session started; none before the session exists, since
+  // the bench's own age says nothing about the start-up.
+  const elapsed = useElapsed(session?.createdAt, waiting);
   const counts =
     summary.data !== undefined && summary.data.units + summary.data.gates > 0
       ? `${plural(summary.data.units, "unit", "units")} and ${plural(summary.data.gates, "gate", "gates")} in this spec`
       : undefined;
   const offerLaunch =
-    bench.deliveryBindMode === "launch" && (phase === "launch-failed" || phase === "session-ended");
+    bench.deliveryBindMode === "launch" &&
+    (phase === "launch-failed" || phase === "launch-stalled" || phase === "session-ended");
 
   return (
     <section
@@ -77,12 +74,15 @@ export default function DeliveryStartup({
     >
       <div className="flex flex-wrap items-center gap-2">
         <StatusIndicator
-          tone={PHASE_HEAD[phase].tone}
-          label={PHASE_HEAD[phase].label}
+          tone={DELIVERY_STARTUP_HEAD[phase].tone}
+          label={DELIVERY_STARTUP_HEAD[phase].label}
           data-testid="delivery-startup-phase"
         />
         {elapsed !== null && (
+          // Out of the live region: the time changes every second, and only a
+          // change of phase or step is worth announcing.
           <span
+            aria-hidden="true"
             className="font-mono text-11 text-text-secondary"
             data-testid="delivery-startup-elapsed"
           >

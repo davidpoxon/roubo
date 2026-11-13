@@ -266,21 +266,29 @@ export function useModeSwitch(projectId: string, benchId: number) {
 
 /**
  * The main delivery session that the bench launched, from the bench's terminal
- * sessions, or undefined while the bench has recorded none or the session list
- * has not named it yet. The list is read only when the bench has recorded one.
+ * sessions. `session` is undefined while the bench has recorded none or the
+ * list does not name it; `listed` is true once the list was read, so a
+ * recorded session the list does not name is gone (closed from the Terminal).
+ * The list is read only when the bench has recorded a session.
  */
-export function useDeliverySession(bench: Bench): TerminalSession | undefined {
+export function useDeliverySession(bench: Bench): {
+  session: TerminalSession | undefined;
+  listed: boolean;
+} {
   const sessionId = bench.deliverySessionId;
   const sessions = useTerminalSessions(bench.projectId, bench.id, {
     enabled: sessionId !== undefined,
   });
-  if (sessionId === undefined) return undefined;
-  return (sessions.data ?? []).find((s) => s.id === sessionId);
+  if (sessionId === undefined) return { session: undefined, listed: false };
+  return {
+    session: (sessions.data ?? []).find((s) => s.id === sessionId),
+    listed: sessions.isSuccess,
+  };
 }
 
 /** Whether the main delivery session that the bench launched still runs. */
 export function useDeliverySessionLive(bench: Bench): boolean {
-  return useDeliverySession(bench)?.status === "live";
+  return useDeliverySession(bench).session?.status === "live";
 }
 
 /**
@@ -298,12 +306,11 @@ export function useDeliverySessionStartBlocked(bench: Bench): boolean {
  * workspace. The Delivery tab reads it while the session starts, before the
  * delivery record exists. A read error is shown as no figures, not retried.
  */
-export function useDeliverySpecSummary(projectId: string, benchId: number, enabled: boolean) {
+export function useDeliverySpecSummary(projectId: string, benchId: number) {
   return useQuery({
     queryKey: ["deliverySpecSummary", projectId, benchId],
     queryFn: () => api.fetchDeliverySpecSummary(projectId, benchId),
     retry: false,
-    enabled,
   });
 }
 

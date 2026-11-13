@@ -121,6 +121,43 @@ describe("deliveryStartup", () => {
     expect(result.steps[1].detail).toMatch(/exit code 2/);
   });
 
+  it("reads a recorded session that the loaded list no longer names as ended", () => {
+    const bench = launch({ deliverySessionId: "s-1" });
+    // Before the list is read, the recorded session is taken as running.
+    expect(statuses(bench).phase).toBe("planning");
+    const result = deliveryStartup(bench, undefined, { sessionListed: true });
+    expect(result.phase).toBe("session-ended");
+    expect(result.steps[1]).toMatchObject({ status: "error" });
+    expect(result.steps[1].detail).toMatch(/no longer running/);
+  });
+
+  it("offers the launch again once the session step stalls with no failure to name", () => {
+    // A failed launch whose notification was dismissed leaves no trace.
+    const result = deliveryStartup(launch(), undefined, { launchStalled: true });
+    expect(result.phase).toBe("launch-stalled");
+    expect(result.steps[1]).toMatchObject({ status: "running" });
+    expect(result.steps[1].detail).toMatch(/has not started yet/);
+  });
+
+  it("does not stall while the workspace still prepares", () => {
+    expect(
+      deliveryStartup(launch({ status: "preparing" }), undefined, { launchStalled: true }).phase,
+    ).toBe("starting");
+  });
+
+  it("ignores an earlier launch's failure and ended session while the bench prepares again", () => {
+    const bench = launch({
+      status: "preparing",
+      deliverySessionId: "s-1",
+      notifications: [note({ type: "agent-launch-failed", createdAt: "2026-10-16T09:05:00Z" })],
+    });
+    expect(statuses(bench, session({ status: "ended" }))).toMatchObject({
+      phase: "starting",
+      steps: { workspace: "running", session: "pending" },
+    });
+    expect(deliveryStartup(bench, undefined, { sessionListed: true }).phase).toBe("starting");
+  });
+
   it.each(["error", "clearing"] as const)(
     "reads the bench as unavailable while it is %s",
     (status) => {

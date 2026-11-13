@@ -34,6 +34,7 @@ import {
   shouldRetryDeliveryCrossCheck,
 } from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { LAUNCH_GRACE_MS } from "./delivery-startup";
 import {
   openCasesView,
   openCostView,
@@ -321,6 +322,37 @@ describe("DeliveryTabPanel", () => {
       expect(screen.queryByTestId("delivery-lifecycle-controls")).not.toBeInTheDocument();
       await userEvent.click(launch);
       await waitFor(() => expect(api.launchDelivery).toHaveBeenCalledWith("demo", 3));
+    });
+
+    it("offers the launch again once the session was closed from the Terminal", async () => {
+      vi.mocked(api.fetchTerminals).mockResolvedValue([]);
+      renderWithProviders(
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
+      );
+
+      expect(
+        await screen.findByRole("button", { name: "Launch the delivery session" }),
+      ).toBeEnabled();
+      expect(screen.getByTestId("delivery-startup")).toHaveAttribute("data-phase", "session-ended");
+    });
+
+    it("offers the launch again once no session started within the grace period", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        renderWithProviders(<DeliveryTabPanel bench={launchBench()} />);
+        const startup = await screen.findByTestId("delivery-startup");
+        expect(startup).toHaveAttribute("data-phase", "starting");
+        expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LAUNCH_GRACE_MS);
+        });
+
+        expect(startup).toHaveAttribute("data-phase", "launch-stalled");
+        expect(screen.getByRole("button", { name: "Launch the delivery session" })).toBeEnabled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("offers the launch again after the create-time launch failed, naming the cause", async () => {
