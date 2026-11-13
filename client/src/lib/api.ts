@@ -584,6 +584,15 @@ export function fetchDelivery(
   return request(`/projects/${projectId}/benches/${benchId}/delivery`);
 }
 
+// The units and gates of the spec a Spec Bench delivers, from the bench
+// workspace. It needs no delivery record, so it reads while the session starts.
+export function fetchDeliverySpecSummary(
+  projectId: string,
+  benchId: number,
+): Promise<SpecBenchSpecSummary> {
+  return request(`/projects/${projectId}/benches/${benchId}/delivery/spec-summary`);
+}
+
 // The accepted events above `after` (absent: every one above the record), of
 // one unit when `unit` names it, in seq order, with the bench's accepted seq.
 // The same 409 DeliveryReadError as the snapshot read.

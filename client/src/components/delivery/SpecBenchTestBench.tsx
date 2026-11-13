@@ -7,12 +7,14 @@ import type { ProvisionalCase } from "@roubo/shared/delivery-observation-contrac
 import { ownValue } from "@roubo/shared/delivery-reducer";
 import type { Case, CaseResult, CaseStatus } from "@roubo/shared/testbench-contracts";
 import * as api from "../../lib/api";
+import { deliveryReadErrorOf } from "../../lib/api";
 import { deliveryQueryKey, useDelivery, useSittingStage } from "../../hooks/useDelivery";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
 import { useSetStatusOverride } from "../../hooks/useTestbenchMarks";
 import { useTestbenchPlan } from "../../hooks/useTestbenchPlan";
 import Button from "../ui/Button";
 import Callout from "../ui/Callout";
+import StatusIndicator from "../ui/StatusIndicator";
 import { focusRing } from "../ui/focus-ring";
 import { FIELD_LABEL_CLASS, inputClass, STATUS_DOT_CLASSES, type StatusTone } from "../ui/styles";
 import { Tab, TabList, TabPanel, Tabs } from "../ui/Tabs";
@@ -24,6 +26,7 @@ import { DeliveryPanel } from "./DeliveryPanel";
 import GateSitting from "./GateSitting";
 import { sittingPhase, type DeliverySittingView } from "./gate-sitting-model";
 import ProvisionalMarkCard from "./ProvisionalMark";
+import { readErrorTitle } from "./delivery-read-error";
 import { specCasesPath } from "./spec-cases-path";
 import { provisionalMarkStatus, readProvisionalMark } from "./provisional-mark-model";
 
@@ -75,9 +78,23 @@ function hiddenWhileInert({ isInert }: { isInert: boolean }): CSSProperties | un
   return isInert ? { display: "none" } : undefined;
 }
 
-export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
+/** The line the tab shows while the delivery session has not written its record yet. */
+export const DELIVERY_STARTING_NOTICE = "A gate sitting opens when the delivery reaches a gate.";
+
+// `onOpenDelivery` opens the bench's Delivery tab, where the start-up of the
+// delivery shows while its record is missing.
+export default function SpecBenchTestBench({
+  bench,
+  onOpenDelivery,
+}: {
+  bench: Bench;
+  onOpenDelivery?: (() => void) | undefined;
+}) {
   const delivery = useDelivery(bench.projectId, bench.id);
   const sitting = delivery.data?.sitting;
+  const readError = delivery.isError ? deliveryReadErrorOf(delivery.error) : undefined;
+  // No record yet is the delivery starting, not a fault (see DeliveryStartup).
+  const starting = readError?.code === "DELIVERY_RECORD_MISSING";
   // The full TestBench of the spec (#1653), read-only: outside a sitting the
   // server refuses every write, and inside one the marks go through the
   // sitting's own surface, which holds the escalated split and files fix units.
@@ -101,8 +118,24 @@ export default function SpecBenchTestBench({ bench }: { bench: Bench }) {
           Reading the delivery record...
         </p>
       )}
-      {delivery.isError && (
-        <Callout role="alert" title="The delivery could not be read">
+      {starting && (
+        <div
+          role="status"
+          data-testid="specbench-delivery-starting"
+          className="flex flex-wrap items-center gap-3 rounded-control border border-border bg-bg-surface px-3 py-2 text-13"
+        >
+          <StatusIndicator tone="preparing" label="The delivery is starting" />
+          <span className="text-text-secondary">{DELIVERY_STARTING_NOTICE}</span>
+          {onOpenDelivery !== undefined && (
+            <Button onPress={onOpenDelivery}>Open the delivery</Button>
+          )}
+        </div>
+      )}
+      {delivery.isError && !starting && (
+        <Callout
+          role="alert"
+          title={readError ? readErrorTitle(readError) : "The delivery could not be read"}
+        >
           {delivery.error.message}
         </Callout>
       )}

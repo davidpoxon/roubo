@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Bench, SpecBenchDecisionMode } from "@roubo/shared";
+import type { Bench, SpecBenchDecisionMode, TerminalSession } from "@roubo/shared";
 import * as api from "../lib/api";
 import { deliveryCrossCheckQueryKey } from "./useDeliveryCrossCheck";
 import { useTerminalSessions } from "./useTerminal";
@@ -265,16 +265,46 @@ export function useModeSwitch(projectId: string, benchId: number) {
 }
 
 /**
- * Whether the main delivery session that the bench launched still runs. It
- * reads the bench's terminal sessions only when the bench has recorded one.
+ * The main delivery session that the bench launched, from the bench's terminal
+ * sessions, or undefined while the bench has recorded none or the session list
+ * has not named it yet. The list is read only when the bench has recorded one.
  */
-export function useDeliverySessionLive(bench: Bench): boolean {
+export function useDeliverySession(bench: Bench): TerminalSession | undefined {
   const sessionId = bench.deliverySessionId;
   const sessions = useTerminalSessions(bench.projectId, bench.id, {
     enabled: sessionId !== undefined,
   });
-  if (sessionId === undefined) return false;
-  return (sessions.data ?? []).some((s) => s.id === sessionId && s.status === "live");
+  if (sessionId === undefined) return undefined;
+  return (sessions.data ?? []).find((s) => s.id === sessionId);
+}
+
+/** Whether the main delivery session that the bench launched still runs. */
+export function useDeliverySessionLive(bench: Bench): boolean {
+  return useDeliverySession(bench)?.status === "live";
+}
+
+/**
+ * Whether the server would refuse a new delivery session now (409): while the
+ * bench's session runs, or while the bench is being cleared or is in error. A
+ * button that starts one says the same before it is pressed.
+ */
+export function useDeliverySessionStartBlocked(bench: Bench): boolean {
+  const sessionLive = useDeliverySessionLive(bench);
+  return bench.status === "clearing" || bench.status === "error" || sessionLive;
+}
+
+/**
+ * The units and gates of the spec the bench delivers, read from the bench
+ * workspace. The Delivery tab reads it while the session starts, before the
+ * delivery record exists. A read error is shown as no figures, not retried.
+ */
+export function useDeliverySpecSummary(projectId: string, benchId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["deliverySpecSummary", projectId, benchId],
+    queryFn: () => api.fetchDeliverySpecSummary(projectId, benchId),
+    retry: false,
+    enabled,
+  });
 }
 
 /**

@@ -1084,6 +1084,9 @@ export default function BenchDetail() {
                 // A provisional gate's Open sitting shows the sitting's cases
                 // on the Test bench tab (SB-FR-038).
                 onSittingOpened={() => setActiveTab("testbench")}
+                // While the session waits for the operator before it writes
+                // its record, the start-up offers the Terminal.
+                onOpenTerminal={() => setActiveTab("terminal")}
               />
             </TabPanel>
           )}
@@ -1092,7 +1095,7 @@ export default function BenchDetail() {
             // A flex column, as the TestBench variant's panel is: the read-only
             // TestBench inside needs a bounded height for its case list (#1653).
             <TabPanel id="testbench" className="outline-none flex flex-col flex-1 min-h-0">
-              <SpecBenchTestBench bench={bench} />
+              <SpecBenchTestBench bench={bench} onOpenDelivery={() => setActiveTab("delivery")} />
             </TabPanel>
           )}
 
