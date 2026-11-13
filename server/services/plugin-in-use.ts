@@ -4,6 +4,7 @@
 // the real error and copy even where plugin-manager is replaced by a stub.
 
 // "bench 2" for one bench, "benches 2 and 5" or "benches 2, 3 and 5" for more.
+// The swap and update notices of plugin-dir-watch name their benches with it too.
 export function benchList(benchIds: number[]): string {
   if (benchIds.length === 1) return `bench ${benchIds[0]}`;
   const ids = benchIds.map(String);
