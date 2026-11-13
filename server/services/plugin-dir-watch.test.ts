@@ -655,6 +655,22 @@ describe("a plugin directory changed in place", () => {
     await waitFor(() => !isAlive(oldPid), 6_000);
   }, 30_000);
 
+  it("HR-TC-013 rejects a new manifest that names another id with the rejected-manifest copy and keeps the process", async () => {
+    await startWatch();
+    const pid = await dropRunningPlugin("my-agent");
+    hoisted.events = [];
+
+    fs.writeFileSync(path.join(root, "my-agent", "roubo-plugin.yaml"), manifestYaml("other-agent"));
+
+    await waitFor(() => outcomeLines("my-agent", "rejected").length === 1);
+    expect(summaries()).toEqual([
+      'Plugin my-agent not updated. roubo-plugin.yaml: its new manifest names "other-agent".',
+    ]);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "rejected" });
+    expect(record("my-agent")?.pid).toBe(pid);
+    expect(isAlive(pid)).toBe(true);
+  }, 30_000);
+
   it("HR-TC-013 says which bench lost its link when the rebuilt entry exits at start, and keeps the ledger", async () => {
     benchesFromLedger();
     await startWatch();

@@ -406,7 +406,12 @@ async function handlePresent(dir: string, dirName: string): Promise<HandlerResul
             error: { path: MANIFEST_NAMES[0], first: err.detail },
           });
         }
-        return result(err.reason === "invalid-manifest" ? "rejected" : "refused", "swap", {
+        // A new manifest the swap cannot use (one that names another id) is
+        // rejected with the same copy as one that does not parse.
+        if (err.reason === "invalid-manifest") {
+          return rejectedManifest(record.id, "swap", err.detail);
+        }
+        return result("refused", "swap", {
           pluginId: record.id,
           summary: `Plugin ${record.id} not updated: ${err.detail}.`,
           error: { path: MANIFEST_NAMES[0], first: err.detail },
@@ -511,7 +516,9 @@ export interface AppPluginWriteOutcome {
  * The outcome of a marketplace install or update that registered `record`.
  * An update whose new process did not start, or lost its benches, leaves
  * `record` errored or stale: its notice names the benches that lost their
- * link instead of the ones that kept their components.
+ * link instead of the ones that kept their components. Each caller passes the
+ * record that registerInstalled returned, which it copies after the swap and
+ * its re-bind, so its `stale` and `status` are the swap's result.
  */
 export function appInstallOutcome(
   record: PluginRecord,
