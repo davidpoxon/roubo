@@ -9,7 +9,11 @@
  *   never consent-gated, starts unless the user disabled it. An invalid
  *   manifest is rejected with its first error and registers nothing.
  * - A changed manifest or entry file of a registered plugin swaps its process,
- *   keeping every bench resource (HR-FR-009).
+ *   keeping every bench resource (HR-FR-009). A swap that would break what the
+ *   benches use is refused, and the old process keeps running: a plugin that
+ *   keeps its component state in its process names the benches to stop first.
+ *   A new process that does not start, or loses its link to the benches,
+ *   leaves the swap applied, and its notice names the benches to restart.
  * - A removed directory unregisters its plugin, unless a bench uses it: then
  *   the removal is refused and the plugin keeps running (HR-FR-010).
  *

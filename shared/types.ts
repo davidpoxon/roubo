@@ -2115,6 +2115,14 @@ export interface InputChangedEvent {
   input?: string;
   projectId?: string;
   pluginId?: string;
+  /**
+   * The bench numbers the change concerns. Most events carry the
+   * benches the change reached. A `plugin` event names others: on a `refused`
+   * removal, the benches that use the plugin; on a `refused` swap of a plugin
+   * that keeps its component state in its process, the benches to stop before
+   * the update can apply; on an `applied` update whose new process did not
+   * start or lost its link, the benches that lost their link.
+   */
   benchIds?: number[];
   /** One line that starts with the surface's thing, such as `Project`. */
   summary: string;
