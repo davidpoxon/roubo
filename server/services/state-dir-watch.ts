@@ -24,8 +24,10 @@
  * - plugins-consent.json: each consented plugin that is not running and that
  *   the user has not disabled starts, as a grant of consent in the app starts
  *   it, and the notice names the plugins that started. A missing file is
- *   rejected, not applied: the app itself moves aside a file that does not
- *   parse, and that grants no consent.
+ *   applied too, as the consent of no plugin: the consent gate reads the file
+ *   on each start, and a missing file consents none. That covers a file
+ *   deleted by hand and one that does not parse, which the app moves aside
+ *   when it next reads it.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
  *   edit disables stops, and one it enables starts. A plugin held for consent
  *   keeps its hold: one the edit enables is written back `"awaiting-consent"`,
@@ -62,7 +64,7 @@ import {
 import * as benchManager from "./bench-manager.js";
 import type { BenchStateEditRef } from "./bench-manager.js";
 import * as credentialStore from "./credential-store.js";
-import { loadEnvFile, loadEnvFileReport } from "./env.js";
+import { loadEnvFileReport } from "./env.js";
 import { loadConsentState } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
@@ -268,6 +270,11 @@ export function consentAppliedNotice(pluginIds: readonly string[]): string {
     : `Plugin consent applied: ${pluginIds.join(", ")}.`;
 }
 
+/** "Plugin consent applied: no plugin is consented." for a missing plugins-consent.json. */
+export function consentClearedNotice(): string {
+  return "Plugin consent applied: no plugin is consented.";
+}
+
 /** "Plugin database disabled." for each plugin the edit turned off, then each it turned on. */
 export function enableStateNotice(reload: pluginManager.EnableStateReload): string {
   const lines = [
@@ -383,10 +390,13 @@ async function handleAuth(absPath: string): Promise<HandlerResult> {
 
 async function handleConsent(absPath: string): Promise<HandlerResult> {
   const read = readStateFile(absPath);
-  // The app moves a plugins-consent.json that does not parse aside when it
-  // next reads it, so a missing file is no grant of consent: it is rejected,
-  // and the rejected notice of a hand edit stays open.
-  if (read.kind === "missing") return rejected("plugins-consent.json", "Plugin consent", MISSING);
+  // The consent gate reads plugins-consent.json on each start, and a missing
+  // file consents no plugin, so its removal is in effect at once: a file
+  // deleted by hand, or one that does not parse and that the app moved aside
+  // when it next read it. It starts nothing, and running plugins keep running
+  // as after an edit that removes a record. Its applied notice clears a
+  // rejected notice of the file that is still open.
+  if (read.kind === "missing") return applied({ summary: consentClearedNotice() });
   if (read.kind === "invalid") {
     return rejected("plugins-consent.json", "Plugin consent", read.first);
   }
@@ -481,16 +491,24 @@ export function envFileNotice(changed: number, needsRelaunch: string[]): string 
   return `${envFileAppliedNotice(changed)} ${relaunch}`;
 }
 
-async function handleEnvFile(): Promise<HandlerResult> {
-  // Load .env again (HR-FR-011): each key it adds, changes or removes reaches
-  // process.env, and so every component, terminal and plugin process started
-  // from now on. Explicit env still wins, and the boot-only keys stay as boot
-  // set them: a save that changes one is named in the notice, which says a
-  // relaunch is needed to apply it. An edit that changes no key, such as a
-  // comment, sends no notice.
+/**
+ * Load .env again (HR-FR-011) and return the notice of what the load did, or
+ * null when it changed no key and named no boot-only key. Each key the file
+ * adds, changes or removes reaches process.env, and so every component,
+ * terminal and plugin process started from now on. Explicit env still wins,
+ * and the boot-only keys stay as boot set them: a save that changes one is
+ * named in the notice, which says a relaunch is needed to apply it.
+ */
+function reloadEnvFile(): string | null {
   const { changed, needsRelaunch } = loadEnvFileReport();
-  if (changed.length === 0 && needsRelaunch.length === 0) return "ignored";
-  return applied({ summary: envFileNotice(changed.length, needsRelaunch) });
+  if (changed.length === 0 && needsRelaunch.length === 0) return null;
+  return envFileNotice(changed.length, needsRelaunch);
+}
+
+async function handleEnvFile(): Promise<HandlerResult> {
+  // An edit that changes no key, such as a comment, sends no notice.
+  const summary = reloadEnvFile();
+  return summary === null ? "ignored" : applied({ summary });
 }
 
 /** The handler of one state file of the state dir. */
@@ -697,11 +715,23 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
   activeDir = dir;
   await watch.ready;
   // Load .env once more, so an edit saved between the boot load and the arm
-  // is not missed; the watch runs for each save from here on.
+  // is not missed; the watch runs for each save from here on. Such an edit
+  // sends the notice a save sends once the watch runs, a boot-only key it
+  // changed included, and a load that changes nothing sends none.
   try {
-    loadEnvFile();
+    const summary = reloadEnvFile();
+    if (summary !== null) {
+      broadcastInputChanged({
+        surface: STATE_FILE_SURFACES[".env"],
+        outcome: "applied",
+        input: ".env",
+        summary,
+      });
+    }
   } catch (err) {
-    console.warn(`[state-dir-watch] .env could not be loaded: ${(err as Error).message}`);
+    console.warn(
+      `[state-dir-watch] .env could not be loaded or its notice sent: ${(err as Error).message}`,
+    );
   }
   // A state file that is absent is known absent, so a file created by hand
   // and written by the app inside the settle window is told apart too.

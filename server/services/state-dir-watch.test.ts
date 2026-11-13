@@ -26,6 +26,8 @@ vi.mock("./state.js", async (importOriginal) => {
     loadProjects: () => ({ projects: [] }),
     // The real one reads the process's own state dir, never the temp one.
     loadSettings: vi.fn(() => ({ theme: "dark" })),
+    // The real one creates the process's own state dir, never the temp one.
+    ensureDirs: () => {},
   };
 });
 vi.mock("./sse.js", async (importOriginal) => {
@@ -58,15 +60,23 @@ vi.mock("./project-registry.js", () => ({
 vi.mock("./credential-store.js", () => ({
   set: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("./plugin-consent-state.js", () => ({
-  loadConsentState: vi.fn(() => hoisted.consent),
-}));
+vi.mock("./plugin-consent-state.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./plugin-consent-state.js")>();
+  return {
+    loadConsentState: vi.fn(() => hoisted.consent),
+    // The consent gate as the server runs it: it reads the temp state dir's
+    // plugins-consent.json on each call.
+    hasConsent: actual.hasConsent,
+  };
+});
 
 import * as benchManager from "./bench-manager.js";
+import { hasConsent } from "./plugin-consent-state.js";
 import * as credentialStore from "./credential-store.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
+import { broadcastInputChanged } from "./sse.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
 import { cleanEnv, loadEnvFile, resetEnvFileLoads } from "./env.js";
@@ -218,7 +228,32 @@ describe("state dir watch", () => {
     expect(fileLines("plugins-consent.json")[0]).toContain("surface=plugin ");
   });
 
-  it("HR-TC-027 a plugins-consent.json moved aside after a rejected hand edit sends no applied notice", async () => {
+  it("HR-TC-027 deleting plugins-consent.json is applied as the consent of no plugin, as the consent gate reads it", async () => {
+    const file = path.join(dir, "plugins-consent.json");
+    await stopStateDirWatch();
+    hoisted.consent = JSON.parse(consentFile("database"));
+    fs.writeFileSync(file, consentFile("database"));
+    await startStateDirWatch({ dir });
+    expect(hasConsent("database")).toBe(true);
+
+    fs.rmSync(file);
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "plugin",
+      outcome: "applied",
+      input: "plugins-consent.json",
+      summary: "Plugin consent applied: no plugin is consented.",
+    });
+    expect(noticeOf(hoisted.events[0])).toBe("Plugin consent applied: no plugin is consented.");
+    // The notice says what the consent gate now does: the plugin consented
+    // before the deletion is not consented.
+    expect(hasConsent("database")).toBe(false);
+    expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
+    expect(fileLines("plugins-consent.json", "applied")).toHaveLength(1);
+  });
+
+  it("HR-TC-027 a plugins-consent.json moved aside after a rejected hand edit is applied and clears the rejected notice", async () => {
     const file = path.join(dir, "plugins-consent.json");
     fs.writeFileSync(file, "{ not json");
     await waitFor(() => hoisted.events.length === 1);
@@ -231,15 +266,19 @@ describe("state dir watch", () => {
 
     // The app moves a file that does not parse aside when it next reads it.
     fs.renameSync(file, path.join(dir, "plugins-consent.json.corrupt"));
-    await waitFor(() => fileLines("plugins-consent.json").length === 2);
+    await waitFor(() => hoisted.events.length === 2);
     await sleep(300);
 
-    expect(hoisted.events.filter((e) => e.outcome === "applied")).toEqual([]);
-    expect(hoisted.events[1]).toMatchObject({
-      surface: "plugin",
-      outcome: "rejected",
-      error: { path: "plugins-consent.json", first: "the file is missing" },
-    });
+    // One applied event, with the target of the rejected notice, clears it.
+    expect(hoisted.events.slice(1)).toEqual([
+      {
+        surface: "plugin",
+        outcome: "applied",
+        input: "plugins-consent.json",
+        summary: "Plugin consent applied: no plugin is consented.",
+      },
+    ]);
+    expect(hasConsent("database")).toBe(false);
     expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
   });
 
@@ -1043,6 +1082,89 @@ describe("state dir watch of .env", () => {
 
     expect(envEvents()).toEqual([]);
     expect(process.env.ROUBO_APP_LOG_DIR).toBe("/from-launch");
+  });
+
+  it("HR-TC-024 a .env save between the boot load and the arm of the watch applies with a notice", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+
+    await startStateDirWatch({ dir });
+
+    expect(process.env.KEY_A).toBe("1");
+    expect(envEvents()).toEqual([
+      {
+        surface: "environment",
+        outcome: "applied",
+        input: ".env",
+        summary: "Environment file applied: 1 key changed.",
+      },
+    ]);
+    // The watch sends no second notice for the same save.
+    await sleep(600);
+    expect(envEvents()).toHaveLength(1);
+  });
+
+  it("HR-TC-024 a ROUBO_APP_LOG_DIR save between the boot load and the arm of the watch says it needs a relaunch", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await startStateDirWatch({ dir });
+
+    // The boot-only key keeps its boot value.
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+    expect(envEvents()).toEqual([
+      {
+        surface: "environment",
+        outcome: "applied",
+        input: ".env",
+        summary: "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+      },
+    ]);
+    expect(noticeOf(envEvents()[0])).toBe(
+      "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    );
+
+    // A later save that leaves the line as it is does not name it again.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+  });
+
+  it("HR-TC-024 a .env that changed nothing between the boot load and the arm of the watch sends no notice", async () => {
+    await stopStateDirWatch();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nROUBO_APP_LOG_DIR=/boot/logs\n");
+    boot();
+    // A save in the window that changes no key, a comment only.
+    fs.writeFileSync(path.join(dir, ".env"), "# a note\nKEY_A=1\nROUBO_APP_LOG_DIR=/boot/logs\n");
+
+    await startStateDirWatch({ dir });
+    await sleep(600);
+
+    expect(envEvents()).toEqual([]);
+    expect(process.env.KEY_A).toBe("1");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/boot/logs");
+  });
+
+  it("HR-TC-024 a notice of the .env load that fails when the watch arms does not stop the watch", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+    vi.mocked(broadcastInputChanged).mockImplementationOnce(() => {
+      throw new Error("no client stream");
+    });
+
+    await startStateDirWatch({ dir });
+
+    expect(process.env.KEY_A).toBe("1");
+    expect(lines.join("\n")).toContain("no client stream");
+    // The watch is armed: the next save applies with its notice.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+    expect(envEvents()[0].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.KEY_B).toBe("b");
   });
 });
 
