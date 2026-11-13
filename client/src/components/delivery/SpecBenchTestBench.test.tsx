@@ -39,6 +39,8 @@ vi.mock("../../lib/api", async (importOriginal) => {
 
 import * as api from "../../lib/api";
 import SpecBenchTestBench, {
+  DELIVERY_STARTING_NOTICE,
+  DELIVERY_STOPPED_NOTICE,
   GATE_CASES_STAGGER_MS,
   NO_SITTING_NOTICE,
   UNREAD_SITTING_NOTICE,
@@ -51,6 +53,9 @@ const bench = {
   variant: "specbench",
   focusedSpecPath: "/repo/.specifications/fixture-spec",
   workspacePath: "/benches/demo-3",
+  deliveryBindMode: "launch",
+  status: "active",
+  notifications: [],
 } as unknown as Bench;
 
 const CASES = ["FX-TC-001", "FX-TC-002"];
@@ -1274,6 +1279,79 @@ describe("Spec Bench test bench tab", () => {
       expect(line).not.toHaveTextContent("No gate sitting is open");
       expect(screen.getByRole("group", { name: "TestBench view" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Change focused spec" })).toBeNull();
+    });
+
+    it("shows the delivery as starting, not as an error, while the session has not written its record, with the cases readable", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new api.ApiError("No delivery record yet", 409, "DELIVERY_RECORD_MISSING", {
+          code: "DELIVERY_RECORD_MISSING",
+          error: "No delivery record yet",
+        }),
+      );
+      const onOpenDelivery = vi.fn();
+      renderWithProviders(<SpecBenchTestBench bench={bench} onOpenDelivery={onOpenDelivery} />);
+      const starting = await screen.findByTestId("specbench-delivery-starting");
+      expect(starting).toHaveAttribute("role", "status");
+      expect(starting).toHaveAttribute("data-phase", "starting");
+      expect(starting).toHaveTextContent("Starting the delivery");
+      expect(starting).toHaveTextContent(DELIVERY_STARTING_NOTICE);
+      expect(starting.className).not.toMatch(/danger/);
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByTestId("specbench-no-sitting")).toHaveTextContent(UNREAD_SITTING_NOTICE);
+      expect(screen.getByRole("group", { name: "TestBench view" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Open the delivery" }));
+      expect(onOpenDelivery).toHaveBeenCalledOnce();
+    });
+
+    it("does not show a failed launch as a wait", async () => {
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new api.ApiError("No delivery record yet", 409, "DELIVERY_RECORD_MISSING", {
+          code: "DELIVERY_RECORD_MISSING",
+          error: "No delivery record yet",
+        }),
+      );
+      renderWithProviders(
+        <SpecBenchTestBench
+          bench={{
+            ...bench,
+            notifications: [
+              {
+                id: "n-1",
+                type: "agent-launch-failed",
+                priority: "action-needed",
+                metadata: { message: "The delivery session did not start: no agent" },
+                createdAt: "2026-10-16T09:01:00Z",
+              },
+            ],
+          }}
+        />,
+      );
+      const line = await screen.findByTestId("specbench-delivery-starting");
+      expect(line).toHaveAttribute("data-phase", "launch-failed");
+      expect(line).toHaveTextContent("The delivery session did not start");
+      expect(line).toHaveTextContent(DELIVERY_STOPPED_NOTICE);
+      expect(line).not.toHaveTextContent(DELIVERY_STARTING_NOTICE);
+    });
+
+    it("titles a typed read error by its cause", async () => {
+      vi.mocked(api.fetchDelivery).mockRejectedValue(
+        new api.ApiError(
+          "The record is missing its budget section",
+          409,
+          "DELIVERY_NONCONFORMANT",
+          {
+            code: "DELIVERY_NONCONFORMANT",
+            error: "The record is missing its budget section",
+            section: "budget",
+          },
+        ),
+      );
+      renderWithProviders(<SpecBenchTestBench bench={bench} />);
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "The delivery record is missing its budget section",
+      );
+      expect(screen.queryByTestId("specbench-delivery-starting")).toBeNull();
     });
 
     it("offers the lifecycle actions and the add-note form on a sitting case only once the sitting is open", async () => {

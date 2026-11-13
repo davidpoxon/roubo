@@ -352,6 +352,53 @@ describe("GET /:projectId/benches/:id/delivery", () => {
   });
 });
 
+describe("GET /:projectId/benches/:id/delivery/spec-summary", () => {
+  const FIXTURE_UNITS = fileURLToPath(
+    new URL("../../shared/__fixtures__/work-units.json", import.meta.url),
+  );
+
+  it("counts the units and gates of the spec in the bench workspace, with no delivery record", async () => {
+    fs.copyFileSync(FIXTURE_UNITS, path.join(specFolder, "work-units.json"));
+
+    const res = await request(app).get(`${base}/spec-summary`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ slug: "fixture-spec", units: 1, gates: 1 });
+  });
+
+  it("answers 0 units and 0 gates when the workspace has no work-units.json", async () => {
+    const res = await request(app).get(`${base}/spec-summary`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ slug: "fixture-spec", units: 0, gates: 0 });
+  });
+
+  it("answers 400 WORK_UNITS_INVALID for a work-units.json that does not validate", async () => {
+    fs.writeFileSync(path.join(specFolder, "work-units.json"), "{ not json");
+
+    const res = await request(app).get(`${base}/spec-summary`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "WORK_UNITS_INVALID" });
+  });
+
+  it("answers 400 INVALID_SLUG for a spec path whose slug is unsafe", async () => {
+    bench.focusedSpecPath = "/repo/.specifications/Not A Slug";
+
+    const res = await request(app).get(`${base}/spec-summary`);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "INVALID_SLUG" });
+  });
+
+  it("answers 404 for a bench that does not exist", async () => {
+    const res = await request(app).get("/api/projects/demo/benches/99/delivery/spec-summary");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("GET /:projectId/benches/:id/delivery/events", () => {
   it("answers every accepted event above the record with the accepted seq", async () => {
     writeRecord(fixtureRecord());

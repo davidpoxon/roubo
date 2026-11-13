@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Bench } from "@roubo/shared";
 import type { DeliveryReadError, DeliverySnapshotResponse } from "@roubo/shared/delivery-bench";
-import Button from "../ui/Button";
 import Callout from "../ui/Callout";
 import { focusRing } from "../ui/focus-ring";
 import {
@@ -10,7 +9,11 @@ import {
   selectProgress,
 } from "@roubo/shared/delivery-selectors";
 import { isUnreviewedAgentDecision, type DeliverySnapshot } from "@roubo/shared/delivery-reducer";
-import { useDelivery, useDeliverySessionLive, useLaunchDelivery } from "../../hooks/useDelivery";
+import {
+  useDelivery,
+  useDeliverySessionLive,
+  useDeliverySessionStartBlocked,
+} from "../../hooks/useDelivery";
 import { useDeliveryCrossCheck } from "../../hooks/useDeliveryCrossCheck";
 import { deliveryReadErrorOf } from "../../lib/api";
 import BoundaryPanel from "./BoundaryPanel";
@@ -28,6 +31,7 @@ import DeliveryDigest from "./DeliveryDigest";
 import { useDeliveryDigest } from "../../hooks/useDeliveryDigest";
 import type { DeliveryDigestEntry } from "@roubo/shared/delivery-digest";
 import DeliveryCasesView from "./DeliveryCasesView";
+import DeliveryStartup from "./DeliveryStartup";
 import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./DeliverySummaryRail";
 
 // The Spec Bench's Delivery tab (SB-FR-009). It shows one view at a time
@@ -83,9 +87,12 @@ import { BurnHealthPanel, DecisionSummaryPanel, NextBoundaryPanel } from "./Deli
 // The tab shows the snapshot when the record conforms, or the named error
 // when it does not. No decision, steering, role, mode or lifecycle control
 // renders until the record conforms, so nothing can act on a record the bench
-// cannot read. The one exception is a launch-mode bench with no record yet: it
-// offers to launch its session again, since no record means no session has
-// run the delivery yet.
+// cannot read. A missing record is not a fault: the session writes it only
+// after its preflight and the operator's answer to the plan and the budget, so
+// the tab shows the delivery's start-up (DeliveryStartup) in its place, with
+// the Terminal one press away (`onOpenTerminal`). A launch-mode bench offers to
+// launch its session again there once the launch failed or the session ended
+// without the record.
 //
 // `decisionPileFocusKey` is set when the bench was opened from a link to its
 // decision pile, such as a delivery-decision notification's (SB-FR-014), and
@@ -102,11 +109,13 @@ export default function DeliveryTabPanel({
   decisionPileFocusKey,
   onDecisionPileFocused,
   onSittingOpened,
+  onOpenTerminal,
 }: {
   bench: Bench;
   decisionPileFocusKey?: string | undefined;
   onDecisionPileFocused?: ((key: string) => void) | undefined;
   onSittingOpened?: ((gateId: string) => void) | undefined;
+  onOpenTerminal?: (() => void) | undefined;
 }) {
   const specFolder = bench.focusedSpecPath;
   const slug = specFolder?.split("/").filter(Boolean).pop();
@@ -141,8 +150,11 @@ export default function DeliveryTabPanel({
           Reading the delivery record...
         </p>
       )}
-      {delivery.isError && readError && (
-        <DeliveryReadErrorCallout bench={bench} error={readError} />
+      {delivery.isError && readError?.code === "DELIVERY_RECORD_MISSING" && (
+        <DeliveryStartup bench={bench} onOpenTerminal={onOpenTerminal} />
+      )}
+      {delivery.isError && readError && readError.code !== "DELIVERY_RECORD_MISSING" && (
+        <DeliveryReadErrorCallout error={readError} />
       )}
       {delivery.isError && !readError && (
         <Callout role="alert" title="The delivery could not be read" data-testid="delivery-error">
@@ -166,48 +178,15 @@ export default function DeliveryTabPanel({
   );
 }
 
-// The server refuses a new session while the bench's session runs or the bench
-// is going (409), so a button that starts one says the same before it is pressed.
-function useSessionStartBlocked(bench: Bench): boolean {
-  const sessionLive = useDeliverySessionLive(bench);
-  return bench.status === "clearing" || bench.status === "error" || sessionLive;
-}
-
-function DeliveryReadErrorCallout({ bench, error }: { bench: Bench; error: DeliveryReadError }) {
-  const waiting = error.code === "DELIVERY_RECORD_MISSING";
+// A record that is present but cannot be read: the fix is in the spec folder.
+function DeliveryReadErrorCallout({ error }: { error: DeliveryReadError }) {
   return (
-    <Callout
-      role={waiting ? "status" : "alert"}
-      title={readErrorTitle(error)}
-      data-testid="delivery-read-error"
-    >
+    <Callout role="alert" title={readErrorTitle(error)} data-testid="delivery-read-error">
       <p>{error.error}</p>
-      {waiting ? (
-        <p>The delivery session writes it when it starts.</p>
-      ) : (
-        <p>
-          Fix the record in the spec folder of the bench workspace. The tab reads it again on its
-          own.
-        </p>
-      )}
-      {waiting && bench.deliveryBindMode === "launch" && <LaunchDeliveryControl bench={bench} />}
+      <p>
+        Fix the record in the spec folder of the bench workspace. The tab reads it again on its own.
+      </p>
     </Callout>
-  );
-}
-
-// A launch-mode bench whose record is missing: the create-time launch may have
-// failed, or the session ended before it wrote the record, so the operator can
-// launch it again.
-function LaunchDeliveryControl({ bench }: { bench: Bench }) {
-  const launch = useLaunchDelivery(bench.projectId, bench.id);
-  const blocked = useSessionStartBlocked(bench);
-  return (
-    <div data-testid="delivery-launch-control" className="space-y-2">
-      <Button onPress={() => launch.mutate()} isDisabled={launch.isPending || blocked}>
-        Launch the delivery session
-      </Button>
-      {launch.isError && <p role="alert">{launch.error.message}</p>}
-    </div>
   );
 }
 
@@ -304,7 +283,7 @@ function DeliverySnapshotView({
   onDecisionPileFocused: ((key: string) => void) | undefined;
   onSittingOpened: ((gateId: string) => void) | undefined;
 }) {
-  const sessionStartBlocked = useSessionStartBlocked(bench);
+  const sessionStartBlocked = useDeliverySessionStartBlocked(bench);
   const sessionLive = useDeliverySessionLive(bench);
   // The cross-check is a read of its own: a failed read leaves the rail as it
   // is, and the snapshot shows whatever it does.

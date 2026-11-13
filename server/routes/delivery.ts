@@ -89,6 +89,20 @@
 //                                                    refresh before (see
 //                                                    services/delivery-cross-check-loader.ts)
 //                                                    404 and 409 as the snapshot read
+//   GET  /:projectId/benches/:id/delivery/spec-summary
+//                                                 -> 200 SpecBenchSpecSummary {slug, units,
+//                                                    gates}: the spec's work units that
+//                                                    deliver code and its verify gates,
+//                                                    counted from
+//                                                    `.specifications/<slug>/work-units.json`
+//                                                    in the bench workspace; 0 and 0 when
+//                                                    the file is absent. It does not need
+//                                                    the delivery record, so the Delivery
+//                                                    tab shows it while the session starts
+//                                                    404 as the snapshot read
+//                                                    400 INVALID_SLUG: the spec path is unsafe
+//                                                    400 WORK_UNITS_INVALID + errors: the file
+//                                                        is present but does not validate
 //   POST /:projectId/benches/:id/delivery/launch  -> 202 a launch-mode bench's session
 //                                                    launched again with no resume
 //                                                    argument, while no record exists
@@ -522,6 +536,7 @@
 // bench workspace. It is read and validated on every request (see
 // delivery-record-loader), so nothing a view shows comes from a record that no
 // longer conforms.
+import path from "node:path";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import type { Bench } from "@roubo/shared";
@@ -536,6 +551,7 @@ import { readDeliveryOutbox } from "../lib/delivery-outbox.js";
 import { foldDeliverySnapshot } from "../lib/delivery-snapshot.js";
 import { UnsafePathError } from "../lib/safe-path.js";
 import * as benchManager from "../services/bench-manager.js";
+import * as workUnitLoader from "../services/work-unit-loader.js";
 import * as projectRegistry from "../services/project-registry.js";
 import {
   resolveCommitIn,
@@ -556,6 +572,7 @@ import {
   type DeliverySnapshotResponse,
   type DeliveryTimeResponse,
   type DeliveryUnitDiffResponse,
+  type SpecBenchSpecSummary,
 } from "@roubo/shared/delivery-bench";
 import { deriveDeliveryTimeSplit } from "@roubo/shared/delivery-time-split";
 import {
@@ -818,6 +835,31 @@ router.get("/:projectId/benches/:id/delivery/time", deliveryReadRateLimiter, (re
     now: Date.now(),
   });
   res.json(body);
+});
+
+// The units and gates of the spec the bench delivers, read from the bench
+// workspace. The read needs no delivery record, so the Delivery tab can show
+// what the session is about to deliver while it starts.
+router.get("/:projectId/benches/:id/delivery/spec-summary", deliveryReadRateLimiter, (req, res) => {
+  const bench = specBenchOf(req, res);
+  if (!bench) return;
+  const slug = path.basename(bench.focusedSpecPath ?? "");
+  try {
+    const units = workUnitLoader.loadAllUnitsForSlug(bench.workspacePath, slug);
+    const gates = units.filter((unit) => unit.kind === "verify").length;
+    const body: SpecBenchSpecSummary = { slug, units: units.length - gates, gates };
+    res.json(body);
+  } catch (err) {
+    if (err instanceof UnsafePathError) {
+      res.status(400).json({ error: err.message, code: "INVALID_SLUG" });
+      return;
+    }
+    if (err instanceof workUnitLoader.WorkUnitsValidationError) {
+      res.status(400).json({ error: err.message, code: "WORK_UNITS_INVALID", errors: err.errors });
+      return;
+    }
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 router.get(

@@ -23,6 +23,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
     launchDelivery: vi.fn(),
     fetchTerminals: vi.fn(),
     fetchTestbenchPlan: vi.fn(),
+    fetchDeliverySpecSummary: vi.fn(),
   };
 });
 import * as api from "../../lib/api";
@@ -33,6 +34,7 @@ import {
   shouldRetryDeliveryCrossCheck,
 } from "../../hooks/useDeliveryCrossCheck";
 import DeliveryTabPanel from "./DeliveryTabPanel";
+import { LAUNCH_GRACE_MS } from "./delivery-startup";
 import {
   openCasesView,
   openCostView,
@@ -47,6 +49,8 @@ const bench = {
   variant: "specbench",
   focusedSpecPath: "/repos/demo/.specifications/fixture-spec",
   deliveryBindMode: "attach",
+  notifications: [],
+  createdAt: "2026-10-16T09:00:00Z",
 } as unknown as Bench;
 
 function record(): DeliveryRecord {
@@ -120,6 +124,8 @@ beforeEach(() => {
   vi.mocked(api.fetchTerminals).mockReset();
   vi.mocked(api.fetchTestbenchPlan).mockReset();
   vi.mocked(api.fetchTestbenchPlan).mockRejectedValue(new Error("no plan in this test"));
+  vi.mocked(api.fetchDeliverySpecSummary).mockReset();
+  vi.mocked(api.fetchDeliverySpecSummary).mockRejectedValue(new Error("no summary in this test"));
   vi.mocked(api.fetchDeliveryCrossCheck).mockReset();
   vi.mocked(api.fetchDeliveryCrossCheck).mockResolvedValue({
     disagreements: [],
@@ -198,70 +204,211 @@ describe("DeliveryTabPanel", () => {
     expectNoControls();
   });
 
-  it("waits for a record that the session has not written yet, with no control", async () => {
-    vi.mocked(api.fetchDelivery).mockRejectedValueOnce(
-      readError({ code: "DELIVERY_RECORD_MISSING", error: "No delivery record yet" }),
-    );
-    renderWithProviders(<DeliveryTabPanel bench={bench} />);
+  describe("a record the session has not written yet", () => {
+    const missing = () =>
+      readError({ code: "DELIVERY_RECORD_MISSING", error: "No delivery record yet" });
+    const launchBench = (over: Partial<Bench> = {}): Bench => ({
+      ...bench,
+      status: "active",
+      deliveryBindMode: "launch",
+      ...over,
+    });
+    const liveSession = {
+      id: "session-1",
+      benchKey: "demo:3",
+      label: "agent",
+      createdAt: "2026-10-16T09:01:00Z",
+      status: "live" as const,
+    };
 
-    const callout = await screen.findByTestId("delivery-read-error");
-    expect(callout).toHaveAttribute("role", "status");
-    expectNoControls();
-  });
+    beforeEach(() => {
+      vi.mocked(api.fetchDelivery).mockRejectedValue(missing());
+    });
 
-  it("offers a launch-mode bench with no record its launch again, and launches on press", async () => {
-    vi.mocked(api.fetchDelivery).mockRejectedValue(
-      readError({ code: "DELIVERY_RECORD_MISSING", error: "No delivery record yet" }),
-    );
-    vi.mocked(api.launchDelivery).mockResolvedValue({ sessionId: "session-2" });
-    renderWithProviders(
-      <DeliveryTabPanel bench={{ ...bench, status: "active", deliveryBindMode: "launch" }} />,
-    );
+    it("shows the delivery's start-up as a neutral status, not a fault, with no control", async () => {
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
 
-    const control = await screen.findByTestId("delivery-launch-control");
-    expect(screen.getByTestId("delivery-read-error")).toContainElement(control);
-    // Launching is the only control: the record's controls still wait for it.
-    expect(screen.queryByTestId("delivery-lifecycle-controls")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Launch the delivery session" }));
-    await waitFor(() => expect(api.launchDelivery).toHaveBeenCalledWith("demo", 3));
-  });
+      const startup = await screen.findByTestId("delivery-startup");
+      expect(startup).toHaveAttribute("role", "status");
+      expect(startup).toHaveAttribute("data-phase", "attach-waiting");
+      expect(startup.className).not.toMatch(/danger/);
+      expect(screen.queryByTestId("delivery-read-error")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expectNoControls();
+    });
 
-  it.each(["clearing", "error"] as const)(
-    "disables the launch control while the bench is %s",
-    async (status) => {
-      vi.mocked(api.fetchDelivery).mockRejectedValue(
-        readError({ code: "DELIVERY_RECORD_MISSING", error: "No delivery record yet" }),
+    it("shows the units and gates of the spec in the bench workspace", async () => {
+      vi.mocked(api.fetchDeliverySpecSummary).mockResolvedValue({
+        slug: "fixture-spec",
+        units: 4,
+        gates: 1,
+      });
+      renderWithProviders(<DeliveryTabPanel bench={bench} />);
+
+      expect(await screen.findByTestId("delivery-startup-counts")).toHaveTextContent(
+        "4 units and 1 gate in this spec",
       );
+      expect(api.fetchDeliverySpecSummary).toHaveBeenCalledWith("demo", 3);
+    });
+
+    it("plans the delivery while the session runs, with no launch control", async () => {
+      vi.mocked(api.fetchTerminals).mockResolvedValue([liveSession]);
       renderWithProviders(
-        <DeliveryTabPanel bench={{ ...bench, status, deliveryBindMode: "launch" }} />,
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId("delivery-startup")).toHaveAttribute("data-phase", "planning"),
+      );
+      expect(screen.getByTestId("delivery-startup-phase")).toHaveTextContent(
+        "Planning the delivery",
+      );
+      expect(screen.getByTestId("delivery-startup-step-session")).toHaveAttribute(
+        "data-status",
+        "done",
+      );
+      expect(screen.getByTestId("delivery-startup-step-planning")).toHaveAttribute(
+        "data-status",
+        "running",
+      );
+      expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+    });
+
+    it("waits for the operator in the Terminal, which one press opens", async () => {
+      vi.mocked(api.fetchTerminals).mockResolvedValue([liveSession]);
+      const onOpenTerminal = vi.fn();
+      renderWithProviders(
+        <DeliveryTabPanel
+          bench={launchBench({
+            deliverySessionId: "session-1",
+            notifications: [
+              {
+                id: "n-1",
+                type: "agent-waiting",
+                priority: "action-needed",
+                sourceSessionId: "session-1",
+                createdAt: "2026-10-16T09:02:00Z",
+              },
+            ],
+          })}
+          onOpenTerminal={onOpenTerminal}
+        />,
+      );
+
+      const open = await screen.findByRole("button", { name: "Open the terminal" });
+      expect(screen.getByTestId("delivery-startup-phase")).toHaveTextContent("Waiting for you");
+      expect(screen.getByTestId("delivery-startup-step-operator")).toHaveAttribute(
+        "data-status",
+        "running",
+      );
+      await userEvent.click(open);
+      expect(onOpenTerminal).toHaveBeenCalledOnce();
+      expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+    });
+
+    it("offers the launch again once the session ended without the record, and launches on press", async () => {
+      vi.mocked(api.fetchTerminals).mockResolvedValue([
+        { ...liveSession, status: "ended", exitCode: 1 },
+      ]);
+      vi.mocked(api.launchDelivery).mockResolvedValue({ sessionId: "session-2" });
+      renderWithProviders(
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
+      );
+
+      const launch = await screen.findByRole("button", { name: "Launch the delivery session" });
+      expect(launch).toBeEnabled();
+      expect(screen.getByTestId("delivery-startup-step-session")).toHaveTextContent("exit code 1");
+      // Launching is the only control: the record's controls still wait for it.
+      expect(screen.queryByTestId("delivery-lifecycle-controls")).not.toBeInTheDocument();
+      await userEvent.click(launch);
+      await waitFor(() => expect(api.launchDelivery).toHaveBeenCalledWith("demo", 3));
+    });
+
+    it("offers the launch again once the session was closed from the Terminal", async () => {
+      vi.mocked(api.fetchTerminals).mockResolvedValue([]);
+      renderWithProviders(
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
       );
 
       expect(
         await screen.findByRole("button", { name: "Launch the delivery session" }),
-      ).toBeDisabled();
-    },
-  );
+      ).toBeEnabled();
+      expect(screen.getByTestId("delivery-startup")).toHaveAttribute("data-phase", "session-ended");
+    });
 
-  it("disables the launch control while the session the bench launched is live", async () => {
-    vi.mocked(api.fetchDelivery).mockRejectedValue(
-      readError({ code: "DELIVERY_RECORD_MISSING", error: "No delivery record yet" }),
-    );
-    vi.mocked(api.fetchTerminals).mockResolvedValue([
-      { id: "session-1", benchKey: "demo:3", label: "agent", createdAt: "now", status: "live" },
-    ]);
-    renderWithProviders(
-      <DeliveryTabPanel
-        bench={{
-          ...bench,
-          status: "active",
-          deliveryBindMode: "launch",
-          deliverySessionId: "session-1",
-        }}
-      />,
-    );
+    it("does not read a just-recorded session as gone from a list cached before it started", async () => {
+      // The Terminal tab's list was read while the bench prepared, before the
+      // launch recorded its session; the next read has not answered yet.
+      const queryClient = makeQueryClient();
+      queryClient.setQueryData(["terminals", "demo", 3], []);
+      vi.mocked(api.fetchTerminals).mockReturnValue(new Promise(() => {}));
+      renderWithProviders(
+        <DeliveryTabPanel bench={launchBench({ deliverySessionId: "session-1" })} />,
+        { queryClient },
+      );
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Launch the delivery session" })).toBeDisabled(),
+      const startup = await screen.findByTestId("delivery-startup");
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(startup).toHaveAttribute("data-phase", "planning");
+      expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+    });
+
+    it("offers the launch again once no session started within the grace period", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        renderWithProviders(<DeliveryTabPanel bench={launchBench()} />);
+        const startup = await screen.findByTestId("delivery-startup");
+        expect(startup).toHaveAttribute("data-phase", "starting");
+        expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LAUNCH_GRACE_MS);
+        });
+
+        expect(startup).toHaveAttribute("data-phase", "launch-stalled");
+        expect(screen.getByRole("button", { name: "Launch the delivery session" })).toBeEnabled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("offers the launch again after the create-time launch failed, naming the cause", async () => {
+      renderWithProviders(
+        <DeliveryTabPanel
+          bench={launchBench({
+            notifications: [
+              {
+                id: "n-2",
+                type: "agent-launch-failed",
+                priority: "action-needed",
+                metadata: { message: "The delivery session did not start: no agent" },
+                createdAt: "2026-10-16T09:01:00Z",
+              },
+            ],
+          })}
+        />,
+      );
+
+      expect(
+        await screen.findByRole("button", { name: "Launch the delivery session" }),
+      ).toBeEnabled();
+      expect(screen.getByTestId("delivery-startup")).toHaveAttribute("data-phase", "launch-failed");
+      expect(screen.getByTestId("delivery-startup-step-session")).toHaveTextContent(
+        "The delivery session did not start: no agent",
+      );
+    });
+
+    it.each(["clearing", "error"] as const)(
+      "offers no launch control while the bench is %s",
+      async (status) => {
+        renderWithProviders(<DeliveryTabPanel bench={launchBench({ status })} />);
+
+        const startup = await screen.findByTestId("delivery-startup");
+        expect(startup).toHaveAttribute("data-phase", "bench-unavailable");
+        expect(screen.queryByTestId("delivery-launch-control")).not.toBeInTheDocument();
+      },
     );
   });
 
