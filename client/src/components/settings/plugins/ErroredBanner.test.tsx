@@ -372,7 +372,9 @@ describe("ErroredBanner Reinstall affordance (#945)", () => {
       pluginId: "my-component",
       acknowledgedCategories: ["network"],
     });
-    expect(addToast).toHaveBeenCalledWith("Reinstalled My Component.");
+    // The server's input-changed notice is the one notice of the reinstall
+    // (HR-TC-022), so the banner adds no success toast of its own.
+    expect(addToast).not.toHaveBeenCalled();
     // The dialog closes after a successful commit.
     expect(screen.queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
   });

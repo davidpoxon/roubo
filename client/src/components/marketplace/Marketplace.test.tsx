@@ -952,7 +952,7 @@ describe("Marketplace 4-step install progress (CPHM-TC-017 / -018 / -019)", () =
 
   // CPHM-TC-017 S002-O01: clicking Install opens the Install & verify screen
   // showing all four stages, and the happy path completes through Unpack &
-  // install (the confirm fires and the gate closes to the success toast).
+  // install (the confirm fires and the gate closes).
   it("shows all four stages in the consent modal with stages 1-3 done and stage 4 pending", async () => {
     installSucceeds();
     setCatalog([CATALOG[0]]); // redis, not installed
