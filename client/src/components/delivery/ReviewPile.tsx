@@ -21,6 +21,7 @@ import {
   type ReviewActionRequest,
 } from "../../hooks/useDelivery";
 import { gateUnconfirmedCount, toConfirmText } from "./delivery-map-model";
+import { timelineTime } from "./delivery-timeline-model";
 import ProvisionalMarkCard from "./ProvisionalMark";
 import { PILE_LOWER_BAR, PILE_LOWER_ITEM, PILE_TOP_CARD } from "./pile-styles";
 import { recordedProvisionalMark } from "./provisional-mark-model";
@@ -200,14 +201,6 @@ function cardThread(
   return { entries, waiting };
 }
 
-// The time of a message as the clock reads it, or the stamp as it came when it
-// does not parse.
-function timeOf(ts: string): string {
-  const ms = Date.parse(ts);
-  if (Number.isNaN(ms)) return ts;
-  return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-
 function ThreadMessage({ entry }: { entry: ThreadEntry }) {
   // The operator's message sits on the card ground; the session's reply on
   // the inset ground.
@@ -222,7 +215,7 @@ function ThreadMessage({ entry }: { entry: ThreadEntry }) {
           {entry.author}
         </span>
         <time data-testid="review-thread-time" dateTime={entry.ts}>
-          {timeOf(entry.ts)}
+          {timelineTime(entry.ts, new Date(), false)}
         </time>
       </p>
       <p className="whitespace-pre-wrap break-words text-13 text-text-body">{entry.text}</p>
