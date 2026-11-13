@@ -10,7 +10,7 @@ import {
   useReconcileApply,
   useReconcilePurge,
 } from "../../hooks/useReconcile";
-import { buildRollup, flattenRollup } from "./rollup";
+import { buildRollup, flattenRollup, staleCaseIdsOf } from "./rollup";
 import CaseList from "./CaseList";
 import CaseDetail from "./CaseDetail";
 import ProgressBar from "./ProgressBar";
@@ -166,9 +166,25 @@ export default function TestBenchPanel({
   // replacement pointer ("TC-004") from a cross-spec one ("other-spec:TC-004"),
   // which is what decides whether the archived section can reveal the
   // replacement in this panel's live list (#1161).
-  const model = useMemo(
-    () => (data ? buildRollup(data.plan.cases, data.results, data.plan.specSlug) : null),
+  //
+  // The per-case currency (#1696): the live cases whose result was judged against
+  // an earlier version of the case. The banner names them and each row carries a
+  // Stale label. Undefined when an older server sends no currency.
+  const staleCaseIds = useMemo(
+    () => (data ? staleCaseIdsOf(data.plan.cases, data.results, data.currentCaseIds) : undefined),
     [data],
+  );
+  const model = useMemo(
+    () =>
+      data
+        ? buildRollup(
+            data.plan.cases,
+            data.results,
+            data.plan.specSlug,
+            staleCaseIds === undefined ? undefined : new Set(staleCaseIds),
+          )
+        : null,
+    [data, staleCaseIds],
   );
   const flatRows = useMemo(() => (model ? flattenRollup(model) : []), [model]);
   // The outcome of the last lifecycle write, in words (#1173, AC4). Derived from
@@ -392,7 +408,11 @@ export default function TestBenchPanel({
   return frame(
     <>
       <ResultsRecoveryBanner recoveryReason={data.recoveryReason} />
-      <StalenessBanner stale={data.stale} onReconcile={readOnly ? undefined : openReconcile} />
+      <StalenessBanner
+        stale={data.stale}
+        staleCaseIds={staleCaseIds}
+        onReconcile={readOnly ? undefined : openReconcile}
+      />
       <div className="rounded-lg ring-1 ring-inset ring-border bg-bg-base px-4 py-3">
         <ProgressBar counts={model.overall} label="Overall" />
       </div>
@@ -442,6 +462,7 @@ export default function TestBenchPanel({
               onNext={nextCaseId ? () => selectCase(nextCaseId) : undefined}
               onArchived={setArchivedCaseId}
               marksDisabled={readOnly}
+              stale={staleCaseIds?.includes(selectedCase.id) === true}
             />
           </div>
         )}

@@ -4,6 +4,7 @@ import {
   deriveStatus,
   purgeOrphans,
   reconcile,
+  noncurrentLiveCaseIds,
   staleResultCaseIds,
 } from "./testbench-domain.js";
 import { canonicalizeCase } from "./testbench-canonicalize.js";
@@ -282,8 +283,9 @@ describe("reconcile (spike-407 AC3 classification)", () => {
     expect(next["TC-001"].notes.map((n) => n.id)).toEqual(["N1"]);
     expect(next["TC-001"].orphaned).toBeUndefined();
 
-    // TC-002 (changed, fresh results): every mark, note, override kept; only
-    // caseCanon refreshed and derivedStatus recomputed from the kept (fail) mark.
+    // TC-002 (changed, fresh results): every mark, note, override kept, and
+    // derivedStatus recomputed from the kept (fail) mark. Its recorded snapshot
+    // names the old body, so it is kept and the case stays stale (#1696).
     expect(next["TC-002"].observationMarks.O1).toEqual(mark("fail"));
     expect(next["TC-002"].statusOverride).toEqual({
       status: "blocked",
@@ -291,7 +293,7 @@ describe("reconcile (spike-407 AC3 classification)", () => {
       timestamp: "T2",
     });
     expect(next["TC-002"].notes.map((n) => n.id)).toEqual(["N2"]);
-    expect(next["TC-002"].caseCanon).toBe(canonicalizeCase(tc002New));
+    expect(next["TC-002"].caseCanon).toBe(canonicalizeCase(tc002Old));
     expect(next["TC-002"].derivedStatus).toBe("failed");
     expect(next["TC-002"].orphaned).toBeUndefined();
 
@@ -394,6 +396,20 @@ describe("reconcile under stale results (#1407)", () => {
 
     expect(nextResults.caseResults["TC-001"].caseCanon).toBeUndefined();
   });
+
+  it("gives a legacy changed case with no snapshot the current body when the results are fresh", () => {
+    const body = buildCase("TC-001", "obs one");
+    const results: BenchResults = {
+      caseResults: {
+        "TC-001": { observationMarks: {}, derivedStatus: "not_started", notes: [] },
+      },
+      updatedAt: "T0",
+    };
+
+    const { nextResults } = reconcile(buildPlan([body]), results, { fresh: true });
+
+    expect(nextResults.caseResults["TC-001"].caseCanon).toBe(canonicalizeCase(body));
+  });
 });
 
 describe("per-case result currency (#1407)", () => {
@@ -429,16 +445,24 @@ describe("per-case result currency (#1407)", () => {
     "TC-005": result(canonicalizeCase(buildCase("TC-005", "original"))),
   };
 
-  it("reads every recorded result as current when the results are fresh", () => {
+  it("reads every recorded result as current when the results are fresh, except a recorded older body", () => {
+    // A fresh file claims every result, but a recorded caseCanon that names
+    // another body is never current (#1696): TC-002 and the retired and
+    // superseded cases were judged against an older body. TC-003 records no
+    // body, so a fresh file claims it, and so is the orphan.
     expect(currentResultCaseIds(plan, caseResults, true)).toEqual([
       "TC-001",
-      "TC-002",
       "TC-003",
-      "TC-004",
-      "TC-005",
       "TC-ORPHAN",
     ]);
     expect(staleResultCaseIds(plan, caseResults, true)).toEqual([]);
+  });
+
+  it("names the live recorded cases with a recorded older body as non-current (#1696)", () => {
+    // The retired and superseded cases end their own obligation; TC-003 has no
+    // snapshot, which only a stale file holds against it.
+    expect(noncurrentLiveCaseIds(plan, caseResults, true)).toEqual(["TC-002"]);
+    expect(noncurrentLiveCaseIds(plan, caseResults, false)).toEqual(["TC-002", "TC-003"]);
   });
 
   it("reads only a result whose snapshot matches the current body as current when stale", () => {

@@ -4,6 +4,7 @@ import { Button } from "react-aria-components";
 import type { BenchResults, CaseResult } from "@roubo/shared/testbench-contracts";
 import type { ArchivedCaseModel } from "./rollup";
 import StatusIndicator from "./StatusIndicator";
+import CaseStateLabel from "./CaseStateLabel";
 import { caseLifecycleErrorMessage, useSetCaseLifecycle } from "../../hooks/useTestbenchPlan";
 
 // Archived cases section for the TestBench review tab (FR-013, FR-017, NFR-003,
@@ -86,11 +87,7 @@ function effectiveStatus(result: CaseResult): CaseResult["derivedStatus"] {
 }
 
 function StateLabel({ children }: { children: string }) {
-  return (
-    <span className="rounded px-1.5 py-0.5 text-11 font-semibold uppercase tracking-label text-text-body bg-bg-pressed shrink-0">
-      {children}
-    </span>
-  );
+  return <CaseStateLabel>{children}</CaseStateLabel>;
 }
 
 function Situation({ children }: { children: string }) {

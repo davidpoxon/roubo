@@ -38,6 +38,7 @@ import {
 } from "@roubo/shared/delivery-observation-contract";
 import type { TestCasesPlan } from "@roubo/shared/testbench-contracts";
 import {
+  currentCaseResults,
   evaluateGate,
   indexResolutions,
   isCaseMet,
@@ -434,17 +435,22 @@ export function crossCheckDelivery(
   // of its gates (`met` or `not_met`), so the class is confined to them. A mark
   // agrees when `met` reads the same as the result's met reading (`isCaseMet`,
   // as the gate reads it). A case with no recorded result is skipped: the results
-  // observe nothing about it.
-  if (current !== null) {
+  // observe nothing about it. Only the results that are current for the live
+  // plan are read (`currentCaseResults` against the currency's plan hash): a
+  // result judged against an older case body observes nothing about the case now
+  // (#1696). A record judged against another plan still has its marks compared,
+  // and plan-hash-mismatch reports the plan. Results with no currency are read
+  // against the record's plan hash, so a stale file with no currency has no
+  // current result, and plan-hash-mismatch reports it.
+  const currentResults =
+    current === null
+      ? null
+      : currentCaseResults(current, current.currency?.planHash ?? snapshot.planHash);
+  if (currentResults !== null) {
     const resolutionById = indexResolutions(context.lifecycle);
     for (const view of gates) {
       for (const mark of view.gate.provisionalCases ?? []) {
-        const result = readCaseResult(
-          mark.case,
-          current.caseResults,
-          resolutionById,
-          context.lifecycle,
-        );
+        const result = readCaseResult(mark.case, currentResults, resolutionById, context.lifecycle);
         if (result === undefined) continue;
         const resultMet = isCaseMet(result);
         if ((mark.mark === "met") === resultMet) continue;

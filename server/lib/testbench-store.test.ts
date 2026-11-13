@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   readPlanAndResults,
@@ -9,6 +10,7 @@ import {
   setStatusOverride,
   reconcile,
   computePlanHash,
+  toGateResults,
   MissingPlanError,
   UnsafePathError,
 } from "./testbench-store.js";
@@ -21,6 +23,7 @@ import {
   type TestResultsFile,
 } from "@roubo/shared/testbench-contracts";
 import { canonicalizeCase } from "@roubo/shared/testbench-canonicalize";
+import { evaluateGate, type VerifyUnit } from "@roubo/shared/gate-evaluator";
 import * as gitHelpers from "../services/git-helpers.js";
 
 // Mock the git identity resolver so author/sentinel stamping is deterministic and
@@ -573,7 +576,9 @@ describe("planHash stamping under stale results (#1407)", () => {
   it("keeps a second case stale after one mark on the first", async () => {
     const oldHash = await markBothUnderV1();
 
+    // Both of TC-001's observations are marked again, so it is judged anew.
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
 
     expect(readFile().planHash).toBe(oldHash);
     const view = readPlanAndResults(repo, SLUG);
@@ -595,6 +600,7 @@ describe("planHash stamping under stale results (#1407)", () => {
     writePlan(plan);
 
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
     expect(readFile().planHash).toBe(computePlanHash(plan));
   });
 
@@ -605,6 +611,7 @@ describe("planHash stamping under stale results (#1407)", () => {
     writePlan(plan);
 
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
     expect(readFile().planHash).toBe(computePlanHash(plan));
   });
 
@@ -722,7 +729,13 @@ describe("planHash stamping under stale results (#1407)", () => {
     await markOnlyFirstUnderV1();
     await setStatusOverride(repo, SLUG, "TC-001", "blocked");
 
+    // The record moves only once every observation is marked under the override
+    // (#1696): after the first mark it still names the old body.
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    expect(readFile().caseResults["TC-001"].statusOverride?.verdictCanon).toBe(
+      canonicalizeCase(twoCasePlan().cases[0]),
+    );
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
 
     const current = canonicalizeCase(editedTwoCasePlan().cases[0]);
     expect(readFile().caseResults["TC-001"].statusOverride?.verdictCanon).toBe(current);
@@ -838,6 +851,7 @@ describe("planHash stamping under stale results (#1407)", () => {
   it("stamps the current hash on a confirmed reconcile once no live case is stale", async () => {
     await markBothUnderV1();
     await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
     // TC-002 leaves the plan: its old result becomes an orphan, which never holds
     // the stamp, so the reconcile write may move it.
     const plan = editedTwoCasePlan();
@@ -848,6 +862,182 @@ describe("planHash stamping under stale results (#1407)", () => {
 
     expect(readFile().planHash).toBe(computePlanHash(plan));
     expect(readPlanAndResults(repo, SLUG).stale).toBe(false);
+  });
+});
+
+// #1696: per-case currency follow-ups. A mark records the body it was judged
+// against, so one mark never makes a case's other old marks read as current, and
+// a recorded body that is not the case's current body is never current, even
+// under a fresh file.
+describe("per-mark and per-case currency (#1696)", () => {
+  function editedTwoCasePlan(): TestCasesPlan {
+    const plan = twoCasePlan();
+    plan.cases[0].title = "Login works (revised)";
+    plan.cases[1].title = "Logout works (revised)";
+    return plan;
+  }
+
+  function readFile(): TestResultsFile {
+    return JSON.parse(fs.readFileSync(resultsFilePath(), "utf8"));
+  }
+
+  function sha256(text: string): string {
+    return createHash("sha256").update(text, "utf8").digest("hex");
+  }
+
+  async function markBothUnderV1(): Promise<void> {
+    writePlan(twoCasePlan());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
+    await markObservation(repo, SLUG, "TC-002", "O1", "pass");
+    writePlan(editedTwoCasePlan());
+  }
+
+  it("records the hash of the body a mark was judged against", async () => {
+    writePlan(twoCasePlan());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    expect(readFile().caseResults["TC-001"].observationMarks.O1.caseCanonHash).toBe(
+      sha256(canonicalizeCase(twoCasePlan().cases[0])),
+    );
+  });
+
+  it.each([["pass" as const], ["fail" as const]])(
+    "keeps a case stale after one %s mark while another observation holds an old mark",
+    async (result) => {
+      await markBothUnderV1();
+      const oldCanon = readFile().caseResults["TC-001"].caseCanon;
+
+      await markObservation(repo, SLUG, "TC-001", "O1", result);
+
+      expect(readFile().caseResults["TC-001"].caseCanon).toBe(oldCanon);
+      expect(readPlanAndResults(repo, SLUG).currentCaseIds).not.toContain("TC-001");
+
+      // Marking the other observation again judges the whole case anew.
+      await markObservation(repo, SLUG, "TC-001", "O2", "pass");
+      expect(readFile().caseResults["TC-001"].caseCanon).toBe(
+        canonicalizeCase(editedTwoCasePlan().cases[0]),
+      );
+      expect(readPlanAndResults(repo, SLUG).currentCaseIds).toContain("TC-001");
+    },
+  );
+
+  it("does not count a mark with no recorded body toward a stale case", async () => {
+    await markBothUnderV1();
+    // Marks written before the field existed carry no hash.
+    const file = readFile();
+    for (const mark of Object.values(file.caseResults["TC-001"].observationMarks)) {
+      delete mark.caseCanonHash;
+    }
+    fs.writeFileSync(resultsFilePath(), JSON.stringify(file, null, 2));
+
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    expect(readPlanAndResults(repo, SLUG).currentCaseIds).not.toContain("TC-001");
+  });
+
+  it("counts a mark with no recorded body when the case is already current", async () => {
+    await markBothUnderV1();
+    // The other writer judged TC-001 against the current body: it stamps the case
+    // and writes its marks with no hash.
+    const file = readFile();
+    file.caseResults["TC-001"].caseCanon = canonicalizeCase(editedTwoCasePlan().cases[0]);
+    for (const mark of Object.values(file.caseResults["TC-001"].observationMarks)) {
+      delete mark.caseCanonHash;
+    }
+    fs.writeFileSync(resultsFilePath(), JSON.stringify(file, null, 2));
+    await setStatusOverride(repo, SLUG, "TC-001", "blocked");
+
+    // A determination under the override moves its record to the current body
+    // only when every mark is current; the hashless O2 counts, as the case is.
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+
+    expect(readFile().caseResults["TC-001"].statusOverride?.verdictCanon).toBe(
+      canonicalizeCase(editedTwoCasePlan().cases[0]),
+    );
+  });
+
+  // Gap 2: the file can go fresh while a retired case holds an old result.
+  async function freshFileWithRetiredStaleCase(): Promise<TestCasesPlan> {
+    await markBothUnderV1();
+    const retired = editedTwoCasePlan();
+    retired.cases[1].lifecycle = { state: "retired", reason: "Logout was removed" };
+    writePlan(retired);
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    await markObservation(repo, SLUG, "TC-001", "O2", "pass");
+    expect(readFile().planHash).toBe(computePlanHash(retired));
+    // Restore TC-002: the plan hash excludes lifecycle, so the file stays fresh.
+    const restored = editedTwoCasePlan();
+    writePlan(restored);
+    return restored;
+  }
+
+  it("does not read a restored case's old result as current under a fresh file", async () => {
+    const restored = await freshFileWithRetiredStaleCase();
+    expect(readFile().planHash).toBe(computePlanHash(restored));
+
+    const view = readPlanAndResults(repo, SLUG);
+    expect(view.stale).toBe(true);
+    expect(view.currentCaseIds).toEqual(["TC-001"]);
+  });
+
+  it("reads a gate over a restored case as stale and a gate over a current case as passed", async () => {
+    const restored = await freshFileWithRetiredStaleCase();
+    const view = readPlanAndResults(repo, SLUG);
+    const gateResults = toGateResults(view);
+
+    const gate = (ids: string[]): VerifyUnit => ({
+      id: "WU-100",
+      title: "Verify",
+      type: "task",
+      kind: "verify",
+      description: "Gate",
+      acceptance_criteria: [],
+      depends_on: [],
+      covers: [],
+      implements: { requirement_ids: [], user_story_ids: [], test_case_ids: ids },
+    });
+    expect(evaluateGate(gate(["TC-002"]), gateResults, view.planHash, restored).status).toBe(
+      "stale",
+    );
+    expect(evaluateGate(gate(["TC-001"]), gateResults, view.planHash, restored).status).toBe(
+      "passed",
+    );
+  });
+
+  it("keeps a restored case stale through a note and a confirmed reconcile", async () => {
+    await freshFileWithRetiredStaleCase();
+    const oldCanon = readFile().caseResults["TC-002"].caseCanon;
+
+    await appendNote(repo, SLUG, "TC-002", "back in scope");
+    expect(readFile().caseResults["TC-002"].caseCanon).toBe(oldCanon);
+
+    const outcome = await reconcile(repo, SLUG, { confirm: true });
+    expect(outcome.classification.changed).toEqual(["TC-002"]);
+    expect(readFile().caseResults["TC-002"].caseCanon).toBe(oldCanon);
+    expect(readPlanAndResults(repo, SLUG).currentCaseIds).toEqual(["TC-001"]);
+  });
+
+  it("makes a restored case current once it is judged again", async () => {
+    await freshFileWithRetiredStaleCase();
+
+    await markObservation(repo, SLUG, "TC-002", "O1", "pass");
+
+    const view = readPlanAndResults(repo, SLUG);
+    expect(view.stale).toBe(false);
+    expect(view.currentCaseIds).toEqual(["TC-001", "TC-002"]);
+  });
+
+  it("still reads a legacy result with no caseCanon as current under a fresh file", async () => {
+    writePlan(twoCasePlan());
+    await markObservation(repo, SLUG, "TC-001", "O1", "pass");
+    const file = readFile();
+    delete file.caseResults["TC-001"].caseCanon;
+    fs.writeFileSync(resultsFilePath(), JSON.stringify(file, null, 2));
+
+    const view = readPlanAndResults(repo, SLUG);
+    expect(view.stale).toBe(false);
+    expect(view.currentCaseIds).toEqual(["TC-001"]);
   });
 });
 

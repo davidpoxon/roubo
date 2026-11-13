@@ -99,15 +99,24 @@ function caseResult(status: CaseStatus): CaseResult {
   return { observationMarks: {}, derivedStatus: status, notes: [] };
 }
 
+// `currentIds`, when given, is the store's per-case currency for PLAN_HASH: the
+// cases whose result is current under a stale file (#1407).
 function buildResults(
   planHash = PLAN_HASH,
   statuses: Record<string, CaseStatus> = {},
+  currentIds?: string[],
+  livePlanHash = PLAN_HASH,
 ): DeliveryResults {
   const caseResults: Record<string, CaseResult> = {};
   for (const id of ["FX-TC-001", "FX-TC-002", "FX-TC-003"]) {
     caseResults[id] = caseResult(statuses[id] ?? "passed");
   }
-  return { planHash, caseResults, updatedAt: UPDATED_AT };
+  return {
+    planHash,
+    caseResults,
+    updatedAt: UPDATED_AT,
+    ...(currentIds !== undefined && { currency: { planHash: livePlanHash, caseIds: currentIds } }),
+  };
 }
 
 // The branches of every unit, less those of the units in `missing`.
@@ -177,10 +186,11 @@ describe("crossCheckDelivery", () => {
     inputs.pullRequests[BRANCH.B].state = "CLOSED";
     // base-branch-differs: C's pull request targets the trunk, not B's branch.
     inputs.pullRequests[BRANCH.C].baseBranch = "main";
-    // case-status-differs: the provisional met mark on FX-TC-003 meets a failure.
+    // case-status-differs: the provisional met mark on FX-TC-003 meets a failure
+    // that is current for the plan (#1696).
     // plan-hash-mismatch: the results belong to another plan, so the gate the
     // record claims passed reads stale (gate-state-differs).
-    inputs.results = buildResults("plan-hash-2", { "FX-TC-003": "failed" });
+    inputs.results = buildResults("plan-hash-2", { "FX-TC-003": "failed" }, ["FX-TC-003"]);
 
     const entries = run(inputs);
 
@@ -456,6 +466,49 @@ describe("crossCheckDelivery", () => {
       },
     ]);
   });
+
+  // #1696: a result that is not current for the plan is not what the results
+  // observe now, so it never differs from a provisional mark.
+  it.each([
+    ["names other cases as current", ["FX-TC-001", "FX-TC-002"]],
+    ["carries no currency", undefined],
+  ])(
+    "reports no case-status-differs from a stale result when the stale file %s",
+    (_label, currentIds) => {
+      const inputs = agreeing();
+      inputs.results = buildResults("plan-hash-2", { "FX-TC-003": "failed" }, currentIds);
+
+      const classes = run(inputs).map((e) => e.class);
+
+      expect(classes).not.toContain("case-status-differs");
+      expect(classes).toContain("plan-hash-mismatch");
+    },
+  );
+
+  // #1696: the currency is read against the live plan, not the record's, so a
+  // record judged against another plan still has its marks compared with the
+  // results that are current now, and only with those. A file with a case that
+  // is not current carries the stale sentinel, as `toGateResults` writes it.
+  it.each([
+    ["reports", "plan-hash-live", ["FX-TC-001", "FX-TC-002", "FX-TC-003"], true],
+    ["does not report", "plan-hash-live::stale", ["FX-TC-001", "FX-TC-002"], false],
+  ])(
+    "%s case-status-differs when the record's plan is not the live one (%s)",
+    (_label, resultsPlanHash, currentIds, reported) => {
+      const inputs = agreeing();
+      inputs.results = buildResults(
+        resultsPlanHash,
+        { "FX-TC-003": "failed" },
+        currentIds,
+        "plan-hash-live",
+      );
+
+      const classes = run(inputs).map((e) => e.class);
+
+      expect(classes.includes("case-status-differs")).toBe(reported);
+      expect(classes).toContain("plan-hash-mismatch");
+    },
+  );
 
   it("SB-TC-069 skips record-stale when a commit time or the record's updated_at does not parse", () => {
     const inputs = agreeing();

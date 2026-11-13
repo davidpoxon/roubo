@@ -18,6 +18,7 @@ import { FIELD_LABEL_CLASS, inputClass, STATUS_DOT_CLASSES, type StatusTone } fr
 import { Tab, TabList, TabPanel, Tabs } from "../ui/Tabs";
 import CaseDetail from "../testbench/CaseDetail";
 import TestBenchPanel from "../testbench/TestBenchPanel";
+import { staleCaseIdsOf } from "../testbench/rollup";
 import { STATUS_DOT, STATUS_LABEL } from "../testbench/statusLabels";
 import { TestbenchApiContext, type TestbenchApi } from "../testbench/TestbenchApiContext";
 import { DeliveryPanel } from "./DeliveryPanel";
@@ -287,7 +288,12 @@ function useGateCases(bench: Bench, snapshot: DeliverySnapshotResponse, gateId: 
       })
     : [];
   const caseResults = plan.data?.results?.caseResults ?? {};
-  return { plan, cases, caseResults };
+  // The live cases whose result was judged against an earlier version of the
+  // case (#1696). Undefined when the server sends no per-case currency.
+  const staleCaseIds = plan.data
+    ? staleCaseIdsOf(plan.data.plan.cases, plan.data.results, plan.data.currentCaseIds)
+    : undefined;
+  return { plan, cases, caseResults, staleCaseIds };
 }
 
 // A case that automation verified as passed: it has a verification record and
@@ -380,7 +386,7 @@ function SittingCases({
   sitting,
   open,
   writable,
-  gateCases: { plan, cases, caseResults },
+  gateCases: { plan, cases, caseResults, staleCaseIds },
   automationPassed,
   fixUnitErrors,
   onMarked,
@@ -535,6 +541,7 @@ function SittingCases({
                   open={open}
                   writable={writable}
                   result={ownValue(caseResults, selected.id)}
+                  stale={staleCaseIds?.includes(selected.id) === true}
                   fixRef={blockers.find((blocker) => blocker.caseId === selected.id)?.fixRef}
                   fixUnitError={ownValue(fixUnitErrors, selected.id)}
                   provisional={provisionalCases.find((entry) => entry.case === selected.id)}
@@ -612,6 +619,7 @@ function SittingCase({
   open,
   writable,
   result,
+  stale,
   fixRef,
   fixUnitError,
   provisional,
@@ -628,6 +636,8 @@ function SittingCase({
   // Open, with the escalated split held: Stage and the marks can be used.
   writable: boolean;
   result: CaseResult | undefined;
+  // The result was judged against an earlier version of the case (#1696).
+  stale: boolean;
   fixRef: string | undefined;
   fixUnitError: string | undefined;
   provisional: ProvisionalCase | undefined;
@@ -649,6 +659,7 @@ function SittingCase({
         benchId={benchId}
         testCase={testCase}
         result={result}
+        stale={stale}
         onMarked={onMarked}
         marksDisabled={!writable}
         beforeSteps={

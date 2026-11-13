@@ -88,6 +88,9 @@ export interface StatusCounts {
 export interface CaseRowModel {
   case: Case;
   status: CaseStatus;
+  // True when the case's recorded result was judged against an earlier version
+  // of the case (#1696; see staleCaseIdsOf). Absent otherwise.
+  stale?: true;
 }
 
 export interface PriorityGroup {
@@ -196,10 +199,31 @@ function archivedModel(
   };
 }
 
+// The live cases whose recorded result is not current for the plan (#1696), in
+// plan order: a live case with a recorded, non-orphaned result that the server's
+// `currentCaseIds` does not name. Undefined when the server sends no per-case
+// currency (an older server), so the caller falls back to the file-level flag.
+export function staleCaseIdsOf(
+  cases: Case[],
+  results: BenchResults | null,
+  currentCaseIds: readonly string[] | undefined,
+): string[] | undefined {
+  if (currentCaseIds === undefined) return undefined;
+  if (results === null) return [];
+  const current = new Set(currentCaseIds);
+  return cases
+    .filter((c) => {
+      if (caseStateOf(c) !== "live" || !Object.hasOwn(results.caseResults, c.id)) return false;
+      return results.caseResults[c.id].orphaned !== true && !current.has(c.id);
+    })
+    .map((c) => c.id);
+}
+
 export function buildRollup(
   cases: Case[],
   results: BenchResults | null,
   specSlug?: string,
+  staleCaseIds?: ReadonlySet<string>,
 ): RollupModel {
   // level -> priority -> rows, preserving first-seen insertion then sorted below.
   const levelMap = new Map<string, Map<string, CaseRowModel[]>>();
@@ -229,7 +253,7 @@ export function buildRollup(
       rows = [];
       priorityMap.set(priorityKey, rows);
     }
-    rows.push({ case: c, status });
+    rows.push({ case: c, status, ...(staleCaseIds?.has(c.id) === true && { stale: true }) });
   }
 
   const overall = emptyCounts();
