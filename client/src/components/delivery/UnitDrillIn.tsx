@@ -13,10 +13,10 @@ import { DeliveryPanel } from "./DeliveryPanel";
 import DeliveryTimeSplit from "./DeliveryTimeSplit";
 import {
   buildTimeline,
-  clockTime,
   eventDetail,
   eventText,
   seamLabel,
+  timelineTime,
   type TimelineItem,
   type TimelineSeamItem,
 } from "./delivery-timeline-model";
@@ -183,7 +183,9 @@ function UnitTimeline({
 
 // Memoised, so a re-render of the drill-in that brings no new event leaves a
 // full timeline of 1,000 rows alone. The list scrolls, so it is one Tab stop
-// the keyboard scrolls.
+// the keyboard scrolls. Every row reads its day against one `now`, taken when
+// the list renders: a list left open over midnight relabels its days at the
+// next event.
 const TimelineList = memo(function TimelineList({
   unitId,
   items,
@@ -192,6 +194,7 @@ const TimelineList = memo(function TimelineList({
   items: TimelineItem[];
 }) {
   const newest = items.find((item) => item.kind === "event");
+  const now = new Date();
   return (
     <ol
       aria-label={`Events of unit ${unitId}, newest first`}
@@ -201,9 +204,9 @@ const TimelineList = memo(function TimelineList({
     >
       {items.map((item) =>
         item.kind === "seam" ? (
-          <GenerationSeam key={item.key} seam={item} />
+          <GenerationSeam key={item.key} seam={item} now={now} />
         ) : (
-          <TimelineEvent key={item.key} event={item.event} newest={item === newest} />
+          <TimelineEvent key={item.key} event={item.event} newest={item === newest} now={now} />
         ),
       )}
     </ol>
@@ -211,19 +214,28 @@ const TimelineList = memo(function TimelineList({
 });
 
 // DESIGN.md Timeline event: mono time, a kind badge, the text and a mono detail
-// line; the newest event carries the 2px accent rule.
-function TimelineEvent({ event, newest }: { event: DeliveryEvent; newest: boolean }) {
+// line; the newest event carries the 2px accent rule. The time is local, with
+// the day in front of it when it is not today; the exact instant is its title.
+function TimelineEvent({
+  event,
+  newest,
+  now,
+}: {
+  event: DeliveryEvent;
+  newest: boolean;
+  now: Date;
+}) {
   const detail = eventDetail(event);
   return (
     <li
       data-testid={`timeline-event-${event.seq}`}
       data-seq={event.seq}
-      className={`grid grid-cols-[4rem_7rem_minmax(0,1fr)] items-start gap-3 border-b border-border bg-bg-surface px-3 py-2 last:border-b-0 ${
+      className={`grid grid-cols-[6.5rem_7rem_minmax(0,1fr)] items-start gap-3 border-b border-border bg-bg-surface px-3 py-2 last:border-b-0 ${
         newest ? "border-l-2 border-l-accent" : ""
       }`}
     >
-      <time dateTime={event.ts} className="font-mono text-11 text-text-secondary">
-        {clockTime(event.ts)}
+      <time dateTime={event.ts} title={event.ts} className="font-mono text-11 text-text-secondary">
+        {timelineTime(event.ts, now)}
       </time>
       <span className="justify-self-start rounded-chip bg-bg-hover px-1 font-mono text-11 text-text-secondary [overflow-wrap:anywhere]">
         {event.type}
@@ -240,7 +252,7 @@ function TimelineEvent({ event, newest }: { event: DeliveryEvent; newest: boolea
 
 // DESIGN.md Generation seam: a hairline rule with a mono label across the
 // timeline. Not focusable: it describes the timeline.
-function GenerationSeam({ seam }: { seam: TimelineSeamItem }) {
+function GenerationSeam({ seam, now }: { seam: TimelineSeamItem; now: Date }) {
   return (
     <li
       data-testid="timeline-seam"
@@ -249,7 +261,7 @@ function GenerationSeam({ seam }: { seam: TimelineSeamItem }) {
       <span aria-hidden="true" className="h-px flex-1 bg-border-strong" />
       <span className="font-mono text-11 font-medium text-text-secondary">
         <span className="sr-only">Generation seam: </span>
-        {seamLabel(seam)}
+        {seamLabel(seam, now)}
       </span>
       <span aria-hidden="true" className="h-px flex-1 bg-border-strong" />
     </li>

@@ -24,6 +24,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
 });
 import * as api from "../../lib/api";
 import ReviewPile, { REVIEW_THREAD_UNAVAILABLE } from "./ReviewPile";
+import { timelineTime } from "./delivery-timeline-model";
 
 const OPTIONS = ["one file per unit", "one file per stack"];
 
@@ -273,6 +274,31 @@ describe("ReviewPile", () => {
     const choices = within(card("D-2")).getByRole("group", { name: "Overturn D-2 with" });
     await user.click(within(choices).getByRole("button", { name: `Overturn: ${OPTIONS[0]}` }));
     expect(api.overturnDeliveryDecision).toHaveBeenCalledWith("demo", 1, "D-2", OPTIONS[0]);
+  });
+
+  it("puts the day in front of the time of a thread message from an earlier day", async () => {
+    // Two days after the reply: its time names its weekday, in local time.
+    const ts = "2026-10-16T10:31:00Z";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse(ts) + 2 * 86_400_000);
+    try {
+      renderWithProviders(
+        pileOf([
+          decided(8, "D-1", 1),
+          other(9, "review.opened", { unreviewed: ["D-1"] }),
+          other(10, "review.reply", { decision_id: "D-1", text: "Kept.", in_reply_to: "1" }),
+        ]),
+      );
+      await userEvent.click(within(card("D-1")).getByRole("button", { name: "Discuss" }));
+      const time = within(screen.getByTestId("review-thread-D-1")).getByTestId(
+        "review-thread-time",
+      );
+      expect(time).toHaveTextContent(/^[A-Z][a-z]{2} \d{2}:\d{2}$/);
+      expect(time).toHaveTextContent(timelineTime(ts, new Date(), false));
+      expect(time).toHaveAttribute("datetime", ts);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("SB-TC-086: during a run the card reads decided, Accept and Overturn are enabled, and the thread says why it is unavailable", async () => {

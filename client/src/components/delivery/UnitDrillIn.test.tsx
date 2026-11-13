@@ -21,6 +21,7 @@ import { expectNoAxeFindings } from "../../test/axe";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { fourUnitRecord, unitEvent } from "../../test/delivery-fixtures";
 import { HELD_DRAFT_LABEL } from "./delivery-map-model";
+import { timelineTime } from "./delivery-timeline-model";
 
 vi.mock("../../lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../lib/api")>();
@@ -367,7 +368,7 @@ describe("Unit drill-in", () => {
     expect(performance.now() - posted).toBeLessThan(2_000);
     expect(timelineOrder()[0]).toBe("seam:session-b-2");
     expect(screen.getAllByTestId("timeline-seam")[0]).toHaveTextContent(
-      "Generation seam: session-b-2 · ok · 09:44:00",
+      `Generation seam: session-b-2 · ok · ${timelineTime(at(44))}`,
     );
   });
 
@@ -394,6 +395,28 @@ describe("Unit drill-in", () => {
     // No terminal and no transcript: nothing in the drill-in takes text.
     expect(within(drillIn).queryByRole("region", { name: /Terminal|transcript/ })).toBeNull();
     expect(within(drillIn).queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("puts the day in front of the time of an event from an earlier day, the exact instant on hover", async () => {
+    // Two days after the events: each row names its weekday, in local time.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse(at(45)) + 2 * 86_400_000);
+    try {
+      log = [unitEvent(8, "A", "unit.changed", { status: "running" }, at(40, 7))];
+      renderWithProviders(<Harness />);
+
+      await openUnit("A");
+      const time = await waitFor(() =>
+        within(screen.getByTestId("timeline-event-8")).getByText(/\d{2}:\d{2}:\d{2}$/),
+      );
+      expect(time.tagName).toBe("TIME");
+      expect(time).toHaveTextContent(/^[A-Z][a-z]{2} \d{2}:\d{2}:07$/);
+      expect(time).toHaveTextContent(timelineTime(at(40, 7)));
+      expect(time).toHaveAttribute("title", at(40, 7));
+      expect(time).toHaveAttribute("datetime", at(40, 7));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("SB-TC-031 names the count the record holds when the outbox no longer has a done unit's events", async () => {

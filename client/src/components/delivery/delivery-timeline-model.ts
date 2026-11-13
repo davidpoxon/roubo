@@ -124,11 +124,41 @@ export function eventDetail(event: DeliveryEvent): string | null {
   return parts.length === 0 ? null : parts.join(" · ");
 }
 
-/** An RFC 3339 time as the timeline shows it: HH:MM:SS in UTC. */
-export function clockTime(ts: string | null): string {
+const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
+const DAY_MONTH = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+const DAY_MS = 86_400_000;
+
+// The count of local calendar days from `from` to `to`. Each date is taken at
+// UTC midnight of its local calendar day, so a DST change does not move it.
+function calendarDaysBetween(from: Date, to: Date): number {
+  const day = (date: Date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((day(to) - day(from)) / DAY_MS);
+}
+
+/**
+ * An RFC 3339 time as the timeline shows it, in local time and 24 hours:
+ * `13:33:57` on the day of `now`, `Tue 13:33:57` on the six days before it,
+ * and `10 Nov 13:33:57` before that or after `now`'s day. The year comes
+ * after the month when it is not `now`'s year. `withSeconds: false` drops
+ * the seconds (`13:33`).
+ */
+export function timelineTime(ts: string | null, now = new Date(), withSeconds = true): string {
   if (ts === null) return "no time";
   const parsed = new Date(ts);
-  return Number.isNaN(parsed.getTime()) ? ts : parsed.toISOString().slice(11, 19);
+  if (Number.isNaN(parsed.getTime())) return ts;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const clock = [
+    parsed.getHours(),
+    parsed.getMinutes(),
+    ...(withSeconds ? [parsed.getSeconds()] : []),
+  ]
+    .map(pad)
+    .join(":");
+  const daysAgo = calendarDaysBetween(parsed, now);
+  if (daysAgo === 0) return clock;
+  if (daysAgo > 0 && daysAgo < 7) return `${WEEKDAY.format(parsed)} ${clock}`;
+  const year = parsed.getFullYear() === now.getFullYear() ? "" : ` ${parsed.getFullYear()}`;
+  return `${DAY_MONTH.format(parsed)}${year} ${clock}`;
 }
 
 /** An RFC 3339 time as a date and a minute in UTC: `2026-10-16 10:20 UTC`. */
@@ -139,9 +169,9 @@ export function utcMinute(ts: string): string {
     : `${parsed.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
-/** The label of a Generation seam marker. */
-export function seamLabel(seam: TimelineSeamItem): string {
-  return [seam.name, seam.status, seam.at === null ? "no time" : clockTime(seam.at), seam.detail]
+/** The label of a Generation seam marker, its time read against `now`. */
+export function seamLabel(seam: TimelineSeamItem, now = new Date()): string {
+  return [seam.name, seam.status, timelineTime(seam.at, now), seam.detail]
     .filter((part): part is string => isString(part))
     .join(" · ");
 }
