@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 import type { RegisteredProject, Bench } from "@roubo/shared";
 import {
   buildTemplateContext,
@@ -30,7 +31,11 @@ export async function buildPreviewContext(
 ): Promise<JigResolveContext> {
   if (!project.config) return getSampleResolveContext();
 
-  const templateCtx = buildTemplateContext(project.config, bench.id, bench.workspacePath);
+  const templateCtx = buildTemplateContext(
+    benchConfig(bench, project.config),
+    bench.id,
+    bench.workspacePath,
+  );
   applyContainerOverrides(templateCtx, bench.assignedContainers);
   applyComponentUrlOverrides(templateCtx, bench.components);
 

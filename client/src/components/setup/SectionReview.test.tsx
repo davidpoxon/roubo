@@ -241,7 +241,11 @@ describe("SectionReview", () => {
       saveSuccess: true,
       isEditMode: true,
     });
-    expect(screen.getByText(/Config saved. Restart/)).toBeDefined();
+    expect(screen.getByText(/Config saved\. New benches use it\./)).toBeDefined();
+    // Restarting components no longer applies a changed definition: only
+    // 'Restart with new config' does, so the copy names that action.
+    expect(screen.getByText(/Restart with new config/)).toBeDefined();
+    expect(screen.queryByText(/Restart components to apply changes/)).toBeNull();
   });
 
   it("shows register button after save in create mode", () => {

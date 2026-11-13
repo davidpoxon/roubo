@@ -449,12 +449,31 @@ describe("CPHM-TC-070: author builds against the published SDK, CI publishes rep
     ).toBe(true);
 
     // The host verifier adds no third-party crypto / supply-chain dependency: it imports
-    // node: builtins only and names none of oras/cosign/Sigstore/TUF.
-    const verifierSrc = await readFile(
-      fileURLToPath(new URL("./marketplace-integrity.ts", import.meta.url)),
-      "utf8",
-    );
-    const importedModules = [...verifierSrc.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
+    // node: builtins only and names none of oras/cosign/Sigstore/TUF. A relative import
+    // of a first-party helper (the shared canonical-JSON module) is followed, and that
+    // helper is held to the same rule, so the verifier's whole import closure stays
+    // node: builtins only.
+    const verifierUrl = new URL("./marketplace-integrity.ts", import.meta.url);
+    const verifierSources: string[] = [];
+    const importedModules: string[] = [];
+    const pending: URL[] = [verifierUrl];
+    const seen = new Set<string>();
+    while (pending.length > 0) {
+      const current = pending.pop() as URL;
+      if (seen.has(current.href)) continue;
+      seen.add(current.href);
+      const src = await readFile(fileURLToPath(current), "utf8");
+      verifierSources.push(src);
+      for (const m of src.matchAll(/from\s+["']([^"']+)["']/g)) {
+        const mod = m[1];
+        if (mod.startsWith(".")) {
+          pending.push(new URL(mod.replace(/\.js$/, ".ts"), current));
+        } else {
+          importedModules.push(mod);
+        }
+      }
+    }
+    const verifierSrc = verifierSources.join("\n");
     for (const mod of importedModules) {
       expect(
         mod.startsWith("node:"),

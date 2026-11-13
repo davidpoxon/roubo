@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 // The gate pin service of a Spec Bench (SB-FR-023, SB-FR-024, SB-NFR-006): the
 // sequence that prepares a gate sitting on a detached worktree at the gate
 // commit, the one that opens it, and the one that closes it.
@@ -365,7 +366,8 @@ async function pinGateCommit(bench: Bench, input: OpenGatePinInput): Promise<Pin
     throw err;
   }
   const project: RegisteredProject | undefined = projectRegistry.getProject(bench.projectId);
-  const config = project?.config;
+  // The bench's own component definitions and setup command (HR-FR-003).
+  const config = project?.config ? benchConfig(bench, project.config) : undefined;
 
   // 1. The commit, before anything moves.
   const target = await resolveGateCommit(workspacePath, config, input.commit);
@@ -928,7 +930,12 @@ export function closeGatePin(bench: Bench): Promise<void> {
 
     const done = bench.gatePin?.workspaceSetupDone;
     if (done !== undefined) {
-      applySetupFlags(bench, projectRegistry.getProject(bench.projectId)?.config, new Set(done));
+      const liveConfig = projectRegistry.getProject(bench.projectId)?.config;
+      applySetupFlags(
+        bench,
+        liveConfig ? benchConfig(bench, liveConfig) : undefined,
+        new Set(done),
+      );
     }
     const gateId = bench.deliverySitting?.gateId ?? bench.gatePin?.gateId;
     stopWatch(bench);

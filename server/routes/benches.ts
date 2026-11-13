@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
+import { serializeBench } from "../services/bench-serializer.js";
 import { getDirtyState } from "../services/git-state.js";
 import * as notificationService from "../services/notification.js";
 import * as toolService from "../services/tool-launcher.js";
@@ -35,6 +36,7 @@ import {
   isSpecBenchDecisionMode,
 } from "@roubo/shared";
 import type {
+  Bench,
   CreateBenchRequest,
   AssignContainerRequest,
   ExecuteToolRequest,
@@ -44,6 +46,16 @@ import type {
 } from "@roubo/shared";
 
 const router = Router();
+
+/**
+ * The bench as the client reads it, with the derived `stale` flag
+ * (HR-FR-004). Every bench this router sends goes through it.
+ */
+function wire(bench: Bench): Bench;
+function wire(bench: Bench | undefined): Bench | undefined;
+function wire(bench: Bench | undefined): Bench | undefined {
+  return bench && serializeBench(bench);
+}
 
 function handleCreateBenchError(res: import("express").Response, err: unknown) {
   if (err instanceof ServiceError) {
@@ -97,7 +109,7 @@ router.get("/:projectId/benches", (req, res) => {
       (b) => b.assignedIssue?.number === issue && !isAlertExternalId(b.assignedIssue?.externalId),
     );
   }
-  res.json(benches);
+  res.json(benches.map((b) => wire(b)));
 });
 
 router.post("/:projectId/benches", async (req, res) => {
@@ -192,7 +204,7 @@ router.post("/:projectId/benches", async (req, res) => {
         focusedSpecPath,
         delivery: deliveryRequest,
       });
-      res.status(201).json(bench);
+      res.status(201).json(wire(bench));
       // Once the workspace exists: launch mode starts the delivery session,
       // attach mode launches nothing; its token is minted when POST
       // /delivery/attach hands it out (SB-FR-002, SB-FR-003).
@@ -218,7 +230,7 @@ router.post("/:projectId/benches", async (req, res) => {
         variant: "testbench",
         focusedSpecPath,
       });
-      res.status(201).json(bench);
+      res.status(201).json(wire(bench));
     } catch (err) {
       if (err instanceof BenchError) {
         const status =
@@ -327,7 +339,7 @@ router.post("/:projectId/benches", async (req, res) => {
 
   try {
     const bench = benchManager.createBench(req.params.projectId, branch);
-    res.status(201).json(bench);
+    res.status(201).json(wire(bench));
   } catch (err) {
     if (err instanceof BenchError) {
       const status =
@@ -378,7 +390,7 @@ router.get("/:projectId/benches/:id", async (req, res) => {
       }
     }
 
-    res.json(enrichedBench);
+    res.json(wire(enrichedBench));
   } catch (err) {
     handleBenchError(res, err);
   }
@@ -412,7 +424,7 @@ router.delete("/:projectId/benches/:id", async (req, res) => {
     }
 
     const bench = benchManager.teardownBench(req.params.projectId, benchId, removeWorkspace);
-    res.status(202).json(bench);
+    res.status(202).json(wire(bench));
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
@@ -429,7 +441,7 @@ router.post("/:projectId/benches/:id/cleanup-and-retry", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
     const bench = await benchManager.cleanupAndRetryBench(req.params.projectId, benchId);
-    res.json(bench);
+    res.json(wire(bench));
     // The retry re-provisions the workspace from scratch, so a Spec Bench binds
     // to its delivery again once it exists: launch mode starts the session that
     // the failed round never started (SB-FR-002). The delivery record went with
@@ -456,7 +468,7 @@ router.post("/:projectId/benches/:id/start", (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
     const bench = benchManager.startAllComponents(req.params.projectId, benchId);
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
@@ -468,12 +480,37 @@ router.post("/:projectId/benches/:id/start", (req, res) => {
   }
 });
 
+// 'Restart with new config' (HR-FR-005): stop the components, take a new
+// snapshot of the live roubo.yaml, and start them again. Answers as Start does,
+// with the bench whose components are starting.
+router.post("/:projectId/benches/:id/restart-with-config", async (req, res) => {
+  try {
+    const benchId = parseIntParam(req.params.id, "bench id");
+    const bench = await benchManager.restartBenchWithConfig(req.params.projectId, benchId);
+    res.json(wire(bench));
+  } catch (err) {
+    if (err instanceof RouteError) {
+      res.status(err.statusCode).json({ error: err.message });
+    } else if (err instanceof BenchError) {
+      const status =
+        err.code === "NOT_FOUND" || err.code === "PROJECT_NOT_FOUND"
+          ? 404
+          : err.code === "INVALID_STATE"
+            ? 409
+            : 400;
+      res.status(status).json({ error: err.message, code: err.code });
+    } else {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  }
+});
+
 router.post("/:projectId/benches/:id/stop", async (req, res) => {
   try {
     const benchId = parseIntParam(req.params.id, "bench id");
     await benchManager.stopAllComponents(req.params.projectId, benchId);
     const bench = benchManager.getBench(req.params.projectId, benchId);
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
@@ -490,7 +527,7 @@ router.post("/:projectId/benches/:id/components/:name/start", async (req, res) =
     const benchId = parseIntParam(req.params.id, "bench id");
     await benchManager.startComponent(req.params.projectId, benchId, req.params.name);
     const bench = benchManager.getBench(req.params.projectId, benchId);
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
@@ -521,7 +558,7 @@ router.post("/:projectId/benches/:id/components/:name/stop", async (req, res) =>
     const benchId = parseIntParam(req.params.id, "bench id");
     await benchManager.stopComponent(req.params.projectId, benchId, req.params.name);
     const bench = benchManager.getBench(req.params.projectId, benchId);
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     if (err instanceof RouteError) {
       res.status(err.statusCode).json({ error: err.message });
@@ -656,7 +693,7 @@ router.post("/:projectId/benches/:id/assign-container", async (req, res) => {
       component,
       containerId,
     );
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     handleBenchError(res, err);
   }
@@ -670,7 +707,7 @@ router.delete("/:projectId/benches/:id/assign-container/:component", async (req,
       benchId,
       req.params.component,
     );
-    res.json(bench);
+    res.json(wire(bench));
   } catch (err) {
     handleBenchError(res, err);
   }

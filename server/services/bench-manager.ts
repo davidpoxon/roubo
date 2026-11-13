@@ -63,6 +63,7 @@ import {
 } from "./worktree-registry.js";
 import { getLoginShell, loginShellScriptArgs } from "./env.js";
 import { assertSafeWorkspacePath, UnsafePathError } from "../lib/safe-path.js";
+import { benchConfig, takeComponentSnapshot } from "../lib/bench-config.js";
 import { resolveFocusedSpec } from "../lib/testbench-spec-discovery.js";
 import { resolveTestbenchHost } from "./testbench-host-resolver.js";
 import { resolveSpecFolder } from "../lib/spec-folder.js";
@@ -157,6 +158,16 @@ export function componentHasSetup(componentConfig: ComponentConfig | undefined):
   return typeof setup === "string" && setup.trim().length > 0;
 }
 
+/**
+ * The one-time setup command a component declares, read from the same fields
+ * as `componentHasSetup`, or an empty string when it declares none. Restart
+ * with new config compares it across definitions to tell a changed setup.
+ */
+function componentSetupCommand(componentConfig: ComponentConfig | undefined): string {
+  const setup = componentConfig?.config?.setup ?? componentConfig?.setup;
+  return typeof setup === "string" ? setup.trim() : "";
+}
+
 function resolveComponentOrder(components: Record<string, ComponentConfig>): string[] {
   const names = Object.keys(components);
   const visited = new Set<string>();
@@ -209,6 +220,27 @@ function processId(projectId: string, benchId: number, component: string): strin
   return `${projectId}-bench-${benchId}-${component}`;
 }
 
+/**
+ * Resolves a component of a bench to its bound plugin from the definitions the
+ * bench was set up with (HR-FR-003), not from the live roubo.yaml. A bench with
+ * no snapshot, or one no longer in the map, resolves against the live config.
+ */
+function resolveBenchBinding(projectId: string, benchId: number, componentName: string) {
+  const snapshot = benches.get(benchKey(projectId, benchId))?.componentSnapshot;
+  return resolveBinding(projectId, componentName, snapshot?.components);
+}
+
+/**
+ * The config a bench runs under: the live project config with the bench's
+ * snapshot laid over its components, ports and setup command (benchConfig).
+ * Undefined when the project is gone or has no valid config.
+ */
+function configOfBench(bench: Bench | undefined): RouboConfig | undefined {
+  if (!bench) return undefined;
+  const config = projectRegistry.getProject(bench.projectId)?.config;
+  return config ? benchConfig(bench, config) : undefined;
+}
+
 export function initialize() {
   const persisted = stateService.loadState();
   for (const ps of persisted.benches) {
@@ -245,7 +277,10 @@ export function initialize() {
       // component, the component was added to roubo.yaml after the bench was
       // created, so fall back to the same default createBench applies: !setup.
       const isLegacy = ps.componentSetupState === undefined;
-      for (const [name, componentConfig] of Object.entries(project.config.components)) {
+      // A bench reads the component definitions it was set up with (HR-FR-003):
+      // a legacy record with no snapshot reads the live config.
+      const definitions = benchConfig(ps, project.config);
+      for (const [name, componentConfig] of Object.entries(definitions.components)) {
         const persistedFlag = ps.componentSetupState?.[name];
         const setupComplete = isLegacy
           ? true
@@ -328,6 +363,7 @@ export function initialize() {
       // under the old flow, which always ran `benches.setup`, so treat a missing
       // flag as complete rather than re-running setup on their next Start.
       benchSetupComplete: ps.benchSetupComplete ?? true,
+      ...(ps.componentSnapshot !== undefined && { componentSnapshot: ps.componentSnapshot }),
     };
 
     benches.set(benchKey(ps.projectId, ps.id), bench);
@@ -382,7 +418,7 @@ export async function reconcile() {
     }
 
     validBenches.push(bench);
-    for (const name of Object.keys(project.config.components)) {
+    for (const name of Object.keys(benchConfig(bench, project.config).components)) {
       const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
       if (descriptor?.kind === "docker") {
         dockerQueries.push({
@@ -405,11 +441,11 @@ export async function reconcile() {
     // Reconcile from live HOST state (container / process), never by polling the
     // plugin over IPC (NFR-002). The cached descriptor tells core which host
     // resource backs each component, with no config docker-field read.
-    for (const name of Object.keys(project.config.components)) {
+    for (const name of Object.keys(benchConfig(bench, project.config).components)) {
       const descriptor = componentDescriptors.get(
         descriptorKindKey(bench.projectId, bench.id, name),
       );
-      const binding = resolveBinding(bench.projectId, name);
+      const binding = resolveBenchBinding(bench.projectId, bench.id, name);
       const pluginId = isNotBound(binding) ? undefined : binding.pluginId;
       if (descriptor?.kind === "docker") {
         const projectName = dockerService.getComposeProjectName(bench.projectId, bench.id);
@@ -1198,7 +1234,7 @@ async function stopBenchForUnregister(
     }
     const ids = [processId(projectId, benchId, name)];
     await attempt(`resolving component ${name}'s plugin`, () => {
-      const binding = resolveBinding(projectId, name);
+      const binding = resolveBenchBinding(projectId, benchId, name);
       if (!isNotBound(binding)) ids.unshift(`${binding.pluginId}:${benchId}:${name}`);
     });
     for (const id of ids) {
@@ -1350,7 +1386,11 @@ export function createBench(
     throw new BenchError(`Unknown variant '${String(options.variant)}'`, "INVALID_VARIANT");
   }
 
-  const config = project.config;
+  // The bench keeps the component definitions it is set up with (HR-FR-003):
+  // components, ports and the setup command come from this snapshot from now
+  // on, and only 'Restart with new config' replaces it.
+  const componentSnapshot = takeComponentSnapshot(project.config);
+  const config = benchConfig({ componentSnapshot }, project.config);
   // No `await` between findNextBenchNumber and benches.set: this guarantees atomic
   // bench reservation in Node.js single-threaded event loop. Do not add async
   // operations between here and the benches.set() call below.
@@ -1430,6 +1470,7 @@ export function createBench(
     // inert without a setup command: both the step seeding and the run block
     // gate on `config.benches.setup` as well.
     benchSetupComplete: false,
+    componentSnapshot,
   };
 
   const key = benchKey(projectId, benchNumber);
@@ -2019,8 +2060,8 @@ async function runCreateBenchBackground(
     return;
   }
 
-  const config = project.config;
-  if (!config) return;
+  if (!project.config) return;
+  const config = benchConfig(bench, project.config);
   if (!isBenchLive(bench.projectId, bench.id)) return;
 
   const settings = stateService.loadSettings();
@@ -2083,7 +2124,7 @@ export function teardownBench(projectId: string, benchId: number, removeWorkspac
   }
 
   const project = projectRegistry.getProject(projectId);
-  const components = project?.config?.components ?? {};
+  const components = configOfBench(bench)?.components ?? {};
   // Whether any component the engine provisioned this bench is docker-backed,
   // read from the cached descriptors (the plugin's output) rather than a config
   // docker-field (#663, NFR-006). A never-started bench has no descriptors, so
@@ -2186,7 +2227,7 @@ async function runTeardownBackground(
       for (const name of Object.keys(bench.components)) {
         const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
         if (descriptor?.kind === "docker") continue;
-        const binding = resolveBinding(projectId, name);
+        const binding = resolveBenchBinding(projectId, benchId, name);
         if (!isNotBound(binding)) {
           await processManager.stopProcess(`${binding.pluginId}:${benchId}:${name}`);
         }
@@ -2448,7 +2489,9 @@ export async function handleComponentPluginPreRestart(pluginId: string): Promise
     if (bench.status === "clearing" || bench.status === "preparing") continue;
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+    for (const [name, componentConfig] of Object.entries(
+      benchConfig(bench, project.config).components,
+    )) {
       if (componentConfig.plugin?.id !== pluginId) continue;
       const current = bench.components[name];
       if (!current || (current.status !== "running" && current.status !== "starting")) continue;
@@ -2526,7 +2569,9 @@ export async function handleComponentPluginRestarted(pluginId: string): Promise<
     if (bench.status === "clearing" || bench.status === "preparing") continue;
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+    for (const [name, componentConfig] of Object.entries(
+      benchConfig(bench, project.config).components,
+    )) {
       if (componentConfig.plugin?.id !== pluginId) continue;
       const priorStatus = bench.components[name]?.status;
       // Re-provision a component that was up at crash time. The live status is
@@ -2565,7 +2610,9 @@ export async function handleComponentPluginBudgetExhausted(pluginId: string): Pr
     if (bench.status === "clearing" || bench.status === "preparing") continue;
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
-    for (const [name, componentConfig] of Object.entries(project.config.components)) {
+    for (const [name, componentConfig] of Object.entries(
+      benchConfig(bench, project.config).components,
+    )) {
       if (componentConfig.plugin?.id !== pluginId) continue;
       const current = bench.components[name];
       // Only a component that was live (running/starting) or already crashed
@@ -2653,7 +2700,8 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
       "PROJECT_NOT_FOUND",
     );
   }
-  const config = project.config;
+  // The components still running were started from the old snapshot.
+  const priorConfig = benchConfig(bench, project.config);
   assertNotUnregistering(projectId);
 
   // Clean up stale resources
@@ -2662,7 +2710,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   // Stop every component's engine-spawned process (a no-op for docker-backed
   // components); no component-type / docker-field branch in core (#663).
   for (const name of Object.keys(bench.components)) {
-    const binding = resolveBinding(projectId, name);
+    const binding = resolveBenchBinding(projectId, benchId, name);
     if (!isNotBound(binding)) {
       await processManager.stopProcess(`${binding.pluginId}:${benchId}:${name}`).catch(() => {});
     }
@@ -2671,7 +2719,7 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
 
   if (fs.existsSync(bench.workspacePath)) {
     const downedComposeFiles = new Set<string>();
-    for (const name of Object.keys(config.components)) {
+    for (const name of Object.keys(priorConfig.components)) {
       const descriptor = componentDescriptors.get(descriptorKindKey(projectId, benchId, name));
       if (descriptor?.kind === "docker" && !downedComposeFiles.has(descriptor.composeFile)) {
         const projectName = dockerService.getComposeProjectName(projectId, benchId);
@@ -2697,7 +2745,14 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
   // would not see the worktree this retry is about to add (#1435).
   assertNotUnregistering(projectId);
 
-  // Reset bench state for re-provisioning
+  // Reset bench state for re-provisioning. The workspace is set up again from
+  // scratch, so the bench takes a new snapshot of the live definitions, as
+  // createBench does (HR-FR-003), and drops the descriptors of the old one.
+  for (const name of Object.keys(bench.components)) {
+    componentDescriptors.delete(descriptorKindKey(projectId, benchId, name));
+  }
+  bench.componentSnapshot = takeComponentSnapshot(project.config);
+  const config = benchConfig(bench, project.config);
   const isMetaRepo = config.layout.type === "meta-repo" && !!config.layout.submodules;
 
   bench.status = "preparing";
@@ -2733,6 +2788,100 @@ export async function cleanupAndRetryBench(projectId: string, benchId: number): 
     }
   });
   return bench;
+}
+
+/**
+ * 'Restart with new config' (HR-FR-005): stops every component of the bench,
+ * replaces its snapshot with one of the live roubo.yaml, drops the cached
+ * descriptors of its components, and starts every component again under the
+ * new definitions. This is the only action that replaces the snapshot of a
+ * bench that is set up: a single-component start, crash recovery and boot all
+ * read the snapshot they find.
+ *
+ * When the setup command (`benches.setup`) changed, `benchSetupComplete` is
+ * reset, so the new setup command runs on this restart before the components
+ * start. Returns the bench as bench-level Start does: its components are
+ * starting in the background.
+ */
+export async function restartBenchWithConfig(projectId: string, benchId: number): Promise<Bench> {
+  const bench = getBench(projectId, benchId);
+  if (!bench) {
+    throw new BenchError(`Bench ${benchId} not found for project '${projectId}'`, "NOT_FOUND");
+  }
+  const project = projectRegistry.getProject(projectId);
+  if (!project?.configValid || !project.config) {
+    throw new BenchError(
+      `Project '${projectId}' not found or has invalid config`,
+      "PROJECT_NOT_FOUND",
+    );
+  }
+  assertStartableWorkspace(bench);
+  if (bench.status === "preparing" || bench.status === "clearing") {
+    throw new BenchError(
+      `Bench ${benchId} is ${bench.status} and cannot be restarted now`,
+      "INVALID_STATE",
+    );
+  }
+  assertNotUnregistering(projectId);
+
+  // Stop under the old definitions: they name what is running now.
+  const priorConfig = benchConfig(bench, project.config);
+  await stopAllComponents(projectId, benchId);
+  if (!isBenchLive(projectId, benchId)) {
+    throw new BenchError(`Bench ${benchId} not found for project '${projectId}'`, "NOT_FOUND");
+  }
+  // A Clear pressed while the components stopped wins: start nothing.
+  if ((bench.status as BenchStatus) === "clearing") {
+    throw new BenchError(
+      `Bench ${benchId} is clearing and cannot be restarted now`,
+      "INVALID_STATE",
+    );
+  }
+  for (const name of new Set([
+    ...Object.keys(priorConfig.components),
+    ...Object.keys(bench.components),
+  ])) {
+    componentDescriptors.delete(descriptorKindKey(projectId, benchId, name));
+  }
+
+  // Read the live config again: stopping awaited, and a save in that window is
+  // the newest definition.
+  const liveConfig = projectRegistry.getProject(projectId)?.config ?? project.config;
+  bench.componentSnapshot = takeComponentSnapshot(liveConfig);
+  const config = benchConfig(bench, liveConfig);
+  if ((config.benches.setup ?? "") !== (priorConfig.benches.setup ?? "")) {
+    bench.benchSetupComplete = false;
+  }
+
+  // A component the new definitions add starts as createBench seeds it; one they
+  // drop leaves the bench. A component in both keeps its setup flag, unless its
+  // setup command changed: it is then seeded again, so the new setup runs.
+  const components: Record<string, ComponentStatus> = {};
+  for (const [name, componentConfig] of Object.entries(config.components)) {
+    const prior = bench.components[name];
+    const setupChanged =
+      componentSetupCommand(componentConfig) !==
+      componentSetupCommand(priorConfig.components[name]);
+    components[name] = {
+      name,
+      status: "stopped",
+      setupComplete:
+        prior && !setupChanged ? prior.setupComplete : !componentHasSetup(componentConfig),
+      ...(prior?.url !== undefined && { url: prior.url }),
+    };
+  }
+  bench.components = components;
+
+  // The port ranges may have changed too. A port held by an assigned container
+  // stays the container's.
+  const ports = { ...(allocatePorts(config, benchId) ?? {}) };
+  for (const [name, assigned] of Object.entries(bench.assignedContainers ?? {})) {
+    ports[name] = assigned.port;
+  }
+  bench.ports = ports;
+
+  stateService.updateBench(stateService.toPersistedBench(bench));
+  return startAllComponents(projectId, benchId);
 }
 
 /**
@@ -2791,17 +2940,17 @@ async function getOrResolveDescriptor(
   const cached = componentDescriptors.get(descriptorKindKey(projectId, benchId, componentName));
   if (cached) return cached;
 
-  const binding = resolveBinding(projectId, componentName);
+  const binding = resolveBenchBinding(projectId, benchId, componentName);
   if (isNotBound(binding)) return undefined;
-  const project = projectRegistry.getProject(projectId);
   const bench = getBench(projectId, benchId);
-  if (!project?.config || !bench) return undefined;
-  const componentConfig = project.config.components[componentName];
+  const config = configOfBench(bench);
+  if (!config || !bench) return undefined;
+  const componentConfig = config.components[componentName];
   if (!componentConfig) return undefined;
 
   try {
     const root = variantHosts.componentRoot(bench);
-    const tplCtx = buildTemplateContext(project.config, benchId, root);
+    const tplCtx = buildTemplateContext(config, benchId, root);
     const ports = tplCtx?.ports ?? bench.ports;
     const resolvedEnv = resolveServiceEnv(
       (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
@@ -3027,14 +3176,14 @@ async function provisionComponent(
   const bench = getBench(projectId, benchId);
   if (!bench) throw new BenchError(`Bench not found`, "NOT_FOUND");
 
-  const binding = resolveBinding(projectId, componentName);
+  const binding = resolveBenchBinding(projectId, benchId, componentName);
   if (isNotBound(binding)) {
     throw await notBoundError(componentName, binding);
   }
 
-  const project = projectRegistry.getProject(projectId);
-  if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
-  const componentConfig = project.config.components[componentName];
+  const config = configOfBench(bench);
+  if (!config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
+  const componentConfig = config.components[componentName];
   if (!componentConfig)
     throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
 
@@ -3053,7 +3202,7 @@ async function provisionComponent(
   // Where the component runs is the variant's to say (SB-FR-004): a Spec Bench
   // with a gate pin runs it there. Every other bench runs it in its workspace.
   const root = variantHosts.componentRoot(bench);
-  const tplCtx = buildTemplateContext(project.config, benchId, root);
+  const tplCtx = buildTemplateContext(config, benchId, root);
   const resolvedEnv = resolveServiceEnv(
     (componentConfig.config?.env as Record<string, string> | undefined) ?? {},
     tplCtx,
@@ -3307,7 +3456,10 @@ export async function startComponent(
 
   assertStartableWorkspace(bench);
 
-  const componentConfig = project.config.components[componentName];
+  // A single-component start reads the bench's snapshot and never takes a new
+  // one (HR-FR-003).
+  const config = benchConfig(bench, project.config);
+  const componentConfig = config.components[componentName];
   if (!componentConfig)
     throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
 
@@ -3318,7 +3470,7 @@ export async function startComponent(
   bench.status = "preparing";
   bench.error = undefined;
 
-  await runComponentsInOrder(bench, [componentName], project.config);
+  await runComponentsInOrder(bench, [componentName], config);
 }
 
 const LIVE_COMPONENT_STATUSES = new Set(["running", "starting", "stopping"]);
@@ -3340,7 +3492,7 @@ function benchHasLiveComponentOnPlugin(
   for (const [name, status] of Object.entries(bench.components)) {
     if (name === excludeName) continue;
     if (!LIVE_COMPONENT_STATUSES.has(status.status)) continue;
-    const binding = resolveBinding(projectId, name);
+    const binding = resolveBenchBinding(projectId, bench.id, name);
     if (!isNotBound(binding) && binding.pluginId === pluginId) return true;
   }
   return false;
@@ -3365,7 +3517,7 @@ export async function stopComponent(
   componentStatus.status = "stopping";
   sseService.broadcastComponentStatusChange(projectId, benchId, componentName, "stopping");
 
-  const binding = resolveBinding(projectId, componentName);
+  const binding = resolveBenchBinding(projectId, benchId, componentName);
 
   // Imperative (escape-hatch) plugins own their processes/containers, so teardown
   // means driving their stop then cleanup hooks (#887, AC1) rather than the
@@ -3474,7 +3626,7 @@ async function stopImperativeComponent(
   pluginId: string,
   bench: Bench,
 ): Promise<void> {
-  const config = projectRegistry.getProject(projectId)?.config;
+  const config = configOfBench(bench);
   let ports = bench.ports;
   let resolvedEnv: Record<string, string> = {};
   if (config) {
@@ -3527,7 +3679,7 @@ async function stopImperativeComponent(
   const siblingStillLive = Object.keys(bench.components).some((name) => {
     if (name === componentName) return false;
     if (bench.components[name]?.status === "stopped") return false;
-    const siblingBinding = resolveBinding(projectId, name);
+    const siblingBinding = resolveBenchBinding(projectId, benchId, name);
     return !isNotBound(siblingBinding) && siblingBinding.pluginId === pluginId;
   });
   if (!siblingStillLive) {
@@ -3544,17 +3696,18 @@ export function startAllComponents(projectId: string, benchId: number): Bench {
 
   assertStartableWorkspace(bench);
 
-  const ordered = getComponentOrder(project.config.components);
+  const config = benchConfig(bench, project.config);
+  const ordered = getComponentOrder(config.components);
 
   bench.provisioningSteps = makeStartProvisioningSteps(
-    project.config,
+    config,
     ordered,
     bench.benchSetupComplete === true,
   );
   bench.status = "preparing";
   bench.error = undefined;
 
-  void runStartAllBackground(bench, ordered, project.config);
+  void runStartAllBackground(bench, ordered, config);
 
   return bench;
 }
@@ -3582,15 +3735,16 @@ export async function startComponentsAndWait(
 
   assertStartableWorkspace(bench);
 
+  const config = benchConfig(bench, project.config);
   const wanted = new Set(names);
-  const ordered = getComponentOrder(project.config.components).filter((name) => wanted.has(name));
+  const ordered = getComponentOrder(config.components).filter((name) => wanted.has(name));
   if (ordered.length === 0) return bench;
 
   bench.provisioningSteps = makeComponentOnlyProvisioningSteps(ordered);
   bench.status = "preparing";
   bench.error = undefined;
   try {
-    await runComponentsInOrder(bench, ordered, project.config, true);
+    await runComponentsInOrder(bench, ordered, config, true);
   } catch (err) {
     markBackgroundError(bench, err as Error);
   }
@@ -3605,7 +3759,7 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
   let ordered: string[];
   if (project?.config) {
     try {
-      ordered = getComponentOrder(project.config.components).reverse();
+      ordered = getComponentOrder(benchConfig(bench, project.config).components).reverse();
     } catch (err) {
       // A cyclic dependsOn config is rejected at start, but a bench holding
       // running components must still be tear-downable; order is irrelevant when
@@ -3678,7 +3832,7 @@ export function getComponentLogs(
   }
   // A declarative plugin-backed component's process logs are captured by
   // process-manager under the engine's id scheme (`${pluginId}:${benchId}:${name}`).
-  const binding = resolveBinding(projectId, componentName);
+  const binding = resolveBenchBinding(projectId, benchId, componentName);
   const pid = isNotBound(binding)
     ? processId(projectId, benchId, componentName)
     : `${binding.pluginId}:${benchId}:${componentName}`;
@@ -3929,11 +4083,13 @@ function registerBrokerContextForBench(
  * a later bench that reuses the same id.
  */
 function unregisterBrokerContextsForBench(projectId: string, benchId: number): void {
-  const project = projectRegistry.getProject(projectId);
-  if (!project?.config) return;
+  const config = configOfBench(getBench(projectId, benchId));
+  const liveConfig = projectRegistry.getProject(projectId)?.config;
+  const components = config?.components ?? liveConfig?.components;
+  if (!components) return;
   const pluginIds = new Set<string>();
-  for (const name of Object.keys(project.config.components)) {
-    const binding = resolveBinding(projectId, name);
+  for (const name of Object.keys(components)) {
+    const binding = resolveBenchBinding(projectId, benchId, name);
     if (!isNotBound(binding)) pluginIds.add(binding.pluginId);
   }
   for (const pluginId of pluginIds) {
@@ -3950,11 +4106,11 @@ export async function refreshComponentStatuses() {
   for (const bench of benches.values()) {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
-    for (const name of Object.keys(project.config.components)) {
+    for (const name of Object.keys(benchConfig(bench, project.config).components)) {
       // An imperative plugin has no ProvisionDescriptor to resolve (there is no
       // translate), so skip the resolve entirely rather than round-trip a
       // translate that would only fail with MethodNotFound (#887).
-      const binding = resolveBinding(bench.projectId, name);
+      const binding = resolveBenchBinding(bench.projectId, bench.id, name);
       if (!isNotBound(binding) && getComponentMode(binding.pluginId) === "imperative") continue;
       const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
       if (descriptor?.kind === "docker" && bench.components[name]) {
@@ -3974,8 +4130,9 @@ export async function refreshComponentStatuses() {
   for (const bench of benches.values()) {
     const project = projectRegistry.getProject(bench.projectId);
     if (!project?.config) continue;
+    const config = benchConfig(bench, project.config);
 
-    for (const name of Object.keys(project.config.components)) {
+    for (const name of Object.keys(config.components)) {
       const componentStatus = bench.components[name];
       if (!componentStatus) continue;
 
@@ -3988,7 +4145,7 @@ export async function refreshComponentStatuses() {
       const descriptor = componentDescriptors.get(
         descriptorKindKey(bench.projectId, bench.id, name),
       );
-      const binding = resolveBinding(bench.projectId, name);
+      const binding = resolveBenchBinding(bench.projectId, bench.id, name);
       const pluginId = isNotBound(binding) ? undefined : binding.pluginId;
 
       if (descriptor?.kind === "docker") {
@@ -4016,13 +4173,7 @@ export async function refreshComponentStatuses() {
         // An imperative plugin owns its process/container handles, so the host
         // has no host-id process or descriptor to read: pull its status via the
         // plugin's health hook instead (#887, AC1).
-        await refreshImperativeComponentStatus(
-          bench,
-          name,
-          pluginId,
-          componentStatus,
-          project.config,
-        );
+        await refreshImperativeComponentStatus(bench, name, pluginId, componentStatus, config);
       } else if (pluginId) {
         const procStatus = processManager.getProcessStatus(`${pluginId}:${bench.id}:${name}`);
         if (procStatus.alive && componentStatus.status === "starting") {
@@ -4131,7 +4282,7 @@ export async function assignContainer(
   const project = projectRegistry.getProject(projectId);
   if (!project?.config) throw new BenchError(`Project config not found`, "PROJECT_NOT_FOUND");
 
-  const componentConfig = project.config.components[componentName];
+  const componentConfig = benchConfig(bench, project.config).components[componentName];
   if (!componentConfig)
     throw new BenchError(`Component '${componentName}' not defined`, "COMPONENT_NOT_FOUND");
 
@@ -4203,7 +4354,7 @@ export async function unassignContainer(
   componentDescriptors.delete(descriptorKindKey(projectId, benchId, componentName));
 
   // Restore original allocated port
-  const ports = allocatePorts(project.config, benchId);
+  const ports = allocatePorts(benchConfig(bench, project.config), benchId);
   bench.ports[componentName] = ports[componentName];
 
   // Reset component status since it's no longer backed by a container
