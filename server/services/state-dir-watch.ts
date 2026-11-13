@@ -23,11 +23,23 @@
  *   plugin's github-token credential slot, and auth.json is left in place.
  * - plugins-consent.json: each consented plugin that is not running and that
  *   the user has not disabled starts, as a grant of consent in the app starts
- *   it, and the notice names the plugins that started.
+ *   it, and the notice names the plugins that started. A missing file is
+ *   applied too, as the consent of no plugin: the consent gate reads the file
+ *   on each start, and a missing file consents none. That covers a file
+ *   deleted by hand and one that does not parse, which the app moves aside
+ *   when it next reads it.
  * - plugins-state.json: the enable-state cache is read again; a plugin the
- *   edit disables stops, and one it enables starts.
- * - settings.json: read again. A settings.json that does not parse, or whose
- *   top level is not an object, keeps the last good settings served (HR-TC-034).
+ *   edit disables stops, and one it enables starts. A plugin held for consent
+ *   keeps its hold: one the edit enables is written back `"awaiting-consent"`,
+ *   and one it sets to `"disabled"` is written back
+ *   `"disabled-awaiting-consent"`.
+ * - settings.json: read again, and the notice names each setting the edit
+ *   changed; an edit that changes none sends no notice. A settings.json that
+ *   does not parse, or whose top level is not an object, keeps the last good
+ *   settings served (HR-TC-034).
+ * - .env: loaded again into process.env, so each key the edit adds, changes or
+ *   removes reaches every process the app starts from then on, and the notice
+ *   counts the keys that changed (HR-FR-011).
  *
  * The state dir is watched as one directory with a basename allowlist rather
  * than file by file, since a single-file watch loses saves that replace the
@@ -52,11 +64,13 @@ import {
 import * as benchManager from "./bench-manager.js";
 import type { BenchStateEditRef } from "./bench-manager.js";
 import * as credentialStore from "./credential-store.js";
+import { loadEnvFileReport } from "./env.js";
 import { loadConsentState } from "./plugin-consent-state.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
 import { broadcastInputChanged } from "./sse.js";
+import { changedSettingNames, settingsAppliedNotice } from "./settings-changes.js";
 import { forgetInputContent, noteInputContent } from "./self-write-tokens.js";
 import {
   watchInput,
@@ -80,6 +94,7 @@ export const STATE_FILE_SURFACES = {
   "plugins-consent.json": "plugin",
   "plugins-state.json": "plugin",
   "settings.json": "settings",
+  ".env": "environment",
 } as const satisfies Record<string, InputSurface>;
 
 export type StateFile = keyof typeof STATE_FILE_SURFACES;
@@ -255,6 +270,11 @@ export function consentAppliedNotice(pluginIds: readonly string[]): string {
     : `Plugin consent applied: ${pluginIds.join(", ")}.`;
 }
 
+/** "Plugin consent applied: no plugin is consented." for a missing plugins-consent.json. */
+export function consentClearedNotice(): string {
+  return "Plugin consent applied: no plugin is consented.";
+}
+
 /** "Plugin database disabled." for each plugin the edit turned off, then each it turned on. */
 export function enableStateNotice(reload: pluginManager.EnableStateReload): string {
   const lines = [
@@ -359,18 +379,24 @@ async function handleAuth(absPath: string): Promise<HandlerResult> {
   // removes it, so its absence is the normal state. A token put there by hand
   // is copied into the credential slot, and the file is left in place.
   if (read.kind === "missing") return "ignored";
-  if (read.kind === "invalid") return rejected("auth.json", "GitHub token", read.first);
+  if (read.kind === "invalid") return rejected("auth.json", "GitHub credentials", read.first);
   const token = read.value.githubToken;
   if (typeof token !== "string" || token.length === 0) {
-    return rejected("auth.json", "GitHub token", "githubToken must be a non-empty string");
+    return rejected("auth.json", "GitHub credentials", "githubToken must be a non-empty string");
   }
   await credentialStore.set(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT, token);
-  return applied({ summary: "GitHub token applied from auth.json." });
+  return applied({ summary: "GitHub credentials applied." });
 }
 
 async function handleConsent(absPath: string): Promise<HandlerResult> {
   const read = readStateFile(absPath);
-  if (read.kind === "missing") return applied({ summary: consentAppliedNotice([]) });
+  // The consent gate reads plugins-consent.json on each start, and a missing
+  // file consents no plugin, so its removal is in effect at once: a file
+  // deleted by hand, or one that does not parse and that the app moved aside
+  // when it next read it. It starts nothing, and running plugins keep running
+  // as after an edit that removes a record. Its applied notice clears a
+  // rejected notice of the file that is still open.
+  if (read.kind === "missing") return applied({ summary: consentClearedNotice() });
   if (read.kind === "invalid") {
     return rejected("plugins-consent.json", "Plugin consent", read.first);
   }
@@ -426,9 +452,63 @@ async function handleSettings(absPath: string): Promise<HandlerResult> {
     return rejected("settings.json", "Settings", read.first, "Last good settings still in effect.");
   }
   // Read again, so the last good settings are the ones the edit left. A
-  // missing file reads as the built-in defaults.
-  state.loadSettings();
-  return applied({ summary: "Settings applied." });
+  // missing file reads as the built-in defaults. The notice names each setting
+  // the edit changed from the settings last announced or written (HR-FR-011),
+  // not from the last good ones: a missing file does not move those, and any
+  // read of the file since the edit has moved them already.
+  const before = state.lastAnnouncedSettings();
+  const after = read.kind === "missing" ? state.builtInSettings() : state.loadSettings();
+  state.noteAnnouncedSettings(after);
+  // An edit that changes no setting, such as a save of the same settings
+  // reformatted, has no setting to name: it sends no notice, as a save in
+  // Settings that changes nothing sends none.
+  const names = changedSettingNames(before, after);
+  if (names.length === 0) return "ignored";
+  return applied({ summary: settingsAppliedNotice(names) });
+}
+
+/** "Environment file applied: 1 key changed." */
+export function envFileAppliedNotice(changed: number): string {
+  return `Environment file applied: ${changed} ${changed === 1 ? "key" : "keys"} changed.`;
+}
+
+/** "A", "A and B", "A, B and C". */
+function listKeys(keys: string[]): string {
+  if (keys.length <= 1) return keys.join("");
+  return `${keys.slice(0, -1).join(", ")} and ${keys[keys.length - 1]}`;
+}
+
+/**
+ * The notice of one save of .env: "Environment file applied: 1 key changed."
+ * when only keys that apply at once changed, "Environment file:
+ * ROUBO_APP_LOG_DIR needs a relaunch to apply." when only boot-only keys did,
+ * and both sentences, the count first, when a save changed both kinds.
+ */
+export function envFileNotice(changed: number, needsRelaunch: string[]): string {
+  if (needsRelaunch.length === 0) return envFileAppliedNotice(changed);
+  const relaunch = `${listKeys(needsRelaunch)} ${needsRelaunch.length === 1 ? "needs" : "need"} a relaunch to apply.`;
+  if (changed === 0) return `Environment file: ${relaunch}`;
+  return `${envFileAppliedNotice(changed)} ${relaunch}`;
+}
+
+/**
+ * Load .env again (HR-FR-011) and return the notice of what the load did, or
+ * null when it changed no key and named no boot-only key. Each key the file
+ * adds, changes or removes reaches process.env, and so every component,
+ * terminal and plugin process started from now on. Explicit env still wins,
+ * and the boot-only keys stay as boot set them: a save that changes one is
+ * named in the notice, which says a relaunch is needed to apply it.
+ */
+function reloadEnvFile(): string | null {
+  const { changed, needsRelaunch } = loadEnvFileReport();
+  if (changed.length === 0 && needsRelaunch.length === 0) return null;
+  return envFileNotice(changed.length, needsRelaunch);
+}
+
+async function handleEnvFile(): Promise<HandlerResult> {
+  // An edit that changes no key, such as a comment, sends no notice.
+  const summary = reloadEnvFile();
+  return summary === null ? "ignored" : applied({ summary });
 }
 
 /** The handler of one state file of the state dir. */
@@ -447,6 +527,8 @@ export async function handleStateFileChange(change: InputChange): Promise<Handle
       return handleEnableState(change.path);
     case "settings.json":
       return handleSettings(change.path);
+    case ".env":
+      return handleEnvFile();
     default:
       return "ignored";
   }
@@ -456,10 +538,11 @@ export async function handleStateFileChange(change: InputChange): Promise<Handle
 const FILE_LEADS: Record<StateFile, string> = {
   "projects.json": "Project state",
   "state.json": "Bench state",
-  "auth.json": "GitHub token",
+  "auth.json": "GitHub credentials",
   "plugins-consent.json": "Plugin consent",
   "plugins-state.json": "Plugin state",
   "settings.json": "Settings",
+  ".env": "Environment file",
 };
 
 /** The target ids of one event, the ones a client matches notices by. */
@@ -510,7 +593,7 @@ function clearingRejections(handler: (change: InputChange) => Promise<HandlerRes
     const summary = `${FILE_LEADS[file]} applied.`;
     for (const target of pending) {
       if (targetKey(target) === ownKey) continue;
-      broadcastInputChanged({ surface, outcome: "applied", ...target, summary });
+      broadcastInputChanged({ surface, outcome: "applied", input: file, ...target, summary });
     }
     return pending;
   };
@@ -576,6 +659,13 @@ export function stateFileSurface(absPath: string): InputSurface | undefined {
     : undefined;
 }
 
+/** The basename of one state file, the `input` its events carry, or undefined for another path. */
+export function stateFileInput(absPath: string): StateFile | undefined {
+  return stateFileSurface(absPath) === undefined
+    ? undefined
+    : (path.basename(absPath) as StateFile);
+}
+
 let active: InputWatch | null = null;
 let activeDir: string | null = null;
 
@@ -594,9 +684,10 @@ export interface StateDirWatchOptions {
 export async function startStateDirWatch(options: StateDirWatchOptions = {}): Promise<InputWatch> {
   if (active) return active;
   // Read settings.json once, so a hand edit that breaks it later still has
-  // last good settings to serve.
+  // last good settings to serve, and a hand edit that parses is named from
+  // what the file held when the watch armed.
   try {
-    state.loadSettings();
+    state.noteAnnouncedSettings(state.loadSettings());
   } catch {
     // A settings file that cannot be read has no last good value to keep.
   }
@@ -607,6 +698,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
     {
       surface: STATE_DIR_SURFACE,
       surfaceOf: stateFileSurface,
+      inputOf: stateFileInput,
       kind: "directory",
       depth: 0,
       allow: STATE_FILES,
@@ -622,6 +714,25 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
   active = watch;
   activeDir = dir;
   await watch.ready;
+  // Load .env once more, so an edit saved between the boot load and the arm
+  // is not missed; the watch runs for each save from here on. Such an edit
+  // sends the notice a save sends once the watch runs, a boot-only key it
+  // changed included, and a load that changes nothing sends none.
+  try {
+    const summary = reloadEnvFile();
+    if (summary !== null) {
+      broadcastInputChanged({
+        surface: STATE_FILE_SURFACES[".env"],
+        outcome: "applied",
+        input: ".env",
+        summary,
+      });
+    }
+  } catch (err) {
+    console.warn(
+      `[state-dir-watch] .env could not be loaded or its notice sent: ${(err as Error).message}`,
+    );
+  }
   // A state file that is absent is known absent, so a file created by hand
   // and written by the app inside the settle window is told apart too.
   for (const file of STATE_FILES) {

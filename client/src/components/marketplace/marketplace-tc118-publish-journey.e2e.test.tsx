@@ -362,7 +362,9 @@ describe("AP-TC-118 S005/S006: the published agent plugin's marketplace listing 
     );
     await waitFor(() => expect(mockedGrantConsent).toHaveBeenCalledWith(PLUGIN_ID, ["network"]));
     await waitFor(() => expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument());
-    expect(addToast).toHaveBeenCalledWith(`Installed ${PLUGIN_NAME}.`);
+    // The server's input-changed notice is the one notice of the install
+    // (HR-TC-022), so the client adds no success toast of its own.
+    expect(addToast).not.toHaveBeenCalledWith(`Installed ${PLUGIN_NAME}.`);
 
     // Terminal state: the published plugin now reads as Installed on this user's
     // machine, with no install affordance left to press.

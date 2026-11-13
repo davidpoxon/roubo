@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const credentialMocks = {
   set: vi.fn<(p: string, s: string, v: string) => Promise<void>>(),
 };
 vi.mock("./credential-store.js", () => credentialMocks);
+
+// The client id is read from $ROUBO_DIR/.env per call, so the state dir is a
+// temp one rather than the developer's own.
+const stateDir = vi.hoisted(() => ({ path: "" }));
+vi.mock("./state.js", () => ({ getRouboDir: () => stateDir.path }));
 
 let mod: typeof import("./github-oauth.js");
 
@@ -35,12 +43,58 @@ beforeEach(async () => {
   vi.resetModules();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  stateDir.path = fs.mkdtempSync(path.join(os.tmpdir(), "roubo-github-oauth-"));
+  // Unset, so the client id comes from the temp .env or the default.
+  vi.stubEnv("GITHUB_CLIENT_ID", undefined);
   mod = await import("./github-oauth.js");
   mod.__test.reset();
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  fs.rmSync(stateDir.path, { recursive: true, force: true });
+});
+
+describe("the OAuth client id", () => {
+  it("HR-TC-025 is read per call from .env, so the next sign-in carries a changed client id", async () => {
+    const fetchMock = stubFetch(DEVICE_CODE_RESPONSE, DEVICE_CODE_RESPONSE, DEVICE_CODE_RESPONSE);
+    const envFile = path.join(stateDir.path, ".env");
+
+    await mod.startDeviceFlow();
+    expect(requestBody(fetchMock, 0).client_id).toBe(mod.DEFAULT_GITHUB_CLIENT_ID);
+
+    fs.writeFileSync(envFile, "GITHUB_CLIENT_ID=Iv1.first\n");
+    await mod.startDeviceFlow();
+    expect(requestBody(fetchMock, 1).client_id).toBe("Iv1.first");
+
+    fs.writeFileSync(envFile, "GITHUB_CLIENT_ID=Iv1.second\n");
+    await mod.startDeviceFlow();
+    expect(requestBody(fetchMock, 2).client_id).toBe("Iv1.second");
+  });
+
+  it("HR-TC-025 polls a flow with the client id it started with", async () => {
+    const envFile = path.join(stateDir.path, ".env");
+    fs.writeFileSync(envFile, "GITHUB_CLIENT_ID=Iv1.first\n");
+    const fetchMock = stubFetch(DEVICE_CODE_RESPONSE, { error: "authorization_pending" });
+    vi.useFakeTimers();
+
+    const { flowId } = await mod.startDeviceFlow();
+    fs.writeFileSync(envFile, "GITHUB_CLIENT_ID=Iv1.second\n");
+    vi.advanceTimersByTime(5_000);
+    await mod.pollDeviceFlow(flowId);
+
+    expect(requestBody(fetchMock, 1).client_id).toBe("Iv1.first");
+  });
+
+  it("HR-TC-025 an explicit GITHUB_CLIENT_ID wins over .env", async () => {
+    fs.writeFileSync(path.join(stateDir.path, ".env"), "GITHUB_CLIENT_ID=Iv1.file\n");
+    vi.stubEnv("GITHUB_CLIENT_ID", "Iv1.explicit");
+    const fetchMock = stubFetch(DEVICE_CODE_RESPONSE);
+
+    await mod.startDeviceFlow();
+
+    expect(requestBody(fetchMock).client_id).toBe("Iv1.explicit");
+  });
 });
 
 describe("startDeviceFlow", () => {

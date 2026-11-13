@@ -109,13 +109,32 @@ import {
   appInstallOutcome,
   installedNotice,
   manifestFirstError,
+  notUpdatedLiveNotice,
   onPluginSetChanged,
   runAppPluginWrite,
+  staleUpdateNotice,
   startPluginDirWatch,
   stopPluginDirWatch,
   updatedNotice,
   type PluginSetChange,
 } from "./plugin-dir-watch.js";
+
+// An entry that exits as soon as it starts: a rebuild that crashes at start.
+const EXITS_AT_START = `"use strict";\nprocess.exit(1);\n`;
+
+/**
+ * Answer the swap's "which benches use this plugin" from the fake ledger, as
+ * the host does: each entry with a resource is a bench of project 'lantern'.
+ */
+function benchesFromLedger(): void {
+  pluginManager.registerComponentPluginHooks({
+    findBenchesUsingPlugin: (pluginId: string) =>
+      hoisted.ledger
+        .filter((e) => e.pluginId === pluginId)
+        .filter((e) => e.processIds.length > 0 || e.composeProjects.length > 0)
+        .map((e) => ({ projectId: "lantern", benchId: e.benchId })),
+  });
+}
 
 let base: string;
 let root: string;
@@ -126,6 +145,13 @@ let stopSetListener: () => void;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Edit `pluginId`'s value in the in-memory plugins-state.json by hand. */
+function handEditEnableValue(pluginId: string, value: PluginEnableStateValue): void {
+  const state = hoisted.enableState;
+  if (!state) throw new Error("expected a plugins-state.json to edit");
+  hoisted.enableState = { ...state, plugins: { ...state.plugins, [pluginId]: value } };
 }
 
 async function waitFor(pred: () => boolean, timeoutMs = 8_000) {
@@ -163,15 +189,22 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function manifestYaml(id: string, kind = "integration", version = "1.0.0"): string {
+function manifestYaml(
+  id: string,
+  kind = "integration",
+  version = "1.0.0",
+  componentMode?: "imperative",
+): string {
   return [
     `id: ${id}`,
     `name: ${id}`,
     `version: ${version}`,
     "description: a plugin directory watch fixture",
     `kind: ${kind}`,
-    "roubo: ^1.0.0",
+    kind === "component" ? "roubo: ^1.3.0" : "roubo: ^1.0.0",
     "entry: ./index.cjs",
+    ...(kind === "component" ? ["contractVersion: 1"] : []),
+    ...(componentMode ? [`componentMode: ${componentMode}`] : []),
     "permissions:",
     "  network:",
     "    hosts: []",
@@ -199,13 +232,19 @@ function entrySource(marker?: string, tag = "one"): string {
 /** Build a plugin directory in the scratch dir, outside the watched root. */
 function buildPlugin(
   name: string,
-  opts: { id?: string; kind?: string; version?: string; marker?: string } = {},
+  opts: {
+    id?: string;
+    kind?: string;
+    version?: string;
+    marker?: string;
+    componentMode?: "imperative";
+  } = {},
 ): string {
   const dir = path.join(scratch, name);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(
     path.join(dir, "roubo-plugin.yaml"),
-    manifestYaml(opts.id ?? name, opts.kind, opts.version),
+    manifestYaml(opts.id ?? name, opts.kind, opts.version, opts.componentMode),
   );
   fs.writeFileSync(path.join(dir, "index.cjs"), entrySource(opts.marker));
   return dir;
@@ -232,10 +271,13 @@ async function startWatch(): Promise<void> {
  * enough: Node loads the entry after the spawn returns, so a directory removed
  * in that window ends the process with "Cannot find module".
  */
-async function dropRunningPlugin(name: string): Promise<number> {
+async function dropRunningPlugin(
+  name: string,
+  opts: Parameters<typeof buildPlugin>[1] = {},
+): Promise<number> {
   hoisted.consented.add(name);
   const started = path.join(scratch, `${name}.started`);
-  dropPlugin(name, { marker: started });
+  dropPlugin(name, { ...opts, marker: started });
   await waitFor(() => typeof record(name)?.pid === "number");
   await waitFor(() => fs.existsSync(started));
   await waitFor(() => outcomeLines(name, "applied").length === 1);
@@ -270,6 +312,7 @@ afterEach(async () => {
   stopSetListener();
   await stopPluginDirWatch();
   await pluginManager.shutdown();
+  pluginManager.registerComponentPluginHooks(null);
   pluginManager.__test.reset();
   await pluginManager.__test.flushLogs();
   delete process.env.ROUBO_USER_PLUGINS_DIR;
@@ -297,6 +340,30 @@ describe("notice copy", () => {
       "Plugin database updated to 1.2.0. 2 benches kept their components.",
     );
     expect(updatedNotice("database", "1.2.0", 0)).toBe("Plugin database updated to 1.2.0.");
+  });
+
+  it("HR-TC-012 and HR-TC-013 word the notice of an update that left benches without their link", () => {
+    expect(staleUpdateNotice("database", null, [2])).toBe(
+      "Plugin database updated, but bench 2 lost its link to it. The components still run. Restart bench 2 to reconnect.",
+    );
+    expect(staleUpdateNotice("database", "1.2.0", [2, 5])).toBe(
+      "Plugin database updated to 1.2.0, but benches 2 and 5 lost their link to it. The components still run. Restart benches 2 and 5 to reconnect.",
+    );
+    expect(staleUpdateNotice("database", null, [])).toBe(
+      "Plugin database updated, but it did not start cleanly. Restart it to retry.",
+    );
+  });
+
+  it("HR-TC-013 words the notice of a swap refused because the plugin keeps component state", () => {
+    expect(notUpdatedLiveNotice("my-plugin", [2, 5])).toBe(
+      "Plugin my-plugin not updated live. It keeps component state. Stop benches 2 and 5, then update it.",
+    );
+    expect(notUpdatedLiveNotice("my-plugin", [2])).toBe(
+      "Plugin my-plugin not updated live. It keeps component state. Stop bench 2, then update it.",
+    );
+    expect(notUpdatedLiveNotice("my-plugin", [])).toBe(
+      "Plugin my-plugin not updated live. It keeps component state. Relaunch Roubo to update it.",
+    );
   });
 });
 
@@ -355,7 +422,7 @@ describe("a plugin directory added by hand", () => {
     expect(record("off-integration")?.pid).toBeNull();
   }, 20_000);
 
-  it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled rather than awaiting consent", async () => {
+  it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled, held until consent", async () => {
     hoisted.enableState = {
       schemaVersion: 1,
       installInitialized: true,
@@ -368,8 +435,14 @@ describe("a plugin directory added by hand", () => {
 
     await waitFor(() => outcomeLines("off-agent", "applied").length === 1);
     expect(record("off-agent")?.pid).toBeNull();
-    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("off-agent")).rejects.toThrow(/no consent yet/);
+
+    // A grant of consent keeps the user's disable.
+    hoisted.consented.add("off-agent");
+    expect(await pluginManager.startAfterConsent("off-agent")).toBe(false);
+    expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
+    expect(record("off-agent")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-015 never spawns an un-consented plugin found on disk and logs action=register", async () => {
@@ -425,20 +498,25 @@ describe("a plugin directory added by hand", () => {
     await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
 
-    // Disable during the hold: recorded, and enable and restart still refuse it.
+    // Disable during the hold: recorded with the hold, and enable and restart
+    // still refuse it.
     await pluginManager.disable("held-plugin");
-    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
     await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
 
-    // A relaunch neither starts it nor turns the disable back into a hold.
+    // A relaunch with the module state reset, so only plugins-state.json
+    // carries the hold, neither starts it nor lets enable or restart start it.
     await stopPluginDirWatch();
     await pluginManager.shutdown();
+    pluginManager.__test.reset();
     await pluginManager.initialize();
     await sleep(500);
     expect(record("held-plugin")?.pid).toBeNull();
-    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled");
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
 
     // A grant of consent leaves the disabled plugin as it is.
     hoisted.consented.add("held-plugin");
@@ -454,6 +532,45 @@ describe("a plugin directory added by hand", () => {
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
+  }, 20_000);
+
+  it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app runs", async () => {
+    await startWatch();
+    dropPlugin("held-plugin", { kind: "agent" });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    handEditEnableValue("held-plugin", "disabled");
+    await pluginManager.reloadEnableState();
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+
+    // A relaunch reads the hold back from the file.
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    pluginManager.__test.reset();
+    await pluginManager.initialize();
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
+  }, 20_000);
+
+  it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app is closed", async () => {
+    await startWatch();
+    dropPlugin("held-plugin", { kind: "agent" });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    pluginManager.__test.reset();
+    handEditEnableValue("held-plugin", "disabled");
+    await pluginManager.initialize();
+    expect(pluginManager.holdUnconsentedDisabledPlugins()).toEqual(["held-plugin"]);
+
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-015 does not hold a legacy plugin with no consent record and no awaiting-consent value", async () => {
@@ -536,6 +653,70 @@ describe("a plugin directory changed in place", () => {
     expect(record("my-agent")?.status).toBe("enabled");
     expect(outcomeLines("my-agent", "applied").at(-1)).toMatch(/ action=swap$/);
     await waitFor(() => !isAlive(oldPid), 6_000);
+  }, 30_000);
+
+  it("HR-TC-013 rejects a new manifest that names another id with the rejected-manifest copy and keeps the process", async () => {
+    await startWatch();
+    const pid = await dropRunningPlugin("my-agent");
+    hoisted.events = [];
+
+    fs.writeFileSync(path.join(root, "my-agent", "roubo-plugin.yaml"), manifestYaml("other-agent"));
+
+    await waitFor(() => outcomeLines("my-agent", "rejected").length === 1);
+    expect(summaries()).toEqual([
+      'Plugin my-agent not updated. roubo-plugin.yaml: its new manifest names "other-agent".',
+    ]);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "rejected" });
+    expect(record("my-agent")?.pid).toBe(pid);
+    expect(isAlive(pid)).toBe(true);
+  }, 30_000);
+
+  it("HR-TC-013 says which bench lost its link when the rebuilt entry exits at start, and keeps the ledger", async () => {
+    benchesFromLedger();
+    await startWatch();
+    const ledger: ResourceOwnershipEntry[] = [
+      { pluginId: "database", benchId: 2, processIds: [], composeProjects: ["roubo-l-bench-2"] },
+    ];
+    hoisted.ledger = structuredClone(ledger);
+    await dropRunningPlugin("database", { kind: "component" });
+    hoisted.events = [];
+
+    fs.writeFileSync(path.join(root, "database", "index.cjs"), EXITS_AT_START);
+
+    await waitFor(() => hoisted.events.length === 1);
+    expect(summaries()).toEqual([
+      "Plugin database updated, but bench 2 lost its link to it. The components still run. Restart bench 2 to reconnect.",
+    ]);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "applied", benchIds: [2] });
+    expect(record("database")?.stale).toBe(true);
+    expect(record("database")?.status).toBe("errored");
+    expect(hoisted.ledger).toEqual(ledger);
+    expect(outcomeLines("database", "applied").at(-1)).toMatch(/ action=swap$/);
+  }, 30_000);
+
+  it("HR-TC-013 refuses to swap a plugin that keeps component state and names the benches to stop", async () => {
+    benchesFromLedger();
+    await startWatch();
+    hoisted.ledger = [
+      { pluginId: "my-plugin", benchId: 2, processIds: [], composeProjects: ["roubo-l-bench-2"] },
+      { pluginId: "my-plugin", benchId: 5, processIds: ["process:5:api"], composeProjects: [] },
+    ];
+    const pid = await dropRunningPlugin("my-plugin", {
+      kind: "component",
+      componentMode: "imperative",
+    });
+    hoisted.events = [];
+
+    fs.writeFileSync(path.join(root, "my-plugin", "index.cjs"), entrySource(undefined, "two"));
+
+    await waitFor(() => outcomeLines("my-plugin", "refused").length === 1);
+    expect(summaries()).toEqual([
+      "Plugin my-plugin not updated live. It keeps component state. Stop benches 2 and 5, then update it.",
+    ]);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "refused", benchIds: [2, 5] });
+    expect(record("my-plugin")?.pid).toBe(pid);
+    expect(isAlive(pid)).toBe(true);
+    expect(outcomeLines("my-plugin", "refused")[0]).toMatch(/ action=swap$/);
   }, 30_000);
 });
 
@@ -709,5 +890,42 @@ describe("the marketplace path and the watch", () => {
     expect(outcomeLines("database", "applied").at(-1)).toMatch(/ action=swap$/);
     expect(outcomeLines("database", "refused")).toEqual([]);
     expect(record("database")?.pid).not.toBe(oldPid);
+  }, 30_000);
+
+  it("HR-TC-012 an update through the app whose new copy exits at start names the bench that lost its link", async () => {
+    benchesFromLedger();
+    await startWatch();
+    const ledger: ResourceOwnershipEntry[] = [
+      { pluginId: "database", benchId: 2, processIds: [], composeProjects: ["roubo-l-bench-2"] },
+    ];
+    hoisted.ledger = structuredClone(ledger);
+    await dropRunningPlugin("database", { kind: "component" });
+    hoisted.events = [];
+    const next = buildPlugin("database-next", {
+      id: "database",
+      kind: "component",
+      version: "1.1.0",
+    });
+    fs.writeFileSync(path.join(next, "index.cjs"), EXITS_AT_START);
+    const target = path.join(root, "database");
+    const backup = path.join(base, "database-prev");
+
+    const updated = await runAppPluginWrite(
+      async () => {
+        fs.renameSync(target, backup);
+        await pluginManager.uninstallForUpdate("database");
+        fs.cpSync(next, target, { recursive: true });
+        return pluginManager.registerInstalled(target);
+      },
+      (r) => appInstallOutcome(r, true, pluginManager.benchesUsingPlugin(r.id).length),
+    );
+
+    expect(updated.stale).toBe(true);
+    expect(updated.status).toBe("errored");
+    expect(summaries()).toEqual([
+      "Plugin database updated to 1.1.0, but bench 2 lost its link to it. The components still run. Restart bench 2 to reconnect.",
+    ]);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "applied", benchIds: [2] });
+    expect(hoisted.ledger).toEqual(ledger);
   }, 30_000);
 });

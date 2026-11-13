@@ -190,6 +190,279 @@ describe("loadEnvFile", () => {
   });
 });
 
+describe("loadEnvFile called again", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(async () => {
+    process.env = { ...originalEnv };
+    delete process.env.ROUBO_TEST_RELOAD;
+    delete process.env.ROUBO_PORT;
+    vi.resetAllMocks();
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    const { resetEnvFileLoads } = await import("./env.js");
+    resetEnvFileLoads();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  async function load(contents: string): Promise<string[]> {
+    vi.mocked(fs.readFileSync).mockReturnValue(contents);
+    const { loadEnvFile } = await import("./env.js");
+    return loadEnvFile();
+  }
+
+  it("HR-TC-024 applies a changed value and returns the keys it changed", async () => {
+    expect(await load("ROUBO_TEST_RELOAD=1")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(await load("ROUBO_TEST_RELOAD=1\n# a comment")).toEqual([]);
+    expect(await load("ROUBO_TEST_RELOAD='2'")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("2");
+  });
+
+  it("HR-TC-024 removes a key the file no longer has", async () => {
+    await load("ROUBO_TEST_RELOAD=1");
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBeUndefined();
+  });
+
+  it("HR-TC-024 never changes or removes a value something else set since", async () => {
+    await load("ROUBO_TEST_RELOAD=1");
+    process.env.ROUBO_TEST_RELOAD = "set-by-the-app";
+    expect(await load("ROUBO_TEST_RELOAD=2")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("set-by-the-app");
+  });
+
+  it("applies ROUBO_PORT on the first load only, since the server binds it once", async () => {
+    await load("ROUBO_PORT=4000");
+    expect(process.env.ROUBO_PORT).toBe("4000");
+    expect(await load("ROUBO_PORT=5000")).toEqual([]);
+    expect(process.env.ROUBO_PORT).toBe("4000");
+  });
+
+  it("keeps a boot-only key the first load set when a later save drops its line", async () => {
+    delete process.env.ROUBO_E2E;
+    await load("ROUBO_E2E=1\nROUBO_PORT=4000");
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_E2E).toBe("1");
+    expect(process.env.ROUBO_PORT).toBe("4000");
+  });
+
+  it("HR-TC-025 readEnvValue reads the file per call, and explicit env wins", async () => {
+    const { readEnvValue } = await import("./env.js");
+    vi.mocked(fs.readFileSync).mockReturnValue("ROUBO_TEST_RELOAD=first");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("first");
+    vi.mocked(fs.readFileSync).mockReturnValue('ROUBO_TEST_RELOAD="second"');
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("second");
+    // A value the loader put in process.env still follows the file.
+    await load("ROUBO_TEST_RELOAD=loaded");
+    vi.mocked(fs.readFileSync).mockReturnValue("ROUBO_TEST_RELOAD=edited");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("edited");
+    process.env.ROUBO_TEST_RELOAD = "explicit";
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("explicit");
+  });
+
+  /** The boot import of the login shell, exporting `vars`. */
+  async function importShell(vars: Record<string, string>): Promise<void> {
+    vi.mocked(execFileSync).mockReturnValue(envOutput(vars));
+    const { importLoginShellEnv } = await import("./env.js");
+    importLoginShellEnv();
+  }
+
+  it("HR-TC-024 a key added to .env overrides the login shell's value, as a relaunch does", async () => {
+    const { readEnvValue } = await import("./env.js");
+    await load("");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+
+    expect(await load("ROUBO_TEST_RELOAD=from-file")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-file");
+
+    // Dropping the line again puts the shell's value back.
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-shell");
+  });
+
+  it("HR-TC-024 a .env line dropped by a save falls back to the login shell's value, as a relaunch does", async () => {
+    const { readEnvValue } = await import("./env.js");
+    // Boot: .env loads first and wins, the shell only fills gaps.
+    await load("ROUBO_TEST_RELOAD=from-file");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+
+    expect(await load("")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-shell");
+    expect(readEnvValue("ROUBO_TEST_RELOAD")).toBe("from-shell");
+
+    expect(await load("ROUBO_TEST_RELOAD=from-file")).toEqual(["ROUBO_TEST_RELOAD"]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("from-file");
+  });
+
+  it("HR-TC-024 explicit env still wins over both .env and the login shell", async () => {
+    process.env.ROUBO_TEST_RELOAD = "explicit";
+    await load("ROUBO_TEST_RELOAD=from-file");
+    await importShell({ ROUBO_TEST_RELOAD: "from-shell" });
+    expect(await load("ROUBO_TEST_RELOAD=edited")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_TEST_RELOAD).toBe("explicit");
+  });
+
+  it("HR-TC-025 a GITHUB_CLIENT_ID added to .env is read over the login shell's value", async () => {
+    delete process.env.GITHUB_CLIENT_ID;
+    const { readEnvValue } = await import("./env.js");
+    await load("");
+    await importShell({ GITHUB_CLIENT_ID: "shell-client-id" });
+    expect(readEnvValue("GITHUB_CLIENT_ID")).toBe("shell-client-id");
+    // Seen at the next call, before the watch has reloaded the file.
+    vi.mocked(fs.readFileSync).mockReturnValue("GITHUB_CLIENT_ID=file-client-id");
+    expect(readEnvValue("GITHUB_CLIENT_ID")).toBe("file-client-id");
+  });
+
+  it("keeps the plugin roots as boot set them, since plugin discovery reads them once", async () => {
+    delete process.env.ROUBO_USER_PLUGINS_DIR;
+    delete process.env.ROUBO_BUNDLED_PLUGINS_DIR;
+    await load("ROUBO_USER_PLUGINS_DIR=/boot/user\nROUBO_BUNDLED_PLUGINS_DIR=/boot/bundled");
+    expect(
+      await load("ROUBO_USER_PLUGINS_DIR=/edited/user\nROUBO_BUNDLED_PLUGINS_DIR=/edited/bundled"),
+    ).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
+    expect(process.env.ROUBO_BUNDLED_PLUGINS_DIR).toBe("/boot/bundled");
+  });
+
+  it("keeps the app log dir as boot set it, since the app log creates its folder once", async () => {
+    delete process.env.ROUBO_APP_LOG_DIR;
+    await load("ROUBO_APP_LOG_DIR=/x/a");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    expect(await load("ROUBO_APP_LOG_DIR=/x/b")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+  });
+
+  it("keeps NODE_ENV as boot set it, since plugin discovery picks its mode once", async () => {
+    delete process.env.NODE_ENV;
+    await load("NODE_ENV=production");
+    expect(process.env.NODE_ENV).toBe("production");
+    expect(await load("NODE_ENV=test")).toEqual([]);
+    expect(await load("")).toEqual([]);
+    expect(process.env.NODE_ENV).toBe("production");
+  });
+
+  async function report(contents: string) {
+    vi.mocked(fs.readFileSync).mockReturnValue(contents);
+    const { loadEnvFileReport } = await import("./env.js");
+    return loadEnvFileReport();
+  }
+
+  describe("a boot-only key a save changes", () => {
+    const BOOT_KEYS = ["ROUBO_APP_LOG_DIR", "ROUBO_USER_PLUGINS_DIR", "NODE_ENV"];
+
+    beforeEach(() => {
+      for (const key of BOOT_KEYS) Reflect.deleteProperty(process.env, key);
+    });
+
+    it("HR-TC-024 names ROUBO_APP_LOG_DIR changed alone as needing a relaunch and leaves process.env", async () => {
+      expect(await report("ROUBO_APP_LOG_DIR=/x/a")).toEqual({
+        changed: ["ROUBO_APP_LOG_DIR"],
+        needsRelaunch: [],
+      });
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_APP_LOG_DIR"],
+      });
+      expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    });
+
+    it("HR-TC-024 names NODE_ENV and applies an ordinary key changed in the same save", async () => {
+      await load("NODE_ENV=production");
+      expect(await report("NODE_ENV=test\nROUBO_TEST_RELOAD=1")).toEqual({
+        changed: ["ROUBO_TEST_RELOAD"],
+        needsRelaunch: ["NODE_ENV"],
+      });
+      expect(process.env.NODE_ENV).toBe("production");
+      expect(process.env.ROUBO_TEST_RELOAD).toBe("1");
+    });
+
+    it("HR-TC-024 names ROUBO_USER_PLUGINS_DIR when a save drops its line", async () => {
+      await load("ROUBO_USER_PLUGINS_DIR=/boot/user");
+      expect(await report("")).toEqual({ changed: [], needsRelaunch: ["ROUBO_USER_PLUGINS_DIR"] });
+      expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
+    });
+
+    it("HR-TC-024 does not name a dropped line whose login shell value is the one in effect", async () => {
+      await load("ROUBO_APP_LOG_DIR=/x/a");
+      await importShell({ ROUBO_APP_LOG_DIR: "/x/a" });
+      expect(await report("")).toEqual({ changed: [], needsRelaunch: [] });
+    });
+
+    it("HR-TC-024 does not name a boot-only key that is explicit env", async () => {
+      process.env.ROUBO_APP_LOG_DIR = "/from-launch";
+      await load("ROUBO_APP_LOG_DIR=/x/a");
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(await report("")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_APP_LOG_DIR).toBe("/from-launch");
+    });
+
+    it("HR-TC-024 names ROUBO_PORT although the server published its bound port after boot", async () => {
+      await load("");
+      process.env.ROUBO_PORT = "3335";
+      expect(await report("ROUBO_PORT=4000")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_PORT"],
+      });
+      expect(process.env.ROUBO_PORT).toBe("3335");
+    });
+
+    it("HR-TC-024 does not name ROUBO_PORT when a save drops a line boot never read", async () => {
+      await load("");
+      process.env.ROUBO_PORT = "3335";
+      expect(await report("ROUBO_PORT=4000")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_PORT"],
+      });
+      // The file is back to what boot read, so a relaunch would change nothing.
+      expect(await report("")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_PORT).toBe("3335");
+    });
+
+    it("HR-TC-024 does not name a ROUBO_PORT line that matches the port the server bound", async () => {
+      await load("");
+      process.env.ROUBO_PORT = "3335";
+      expect(await report("ROUBO_PORT=3335")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_PORT).toBe("3335");
+    });
+
+    it("HR-TC-024 names ROUBO_APP_LOG_DIR moved away from its boot line, not moved back to it", async () => {
+      await load("ROUBO_APP_LOG_DIR=/x/a");
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_APP_LOG_DIR"],
+      });
+      expect(await report("ROUBO_APP_LOG_DIR=/x/a")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    });
+
+    it("HR-TC-024 names a key once, not again on a later save that leaves its line", async () => {
+      await load("");
+      expect((await report("ROUBO_APP_LOG_DIR=/x/b")).needsRelaunch).toEqual(["ROUBO_APP_LOG_DIR"]);
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b\nROUBO_TEST_RELOAD=1")).toEqual({
+        changed: ["ROUBO_TEST_RELOAD"],
+        needsRelaunch: [],
+      });
+      expect(await report("ROUBO_APP_LOG_DIR=/x/b\nROUBO_TEST_RELOAD=1\n# a comment")).toEqual({
+        changed: [],
+        needsRelaunch: [],
+      });
+      // Dropping the line puts back the value in effect, so no relaunch is needed.
+      expect(await report("ROUBO_TEST_RELOAD=1")).toEqual({ changed: [], needsRelaunch: [] });
+      expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+    });
+  });
+});
+
 describe("importLoginShellEnv", () => {
   const originalEnv = { ...process.env };
 

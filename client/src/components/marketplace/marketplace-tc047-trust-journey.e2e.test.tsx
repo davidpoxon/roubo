@@ -566,7 +566,9 @@ describe("Marketplace trust-visibility + collision journey E2E (CPHMTP-TC-047)",
         await waitFor(() =>
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument(),
         );
-        expect(addToast).toHaveBeenCalledWith("Installed Process.");
+        // The server's input-changed notice is the one notice of the install
+        // (HR-TC-022), so the client adds no success toast of its own.
+        expect(addToast).not.toHaveBeenCalledWith("Installed Process.");
 
         // The installed 'process' renders Unverified with the ACME provenance chip.
         await waitFor(() =>

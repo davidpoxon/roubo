@@ -9,7 +9,11 @@
  *   never consent-gated, starts unless the user disabled it. An invalid
  *   manifest is rejected with its first error and registers nothing.
  * - A changed manifest or entry file of a registered plugin swaps its process,
- *   keeping every bench resource (HR-FR-009).
+ *   keeping every bench resource (HR-FR-009). A swap that would break what the
+ *   benches use is refused, and the old process keeps running: a plugin that
+ *   keeps its component state in its process names the benches to stop first.
+ *   A new process that does not start, or loses its link to the benches,
+ *   leaves the swap applied, and its notice names the benches to restart.
  * - A removed directory unregisters its plugin, unless a bench uses it: then
  *   the removal is refused and the plugin keeps running (HR-FR-010).
  *
@@ -28,8 +32,9 @@ import path from "node:path";
 import { isConsentGatedKind, parseManifest, type PluginRecord } from "@roubo/shared";
 import * as pluginManager from "./plugin-manager.js";
 import { PluginSwapRefusedError } from "./plugin-manager.js";
-import { PluginInUseError } from "./plugin-in-use.js";
+import { benchList, PluginInUseError } from "./plugin-in-use.js";
 import { hasConsent } from "./plugin-consent-state.js";
+import { staleBenchIds } from "./plugin-swap-state.js";
 import {
   addOwnedWatchRoot,
   hashInputFiles,
@@ -125,6 +130,41 @@ export function updatedNotice(
   return benchCount === 1
     ? `${head} 1 bench kept its components.`
     : `${head} ${benchCount} benches kept their components.`;
+}
+
+/**
+ * The notice of an update whose new process did not start, or did not keep
+ * its link to the benches (HR-FR-009): "Plugin database updated, but bench 2
+ * lost its link to it. The components still run. Restart bench 2 to
+ * reconnect." With no bench, it names the plugin's own restart.
+ */
+export function staleUpdateNotice(
+  pluginId: string,
+  version: string | null,
+  benchIds: number[],
+): string {
+  const head = version ? `Plugin ${pluginId} updated to ${version}` : `Plugin ${pluginId} updated`;
+  if (benchIds.length === 0) return `${head}, but it did not start cleanly. Restart it to retry.`;
+  const benches = benchList(benchIds);
+  const lost = benchIds.length === 1 ? "lost its link" : "lost their link";
+  return `${head}, but ${benches} ${lost} to it. The components still run. Restart ${benches} to reconnect.`;
+}
+
+/**
+ * The notice of a swap refused because the plugin keeps its component state
+ * in its process: "Plugin my-plugin not updated live. It keeps component
+ * state. Stop benches 2 and 5, then update it." With no bench, a relaunch
+ * loads the new copy.
+ */
+export function notUpdatedLiveNotice(pluginId: string, benchIds: number[]): string {
+  const head = `Plugin ${pluginId} not updated live. It keeps component state.`;
+  if (benchIds.length === 0) return `${head} Relaunch Roubo to update it.`;
+  return `${head} Stop ${benchList(benchIds)}, then update it.`;
+}
+
+/** Whether a swap of `record` left it errored or stale, so the update did not hold. */
+function swapDidNotHold(record: PluginRecord | undefined): boolean {
+  return record !== undefined && (record.stale === true || record.status === "errored");
 }
 
 export function removedNotice(pluginId: string): string {
@@ -362,7 +402,20 @@ async function handlePresent(dir: string, dirName: string): Promise<HandlerResul
       await pluginManager.swapProcess(record.id);
     } catch (err) {
       if (err instanceof PluginSwapRefusedError) {
-        return result(err.reason === "invalid-manifest" ? "rejected" : "refused", "swap", {
+        if (err.reason === "imperative") {
+          return result("refused", "swap", {
+            pluginId: record.id,
+            ...(err.benchIds.length > 0 ? { benchIds: [...err.benchIds] } : {}),
+            summary: notUpdatedLiveNotice(record.id, err.benchIds),
+            error: { path: MANIFEST_NAMES[0], first: err.detail },
+          });
+        }
+        // A new manifest the swap cannot use (one that names another id) is
+        // rejected with the same copy as one that does not parse.
+        if (err.reason === "invalid-manifest") {
+          return rejectedManifest(record.id, "swap", err.detail);
+        }
+        return result("refused", "swap", {
           pluginId: record.id,
           summary: `Plugin ${record.id} not updated: ${err.detail}.`,
           error: { path: MANIFEST_NAMES[0], first: err.detail },
@@ -371,6 +424,17 @@ async function handlePresent(dir: string, dirName: string): Promise<HandlerResul
       throw err;
     }
     pluginSetChanged({ swapped: [record.id] });
+    // A new process that did not start, or exited during the re-bind, does not
+    // make the swap throw: it leaves the plugin errored and stale, with the
+    // bench resources still running. The swap applied, but the notice says so.
+    if (swapDidNotHold(pluginManager.getRecord(record.id))) {
+      const benchIds = staleBenchIds(record.id);
+      return result("applied", "swap", {
+        pluginId: record.id,
+        ...(benchIds.length > 0 ? { benchIds } : {}),
+        summary: staleUpdateNotice(record.id, null, benchIds),
+      });
+    }
     return result("applied", "swap", {
       pluginId: record.id,
       summary: `Plugin ${record.id} updated.`,
@@ -452,12 +516,29 @@ export interface AppPluginWriteOutcome {
   benchIds?: number[];
 }
 
-/** The outcome of a marketplace install or update that registered `record`. */
+/**
+ * The outcome of a marketplace install or update that registered `record`.
+ * An update whose new process did not start, or lost its benches, leaves
+ * `record` errored or stale: its notice names the benches that lost their
+ * link instead of the ones that kept their components. Each caller passes the
+ * record that registerInstalled returned, which it copies after the swap and
+ * its re-bind, so its `stale` and `status` are the swap's result.
+ */
 export function appInstallOutcome(
   record: PluginRecord,
   update: boolean,
   benchCount = 0,
 ): AppPluginWriteOutcome {
+  if (update && swapDidNotHold(record)) {
+    const benchIds = staleBenchIds(record.id);
+    return {
+      dir: record.pluginDir,
+      action: "swap",
+      pluginId: record.id,
+      summary: staleUpdateNotice(record.id, record.manifest?.version ?? null, benchIds),
+      ...(benchIds.length > 0 ? { benchIds } : {}),
+    };
+  }
   return update
     ? {
         dir: record.pluginDir,

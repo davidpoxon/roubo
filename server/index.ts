@@ -227,6 +227,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing plugin manager...");
   try {
     await pluginManager.initialize();
+    // A held plugin whose value was edited to "disabled" while the app was
+    // closed stays held until it is consented (HR-FR-008).
+    pluginManager.holdUnconsentedDisabledPlugins();
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
@@ -359,8 +362,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   // Watch the state files in the Roubo state dir, so a hand edit of
   // projects.json, state.json, auth.json, plugins-consent.json,
-  // plugins-state.json or settings.json applies with no relaunch, while the
-  // app's own writes of them are not applied again (HR-FR-012, HR-FR-013).
+  // plugins-state.json, settings.json or .env applies with no relaunch, while
+  // the app's own writes of them are not applied again (HR-FR-011, HR-FR-012,
+  // HR-FR-013). The boot-only keys of .env are the exception: a save that
+  // changes one sends a notice that a relaunch is needed.
   console.log("Starting state file watcher...");
   try {
     await stateDirWatch.startStateDirWatch();
@@ -372,6 +377,9 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
 
+  // One update check per launch: a later .env edit of ROUBO_VERSION or
+  // ROUBO_QUIET starts no new check until the next launch. Nothing is cached
+  // from them, so a reload leaves no state behind.
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
   }

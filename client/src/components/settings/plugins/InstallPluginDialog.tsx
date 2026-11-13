@@ -7,7 +7,6 @@ import {
   useInstallPluginConfirm,
   useInstallPluginPreview,
 } from "../../../hooks/usePlugins";
-import { useToast } from "../../../hooks/useToast";
 import { PermissionsScreen, SourceScreen } from "./install-screens";
 import { initialSourceStep, type PermissionsStep, type SourceStep } from "./install-screens-state";
 
@@ -17,7 +16,6 @@ const STRINGS = {
   emptyGitInput: "Enter the Git URL of a plugin repository.",
   emptyLocalInput: "Enter the absolute path to a local plugin directory.",
   installFailedFallback: "Install failed.",
-  installedToast: (name: string) => `Installed ${name}.`,
 };
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -30,7 +28,7 @@ export default function InstallPluginDialog() {
   // Hoist preview + confirm mutations so the ModalOverlay can gate dismissal
   // on isSubmitting; otherwise Escape / overlay-click mid-confirm would
   // dismiss the dialog while the install completes silently in the background
-  // (the toast then fires with no dialog visible, and any error setState
+  // (the install then ends with no dialog visible, and any error setState
   // targets an unmounted component).
   const previewMutation = useInstallPluginPreview();
   const confirmMutation = useInstallPluginConfirm();
@@ -71,7 +69,6 @@ function InstallFlow({
 }) {
   const [state, setState] = useState<State>(() => initialSourceStep());
   const cancelMutation = useInstallPluginCancel();
-  const { addToast } = useToast();
 
   // Cleanup contract: if the user leaves the permissions screen without
   // confirming, fire a best-effort cancel so we never orphan the staging
@@ -140,9 +137,9 @@ function InstallFlow({
   function handleConfirm() {
     if (state.step !== "permissions") return;
     confirmMutation.mutate(state.preview.stagingToken, {
-      onSuccess: (result) => {
-        const name = result.plugin.manifest?.name ?? result.plugin.id;
-        addToast(STRINGS.installedToast(name));
+      onSuccess: () => {
+        // The server sends the one notice of this install, which
+        // InputChangeNotices shows (HR-TC-022), so no success toast here.
         confirmedRef.current = true;
         close();
       },

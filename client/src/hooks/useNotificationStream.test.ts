@@ -10,7 +10,7 @@ import {
   type BenchNotification,
   type InputChangedEvent,
 } from "@roubo/shared";
-import { SURFACE_QUERY_KEYS, subscribeInputChanged } from "../lib/input-changed";
+import { subscribeInputChanged } from "../lib/input-changed";
 import type { DeliverySnapshot } from "@roubo/shared/delivery-reducer";
 import * as api from "../lib/api";
 
@@ -508,33 +508,126 @@ describe("useNotificationStream", () => {
         { queryKey: ["projects"] },
         { queryKey: ["raw-config", "p1"] },
         { queryKey: ["benches"] },
-        { queryKey: ["bench", "p1", 1] },
-        { queryKey: ["bench", "p1", 2] },
       ]);
       for (const spy of others) expect(spy).not.toHaveBeenCalled();
       expect(showNotification).not.toHaveBeenCalled();
       expect(seen).toEqual([event]);
     });
 
-    it("invalidates exactly the SURFACE_QUERY_KEYS of each surface and nothing else", () => {
-      for (const surface of INPUT_SURFACES) {
-        const event: InputChangedEvent = {
+    // The keys each input refreshes, written out literally rather than read
+    // from the client's own map, so a change to the map fails this test. The
+    // map holds the spec's keys plus the keys of the views that each input
+    // also feeds. Each input is sent as the server sends it: its surface, and
+    // for a state file the file's name as `input`.
+    const EXPECTED_KEYS: [string, Partial<InputChangedEvent>, unknown[][]][] = [
+      [
+        "project-config",
+        { surface: "project-config" },
+        [["projects"], ["raw-config", "p1"], ["benches"]],
+      ],
+      [
+        "plugin",
+        { surface: "plugin" },
+        [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
+      ],
+      ["settings", { surface: "settings", input: "settings.json" }, [["settings"]]],
+      [
+        "projects",
+        { surface: "project-config", input: "projects.json" },
+        [["projects"], ["benches"], ["issues"]],
+      ],
+      ["bench-state", { surface: "bench", input: "state.json" }, [["benches"], ["bench", "p1", 4]]],
+      [
+        "auth",
+        { surface: "github", input: "auth.json" },
+        [
+          ["settings"],
+          ["issues"],
+          ["plugin-connection-status", "github-com"],
+          ["github-derived-sources"],
+        ],
+      ],
+      [
+        "consent",
+        { surface: "plugin", input: "plugins-consent.json" },
+        [["plugins"], ["agent-plugins"]],
+      ],
+      [
+        "plugin-state",
+        { surface: "plugin", input: "plugins-state.json" },
+        [["plugins"], ["agent-plugins"]],
+      ],
+      ["env", { surface: "environment", input: ".env" }, [["settings"], ["env-keys"]]],
+    ];
+
+    it("HR-TC-035 invalidates exactly the keys each input refreshes and nothing else", () => {
+      expect(EXPECTED_KEYS.map(([input]) => input)).toEqual([
+        "project-config",
+        "plugin",
+        "settings",
+        "projects",
+        "bench-state",
+        "auth",
+        "consent",
+        "plugin-state",
+        "env",
+      ]);
+      const surfaces = new Set(EXPECTED_KEYS.map(([, fields]) => fields.surface));
+      expect([...surfaces].sort()).toEqual([...INPUT_SURFACES].sort());
+      for (const [input, fields, keys] of EXPECTED_KEYS) {
+        const { invalidateSpy, others } = fireAndCollect({
           type: "input-changed",
-          surface,
+          surface: "settings",
           outcome: "applied",
           projectId: "p1",
           pluginId: "plug",
           benchIds: [4],
           summary: "change applied",
-        };
-        const { invalidateSpy, others } = fireAndCollect(event);
-        const expected = SURFACE_QUERY_KEYS[surface](event);
-        expect(expected.length).toBeGreaterThan(0);
-        expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
-          expected.map((queryKey) => ({ queryKey })),
-        );
+          ...fields,
+        });
+        expect(
+          invalidateSpy.mock.calls.map(([arg]) => arg),
+          `the keys a change of ${input} refreshes`,
+        ).toEqual(keys.map((queryKey) => ({ queryKey })));
         for (const spy of others) expect(spy).not.toHaveBeenCalled();
       }
+    });
+
+    it("refreshes the settings key on a settings save made in the app, which names no file", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "settings",
+        outcome: "applied",
+        summary: "Settings applied: default agent.",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([{ queryKey: ["settings"] }]);
+    });
+
+    it("invalidates only projects and benches on a roubo.yaml change with no project", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "project-config",
+        outcome: "applied",
+        summary: "Project config applied.",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+        { queryKey: ["projects"] },
+        { queryKey: ["benches"] },
+      ]);
+    });
+
+    it("refreshes every bench detail key on a state.json edit that names no one project", () => {
+      const { invalidateSpy } = fireAndCollect({
+        type: "input-changed",
+        surface: "bench",
+        input: "state.json",
+        outcome: "applied",
+        summary: "Bench state applied: bench 1 on a and bench 2 on b.",
+      });
+      expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+        { queryKey: ["benches"] },
+        { queryKey: ["bench"] },
+      ]);
     });
 
     it("never invalidates the whole cache or the delivery keys on an input change", () => {

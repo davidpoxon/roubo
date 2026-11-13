@@ -6,6 +6,8 @@ import { Button, DialogTrigger } from "react-aria-components";
 import type { InstallPreview, PluginManifest, PluginRecord } from "@roubo/shared";
 import { ApiError } from "../../../lib/api";
 import ToastProvider from "../../ToastProvider";
+import InputChangeNotices from "../../InputChangeNotices";
+import { publishInputChanged } from "../../../lib/input-changed";
 
 vi.mock("../../../hooks/usePlugins", () => ({
   useInstallPluginPreview: vi.fn(),
@@ -305,7 +307,52 @@ describe("permissions step", () => {
     expect(screen.getByRole("dialog", { name: /install echo/i })).toBeInTheDocument();
   });
 
-  it("calls confirm on Install and enable; closes dialog and toasts (IP-TC-007)", async () => {
+  it("HR-TC-022 a confirmed install shows one notice: the server's, and no client success toast", async () => {
+    const user = userEvent.setup();
+    setupMutations({
+      previewMutate: (_body, callbacks) => {
+        callbacks.onSuccess?.(fixturePreview());
+      },
+      confirmMutate: (_token, callbacks) => {
+        // The server broadcasts the install's one input-changed notice over the
+        // socket before the confirm request resolves.
+        publishInputChanged({
+          type: "input-changed",
+          surface: "plugin",
+          outcome: "applied",
+          pluginId: "echo",
+          summary: "Plugin echo installed.",
+        });
+        callbacks.onSuccess?.({ plugin: fixturePluginRecord() });
+      },
+    });
+    render(
+      <ToastProvider>
+        <DialogTrigger isOpen>
+          <Button>Install plugin</Button>
+          <InstallPluginDialog />
+        </DialogTrigger>
+        <InputChangeNotices />
+      </ToastProvider>,
+    );
+
+    await user.type(
+      screen.getByTestId("install-plugin-git-url"),
+      "https://github.com/example/echo.git",
+    );
+    await user.click(screen.getByTestId("install-plugin-submit"));
+    await user.click(await screen.findByTestId("install-plugin-confirm"));
+
+    await waitFor(() => expect(screen.getByText("Plugin echo installed.")).toBeInTheDocument());
+    // `hidden`: the open modal hides the rest of the page from the a11y tree,
+    // and both a toast and an input-changed notice are a `status` there.
+    const notices = screen.queryAllByRole("status", { hidden: true });
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toHaveTextContent("Plugin echo installed.");
+    expect(screen.queryByText(/^Installed Echo/)).toBeNull();
+  });
+
+  it("calls confirm on Install and enable and closes the dialog (IP-TC-007)", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const previewMutate = vi.fn().mockImplementation((_body, callbacks) => {

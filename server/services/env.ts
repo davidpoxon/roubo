@@ -101,7 +101,11 @@ export function getLoginShellImportStatus(): LoginShellImportStatus {
  * which keeps values containing newlines intact. An existing process.env value
  * always wins and the import only fills gaps, matching `loadEnvFile()`'s
  * "explicit env wins" rule, which is what keeps harness overrides such as
- * ROUBO_E2E working.
+ * ROUBO_E2E working. Boot runs `loadEnvFile()` first, so .env wins over the
+ * shell. The import records the shell's value of each key it sets and of each
+ * key .env set first, as a layer below .env: a later reload of .env overrides
+ * a key that still holds the shell's value and puts the shell's value back
+ * when .env drops a key, so a reload ends where a relaunch would.
  *
  * PATH is exempt from that gap-fill rule (it is always already set, so the rule
  * would skip it outright) and keeps its own merge: login-shell entries not
@@ -176,7 +180,15 @@ export function importLoginShellEnv(): void {
         shellPath = value;
         continue;
       }
-      if (!(key in process.env)) process.env[key] = value;
+      // The shell's value is a layer below .env: kept for a key the import
+      // sets and for a key .env set first, so a reload of .env can override
+      // the one and fall back to the other, as a relaunch would.
+      if (!(key in process.env)) {
+        process.env[key] = value;
+        loginShellLayer.set(key, value);
+      } else if (ownedByEnvFile(key)) {
+        loginShellLayer.set(key, value);
+      }
     }
     if (shellPath) {
       // Merge: prepend login-shell paths not already present, preserving any
@@ -397,23 +409,232 @@ export function getContextWindow(): number {
 }
 
 /**
- * Loads $ROUBO_DIR/.env and merges vars into process.env.
- * Existing process.env values take precedence (explicit env wins).
- * Silently no-ops if the file doesn't exist.
+ * Strip surrounding quotes (single or double). Limitations: does not handle
+ * escaped quotes within the value (e.g. "value \"with\" quotes") and does not
+ * detect mismatched pairs (e.g. "value'). Sufficient for the primary use case
+ * of API keys that don't contain escape sequences.
  */
-export function loadEnvFile(): void {
+function unquoteEnvValue(raw: string): string {
+  return raw.length >= 2 &&
+    ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
+      (raw[0] === "'" && raw[raw.length - 1] === "'"))
+    ? raw.slice(1, -1)
+    : raw;
+}
+
+/** The values of $ROUBO_DIR/.env by key, the first line of a key winning. */
+function readEnvFileValues(): Map<string, string> {
+  const values = new Map<string, string>();
   for (const { key, raw } of parseEnvFile()) {
-    if (!(key in process.env)) {
-      // Strip surrounding quotes (single or double). Limitations: does not
-      // handle escaped quotes within the value (e.g. "value \"with\" quotes")
-      // and does not detect mismatched pairs (e.g. "value'). Sufficient for
-      // the primary use case of API keys that don't contain escape sequences.
-      process.env[key] =
-        raw.length >= 2 &&
-        ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
-          (raw[0] === "'" && raw[raw.length - 1] === "'"))
-          ? raw.slice(1, -1)
-          : raw;
-    }
+    if (!values.has(key)) values.set(key, unquoteEnvValue(raw));
   }
+  return values;
+}
+
+/**
+ * Each key `loadEnvFile()` put in process.env, with the value it put there. A
+ * later load may change or remove only these: a key the process had before,
+ * or one something else has set since, is explicit env and wins.
+ */
+const envFileApplied = new Map<string, string>();
+let envFileLoaded = false;
+
+/**
+ * The login-shell layer, below .env: each key `importLoginShellEnv()` set, or
+ * would have set had .env not set it first, with the shell's value. A key the
+ * process had from outside both is explicit env and is not in it. PATH is not
+ * in it either: the import merges PATH rather than filling it.
+ */
+const loginShellLayer = new Map<string, string>();
+
+/**
+ * Keys only the first load applies. The server binds its port once at boot and
+ * publishes the bound port back into ROUBO_PORT. ROUBO_PRODUCTION picks the
+ * state dir, where this .env lives, once at module load, and boot checks
+ * ROUBO_E2E against it; nothing here reads ROUBO_DIR. Plugin discovery reads
+ * its two plugin roots once at boot. The app log reads ROUBO_APP_LOG_DIR on
+ * each write but creates the folder and counts its bytes only on the first
+ * write and after a rotation. NODE_ENV is read once by plugin discovery, to
+ * pick the isolation probes, and by the app log install, and the plugin log
+ * guard reads it on each open or rotation of a plugin log stream. A later edit
+ * of these in .env must not reach process.env, or a per-call read of a plugin
+ * root would move away from the root the plugins were found in, the app log
+ * would append to a folder it never created and lose every later line, and
+ * under NODE_ENV=test a plugin log stream opened or rotated under the default
+ * plugins root would throw, while streams already open kept writing.
+ *
+ * So these keys are read once, at boot. A reload does not drop an edit of one
+ * silently: `loadEnvFileReport()` names each one whose line a save changed to
+ * a value a relaunch would apply, and the state dir watch sends a notice that
+ * a relaunch is needed.
+ */
+const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
+  "ROUBO_PORT",
+  "ROUBO_DIR",
+  "ROUBO_PRODUCTION",
+  "ROUBO_E2E",
+  "ROUBO_USER_PLUGINS_DIR",
+  "ROUBO_BUNDLED_PLUGINS_DIR",
+  "ROUBO_APP_LOG_DIR",
+  "NODE_ENV",
+]);
+
+/** Whether process.env holds `key` as the .env load left it, so a reload may change it. */
+function ownedByEnvFile(key: string): boolean {
+  const applied = envFileApplied.get(key);
+  return applied !== undefined && process.env[key] === applied;
+}
+
+/** Whether process.env holds `key` as the login-shell import left it, so .env may override it. */
+function ownedByLoginShell(key: string): boolean {
+  const shell = loginShellLayer.get(key);
+  return shell !== undefined && process.env[key] === shell;
+}
+
+/** Whether process.env holds `key` from outside .env and the login shell, so it wins over both. */
+function isExplicitEnv(key: string): boolean {
+  return key in process.env && !ownedByEnvFile(key) && !ownedByLoginShell(key);
+}
+
+/**
+ * The .env line of each boot-only key as the last load read it, undefined when
+ * the file had no line for it. A reload reports a boot-only key only when its
+ * line differs from this, so a later save that leaves the line as it was does
+ * not report it again.
+ */
+const bootOnlyLines = new Map<string, string | undefined>();
+
+/**
+ * The .env line of each boot-only key as the first load read it, undefined
+ * when the file had no line for it. A reload reports a boot-only key only when
+ * the value a relaunch would give it differs from the value boot gave it by
+ * the same rule (this line, else the login shell's value), so a save that puts
+ * the file back as boot read it is not reported. process.env cannot stand in
+ * for it: the server publishes its bound port into ROUBO_PORT after boot.
+ */
+const bootOnlyBootLines = new Map<string, string | undefined>();
+
+/**
+ * The boot-only keys that were explicit env at the first load. Their .env line
+ * would not apply after a relaunch either, so a reload never reports them.
+ * The judgement is made at boot because the server publishes its bound port
+ * into ROUBO_PORT after it, which would otherwise read as explicit env.
+ */
+const bootOnlyExplicit = new Set<string>();
+
+/** What one load of $ROUBO_DIR/.env did. */
+export interface EnvFileLoadReport {
+  /** The keys whose process.env value the load changed. */
+  changed: string[];
+  /**
+   * The boot-only keys whose line this load found changed, to a value that
+   * differs both from the one boot gave the key and from the one the process
+   * holds: they apply only after a relaunch. Always empty on the first load.
+   */
+  needsRelaunch: string[];
+}
+
+/**
+ * Loads $ROUBO_DIR/.env and merges vars into process.env, and returns the keys
+ * whose process.env value it changed. A process.env value from outside .env
+ * and the login-shell import takes precedence (explicit env wins); a value the
+ * login-shell import set does not. Silently no-ops if the file doesn't exist.
+ *
+ * Re-invocable (HR-FR-011): the state dir watch calls it again on each save of
+ * .env, so a key added, changed or removed there reaches process.env, and so
+ * every child process spawned after it, with no relaunch. A reload ends where a
+ * relaunch would: .env overrides a key that holds the login shell's value, and
+ * a key whose line is dropped goes back to the login shell's value, or is
+ * removed when the shell has none. It changes no key that something else has
+ * set since, and never the boot-only keys: `loadEnvFileReport()` also names
+ * the boot-only keys a save changed, which need a relaunch.
+ */
+export function loadEnvFile(): string[] {
+  return loadEnvFileReport().changed;
+}
+
+/**
+ * `loadEnvFile()`, which also reports each boot-only key (`BOOT_ONLY_ENV_KEYS`)
+ * that this load found changed and that only a relaunch would apply. A key is
+ * reported when, on a reload, its .env line differs from the line the last
+ * load read (a value changed, a line added or a line dropped), the key was not
+ * explicit env at boot, and the value a relaunch would give it (the new line,
+ * else the login shell's value, else none) differs both from the value boot
+ * gave it by the same rule (the line the first load read, else the login
+ * shell's value, else none) and from the one the process holds. So a save that
+ * puts a line back as boot read it is not reported, and neither is a line that
+ * matches the port the server bound. process.env is not changed for it.
+ */
+export function loadEnvFileReport(): EnvFileLoadReport {
+  const first = !envFileLoaded;
+  envFileLoaded = true;
+  const values = readEnvFileValues();
+  const changed: string[] = [];
+  const needsRelaunch: string[] = [];
+  for (const key of BOOT_ONLY_ENV_KEYS) {
+    const line = values.get(key);
+    const before = bootOnlyLines.get(key);
+    bootOnlyLines.set(key, line);
+    if (first) {
+      bootOnlyBootLines.set(key, line);
+      if (isExplicitEnv(key)) bootOnlyExplicit.add(key);
+      continue;
+    }
+    if (line === before || bootOnlyExplicit.has(key)) continue;
+    const shell = loginShellLayer.get(key);
+    const relaunchValue = line ?? shell;
+    const bootValue = bootOnlyBootLines.get(key) ?? shell;
+    if (relaunchValue !== bootValue && relaunchValue !== process.env[key]) needsRelaunch.push(key);
+  }
+  for (const [key, value] of values) {
+    if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
+    if (isExplicitEnv(key)) {
+      envFileApplied.delete(key);
+      continue;
+    }
+    if (process.env[key] !== value) {
+      process.env[key] = value;
+      changed.push(key);
+    }
+    envFileApplied.set(key, value);
+  }
+  for (const key of [...envFileApplied.keys()]) {
+    if (values.has(key)) continue;
+    // A boot-only key stays as the first load set it, even when a save drops its line.
+    if (!first && BOOT_ONLY_ENV_KEYS.has(key)) continue;
+    if (ownedByEnvFile(key)) {
+      const shell = loginShellLayer.get(key);
+      if (shell === undefined) {
+        Reflect.deleteProperty(process.env, key);
+        changed.push(key);
+      } else if (process.env[key] !== shell) {
+        process.env[key] = shell;
+        changed.push(key);
+      }
+    }
+    envFileApplied.delete(key);
+  }
+  return { changed, needsRelaunch };
+}
+
+/**
+ * The value of `key` now, read per call (HR-FR-011), with the precedence of a
+ * relaunch: explicit env when the process has it from outside .env and the
+ * login shell, else the line of $ROUBO_DIR/.env as the file holds it at this
+ * call, else the login shell's value, else undefined. A save of .env is seen
+ * by the next call even before the state dir watch has reloaded it.
+ */
+export function readEnvValue(key: string): string | undefined {
+  if (isExplicitEnv(key)) return process.env[key];
+  return readEnvFileValues().get(key) ?? loginShellLayer.get(key);
+}
+
+/** Forget what earlier loads of .env and the login-shell import applied. For tests. */
+export function resetEnvFileLoads(): void {
+  envFileApplied.clear();
+  loginShellLayer.clear();
+  bootOnlyLines.clear();
+  bootOnlyBootLines.clear();
+  bootOnlyExplicit.clear();
+  envFileLoaded = false;
 }

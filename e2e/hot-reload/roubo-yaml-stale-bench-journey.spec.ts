@@ -38,7 +38,10 @@ const SCROLLBACK_INPUT = "printf 'hr-tc-002-%s\\n' scrollback\r";
 // The slices of this journey, named by title: they are filed in a tracker this
 // public repository does not link to (see step-runner.ts).
 const SLICE = {
-  events: { title: "input-changed events and the non-blocking notice" },
+  events: {
+    title:
+      "input-changed event on the server stream and a non-blocking client notice with targeted refresh",
+  },
   configWatch: {
     title:
       "Watch roubo.yaml per project: re-parse on save, keep last good, notify, mark running benches stale",

@@ -26,6 +26,8 @@ vi.mock("./state.js", async (importOriginal) => {
     loadProjects: () => ({ projects: [] }),
     // The real one reads the process's own state dir, never the temp one.
     loadSettings: vi.fn(() => ({ theme: "dark" })),
+    // The real one creates the process's own state dir, never the temp one.
+    ensureDirs: () => {},
   };
 });
 vi.mock("./sse.js", async (importOriginal) => {
@@ -58,17 +60,27 @@ vi.mock("./project-registry.js", () => ({
 vi.mock("./credential-store.js", () => ({
   set: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("./plugin-consent-state.js", () => ({
-  loadConsentState: vi.fn(() => hoisted.consent),
-}));
+vi.mock("./plugin-consent-state.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./plugin-consent-state.js")>();
+  return {
+    loadConsentState: vi.fn(() => hoisted.consent),
+    // The consent gate as the server runs it: it reads the temp state dir's
+    // plugins-consent.json on each call.
+    hasConsent: actual.hasConsent,
+  };
+});
 
 import * as benchManager from "./bench-manager.js";
+import { hasConsent } from "./plugin-consent-state.js";
 import * as credentialStore from "./credential-store.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as projectRegistry from "./project-registry.js";
 import * as state from "./state.js";
+import { broadcastInputChanged } from "./sse.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
+import { cleanEnv, loadEnvFile, resetEnvFileLoads } from "./env.js";
+import { startDeviceFlow } from "./github-oauth.js";
 import { LAST_GOOD_LINE, inputNoticeText } from "../../client/src/lib/input-changed";
 import {
   STATE_FILES,
@@ -77,6 +89,8 @@ import {
   benchRemovedNotice,
   benchRevertedNotice,
   benchUnmatchedNotice,
+  envFileAppliedNotice,
+  envFileNotice,
   jsonParseError,
   startStateDirWatch,
   stopStateDirWatch,
@@ -175,9 +189,10 @@ afterEach(async () => {
 });
 
 describe("state dir watch", () => {
-  it("watches the five state files and settings.json, and nothing else in the state dir", async () => {
+  it("watches the five state files, settings.json and .env, and nothing else in the state dir", async () => {
     expect([...STATE_FILES].sort()).toEqual(
       [
+        ".env",
         "auth.json",
         "plugins-consent.json",
         "plugins-state.json",
@@ -206,10 +221,65 @@ describe("state dir watch", () => {
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-consent.json",
       summary: "Plugin consent applied: database.",
     });
     expect(fileLines("plugins-consent.json", "applied")).toHaveLength(1);
     expect(fileLines("plugins-consent.json")[0]).toContain("surface=plugin ");
+  });
+
+  it("HR-TC-027 deleting plugins-consent.json is applied as the consent of no plugin, as the consent gate reads it", async () => {
+    const file = path.join(dir, "plugins-consent.json");
+    await stopStateDirWatch();
+    hoisted.consent = JSON.parse(consentFile("database"));
+    fs.writeFileSync(file, consentFile("database"));
+    await startStateDirWatch({ dir });
+    expect(hasConsent("database")).toBe(true);
+
+    fs.rmSync(file);
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "plugin",
+      outcome: "applied",
+      input: "plugins-consent.json",
+      summary: "Plugin consent applied: no plugin is consented.",
+    });
+    expect(noticeOf(hoisted.events[0])).toBe("Plugin consent applied: no plugin is consented.");
+    // The notice says what the consent gate now does: the plugin consented
+    // before the deletion is not consented.
+    expect(hasConsent("database")).toBe(false);
+    expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
+    expect(fileLines("plugins-consent.json", "applied")).toHaveLength(1);
+  });
+
+  it("HR-TC-027 a plugins-consent.json moved aside after a rejected hand edit is applied and clears the rejected notice", async () => {
+    const file = path.join(dir, "plugins-consent.json");
+    fs.writeFileSync(file, "{ not json");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "plugin",
+      outcome: "rejected",
+      input: "plugins-consent.json",
+      error: { path: "plugins-consent.json" },
+    });
+
+    // The app moves a file that does not parse aside when it next reads it.
+    fs.renameSync(file, path.join(dir, "plugins-consent.json.corrupt"));
+    await waitFor(() => hoisted.events.length === 2);
+    await sleep(300);
+
+    // One applied event, with the target of the rejected notice, clears it.
+    expect(hoisted.events.slice(1)).toEqual([
+      {
+        surface: "plugin",
+        outcome: "applied",
+        input: "plugins-consent.json",
+        summary: "Plugin consent applied: no plugin is consented.",
+      },
+    ]);
+    expect(hasConsent("database")).toBe(false);
+    expect(pluginManager.startAfterConsent).not.toHaveBeenCalled();
   });
 
   it("HR-TC-027 a consented plugin that is already running is not named in the notice", async () => {
@@ -283,6 +353,7 @@ describe("state dir watch", () => {
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-state.json",
       summary: "Plugin database disabled.",
     });
   });
@@ -321,6 +392,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -339,6 +411,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "refused",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [2],
       summary: "Bench state not applied: bench 2 on lantern is active. Stop it first.",
@@ -383,6 +456,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary:
@@ -445,6 +519,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(hoisted.events[2]).toMatchObject({
@@ -486,6 +561,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [9],
       summary: "Bench state not applied. state.json: bench 9 on lantern does not exist.",
@@ -508,6 +584,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state not applied. state.json: bench 3 on lantern cannot be removed by hand.",
@@ -585,15 +662,94 @@ describe("state dir watch", () => {
     // Nothing reads the broken file as new settings.
     expect(state.loadSettings).not.toHaveBeenCalled();
 
-    // The watch keeps running: a fixed file applies.
-    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark" }));
+    // The watch keeps running: a fixed file applies, and its notice names the
+    // setting it changed.
+    vi.mocked(state.loadSettings).mockReturnValueOnce({ theme: "light" });
+    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "light" }));
     await waitFor(() => hoisted.events.length === 2);
     expect(hoisted.events[1]).toMatchObject({
       surface: "settings",
       outcome: "applied",
-      summary: "Settings applied.",
+      summary: "Settings applied: theme.",
     });
     expect(state.loadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("HR-TC-023 a hand edit of the default agent in settings.json names the setting in its notice", async () => {
+    const jigs = { autoInject: true, autoExecute: true };
+    state.noteAnnouncedSettings({
+      theme: "dark",
+      jigs: { ...jigs, defaultAgentPluginId: "claude-code" },
+    });
+    vi.mocked(state.loadSettings).mockReturnValueOnce({
+      theme: "dark",
+      jigs: { ...jigs, defaultAgentPluginId: "codex" },
+    });
+    fs.writeFileSync(
+      path.join(dir, "settings.json"),
+      JSON.stringify({ theme: "dark", jigs: { ...jigs, defaultAgentPluginId: "codex" } }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "settings",
+      outcome: "applied",
+      input: "settings.json",
+      summary: "Settings applied: default agent.",
+    });
+    expect(noticeOf(hoisted.events[0])).toBe("Settings applied: default agent.");
+  });
+
+  it("HR-TC-023 a hand edit of settings.json that changes no setting sends no notice", async () => {
+    vi.mocked(state.loadSettings).mockClear();
+    fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark" }, null, 4));
+    await waitFor(() => vi.mocked(state.loadSettings).mock.calls.length === 1);
+    await sleep(300);
+
+    expect(hoisted.events).toEqual([]);
+    expect(hoisted.events.map((e) => e.summary)).not.toContain("Settings applied.");
+  });
+
+  it("HR-TC-023 deleting settings.json then restoring it names the setting each time", async () => {
+    // loadSettings as the real one reads the temp state dir: the built-in
+    // settings with the file's theme, or the built-in settings when the file is
+    // missing.
+    const settingsFile = path.join(dir, "settings.json");
+    vi.mocked(state.loadSettings).mockImplementation(() =>
+      fs.existsSync(settingsFile)
+        ? {
+            ...state.builtInSettings(),
+            theme: (JSON.parse(fs.readFileSync(settingsFile, "utf-8")) as { theme: "light" }).theme,
+          }
+        : state.builtInSettings(),
+    );
+    try {
+      state.noteAnnouncedSettings(state.loadSettings());
+
+      fs.rmSync(settingsFile);
+      await waitFor(() => hoisted.events.length === 1);
+      expect(hoisted.events[0]).toEqual({
+        surface: "settings",
+        outcome: "applied",
+        input: "settings.json",
+        summary: "Settings applied: theme.",
+      });
+
+      // A read of the file between an edit and the watch's run does not hide
+      // the edit from the notice.
+      fs.writeFileSync(settingsFile, JSON.stringify({ theme: "light" }));
+      state.loadSettings();
+      await waitFor(() => hoisted.events.length === 2);
+      expect(hoisted.events[1]).toEqual({
+        surface: "settings",
+        outcome: "applied",
+        input: "settings.json",
+        summary: "Settings applied: theme.",
+      });
+    } finally {
+      vi.mocked(state.loadSettings).mockImplementation(() => ({ theme: "dark" }));
+    }
   });
 
   it("invalid JSON in any state file is rejected and nothing of it is applied", async () => {
@@ -627,6 +783,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(fileLines("state.json", "applied")).toHaveLength(1);
@@ -648,11 +805,13 @@ describe("state dir watch", () => {
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -692,12 +851,14 @@ describe("state dir watch", () => {
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
+      input: "plugins-state.json",
       summary: "Plugin state applied.",
     });
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-state.json",
       summary: "Plugin database disabled.",
     });
   });
@@ -716,6 +877,7 @@ describe("state dir watch", () => {
       surface: "project-config",
       outcome: "applied",
       projectId: "lantern",
+      input: "projects.json",
       summary: "Project settings applied: lantern.",
     });
   });
@@ -730,15 +892,301 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toMatchObject({
       surface: "github",
       outcome: "applied",
-      summary: "GitHub token applied from auth.json.",
+      summary: "GitHub credentials applied.",
     });
+    expect(noticeOf(hoisted.events[0])).toBe("GitHub credentials applied.");
     // The token is never logged or sent.
     expect(lines.join("\n")).not.toContain("ghp_example");
     expect(JSON.stringify(hoisted.events)).not.toContain("ghp_example");
   });
 });
 
+describe("state dir watch of .env", () => {
+  const KEYS = [
+    "KEY_A",
+    "KEY_B",
+    "GITHUB_CLIENT_ID",
+    "ROUBO_APP_LOG_DIR",
+    "ROUBO_USER_PLUGINS_DIR",
+  ] as const;
+  const saved = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved.set(key, process.env[key]);
+      Reflect.deleteProperty(process.env, key);
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetEnvFileLoads();
+    for (const key of KEYS) {
+      const value = saved.get(key);
+      if (value === undefined) Reflect.deleteProperty(process.env, key);
+      else process.env[key] = value;
+    }
+  });
+
+  const envEvents = () => hoisted.events.filter((e) => e.surface === "environment");
+
+  it("HR-TC-024 a key added to .env applies with a notice and reaches the next component", async () => {
+    fs.writeFileSync(path.join(dir, ".env"), "# my keys\nKEY_A=1\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0]).toEqual({
+      surface: "environment",
+      outcome: "applied",
+      input: ".env",
+      summary: "Environment file applied: 1 key changed.",
+    });
+    expect(noticeOf(envEvents()[0])).toBe("Environment file applied: 1 key changed.");
+    // A component is spawned with cleanEnv() at its start, so it sees the key.
+    expect(cleanEnv().KEY_A).toBe("1");
+
+    // A change and an addition count as two keys; a removal takes the key out.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=2\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 2 keys changed.");
+    expect(cleanEnv()).toMatchObject({ KEY_A: "2", KEY_B: "b" });
+
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_B=b\n");
+    await waitFor(() => envEvents().length === 3);
+    expect(envEvents()[2].summary).toBe("Environment file applied: 1 key changed.");
+    expect(cleanEnv().KEY_A).toBeUndefined();
+    expect(fileLines(".env", "applied")).toHaveLength(3);
+  });
+
+  it("HR-TC-024 an explicit env value wins over .env, and an edit that changes no key sends no notice", async () => {
+    process.env.KEY_A = "from-launch";
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+
+    await sleep(600);
+
+    expect(process.env.KEY_A).toBe("from-launch");
+    expect(envEvents()).toEqual([]);
+
+    // The watch is still live: a key it can apply sends its notice.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+    expect(envEvents()[0].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.KEY_A).toBe("from-launch");
+    expect(process.env.KEY_B).toBe("b");
+  });
+
+  it("HR-TC-025 a GITHUB_CLIENT_ID change in .env shows a notice and the next sign-in carries the new client id", async () => {
+    const fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<unknown>>(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          device_code: "dev-123",
+          user_code: "ABCD-1234",
+          verification_uri: "https://github.com/login/device",
+          expires_in: 900,
+          interval: 5,
+        }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const clientIdOf = (call: number) =>
+      (JSON.parse(String(fetchMock.mock.calls[call]?.[1].body)) as { client_id: string }).client_id;
+
+    fs.writeFileSync(path.join(dir, ".env"), "GITHUB_CLIENT_ID=Iv1.first\n");
+    await waitFor(() => envEvents().length === 1);
+    await startDeviceFlow();
+    expect(clientIdOf(0)).toBe("Iv1.first");
+
+    fs.writeFileSync(path.join(dir, ".env"), "GITHUB_CLIENT_ID=Iv1.second\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(noticeOf(envEvents()[1])).toBe("Environment file applied: 1 key changed.");
+
+    await startDeviceFlow();
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://github.com/login/device/code");
+    expect(clientIdOf(1)).toBe("Iv1.second");
+    // The value is never logged or sent.
+    expect(lines.join("\n")).not.toContain("Iv1.second");
+    expect(JSON.stringify(hoisted.events)).not.toContain("Iv1.second");
+  });
+
+  /** Load .env as boot does, so the boot-only keys are judged from this state. */
+  function boot(): void {
+    resetEnvFileLoads();
+    loadEnvFile();
+  }
+
+  it("HR-TC-024 a save that changes ROUBO_APP_LOG_DIR alone says it needs a relaunch, once", async () => {
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0]).toEqual({
+      surface: "environment",
+      outcome: "applied",
+      input: ".env",
+      summary: "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    });
+    expect(noticeOf(envEvents()[0])).toBe(
+      "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+
+    // A later save of another key does not name it again.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 1 key changed.");
+
+    // A comment-only save changes no key and sends no notice.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n# a note\n");
+    await sleep(600);
+    expect(envEvents()).toHaveLength(2);
+    expect(fileLines(".env", "applied")).toHaveLength(2);
+  });
+
+  it("HR-TC-024 a save that changes ROUBO_USER_PLUGINS_DIR and an ordinary key applies the one and names the other", async () => {
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_USER_PLUGINS_DIR=/edited/user\nKEY_A=1\n");
+
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0].summary).toBe(
+      "Environment file applied: 1 key changed. ROUBO_USER_PLUGINS_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.KEY_A).toBe("1");
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBeUndefined();
+  });
+
+  it("HR-TC-024 a save that drops the ROUBO_USER_PLUGINS_DIR line boot applied says it needs a relaunch", async () => {
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_USER_PLUGINS_DIR=/boot/user\n");
+    boot();
+    // The watch's own run of that write finds nothing changed since boot.
+    await sleep(600);
+    expect(envEvents()).toEqual([]);
+
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+
+    expect(envEvents()[0].summary).toBe(
+      "Environment file applied: 1 key changed. ROUBO_USER_PLUGINS_DIR needs a relaunch to apply.",
+    );
+    expect(process.env.ROUBO_USER_PLUGINS_DIR).toBe("/boot/user");
+  });
+
+  it("HR-TC-024 a save of a boot-only key that is explicit env sends no relaunch notice", async () => {
+    process.env.ROUBO_APP_LOG_DIR = "/from-launch";
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await sleep(600);
+
+    expect(envEvents()).toEqual([]);
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/from-launch");
+  });
+
+  it("HR-TC-024 a .env save between the boot load and the arm of the watch applies with a notice", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+
+    await startStateDirWatch({ dir });
+
+    expect(process.env.KEY_A).toBe("1");
+    expect(envEvents()).toEqual([
+      {
+        surface: "environment",
+        outcome: "applied",
+        input: ".env",
+        summary: "Environment file applied: 1 key changed.",
+      },
+    ]);
+    // The watch sends no second notice for the same save.
+    await sleep(600);
+    expect(envEvents()).toHaveLength(1);
+  });
+
+  it("HR-TC-024 a ROUBO_APP_LOG_DIR save between the boot load and the arm of the watch says it needs a relaunch", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\n");
+
+    await startStateDirWatch({ dir });
+
+    // The boot-only key keeps its boot value.
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+    expect(envEvents()).toEqual([
+      {
+        surface: "environment",
+        outcome: "applied",
+        input: ".env",
+        summary: "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+      },
+    ]);
+    expect(noticeOf(envEvents()[0])).toBe(
+      "Environment file: ROUBO_APP_LOG_DIR needs a relaunch to apply.",
+    );
+
+    // A later save that leaves the line as it is does not name it again.
+    fs.writeFileSync(path.join(dir, ".env"), "ROUBO_APP_LOG_DIR=/x/logs\nKEY_A=1\n");
+    await waitFor(() => envEvents().length === 2);
+    expect(envEvents()[1].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBeUndefined();
+  });
+
+  it("HR-TC-024 a .env that changed nothing between the boot load and the arm of the watch sends no notice", async () => {
+    await stopStateDirWatch();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nROUBO_APP_LOG_DIR=/boot/logs\n");
+    boot();
+    // A save in the window that changes no key, a comment only.
+    fs.writeFileSync(path.join(dir, ".env"), "# a note\nKEY_A=1\nROUBO_APP_LOG_DIR=/boot/logs\n");
+
+    await startStateDirWatch({ dir });
+    await sleep(600);
+
+    expect(envEvents()).toEqual([]);
+    expect(process.env.KEY_A).toBe("1");
+    expect(process.env.ROUBO_APP_LOG_DIR).toBe("/boot/logs");
+  });
+
+  it("HR-TC-024 a notice of the .env load that fails when the watch arms does not stop the watch", async () => {
+    await stopStateDirWatch();
+    boot();
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\n");
+    vi.mocked(broadcastInputChanged).mockImplementationOnce(() => {
+      throw new Error("no client stream");
+    });
+
+    await startStateDirWatch({ dir });
+
+    expect(process.env.KEY_A).toBe("1");
+    expect(lines.join("\n")).toContain("no client stream");
+    // The watch is armed: the next save applies with its notice.
+    fs.writeFileSync(path.join(dir, ".env"), "KEY_A=1\nKEY_B=b\n");
+    await waitFor(() => envEvents().length === 1);
+    expect(envEvents()[0].summary).toBe("Environment file applied: 1 key changed.");
+    expect(process.env.KEY_B).toBe("b");
+  });
+});
+
 describe("state dir watch notice copy", () => {
+  it("counts the changed keys of .env", () => {
+    expect(envFileAppliedNotice(1)).toBe("Environment file applied: 1 key changed.");
+    expect(envFileAppliedNotice(3)).toBe("Environment file applied: 3 keys changed.");
+  });
+
+  it("HR-TC-024 names the boot-only keys of .env that need a relaunch", () => {
+    expect(envFileNotice(2, [])).toBe("Environment file applied: 2 keys changed.");
+    expect(envFileNotice(0, ["NODE_ENV"])).toBe(
+      "Environment file: NODE_ENV needs a relaunch to apply.",
+    );
+    expect(envFileNotice(0, ["ROUBO_USER_PLUGINS_DIR", "ROUBO_APP_LOG_DIR"])).toBe(
+      "Environment file: ROUBO_USER_PLUGINS_DIR and ROUBO_APP_LOG_DIR need a relaunch to apply.",
+    );
+    expect(envFileNotice(1, ["ROUBO_PORT", "ROUBO_APP_LOG_DIR", "NODE_ENV"])).toBe(
+      "Environment file applied: 1 key changed. ROUBO_PORT, ROUBO_APP_LOG_DIR and NODE_ENV need a relaunch to apply.",
+    );
+  });
+
   it("names each bench by project, in order", () => {
     expect(benchAppliedNotice([])).toBe("Bench state applied.");
     expect(

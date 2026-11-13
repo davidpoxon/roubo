@@ -16,7 +16,6 @@ import {
   useInstallPluginPreview,
 } from "../hooks/usePlugins";
 import { useMarketplaceInstallPreview } from "../hooks/useMarketplace";
-import { useToast } from "../hooks/useToast";
 import { PermissionsScreen, SourceScreen } from "./settings/plugins/install-screens";
 import {
   initialSourceStep,
@@ -45,7 +44,6 @@ const STRINGS = {
   installFromSourceFallback: "Couldn't install from that source.",
   enterGitUrl: "Enter the Git URL of a plugin repository.",
   enterLocalPath: "Enter the absolute path to a local plugin directory.",
-  installedToast: (name: string) => `Installed ${name}.`,
   // Marketplace-resolved missing plugin (CPHMTP-FR-008, #978).
   componentTitle: "Plugin needed for this component",
   componentDescriptionPrefix: "Component ",
@@ -160,7 +158,6 @@ function MissingPluginDialogContent({
   const marketplacePreviewMutation = useMarketplaceInstallPreview();
   const confirmMutation = useInstallPluginConfirm();
   const cancelMutation = useInstallPluginCancel();
-  const { addToast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -291,9 +288,9 @@ function MissingPluginDialogContent({
   function handleConfirm() {
     if (state.step !== "permissions") return;
     confirmMutation.mutate(state.preview.stagingToken, {
-      onSuccess: (result) => {
-        const name = result.plugin.manifest?.name ?? result.plugin.id;
-        addToast(STRINGS.installedToast(name));
+      onSuccess: () => {
+        // The server sends the one notice of this install, which
+        // InputChangeNotices shows (HR-TC-022), so no success toast here.
         void queryClient.invalidateQueries({ queryKey: ["project-integration", projectId] });
         // Resume whatever the missing plugin blocked (bench start, for the
         // component flow: CPHMTP-TC-077 S003-O02). Fired only after the install is

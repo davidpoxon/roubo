@@ -349,6 +349,7 @@ describe("a hand edit followed by an app write inside the settle window", () => 
     expect(hoisted.events[1]).toEqual({
       surface: "settings",
       outcome: "applied",
+      input: "settings.json",
       summary: "Settings applied.",
     });
     expect(lines.filter((l) => l.includes("/settings.json outcome=self-write "))).toHaveLength(1);
@@ -373,6 +374,7 @@ describe("a hand edit followed by an app write inside the settle window", () => 
     expect(hoisted.events[1]).toEqual({
       surface: "project-config",
       outcome: "applied",
+      input: "projects.json",
       summary: "Project state applied.",
     });
   });
