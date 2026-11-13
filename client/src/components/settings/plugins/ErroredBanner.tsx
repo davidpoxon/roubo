@@ -31,7 +31,6 @@ const STRINGS = {
   reinstall: "Reinstall",
   reinstalling: "Reinstalling...",
   reinstallFailed: "Reinstall failed.",
-  reinstalledToast: (name: string) => `Reinstalled ${name}.`,
   viewLogs: "View logs",
 };
 
@@ -107,7 +106,8 @@ export default function ErroredBanner({
         // the component-plugin consent gate admits it after the reinstall (issue
         // #884), mirroring the Marketplace view's confirm handler.
         grantConsent.mutate({ pluginId: preview.manifest.id, acknowledgedCategories });
-        addToast(STRINGS.reinstalledToast(preview.manifest.name));
+        // The server sends the one notice of this update, which
+        // InputChangeNotices shows (HR-TC-022), so no success toast here.
         setPending(null);
         setConsentError(null);
       },

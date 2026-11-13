@@ -69,8 +69,6 @@ const STRINGS = {
   catalogUnverified:
     "The plugin catalog could not be verified and was rejected. No plugins are shown to protect you from an unverified source.",
   empty: "No plugins match that search.",
-  installedToast: (name: string) => `Installed ${name}.`,
-  updatedToast: (name: string) => `Updated ${name}.`,
   installFailed: "Install failed.",
   stagingInstallTitle: (name: string) => `Installing ${name}`,
   stagingUpdateTitle: (name: string) => `Updating ${name}`,
@@ -324,7 +322,7 @@ export default function Marketplace() {
 
   function handleConsentConfirm(acknowledgedCategories: PermissionCategory[]) {
     if (!pending) return;
-    const { mode, listing, preview } = pending;
+    const { preview } = pending;
     confirmMutation.mutate(preview.stagingToken, {
       onSuccess: () => {
         // The install/update is committed. Mint (install) or refresh (update
@@ -337,11 +335,9 @@ export default function Marketplace() {
         // re-mint here is an idempotent upsert. grantConsent surfaces its own
         // failure toast; the install itself has already succeeded.
         grantConsent.mutate({ pluginId: preview.manifest.id, acknowledgedCategories });
-        addToast(
-          mode === "update"
-            ? STRINGS.updatedToast(listing.name)
-            : STRINGS.installedToast(listing.name),
-        );
+        // No success toast here: the server sends the one notice of this app
+        // write ("Plugin <id> installed." or "Plugin <id> updated ..."), which
+        // InputChangeNotices shows (HR-TC-022). A second toast would make two.
         setPending(null);
         setConsentError(null);
         setStaging(null);
