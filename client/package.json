@@ -41,7 +41,7 @@
     "react": "19.3.0",
     "react-aria-components": "1.22.1",
     "react-dom": "19.3.0",
-    "react-router": "8.4.0",
+    "react-router": "8.5.0",
     "yaml": "2.9.1"
   },
   "devDependencies": {
