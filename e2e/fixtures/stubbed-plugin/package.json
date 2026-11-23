@@ -17,6 +17,6 @@
   "devDependencies": {
     "tsup": "9.0.0",
     "typescript": "6.0.3",
-    "vscode-jsonrpc": "9.0.3"
+    "vscode-jsonrpc": "10.0.0"
   }
 }
