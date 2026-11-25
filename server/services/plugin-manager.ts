@@ -2930,16 +2930,21 @@ export interface EnableStateReload {
  * would let it: it needs a valid manifest and, for a consent-gated plugin, a
  * ConsentRecord. A consent-gated plugin with no ConsentRecord is not started,
  * and its value is written back as `"awaiting-consent"`, the hold that a
- * relaunch would also keep. A plugin whose start fails is left stopped, with
- * its error on its record.
+ * relaunch would also keep. A plugin held for consent that the edit sets to a
+ * plain `"disabled"` keeps its hold: its value is written back as
+ * `"disabled-awaiting-consent"`, as a disable in the app writes it, so a
+ * relaunch does not take it for a plugin that was never held. A plugin whose
+ * start fails is left stopped, with its error on its record.
  */
 export async function reloadEnableState(): Promise<EnableStateReload> {
-  const before = new Map<string, boolean>();
-  for (const id of plugins.keys()) before.set(id, isPluginEnabled(id));
+  const before = new Map<string, { enabled: boolean; held: boolean }>();
+  for (const id of plugins.keys()) {
+    before.set(id, { enabled: isPluginEnabled(id), held: isAwaitingConsent(id) });
+  }
   enableStateCache = pluginEnableState.loadEnableState();
   const result: EnableStateReload = { disabled: [], enabled: [] };
   for (const [id, entry] of plugins) {
-    const was = before.get(id) ?? true;
+    const was = before.get(id)?.enabled ?? true;
     const now = isPluginEnabled(id);
     if (was && !now) {
       result.disabled.push(id);
@@ -2957,6 +2962,12 @@ export async function reloadEnableState(): Promise<EnableStateReload> {
       }
       await spawnPlugin(entry);
       if (entry.process) result.enabled.push(id);
+    } else if (
+      before.get(id)?.held === true &&
+      enableStateCache?.plugins[id] === "disabled" &&
+      !pluginConsentState.hasConsent(id)
+    ) {
+      enableStateCache = pluginEnableState.setPluginEnableValue(id, "disabled-awaiting-consent");
     }
   }
   return result;

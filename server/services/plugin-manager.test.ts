@@ -3209,6 +3209,29 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     await mgr.enable("component-echo");
     expect(findRecord(mgr.listInstalled(), "component-echo").pid).not.toBeNull();
   });
+
+  it("HR-FR-008 enable and restart refuse a held plugin that a hand edit of plugins-state.json sets to disabled", async () => {
+    consentStateMocks.hasConsent.mockReturnValue(false);
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "awaiting-consent" },
+    });
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "disabled" },
+    });
+    await mgr.reloadEnableState();
+
+    await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+  });
 });
 
 describe("getConnectionStatus (IP-WU-044)", () => {
