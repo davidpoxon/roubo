@@ -2740,7 +2740,8 @@ function isLongRunningHandle(
  * Each live bench, by project and number, that holds a resource of `pluginId`
  * in the ownership ledger (HR-FR-009). Registered with plugin-manager as
  * `findBenchesUsingPlugin`: a swap whose new process does not start marks these
- * benches stale. It names the project, which the ledger cannot.
+ * benches stale. It counts only the benches that bind the plugin in their
+ * config, and only the ledger rows whose handles the engine gave them.
  */
 export function findBenchesUsingPlugin(pluginId: string): pluginSwapState.SwapBenchRef[] {
   const using: pluginSwapState.SwapBenchRef[] = [];

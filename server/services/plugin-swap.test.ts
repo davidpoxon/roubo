@@ -561,12 +561,63 @@ describe("updateRefusal: an installer update takes the swap's refusals while a b
     ).toBeNull();
   }, 30_000);
 
+  it("refuses a manifest that breaks a component a bench uses", async () => {
+    pluginManager.registerComponentPluginHooks({
+      onComponentPluginPreRestart: preRestart,
+      onComponentPluginSwapped: swapped,
+      findBenchesUsingPlugin: benchesUsing,
+      findBindingsBrokenBySwap: () => ["component 'db' of bench 2"],
+    });
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+
+    expect(pluginManager.updateRefusal("database", { ...current(), version: "2.0.0" })).toEqual({
+      reason: "component-type",
+      detail: expect.stringContaining("component 'db' of bench 2"),
+      benchIds: [2],
+    });
+  }, 30_000);
+
   it("does not refuse a new permission, whose consent the update's confirm records", async () => {
     ledgerFake.entries = [twoBenches()[0]];
     await startDatabase();
     const next = { ...current(), permissions: { ...current().permissions, docker: {} } };
 
     expect(pluginManager.updateRefusal("database", next)).toBeNull();
+  }, 30_000);
+});
+
+describe("a plugin that is not a component plugin keeps crash restart through a swap or an update", () => {
+  // Only a component plugin holds bench resources, so only its swap stays off
+  // the crash path. For any other kind, a new process that exits at start is a
+  // crash: it is restarted under the restart budget and is not marked stale.
+  async function expectCrashRestart(): Promise<void> {
+    await waitFor(() => record().restartHistory.length > 0);
+    const r = record();
+    expect(r.lastError?.code).not.toBe("swap-start-failed");
+    expect(r.stale).toBe(false);
+    expect(swapState.isInSwapGap("database")).toBe(false);
+    expect(swapped).not.toHaveBeenCalled();
+  }
+
+  it("a swap restarts an integration plugin whose new process exits at start", async () => {
+    await startDatabase({ kind: "integration" });
+    await writePlugin({ kind: "integration", version: "1.1.0" }, EXITS_AT_START);
+
+    await pluginManager.swapProcess("database").catch(() => {});
+
+    await expectCrashRestart();
+  }, 30_000);
+
+  it("an installer update restarts an integration plugin whose new process exits at start", async () => {
+    await startDatabase({ kind: "integration" });
+
+    await pluginManager.uninstallForUpdate("database");
+    expect(swapState.isInSwapGap("database")).toBe(false);
+    await writePlugin({ kind: "integration", version: "1.1.0" }, EXITS_AT_START);
+    await pluginManager.registerInstalled(pluginDir).catch(() => {});
+
+    await expectCrashRestart();
   }, 30_000);
 });
 

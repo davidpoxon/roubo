@@ -9786,8 +9786,8 @@ describe("handleComponentPluginSwapped", () => {
   }
 
   // Projects 'lantern' and 'harbour' each hold a bench 2; only lantern's binds
-  // its 'backend' to the 'process' plugin. The ledger keys on (pluginId,
-  // benchId), so the one entry of bench 2 under 'process' is lantern's.
+  // its 'backend' to the 'process' plugin, and the one ledger entry of a bench
+  // 2 under 'process' is lantern's.
   function setupTwoProjectsWithBenchTwo() {
     setupProcessMocks();
     const bound = makeConfig({

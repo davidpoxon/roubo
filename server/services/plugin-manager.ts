@@ -293,10 +293,10 @@ export interface ComponentPluginHooks {
   /**
    * Asked by swapProcess before the stop: each bench, by project and number,
    * that holds a resource of this plugin in the ownership ledger. A swap whose
-   * new process does not start marks these benches stale. Bench numbers are
-   * per project and the ledger keys on the number alone, so only the host's
-   * bench registry can name the project. Host-internal, like
-   * `onComponentPluginSwapped`.
+   * new process does not start marks these benches stale. The host's bench
+   * registry knows which benches bind the plugin in their config and the
+   * handles its engine gave them, so it picks the ledger rows that a swap
+   * re-binds. Host-internal, like `onComponentPluginSwapped`.
    */
   findBenchesUsingPlugin?: (pluginId: string) => swapState.SwapBenchRef[];
   /**
@@ -2399,7 +2399,10 @@ async function rebindSwappedResources(
  *
  * Rejects with PluginSwapRefusedError, before the stop, for an imperative
  * plugin or a binding-breaking manifest change. A swap of a plugin that is not
- * running only takes the new manifest. Swaps of one plugin run one at a time.
+ * running only takes the new manifest. Only a component plugin holds bench
+ * resources, so a plugin of any other kind is stopped and started as a restart
+ * does, and an exit of its new process takes the crash path with its restart
+ * budget. Swaps of one plugin run one at a time.
  */
 export function swapProcess(pluginId: string): Promise<void> {
   const entry = plugins.get(pluginId);
@@ -2428,6 +2431,14 @@ async function runSwap(entry: PluginEntry): Promise<void> {
   entry.record.manifest = built.manifest;
   entry.record.manifestPath = built.entry.record.manifestPath;
   if (!wasRunning) return;
+
+  if (!isComponentPlugin(entry)) {
+    await stopPluginProcess(entry);
+    entry.record.restartHistory = [];
+    entry.record.lastError = null;
+    await spawnPlugin(entry);
+    return;
+  }
 
   const benches = swapBenchesOf(entry);
   entry.swapping = true;
@@ -2581,17 +2592,23 @@ export async function uninstallForUpdate(pluginId: string): Promise<void> {
     throw new Error(`Bundled plugins cannot be updated in place: ${pluginId}`);
   }
 
-  // The update keeps the benches' resources (HR-FR-009): stop the old process
-  // as a swap does, so its exit never reaches the crash path, and hold the swap
-  // gap open so a component start or stop waits for the re-registered entry.
-  // registerInstalled re-attaches the ledger to that entry.
-  pendingUpdates.set(pluginId, swapBenchesOf(entry));
-  swapState.openSwapGap(pluginId);
-  entry.swapping = true;
-  try {
+  if (isComponentPlugin(entry)) {
+    // The update of a component plugin keeps the benches' resources
+    // (HR-FR-009): stop the old process as a swap does, so its exit never
+    // reaches the crash path, and hold the swap gap open so a component start or
+    // stop waits for the re-registered entry. registerInstalled re-attaches the
+    // ledger to that entry. Any other kind holds no bench resources, so its
+    // update stops and starts the process as before, with crash restart.
+    pendingUpdates.set(pluginId, swapBenchesOf(entry));
+    swapState.openSwapGap(pluginId);
+    entry.swapping = true;
+    try {
+      await stopPluginProcess(entry);
+    } finally {
+      entry.swapping = false;
+    }
+  } else {
     await stopPluginProcess(entry);
-  } finally {
-    entry.swapping = false;
   }
 
   if (entry.logStream) {
@@ -2624,12 +2641,14 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
   }
   plugins.set(built.idForMap, built.entry);
 
-  // An update through the installer (uninstallForUpdate, then this) re-attaches
-  // the ledger to the re-registered entry: the new process starts as a swap, so
-  // an exit at start is no crash, and the benches' resources are re-bound to it
-  // rather than torn down (HR-FR-009).
-  const updateBenches = pendingUpdates.get(built.idForMap);
+  // An update of a component plugin through the installer (uninstallForUpdate,
+  // then this) re-attaches the ledger to the re-registered entry: the new
+  // process starts as a swap, so an exit at start is no crash, and the benches'
+  // resources are re-bound to it rather than torn down (HR-FR-009). A new
+  // manifest of another kind starts as a fresh plugin, and the gap still closes.
+  const pendingUpdate = pendingUpdates.get(built.idForMap);
   pendingUpdates.delete(built.idForMap);
+  const updateBenches = pendingUpdate && isComponentPlugin(built.entry) ? pendingUpdate : undefined;
 
   if (built.entry.record.status === "disabled" && built.entry.record.manifest) {
     if (updateBenches) {
@@ -2643,7 +2662,7 @@ export async function registerInstalled(pluginDir: string): Promise<PluginRecord
       await spawnPlugin(built.entry);
     }
   }
-  if (updateBenches) swapState.closeSwapGap(built.idForMap);
+  if (pendingUpdate) swapState.closeSwapGap(built.idForMap);
 
   return copyRecord(built.entry);
 }
