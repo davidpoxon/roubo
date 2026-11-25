@@ -1956,8 +1956,9 @@ export async function initialize(options: { holdUnconsented?: boolean } = {}): P
  *
  * initialize() runs this before it starts any plugin when it is called with
  * `holdUnconsented`, as the launch in index.ts calls it. A bundled or
- * integration plugin is never held, and an e2e reset re-initializes without
- * this pass. Returns the ids it held.
+ * integration plugin is never held. The e2e harness, whose fixture plugins
+ * sit in the user plugins root with no ConsentRecord, launches and resets
+ * without this pass. Returns the ids it held.
  */
 function holdUnconsentedPlugins(): string[] {
   const held: string[] = [];

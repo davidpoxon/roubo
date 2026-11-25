@@ -119,6 +119,21 @@ describe("startServer", { concurrent: false }, () => {
     await handle.shutdown();
   });
 
+  it("HR-FR-008 starts the e2e harness without the launch consent hold", async () => {
+    vi.stubEnv("ROUBO_E2E", "1");
+    try {
+      const pluginManager = await import("./services/plugin-manager.js");
+      vi.mocked(pluginManager.initialize).mockClear();
+
+      const handle = await startServer({ port: 0 });
+
+      expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: false });
+      await handle.shutdown();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("port 0: OS assigns a free port and handle.port reflects it", async () => {
     const handle = await startServer({ port: 0 });
     expect(handle.port).toBeGreaterThan(0);

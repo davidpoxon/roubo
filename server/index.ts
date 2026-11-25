@@ -226,8 +226,12 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Initializing plugin manager...");
   try {
     // A component or agent plugin in the user plugins root with no consent
-    // is held, not started, until it is consented (HR-FR-008).
-    await pluginManager.initialize({ holdUnconsented: true });
+    // is held, not started, until it is consented (HR-FR-008). The e2e
+    // harness serves its fixture plugins from the user plugins root with no
+    // ConsentRecord and consents them per spec, so it launches without the
+    // hold, as its reset re-initializes without it. The packaged app sets
+    // ROUBO_PRODUCTION, and startServer refuses to start with both set.
+    await pluginManager.initialize({ holdUnconsented: process.env.ROUBO_E2E !== "1" });
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
