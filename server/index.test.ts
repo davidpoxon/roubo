@@ -108,6 +108,17 @@ describe("startServer", { concurrent: false }, () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
+  it("HR-FR-008 starts the plugin manager with the launch consent hold", async () => {
+    const pluginManager = await import("./services/plugin-manager.js");
+    vi.mocked(pluginManager.initialize).mockClear();
+
+    const handle = await startServer({ port: 0 });
+
+    expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
+    expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: true });
+    await handle.shutdown();
+  });
+
   it("port 0: OS assigns a free port and handle.port reflects it", async () => {
     const handle = await startServer({ port: 0 });
     expect(handle.port).toBeGreaterThan(0);
@@ -287,7 +298,7 @@ describe("startServer", { concurrent: false }, () => {
       }));
       vi.doMock("./services/plugin-manager.js", () => ({
         initialize: vi.fn(() => Promise.resolve()),
-              shutdown: vi.fn(() => Promise.resolve()),
+        shutdown: vi.fn(() => Promise.resolve()),
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
         getAgentManifests: vi.fn(() => []),
