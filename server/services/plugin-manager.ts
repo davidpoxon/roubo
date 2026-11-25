@@ -2932,8 +2932,8 @@ export interface EnableStateReload {
  * and its value is written back as `"awaiting-consent"`, the hold that a
  * relaunch would also keep. A plugin held for consent that the edit sets to a
  * plain `"disabled"` keeps its hold: its value is written back as
- * `"disabled-awaiting-consent"`, as a disable in the app writes it, so a
- * relaunch does not take it for a plugin that was never held. A plugin whose
+ * `"disabled-awaiting-consent"`, as a disable in the app writes it, so
+ * enable() and restart() go on refusing it until it is consented. A plugin whose
  * start fails is left stopped, with its error on its record.
  */
 export async function reloadEnableState(): Promise<EnableStateReload> {
