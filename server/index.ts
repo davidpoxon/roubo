@@ -380,10 +380,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
 
-  // One update check per launch. ROUBO_VERSION is a boot-only .env key, so a
-  // later edit of it gets the relaunch notice. A later edit of ROUBO_QUIET
-  // starts no new check either, but the env load reads it on each call, so it
-  // still applies there. Nothing is cached from them.
+  // One update check per launch. ROUBO_VERSION and ROUBO_QUIET are boot-only
+  // .env keys, so a later edit of either gets the relaunch notice.
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
   }

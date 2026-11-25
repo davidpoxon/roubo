@@ -363,6 +363,7 @@ describe("loadEnvFile called again", () => {
       "ROUBO_USER_PLUGINS_DIR",
       "NODE_ENV",
       "ROUBO_VERSION",
+      "ROUBO_QUIET",
       "ROUBO_DIR",
     ];
 
@@ -382,13 +383,14 @@ describe("loadEnvFile called again", () => {
       expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
     });
 
-    it("HR-TC-024 names ROUBO_VERSION, which only the update check at boot reads", async () => {
+    it("HR-TC-024 names ROUBO_VERSION and ROUBO_QUIET, which only reads at boot use", async () => {
       await load("ROUBO_VERSION=1.0.0");
-      expect(await report("ROUBO_VERSION=2.0.0")).toEqual({
+      expect(await report("ROUBO_VERSION=2.0.0\nROUBO_QUIET=1")).toEqual({
         changed: [],
-        needsRelaunch: ["ROUBO_VERSION"],
+        needsRelaunch: ["ROUBO_VERSION", "ROUBO_QUIET"],
       });
       expect(process.env.ROUBO_VERSION).toBe("1.0.0");
+      expect(process.env.ROUBO_QUIET).toBeUndefined();
     });
 
     it("HR-TC-024 applies ROUBO_DIR as an ordinary key, since nothing reads it and a relaunch would change nothing", async () => {

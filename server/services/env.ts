@@ -459,7 +459,8 @@ const loginShellLayer = new Map<string, string>();
  * state dir, where this .env lives, once at module load, and boot checks
  * ROUBO_E2E against it. Nothing reads ROUBO_DIR, so it is not one of them, and
  * an edit of it is no relaunch to ask for. The update check reads ROUBO_VERSION
- * once per launch, and nothing else reads it. Plugin discovery reads
+ * and ROUBO_QUIET once per launch, and the login-shell import, which runs once
+ * at boot, is the only other read of ROUBO_QUIET. Plugin discovery reads
  * its two plugin roots once at boot. The app log reads ROUBO_APP_LOG_DIR on
  * each write but creates the folder and counts its bytes only on the first
  * write and after a rotation. NODE_ENV is read once by plugin discovery, to
@@ -485,6 +486,7 @@ const BOOT_ONLY_ENV_KEYS: ReadonlySet<string> = new Set([
   "ROUBO_APP_LOG_DIR",
   "NODE_ENV",
   "ROUBO_VERSION",
+  "ROUBO_QUIET",
 ]);
 
 /** Whether process.env holds `key` as the .env load left it, so a reload may change it. */
