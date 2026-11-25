@@ -109,14 +109,20 @@ describe("startServer", { concurrent: false }, () => {
   });
 
   it("HR-FR-008 starts the plugin manager with the launch consent hold", async () => {
-    const pluginManager = await import("./services/plugin-manager.js");
-    vi.mocked(pluginManager.initialize).mockClear();
+    // Whatever the shell running the tests exports, this is not the e2e harness.
+    vi.stubEnv("ROUBO_E2E", "");
+    try {
+      const pluginManager = await import("./services/plugin-manager.js");
+      vi.mocked(pluginManager.initialize).mockClear();
 
-    const handle = await startServer({ port: 0 });
+      const handle = await startServer({ port: 0 });
 
-    expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
-    expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: true });
-    await handle.shutdown();
+      expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
+      expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: true });
+      await handle.shutdown();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("HR-FR-008 starts the e2e harness without the launch consent hold", async () => {
