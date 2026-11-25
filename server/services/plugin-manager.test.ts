@@ -3042,9 +3042,9 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
       });
       sandbox = await makeSandbox({ bundled: [id] });
       mgr = await loadManager();
-      await mgr.initialize();
       // A bundled plugin is never taken as held at launch.
-      expect(mgr.holdUnconsentedDisabledPlugins()).toEqual([]);
+      await mgr.initialize({ holdUnconsented: true });
+      expect(enableStateMocks.setPluginEnableValue).not.toHaveBeenCalled();
       expect(findRecord(mgr.listInstalled(), id).pid).toBeNull();
 
       await mgr.enable(id);
@@ -3093,8 +3093,7 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
       installInitialized: true,
       plugins: { "component-echo": "disabled-awaiting-consent" },
     });
-    await mgr.initialize();
-    expect(mgr.holdUnconsentedDisabledPlugins()).toEqual([]);
+    await mgr.initialize({ holdUnconsented: true });
     expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
     await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
     await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);

@@ -580,8 +580,9 @@ function isHeldValue(value: PluginEnableStateValue | undefined): boolean {
  * Whether `pluginId` is held for want of consent and still has no
  * ConsentRecord (HR-FR-008): it must not be started, and enable() and
  * restart() refuse it. The hold lives in plugins-state.json, so it holds
- * after a relaunch too. A plugin that was never held, such as a legacy
- * install or a plain `"disabled"` plugin, is not held.
+ * after a relaunch too. A plain `"enabled"` or `"disabled"` value is not a
+ * hold, but at launch initialize() turns the value of each user-root
+ * component or agent plugin with no ConsentRecord into one first.
  */
 function isAwaitingConsent(pluginId: string): boolean {
   return (
@@ -601,6 +602,18 @@ function valueAfterConsent(
   if (value === "awaiting-consent") return "enabled";
   if (value === "disabled-awaiting-consent") return "disabled";
   return undefined;
+}
+
+/**
+ * The hold that keeps a plugin whose enable value is `current` from starting
+ * until it is consented: `"disabled-awaiting-consent"` for a plugin the user
+ * disabled, so the disable survives the grant, and `"awaiting-consent"`
+ * otherwise.
+ */
+function heldValueFor(current: PluginEnableStateValue | undefined): PluginEnableStateValue {
+  return current === "disabled" || current === "disabled-awaiting-consent"
+    ? "disabled-awaiting-consent"
+    : "awaiting-consent";
 }
 
 /** Write the value a grant of consent leaves for a held `pluginId`, if it is held. */
@@ -1860,7 +1873,7 @@ async function stopPluginProcess(entry: PluginEntry): Promise<void> {
   if (containerName) await removePluginContainer(entry, containerName);
 }
 
-export async function initialize(): Promise<void> {
+export async function initialize(options: { holdUnconsented?: boolean } = {}): Promise<void> {
   if (initialized) {
     throw new Error("plugin-manager already initialized");
   }
@@ -1919,6 +1932,7 @@ export async function initialize(): Promise<void> {
   for (const [id, entry] of discovered) {
     plugins.set(id, entry);
   }
+  if (options.holdUnconsented === true) holdUnconsentedPlugins();
 
   const spawns: Promise<void>[] = [];
   for (const entry of plugins.values()) {
@@ -1930,31 +1944,36 @@ export async function initialize(): Promise<void> {
 }
 
 /**
- * Keep the consent hold of each plugin that a hand edit of plugins-state.json
- * may have taken it off while the app was closed (HR-FR-008). A component or
- * agent plugin in the user plugins root, the root the plugins directory watch
- * registers from, that has no ConsentRecord and a plain `"disabled"` value can
- * be a held plugin whose `"awaiting-consent"` or `"disabled-awaiting-consent"`
- * value was edited to `"disabled"`: the file no longer tells it from one that
- * was never held. Each such plugin is taken as held and written
- * `"disabled-awaiting-consent"`, so enable() and restart() refuse it until it
- * is consented, and the grant of consent leaves it `"disabled"`.
+ * Hold, at launch, each plugin in the user plugins root that could run code
+ * with no consent (HR-FR-008): a component or agent plugin with no
+ * ConsentRecord. Such a plugin was copied into the root while the app was
+ * closed, was installed before the install recorded consent, or is a held
+ * plugin whose value a hand edit of plugins-state.json changed while the app
+ * was closed. The file does not tell these apart, so each is held whatever its
+ * value: written `"disabled-awaiting-consent"` when it is `"disabled"`, and
+ * `"awaiting-consent"` otherwise. initialize() then does not start it, and
+ * enable() and restart() refuse it until it is consented.
  *
- * Run once at launch, after initialize(). A disabled plugin is not running,
- * so nothing is stopped. A bundled plugin is never held, and an e2e reset
- * re-initializes without this pass. Returns the ids it held.
+ * initialize() runs this before it starts any plugin when it is called with
+ * `holdUnconsented`, as the launch in index.ts calls it. A bundled or
+ * integration plugin is never held, and an e2e reset re-initializes without
+ * this pass. Returns the ids it held.
  */
-export function holdUnconsentedDisabledPlugins(): string[] {
+function holdUnconsentedPlugins(): string[] {
   const held: string[] = [];
   for (const entry of plugins.values()) {
     const id = entry.record.id;
     const manifest = entry.record.manifest;
     if (entry.record.source !== "user" || !manifest) continue;
     if (!isConsentGatedKind(manifest.kind)) continue;
-    if (enableStateCache?.plugins[id] !== "disabled") continue;
     if (pluginConsentState.hasConsent(id)) continue;
-    enableStateCache = pluginEnableState.setPluginEnableValue(id, "disabled-awaiting-consent");
+    const current = enableStateCache?.plugins[id];
+    if (isHeldValue(current)) continue;
+    enableStateCache = pluginEnableState.setPluginEnableValue(id, heldValueFor(current));
     held.push(id);
+  }
+  if (held.length > 0) {
+    console.log(`[plugin-manager] held for consent at launch: ${held.join(", ")}`);
   }
   return held;
 }
@@ -2822,10 +2841,7 @@ export async function registerInstalled(
     // A plugin the user disabled stays disabled, held as
     // "disabled-awaiting-consent": enable() refuses it until consent, and a
     // grant of consent then leaves it "disabled".
-    const held =
-      current === "disabled" || current === "disabled-awaiting-consent"
-        ? "disabled-awaiting-consent"
-        : "awaiting-consent";
+    const held = heldValueFor(current);
     if (current !== held) {
       enableStateCache = pluginEnableState.setPluginEnableValue(id, held);
     }

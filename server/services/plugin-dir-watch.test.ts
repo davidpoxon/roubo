@@ -292,7 +292,7 @@ describe("notice copy", () => {
     expect(manifestFirstError("entry: Required.")).toBe("entry: Required");
   });
 
-  it("HR-TC-011 and HR-TC-012 word the install and update notices", () => {
+  it("HR-TC-011, HR-TC-012 and HR-TC-014 word the install and update notices", () => {
     expect(installedNotice("database", false)).toBe(
       "Plugin database installed. Grant consent in Settings > Plugins to enable it.",
     );
@@ -484,8 +484,7 @@ describe("a plugin directory added by hand", () => {
     await pluginManager.shutdown();
     pluginManager.__test.reset();
     handEditEnableValue("held-plugin", "disabled");
-    await pluginManager.initialize();
-    expect(pluginManager.holdUnconsentedDisabledPlugins()).toEqual(["held-plugin"]);
+    await pluginManager.initialize({ holdUnconsented: true });
 
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
@@ -493,23 +492,49 @@ describe("a plugin directory added by hand", () => {
     expect(record("held-plugin")?.pid).toBeNull();
   }, 20_000);
 
-  it("HR-TC-015 does not hold a legacy plugin with no consent record and no awaiting-consent value", async () => {
-    hoisted.enableState = {
-      schemaVersion: 1,
-      installInitialized: true,
-      plugins: { "legacy-agent": "enabled" },
-    };
-    buildPlugin("legacy-agent", { kind: "agent" });
-    fs.cpSync(path.join(scratch, "legacy-agent"), path.join(root, "legacy-agent"), {
-      recursive: true,
-    });
-    await pluginManager.shutdown();
-    await pluginManager.initialize();
+  it.each([
+    ["no value", undefined, "awaiting-consent"],
+    ["an enabled value", "enabled", "awaiting-consent"],
+    ["a disabled value", "disabled", "disabled-awaiting-consent"],
+  ] as const)(
+    "HR-FR-008 holds at launch an agent plugin copied in while the app was closed, with no consent and %s",
+    async (_label, value, held) => {
+      hoisted.enableState = {
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: value === undefined ? {} : { "copied-agent": value },
+      };
+      for (const [id, kind] of [
+        ["copied-agent", "agent"],
+        ["copied-tracker", "integration"],
+      ] as const) {
+        buildPlugin(id, { kind });
+        fs.cpSync(path.join(scratch, id), path.join(root, id), { recursive: true });
+      }
+      await pluginManager.shutdown();
+      await pluginManager.initialize({ holdUnconsented: true });
 
-    expect(typeof record("legacy-agent")?.pid).toBe("number");
-    await pluginManager.restart("legacy-agent");
-    expect(typeof record("legacy-agent")?.pid).toBe("number");
-  }, 20_000);
+      expect(hoisted.enableState?.plugins["copied-agent"]).toBe(held);
+      expect(record("copied-agent")?.pid).toBeNull();
+      await expect(pluginManager.enable("copied-agent")).rejects.toThrow(/no consent yet/);
+      await expect(pluginManager.restart("copied-agent")).rejects.toThrow(/no consent yet/);
+      expect(record("copied-agent")?.pid).toBeNull();
+      // An integration plugin is never consent-gated, so it starts.
+      expect(typeof record("copied-tracker")?.pid).toBe("number");
+
+      // A grant of consent starts it, unless the user had disabled it.
+      hoisted.consented.add("copied-agent");
+      await pluginManager.startAfterConsent("copied-agent");
+      if (value === "disabled") {
+        expect(hoisted.enableState?.plugins["copied-agent"]).toBe("disabled");
+        expect(record("copied-agent")?.pid).toBeNull();
+      } else {
+        expect(hoisted.enableState?.plugins["copied-agent"]).toBe("enabled");
+        expect(typeof record("copied-agent")?.pid).toBe("number");
+      }
+    },
+    20_000,
+  );
 
   it("HR-TC-019 rejects a new directory with an invalid manifest with its first error and registers nothing", async () => {
     await startWatch();
@@ -680,7 +705,7 @@ describe("the marketplace path and the watch", () => {
       async () => {
         const target = path.join(root, "tracker");
         fs.cpSync(src, target, { recursive: true });
-        return pluginManager.registerInstalled(target, { inertUntilConsent: true });
+        return pluginManager.registerInstalled(target);
       },
       (r) => appInstallOutcome(r, false),
     );
@@ -689,29 +714,25 @@ describe("the marketplace path and the watch", () => {
     expect(summaries()).toEqual(["Plugin tracker installed."]);
   }, 20_000);
 
-  it("HR-TC-011 an agent install with no consent yet stays inert, says so, and runs once consent is granted", async () => {
+  it("HR-TC-011 an agent install records consent in its write, so it starts and its notice names no consent step", async () => {
     await startWatch();
     const src = buildPlugin("database", { kind: "agent" });
 
+    // As POST /install/:token/confirm does: the confirm is the consent, so the
+    // ConsentRecord is written in the same app write as the install (#991).
     const installed = await runAppPluginWrite(
       async () => {
         const target = path.join(root, "database");
         fs.cpSync(src, target, { recursive: true });
-        return pluginManager.registerInstalled(target, { inertUntilConsent: true });
+        hoisted.consented.add("database");
+        return pluginManager.registerInstalled(target);
       },
       (r) => appInstallOutcome(r, false),
     );
 
-    expect(installed.status).toBe("disabled");
-    expect(installed.pid).toBeNull();
-    expect(summaries()).toEqual([
-      "Plugin database installed. Grant consent in Settings > Plugins to enable it.",
-    ]);
-
-    hoisted.consented.add("database");
-    await pluginManager.startAfterConsent("database");
-    expect(record("database")?.status).toBe("enabled");
-    expect(typeof record("database")?.pid).toBe("number");
+    expect(installed.status).toBe("enabled");
+    expect(typeof installed.pid).toBe("number");
+    expect(summaries()).toEqual(["Plugin database installed."]);
   }, 20_000);
 
   it("HR-TC-012 an update through the app keeps the bench ledger and reports one swap", async () => {
