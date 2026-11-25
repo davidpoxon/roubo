@@ -593,11 +593,12 @@ describe("useNotificationStream", () => {
       }
     });
 
-    it("refreshes the settings key on a settings save made in the app, which names no file", () => {
+    it("refreshes the settings key on a settings save made in the app", () => {
       const { invalidateSpy } = fireAndCollect({
         type: "input-changed",
         surface: "settings",
         outcome: "applied",
+        input: "settings.json",
         summary: "Settings applied: default agent.",
       });
       expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([{ queryKey: ["settings"] }]);
