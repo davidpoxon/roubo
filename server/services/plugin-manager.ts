@@ -2518,6 +2518,15 @@ export async function uninstall(pluginId: string): Promise<void> {
   swapState.clearPluginStale(pluginId);
 }
 
+/** Why an installer update was refused, and the benches that use the plugin. */
+export interface UpdateRefusal {
+  reason: SwapRefusalReason;
+  /** Why, without the plugin name: "its kind changed from component to agent". */
+  detail: string;
+  /** The benches that use the plugin, from `benchesUsingPlugin`, ascending. */
+  benchIds: number[];
+}
+
 /**
  * The reason to refuse an installer update of `pluginId` to `next` before its
  * old process stops, or null when the update may go ahead. The update stops the
@@ -2525,16 +2534,20 @@ export async function uninstall(pluginId: string): Promise<void> {
  * takes the swap's refusals: an imperative plugin, and a change of kind,
  * contract version or a component config a bench uses. A plugin no bench uses
  * has no binding to break, and updates as before.
+ *
+ * Whether a bench uses the plugin comes from `benchesUsingPlugin`, the ledger
+ * source of the removal refusal (HR-FR-010), and not from the swap's
+ * `findBenchesUsingPlugin`: that one keeps only the handles a declarative
+ * plugin's engine names, and an imperative plugin picks its own process ids.
  */
-export function updateRefusal(
-  pluginId: string,
-  next: PluginManifest,
-): PluginSwapRefusedError | null {
+export function updateRefusal(pluginId: string, next: PluginManifest): UpdateRefusal | null {
   const entry = plugins.get(pluginId);
   const current = entry?.record.manifest;
   if (!entry || !current) return null;
-  if (swapBenchesOf(entry).length === 0) return null;
-  return bindingRefusal(entry, current, next, "update");
+  const benchIds = benchesUsingPlugin(pluginId);
+  if (benchIds.length === 0) return null;
+  const refusal = bindingRefusal(entry, current, next, "update");
+  return refusal ? { reason: refusal.reason, detail: refusal.detail, benchIds } : null;
 }
 
 /**

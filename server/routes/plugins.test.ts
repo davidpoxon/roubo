@@ -575,14 +575,14 @@ describe("POST /install/:token/confirm", () => {
     vi.mocked(pluginInstaller.commit).mockRejectedValue(
       new pluginInstaller.InstallError(
         "plugin-swap-refused",
-        'Plugin "database" was not updated: its kind changed from component to agent. Stop the benches that use it, then update again.',
+        'Plugin "database" was not updated: its kind changed from component to agent. Stop bench 2, then update again.',
       ),
     );
     const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
       error:
-        'Plugin "database" was not updated: its kind changed from component to agent. Stop the benches that use it, then update again.',
+        'Plugin "database" was not updated: its kind changed from component to agent. Stop bench 2, then update again.',
       code: "plugin-swap-refused",
     });
     expect(vi.mocked(pluginConsentState.upsertConsent)).not.toHaveBeenCalled();

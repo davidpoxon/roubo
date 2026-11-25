@@ -4,7 +4,7 @@
 // the real error and copy even where plugin-manager is replaced by a stub.
 
 // "bench 2" for one bench, "benches 2 and 5" or "benches 2, 3 and 5" for more.
-function benchList(benchIds: number[]): string {
+export function benchList(benchIds: number[]): string {
   if (benchIds.length === 1) return `bench ${benchIds[0]}`;
   const ids = benchIds.map(String);
   return `benches ${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}`;
@@ -29,6 +29,20 @@ export function pluginInUseNotice(pluginId: string, benchIds: number[]): string 
   return benchIds.length === 1
     ? `Plugin ${pluginId} not removed. ${subject} uses it. Clear that bench first.`
     : `Plugin ${pluginId} not removed. ${subject} use it. Clear those benches first.`;
+}
+
+/**
+ * The error of a marketplace update refused while a bench uses the plugin
+ * (HR-FR-009): "Plugin "database" was not updated: <detail>. Stop bench 2, then
+ * update again." It names each bench that uses the plugin, from the same ledger
+ * source as the removal refusal.
+ */
+export function pluginUpdateRefusedMessage(
+  pluginId: string,
+  detail: string,
+  benchIds: number[],
+): string {
+  return `Plugin "${pluginId}" was not updated: ${detail}. Stop ${benchList(benchIds)}, then update again.`;
 }
 
 /**

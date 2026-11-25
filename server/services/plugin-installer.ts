@@ -18,6 +18,7 @@ import {
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { pluginUpdateRefusedMessage } from "./plugin-in-use.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
@@ -1229,7 +1230,7 @@ async function commitUpdate(
     staged.delete(stagingToken);
     throw new InstallError(
       "plugin-swap-refused",
-      `Plugin "${replaceId}" was not updated: ${refusal.detail}. Stop the benches that use it, then update again.`,
+      pluginUpdateRefusedMessage(replaceId, refusal.detail, refusal.benchIds),
     );
   }
 

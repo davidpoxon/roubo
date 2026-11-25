@@ -506,15 +506,42 @@ describe("updateRefusal: an installer update takes the swap's refusals while a b
   }
 
   it("refuses an imperative plugin that a bench uses, with no swap remedy in its detail", async () => {
-    ledgerFake.entries = [twoBenches()[0]];
+    ledgerFake.entries = twoBenches();
     await startDatabase({ componentMode: "imperative" });
 
-    const refusal = pluginManager.updateRefusal("database", current());
-    expect(refusal).toMatchObject({
-      code: "plugin-swap-refused",
+    expect(pluginManager.updateRefusal("database", current())).toEqual({
       reason: "imperative",
       detail: "an imperative component plugin owns its resources in its process",
+      benchIds: [2, 3],
     });
+  }, 30_000);
+
+  it("refuses an imperative plugin whose own process id the swap's bench lookup does not match", async () => {
+    // An imperative plugin names its processes itself, so its ledger row holds
+    // "deploy-1", not an engine id. The host's findBenchesUsingPlugin keeps only
+    // engine ids and compose projects, so here it finds no bench; the ledger
+    // still records the process, and the update is refused on it.
+    ledgerFake.entries = [
+      {
+        pluginId: "database",
+        projectId: "lantern",
+        benchId: 4,
+        processIds: ["deploy-1"],
+        composeProjects: [],
+      },
+    ];
+    const lookup = benchesUsing.getMockImplementation();
+    benchesUsing.mockImplementation(() => []);
+    try {
+      await startDatabase({ componentMode: "imperative" });
+
+      expect(pluginManager.updateRefusal("database", current())).toMatchObject({
+        reason: "imperative",
+        benchIds: [4],
+      });
+    } finally {
+      if (lookup) benchesUsing.mockImplementation(lookup);
+    }
   }, 30_000);
 
   it("refuses a contractVersion change while a bench uses the plugin", async () => {

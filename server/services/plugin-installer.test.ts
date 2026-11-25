@@ -737,16 +737,16 @@ describe("previewUpdateFromGitUrl (#688)", () => {
       "https://github.com/example/echo.git",
       "echo",
     );
-    // The plugin manager is mocked, so the refusal is the shape the installer
-    // reads from it.
     vi.mocked(pluginManager.updateRefusal).mockReturnValue({
+      reason: "imperative",
       detail: "an imperative component plugin owns its resources in its process",
-    } as pluginManager.PluginSwapRefusedError);
+      benchIds: [2, 5],
+    });
 
     await expect(pluginInstaller.commit(preview.stagingToken)).rejects.toMatchObject({
       code: "plugin-swap-refused",
       message:
-        'Plugin "echo" was not updated: an imperative component plugin owns its resources in its process. Stop the benches that use it, then update again.',
+        'Plugin "echo" was not updated: an imperative component plugin owns its resources in its process. Stop benches 2 and 5, then update again.',
     });
 
     // The refusal is checked against the staged manifest, and nothing stops or
