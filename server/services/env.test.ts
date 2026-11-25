@@ -358,7 +358,13 @@ describe("loadEnvFile called again", () => {
   }
 
   describe("a boot-only key a save changes", () => {
-    const BOOT_KEYS = ["ROUBO_APP_LOG_DIR", "ROUBO_USER_PLUGINS_DIR", "NODE_ENV"];
+    const BOOT_KEYS = [
+      "ROUBO_APP_LOG_DIR",
+      "ROUBO_USER_PLUGINS_DIR",
+      "NODE_ENV",
+      "ROUBO_VERSION",
+      "ROUBO_DIR",
+    ];
 
     beforeEach(() => {
       for (const key of BOOT_KEYS) Reflect.deleteProperty(process.env, key);
@@ -374,6 +380,20 @@ describe("loadEnvFile called again", () => {
         needsRelaunch: ["ROUBO_APP_LOG_DIR"],
       });
       expect(process.env.ROUBO_APP_LOG_DIR).toBe("/x/a");
+    });
+
+    it("HR-TC-024 names ROUBO_VERSION, which only the update check at boot reads", async () => {
+      await load("ROUBO_VERSION=1.0.0");
+      expect(await report("ROUBO_VERSION=2.0.0")).toEqual({
+        changed: [],
+        needsRelaunch: ["ROUBO_VERSION"],
+      });
+      expect(process.env.ROUBO_VERSION).toBe("1.0.0");
+    });
+
+    it("HR-TC-024 applies ROUBO_DIR as an ordinary key, since nothing reads it and a relaunch would change nothing", async () => {
+      await load("");
+      expect(await report("ROUBO_DIR=/x")).toEqual({ changed: ["ROUBO_DIR"], needsRelaunch: [] });
     });
 
     it("HR-TC-024 names NODE_ENV and applies an ordinary key changed in the same save", async () => {
