@@ -2691,18 +2691,18 @@ export function findBindingsBrokenBySwap(pluginId: string, next: PluginManifest)
 
 /**
  * The ledger rows of `pluginId` that belong to `bench`, whose components
- * `names` bind to the plugin. The ledger keys on (pluginId, benchId) with no
- * project, so the entry of bench 2 can hold the rows of bench 2 of several
- * projects. A row is the bench's when its handle names the bench: the compose
- * project `roubo-<projectId>-bench-<N>`, or a process id the engine gave one of
- * the bench's components, `<pluginId>:<N>:<component>` and its phase ids.
+ * `names` bind to the plugin: the rows of the bench's ledger entry, keyed on
+ * (pluginId, projectId, benchId), whose handle names the bench or one of those
+ * components: the compose project `roubo-<projectId>-bench-<N>`, or a process
+ * id the engine gave one of `names`, `<pluginId>:<N>:<component>` and its
+ * phase ids.
  */
 function ledgerRowsOfBench(
   pluginId: string,
   bench: Bench,
   names: string[],
 ): { processIds: string[]; composeProjects: string[] } {
-  const entry = ledger.getEntry(pluginId, bench.id);
+  const entry = ledger.getEntry(pluginId, bench.projectId, bench.id);
   if (!entry) return { processIds: [], composeProjects: [] };
   const composeProject = dockerService.getComposeProjectName(bench.projectId, bench.id);
   const bases = names.map((name) => `${pluginId}:${bench.id}:${name}`);

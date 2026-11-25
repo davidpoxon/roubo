@@ -14,12 +14,14 @@ import type { PluginEnableState, ResourceOwnershipEntry } from "@roubo/shared";
 const ledgerFake = vi.hoisted(() => ({ entries: [] as ResourceOwnershipEntry[] }));
 vi.mock("./resource-ownership-ledger.js", () => ({
   getAllEntries: vi.fn(() => ledgerFake.entries),
-  getEntry: vi.fn((pluginId: string, benchId: number) =>
-    ledgerFake.entries.find((e) => e.pluginId === pluginId && e.benchId === benchId),
+  getEntry: vi.fn((pluginId: string, projectId: string, benchId: number) =>
+    ledgerFake.entries.find(
+      (e) => e.pluginId === pluginId && e.projectId === projectId && e.benchId === benchId,
+    ),
   ),
-  clearEntry: vi.fn((pluginId: string, benchId: number) => {
+  clearEntry: vi.fn((pluginId: string, projectId: string | undefined, benchId: number) => {
     ledgerFake.entries = ledgerFake.entries.filter(
-      (e) => !(e.pluginId === pluginId && e.benchId === benchId),
+      (e) => !(e.pluginId === pluginId && e.projectId === projectId && e.benchId === benchId),
     );
   }),
   recordProcess: vi.fn(),
@@ -168,12 +170,14 @@ function isAlive(pid: number): boolean {
 const twoBenches = (): ResourceOwnershipEntry[] => [
   {
     pluginId: "database",
+    projectId: "lantern",
     benchId: 2,
     processIds: ["process:2:api"],
     composeProjects: ["roubo-lantern-bench-2"],
   },
   {
     pluginId: "database",
+    projectId: "lantern",
     benchId: 3,
     processIds: [],
     composeProjects: ["roubo-lantern-bench-3"],

@@ -9754,8 +9754,10 @@ describe("handleComponentPluginSwapped", () => {
 
   function useLedger(entries: ResourceOwnershipEntry[]) {
     vi.mocked(ledgerService.getAllEntries).mockReturnValue(entries);
-    vi.mocked(ledgerService.getEntry).mockImplementation((pluginId, benchId) =>
-      entries.find((e) => e.pluginId === pluginId && e.benchId === benchId),
+    vi.mocked(ledgerService.getEntry).mockImplementation((pluginId, projectId, benchId) =>
+      entries.find(
+        (e) => e.pluginId === pluginId && e.projectId === projectId && e.benchId === benchId,
+      ),
     );
     vi.mocked(dockerService.getComposeProjectName).mockImplementation(
       (projectId, benchNumber) => `roubo-${projectId}-bench-${benchNumber}`,
@@ -9772,6 +9774,7 @@ describe("handleComponentPluginSwapped", () => {
     useLedger([
       {
         pluginId: "process",
+        projectId: "test-project",
         benchId: 1,
         processIds: ["process:1:backend"],
         composeProjects: ["roubo-test-project-bench-1"],
@@ -9835,6 +9838,7 @@ describe("handleComponentPluginSwapped", () => {
     useLedger([
       {
         pluginId: "process",
+        projectId: "lantern",
         benchId: 2,
         processIds: ["process:2:backend"],
         composeProjects: ["roubo-lantern-bench-2"],
@@ -9955,6 +9959,7 @@ describe("handleComponentPluginSwapped", () => {
     useLedger([
       {
         pluginId: "process",
+        projectId: "test-project",
         benchId: 1,
         processIds: ["process:1:backend:setup", "process:1:backend"],
         composeProjects: ["roubo-test-project-bench-1"],
@@ -9982,6 +9987,7 @@ describe("handleComponentPluginSwapped", () => {
     useLedger([
       {
         pluginId: "process",
+        projectId: "test-project",
         benchId: 1,
         processIds: ["process:1:backend:migration", "process:1:backend"],
         composeProjects: ["roubo-test-project-bench-1"],
@@ -10001,6 +10007,7 @@ describe("handleComponentPluginSwapped", () => {
     useLedger([
       {
         pluginId: "process",
+        projectId: "test-project",
         benchId: 1,
         processIds: ["process:1:backend:setup", "process:1:backend"],
         composeProjects: ["roubo-test-project-bench-1"],
