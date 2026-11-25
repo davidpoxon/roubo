@@ -237,6 +237,11 @@ export type InstallErrorCode =
   | "duplicate-id"
   | "unknown-token"
   | "update-target-missing"
+  // An update of a plugin that a bench uses would break a binding the bench
+  // relies on (an imperative plugin, or a change of kind, contract version or a
+  // component config the bench uses), so it was refused before the old process
+  // stopped (HR-FR-009). Nothing was changed.
+  | "plugin-swap-refused"
   // The Release asset could not be downloaded (non-200 response, network error,
   // or it exceeded the maximum download size) on the built-artifact install path
   // (#849). Nothing is written or executed.

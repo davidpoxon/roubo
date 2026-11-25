@@ -2146,8 +2146,8 @@ function swapBenchesOf(entry: PluginEntry): swapState.SwapBenchRef[] {
  * The ids of the benches that use `pluginId`, ascending: each bench whose
  * ownership ledger entry under the plugin still records a host process or a
  * compose project (HR-FR-010). The ledger is the single source of the removal
- * refusal. The ledger keys on the bench number alone, so a number here can
- * stand for a bench of more than one project; a swap names its benches by
+ * refusal. It returns bench numbers without their project, so a number here
+ * can stand for a bench of more than one project; a swap names its benches by
  * project through `findBenchesUsingPlugin` instead.
  */
 export function benchesUsingPlugin(pluginId: string): number[] {
@@ -2173,12 +2173,14 @@ export class PluginSwapRefusedError extends Error {
   readonly code = "plugin-swap-refused";
   readonly pluginId: string;
   readonly reason: SwapRefusalReason;
+  readonly detail: string;
 
   constructor(pluginId: string, reason: SwapRefusalReason, detail: string) {
     super(`Plugin "${pluginId}" was not swapped: ${detail}`);
     this.name = "PluginSwapRefusedError";
     this.pluginId = pluginId;
     this.reason = reason;
+    this.detail = detail;
   }
 }
 
@@ -2223,11 +2225,29 @@ function swapRefusal(
       `its new manifest names "${next.id}"`,
     );
   }
+  return bindingRefusal(entry, current, next, "swap");
+}
+
+/**
+ * The reason a swap of `entry` from `current` to `next` would break a binding
+ * the benches rely on, or null when it keeps every one. On the installer's
+ * `update` path the confirm is itself the consent step for the new manifest's
+ * permissions, so only a `swap` checks consent.
+ */
+function bindingRefusal(
+  entry: PluginEntry,
+  current: PluginManifest,
+  next: PluginManifest,
+  path: "swap" | "update",
+): PluginSwapRefusedError | null {
+  const id = entry.record.id;
   if (current.componentMode === "imperative" || next.componentMode === "imperative") {
     return new PluginSwapRefusedError(
       id,
       "imperative",
-      "an imperative component plugin owns its resources in its process; restart the benches that use it instead",
+      path === "swap"
+        ? "an imperative component plugin owns its resources in its process; restart the benches that use it instead"
+        : "an imperative component plugin owns its resources in its process",
     );
   }
   if (next.kind !== current.kind) {
@@ -2244,17 +2264,19 @@ function swapRefusal(
       `its contractVersion changed from ${current.contractVersion ?? "none"} to ${next.contractVersion ?? "none"}`,
     );
   }
-  const consent = pluginConsentState.getConsent(id);
-  const covered = new Set<string>(
-    consent ? consent.acknowledgedCategories : declaredCategories(current.permissions),
-  );
-  const needsConsent = declaredCategories(next.permissions).filter((c) => !covered.has(c));
-  if (needsConsent.length > 0) {
-    return new PluginSwapRefusedError(
-      id,
-      "permission",
-      `it declares permissions that need consent: ${needsConsent.join(", ")}`,
+  if (path === "swap") {
+    const consent = pluginConsentState.getConsent(id);
+    const covered = new Set<string>(
+      consent ? consent.acknowledgedCategories : declaredCategories(current.permissions),
     );
+    const needsConsent = declaredCategories(next.permissions).filter((c) => !covered.has(c));
+    if (needsConsent.length > 0) {
+      return new PluginSwapRefusedError(
+        id,
+        "permission",
+        `it declares permissions that need consent: ${needsConsent.join(", ")}`,
+      );
+    }
   }
   const broken = isComponentPlugin(entry)
     ? (componentPluginHooks.findBindingsBrokenBySwap?.(id, next) ?? [])
@@ -2494,6 +2516,25 @@ export async function uninstall(pluginId: string): Promise<void> {
   cutListQueryService.evictPlugin(pluginId);
   // A swap's stale mark belongs to this deployment of the plugin.
   swapState.clearPluginStale(pluginId);
+}
+
+/**
+ * The reason to refuse an installer update of `pluginId` to `next` before its
+ * old process stops, or null when the update may go ahead. The update stops the
+ * old process as a swap does (HR-FR-009), so while a bench uses the plugin it
+ * takes the swap's refusals: an imperative plugin, and a change of kind,
+ * contract version or a component config a bench uses. A plugin no bench uses
+ * has no binding to break, and updates as before.
+ */
+export function updateRefusal(
+  pluginId: string,
+  next: PluginManifest,
+): PluginSwapRefusedError | null {
+  const entry = plugins.get(pluginId);
+  const current = entry?.record.manifest;
+  if (!entry || !current) return null;
+  if (swapBenchesOf(entry).length === 0) return null;
+  return bindingRefusal(entry, current, next, "update");
 }
 
 /**

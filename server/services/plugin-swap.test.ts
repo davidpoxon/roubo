@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { PluginEnableState, ResourceOwnershipEntry } from "@roubo/shared";
+import type { PluginEnableState, PluginManifest, ResourceOwnershipEntry } from "@roubo/shared";
 
 // Plugin process swap (HR-FR-009) and removal while in use (HR-FR-010), driven
 // through the real plugin-manager with real child processes. The ownership
@@ -93,6 +93,7 @@ connection.listen();
 `;
 
 interface ManifestOptions {
+  kind?: string;
   version?: string;
   contractVersion?: number;
   componentMode?: "imperative";
@@ -105,7 +106,7 @@ function manifestYaml(opts: ManifestOptions = {}): string {
     "name: Database",
     `version: ${opts.version ?? "1.0.0"}`,
     "description: A component fixture for the swap tests",
-    "kind: component",
+    `kind: ${opts.kind ?? "component"}`,
     "roubo: ^1.3.0",
     "entry: ./index.cjs",
     `contractVersion: ${opts.contractVersion ?? 1}`,
@@ -454,6 +455,19 @@ describe("swapProcess (HR-FR-009)", () => {
     expect(record().manifest?.contractVersion).toBe(1);
   }, 30_000);
 
+  it("refuses a kind change before the stop", async () => {
+    const pid = await startDatabase();
+    await writePlugin({ kind: "agent" });
+
+    await expect(pluginManager.swapProcess("database")).rejects.toMatchObject({
+      code: "plugin-swap-refused",
+      reason: "kind",
+      message: expect.stringContaining("its kind changed from component to agent"),
+    });
+    expect(record().pid).toBe(pid);
+    expect(record().manifest?.kind).toBe("component");
+  }, 30_000);
+
   it("refuses a permission that needs consent before the stop", async () => {
     const pid = await startDatabase();
     await writePlugin({ docker: true });
@@ -481,6 +495,51 @@ describe("swapProcess (HR-FR-009)", () => {
     });
     expect(record().pid).toBe(pid);
     expect(swapped).not.toHaveBeenCalled();
+  }, 30_000);
+});
+
+describe("updateRefusal: an installer update takes the swap's refusals while a bench uses the plugin (HR-FR-009)", () => {
+  function current(): PluginManifest {
+    const manifest = record().manifest;
+    if (!manifest) throw new Error("expected the database manifest");
+    return manifest;
+  }
+
+  it("refuses an imperative plugin that a bench uses, with no swap remedy in its detail", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase({ componentMode: "imperative" });
+
+    const refusal = pluginManager.updateRefusal("database", current());
+    expect(refusal).toMatchObject({
+      code: "plugin-swap-refused",
+      reason: "imperative",
+      detail: "an imperative component plugin owns its resources in its process",
+    });
+  }, 30_000);
+
+  it("refuses a contractVersion change while a bench uses the plugin", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+
+    expect(
+      pluginManager.updateRefusal("database", { ...current(), contractVersion: 2 }),
+    ).toMatchObject({ reason: "contract-version" });
+  }, 30_000);
+
+  it("lets the update through when no bench uses the plugin", async () => {
+    await startDatabase({ componentMode: "imperative" });
+
+    expect(
+      pluginManager.updateRefusal("database", { ...current(), contractVersion: 2 }),
+    ).toBeNull();
+  }, 30_000);
+
+  it("does not refuse a new permission, whose consent the update's confirm records", async () => {
+    ledgerFake.entries = [twoBenches()[0]];
+    await startDatabase();
+    const next = { ...current(), permissions: { ...current().permissions, docker: {} } };
+
+    expect(pluginManager.updateRefusal("database", next)).toBeNull();
   }, 30_000);
 });
 

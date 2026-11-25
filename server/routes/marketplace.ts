@@ -61,6 +61,7 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "incompatible-host":
       return 400;
     case "duplicate-id":
+    case "plugin-swap-refused":
       return 409;
     case "unknown-token":
     case "update-target-missing":
