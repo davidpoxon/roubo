@@ -206,6 +206,7 @@ describe("state dir watch", () => {
       surface: "plugin",
       outcome: "applied",
       pluginId: "database",
+      input: "plugins-consent.json",
       summary: "Plugin consent applied: database.",
     });
     expect(fileLines("plugins-consent.json", "applied")).toHaveLength(1);
@@ -321,6 +322,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -339,6 +341,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "refused",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [2],
       summary: "Bench state not applied: bench 2 on lantern is active. Stop it first.",
@@ -383,6 +386,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary:
@@ -445,6 +449,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(hoisted.events[2]).toMatchObject({
@@ -486,6 +491,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [9],
       summary: "Bench state not applied. state.json: bench 9 on lantern does not exist.",
@@ -508,6 +514,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[0]).toEqual({
       surface: "bench",
       outcome: "rejected",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state not applied. state.json: bench 3 on lantern cannot be removed by hand.",
@@ -627,6 +634,7 @@ describe("state dir watch", () => {
     expect(hoisted.events[1]).toEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(fileLines("state.json", "applied")).toHaveLength(1);
@@ -648,11 +656,13 @@ describe("state dir watch", () => {
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       summary: "Bench state applied.",
     });
     expect(appliedEvents).toContainEqual({
       surface: "bench",
       outcome: "applied",
+      input: "state.json",
       projectId: "lantern",
       benchIds: [3],
       summary: "Bench state applied: bench 3 on lantern.",
@@ -673,7 +683,11 @@ describe("state dir watch", () => {
     const file = path.join(dir, "plugins-state.json");
     fs.writeFileSync(file, "{");
     await waitFor(() => hoisted.events.length === 1);
-    expect(hoisted.events[0]).toMatchObject({ surface: "plugin", outcome: "rejected" });
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "plugin",
+      outcome: "rejected",
+      input: "plugins-state.json",
+    });
 
     vi.mocked(pluginManager.reloadEnableState).mockResolvedValueOnce({
       disabled: ["database"],
@@ -692,11 +706,13 @@ describe("state dir watch", () => {
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
+      input: "plugins-state.json",
       summary: "Plugin state applied.",
     });
     expect(hoisted.events.slice(1)).toContainEqual({
       surface: "plugin",
       outcome: "applied",
+      input: "plugins-state.json",
       pluginId: "database",
       summary: "Plugin database disabled.",
     });

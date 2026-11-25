@@ -513,7 +513,7 @@ function clearingRejections(handler: (change: InputChange) => Promise<HandlerRes
     const summary = `${FILE_LEADS[file]} applied.`;
     for (const target of pending) {
       if (targetKey(target) === ownKey) continue;
-      broadcastInputChanged({ surface, outcome: "applied", ...target, summary });
+      broadcastInputChanged({ surface, outcome: "applied", input: file, ...target, summary });
     }
     return pending;
   };
@@ -579,6 +579,13 @@ export function stateFileSurface(absPath: string): InputSurface | undefined {
     : undefined;
 }
 
+/** The basename of one state file, the `input` its events carry, or undefined for another path. */
+export function stateFileInput(absPath: string): StateFile | undefined {
+  return stateFileSurface(absPath) === undefined
+    ? undefined
+    : (path.basename(absPath) as StateFile);
+}
+
 let active: InputWatch | null = null;
 let activeDir: string | null = null;
 
@@ -610,6 +617,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
     {
       surface: STATE_DIR_SURFACE,
       surfaceOf: stateFileSurface,
+      inputOf: stateFileInput,
       kind: "directory",
       depth: 0,
       allow: STATE_FILES,
