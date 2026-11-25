@@ -41,15 +41,21 @@ export function settingsAppliedNotice(names: readonly string[]): string {
 
 /**
  * Send the applied notice of a settings change the app made, such as a save
- * in Settings. The app's write of settings.json is a self-write, so the state
- * dir watch sends nothing for it. A save that changes no setting sends none.
+ * in Settings, and return whether one was sent. A save that changes no setting
+ * sends none. The app's write of settings.json is a self-write, so the state
+ * dir watch sends no notice of its own for it, except the generic applied
+ * notice that clears an open rejection of the file. This notice carries the
+ * file as its `input`, so it clears that rejection itself, and a caller that
+ * gets true dismisses the rejection in the watch so it is not cleared twice.
  */
-export function announceSettingsChange(before: UserPreferences, after: UserPreferences): void {
+export function announceSettingsChange(before: UserPreferences, after: UserPreferences): boolean {
   const names = changedSettingNames(before, after);
-  if (names.length === 0) return;
+  if (names.length === 0) return false;
   broadcastInputChanged({
     surface: "settings",
     outcome: "applied",
+    input: "settings.json",
     summary: settingsAppliedNotice(names),
   });
+  return true;
 }

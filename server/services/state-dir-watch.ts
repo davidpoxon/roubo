@@ -546,7 +546,7 @@ const FILE_LEADS: Record<StateFile, string> = {
 };
 
 /** The target ids of one event, the ones a client matches notices by. */
-interface NoticeTarget {
+export interface NoticeTarget {
   projectId?: string;
   pluginId?: string;
 }
@@ -578,11 +578,13 @@ function targetKey(target: NoticeTarget): string {
  * run that changes nothing is reported applied for the first of them, and the
  * rest are sent here. An app write that leaves the file valid runs no handler,
  * since the watch takes it as a self-write, so `onSelfWrite` sends an applied
- * event for every open target of the file then.
+ * event for every open target of the file then, except a target that
+ * `dismiss` took as cleared by the app's own notice of that write.
  */
 function clearingRejections(handler: (change: InputChange) => Promise<HandlerResult>): {
   handler: (change: InputChange) => Promise<HandlerResult>;
   onSelfWrite: (change: InputChange) => void;
+  dismiss: (file: StateFile, target: NoticeTarget) => void;
 } {
   const open = new Map<StateFile, Map<string, NoticeTarget>>();
   const clearOpen = (file: StateFile, surface: InputSurface, ownKey?: string): NoticeTarget[] => {
@@ -648,6 +650,12 @@ function clearingRejections(handler: (change: InputChange) => Promise<HandlerRes
       if (surface === undefined) return;
       clearOpen(path.basename(change.path) as StateFile, surface);
     },
+    dismiss: (file, target) => {
+      const targets = open.get(file);
+      if (targets === undefined) return;
+      targets.delete(targetKey(target));
+      if (targets.size === 0) open.delete(file);
+    },
   };
 }
 
@@ -668,6 +676,18 @@ export function stateFileInput(absPath: string): StateFile | undefined {
 
 let active: InputWatch | null = null;
 let activeDir: string | null = null;
+let activeClearing: ReturnType<typeof clearingRejections> | null = null;
+
+/**
+ * Take the open rejected notice of `file` for `target` as cleared by an applied
+ * notice the app sends itself for its own write of the file, such as the named
+ * notice of a save in Settings. That notice carries the file as its `input`, so
+ * a client clears the rejection on it, and the self-write of the same save
+ * sends no second, generic applied notice for it.
+ */
+export function dismissOpenRejection(file: StateFile, target: NoticeTarget = {}): void {
+  activeClearing?.dismiss(file, target);
+}
 
 export interface StateDirWatchOptions {
   /** The state dir. Defaults to the Roubo state dir. */
@@ -693,6 +713,7 @@ export async function startStateDirWatch(options: StateDirWatchOptions = {}): Pr
   }
   const dir = options.dir ?? state.getRouboDir();
   const clearing = clearingRejections(handleStateFileChange);
+  activeClearing = clearing;
   const watch = watchInput(
     dir,
     {
@@ -748,6 +769,7 @@ export async function stopStateDirWatch(): Promise<void> {
   const dir = activeDir;
   active = null;
   activeDir = null;
+  activeClearing = null;
   if (current) await current.dispose();
   if (dir !== null) for (const file of STATE_FILES) forgetInputContent(path.join(dir, file));
 }

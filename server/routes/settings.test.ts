@@ -5,11 +5,13 @@ import request from "supertest";
 vi.mock("../services/state.js");
 vi.mock("../services/env.js");
 vi.mock("../services/sse.js", () => ({ broadcastInputChanged: vi.fn() }));
+vi.mock("../services/state-dir-watch.js", () => ({ dismissOpenRejection: vi.fn() }));
 
 import router from "./settings.js";
 import * as state from "../services/state.js";
 import * as env from "../services/env.js";
 import * as sse from "../services/sse.js";
+import * as stateDirWatch from "../services/state-dir-watch.js";
 
 const app = express();
 app.use(express.json());
@@ -622,6 +624,7 @@ describe("PUT / applied notice", () => {
 
   beforeEach(() => {
     vi.mocked(sse.broadcastInputChanged).mockClear();
+    vi.mocked(stateDirWatch.dismissOpenRejection).mockClear();
     vi.mocked(state.saveSettings).mockReturnValue(undefined);
   });
 
@@ -643,8 +646,11 @@ describe("PUT / applied notice", () => {
     expect(sse.broadcastInputChanged).toHaveBeenCalledWith({
       surface: "settings",
       outcome: "applied",
+      input: "settings.json",
       summary: "Settings applied: default agent.",
     });
+    // The notice clears an open settings.json rejection, so the watch does not.
+    expect(stateDirWatch.dismissOpenRejection).toHaveBeenCalledWith("settings.json");
   });
 
   it("names each setting a save changes", async () => {
@@ -665,6 +671,8 @@ describe("PUT / applied notice", () => {
     await request(app).put("/").send({ theme: "dark", jigs });
 
     expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
+    // The watch's own applied notice is left to clear an open rejection.
+    expect(stateDirWatch.dismissOpenRejection).not.toHaveBeenCalled();
   });
 
   it("sends no notice for a save that is refused", async () => {
