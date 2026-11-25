@@ -29,6 +29,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeAbsolutePath } from "../lib/safe-path.js";
 
 /** How long a self-write token stays live. */
 export const SELF_WRITE_TTL_MS = 5_000;
@@ -86,10 +87,16 @@ function sweep(now: number): void {
   for (const key of [...tokens.keys()]) live(key, now);
 }
 
-/** The content of `key` on disk now: null when absent, undefined when it cannot be read. */
+/**
+ * The content of `key` on disk now: null when absent, undefined when it cannot
+ * be read. Only the paths of watched inputs get here, but CodeQL traces the path
+ * that an app write marks back to request input, so the path is normalised
+ * first, as atomicWrite in state.ts contains its path before its file calls. A
+ * path that is not a valid absolute path reads as undefined.
+ */
 function readDisk(key: string): string | null | undefined {
   try {
-    return fs.readFileSync(key, "utf-8");
+    return fs.readFileSync(normalizeAbsolutePath(key, "input path"), "utf-8");
   } catch (err) {
     return (err as NodeJS.ErrnoException).code === "ENOENT" ? null : undefined;
   }
