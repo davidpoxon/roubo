@@ -16,7 +16,7 @@ The package ships ESM (`type: "module"`) with bundled `.d.ts` declarations. SDK 
 
 ## Quick start
 
-A plugin is a directory with two files: a `roubo-plugin.yaml` manifest and a Node entry script. Drop the directory into `~/.roubo/plugins/<id>/` and Roubo discovers it on next start.
+A plugin is a directory with two files: a `roubo-plugin.yaml` manifest and a Node entry script. Drop the directory into `~/.roubo/plugins/<id>/` and Roubo discovers it while it runs, with no relaunch: once the copy into the directory stops, Roubo validates the manifest and registers the plugin, and a notice names the outcome. See [Live discovery and updates](#live-discovery-and-updates).
 
 ```yaml
 # ~/.roubo/plugins/example/roubo-plugin.yaml
@@ -71,6 +71,14 @@ definePlugin({
 Roubo will spawn the plugin as a Node child process, talk to it over stdio, and call the contract methods you implemented.
 
 The scaffold above is an integration plugin. For an `agent`-kind plugin, which registers with `defineAgentPlugin` and implements one method, start from [Agent quick start](#agent-quick-start) instead.
+
+### Live discovery and updates
+
+Roubo watches `~/.roubo/plugins/` while it runs, so installing, updating or removing a plugin directory takes effect with no relaunch. Each change shows a one-line notice in the Roubo window, and the [`input-changed`](./api.md) event carries the same line.
+
+- **A new directory** is validated once the copy into it stops, then registered. An invalid manifest registers nothing, and the notice names its first error. An integration plugin starts unless the user disabled it. A component or agent plugin stays inert until the user grants consent on **Settings > Plugins**, where its card offers **Review permissions**. Discovery never grants consent, so the plugin stays inert across a relaunch too.
+- **A changed manifest or entry file** swaps the plugin's process, and every bench keeps its resources. A swap that would break what the benches use, such as a change of kind, is refused and the old process keeps running. A component plugin that keeps its component state in its own process is never swapped live: the notice names the benches to stop first, and with no bench using it, the new copy loads at the next relaunch.
+- **A removed directory** unregisters the plugin, unless a bench uses it: then the removal is refused and the plugin keeps running.
 
 ## Manifest reference
 
@@ -444,7 +452,7 @@ cp -R roubo-plugin.yaml dist node_modules ~/.roubo/plugins/my-agent/
 
 For distribution rather than local development, bundle the SDK into the entry instead (the first-party plugins build with tsup and `noExternal: ["@roubo/plugin-sdk"]`), so the published artifact ships `roubo-plugin.yaml` and `dist/` with no `node_modules` at all.
 
-**5. Enable it.** Restart Roubo. The plugin appears on **Settings > Plugins** as an agent; review its declared permissions and grant consent there. Consent is checked before any launch, so an un-consented agent plugin stays inert no matter what its process is doing. Once consented it is selectable on **Settings > AI Agents** and as a tool when you open a terminal on a bench.
+**5. Enable it.** Roubo picks up the new directory while it runs, with no relaunch. Once the copy stops it validates the manifest, registers the plugin and shows the notice `Plugin my-agent installed. Grant consent in Settings > Plugins to enable it.` The plugin then appears on **Settings > Plugins** as an agent, inert: discovery never grants consent. Choose **Review permissions** on its card, review its declared permissions and grant consent there. Consent is checked before any launch, so an un-consented agent plugin stays inert no matter what its process is doing. Once consented it is selectable on **Settings > AI Agents** and as a tool when you open a terminal on a bench.
 
 Everything past this point is optional. An agent that declares no capabilities launches as a plain terminal session, which is what the scaffold above does; add a [declared capability](#declared-capabilities) only when you need the behaviour it buys.
 

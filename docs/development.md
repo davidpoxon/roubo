@@ -68,6 +68,9 @@ npm run lint:emitted-tokens
 
 # No references to disallowed repositories
 npm run lint:repo-refs
+
+# No instruction to relaunch for a change that Roubo applies live
+npm run lint:restart-instructions
 ```
 
 > **Note.** `npm run typecheck` covers the SDK, client, server, project build, plugin, and e2e fixture workspaces. The CI `typecheck` job only runs `client` and `server`, so the local command is the stricter gate: a green CI run does not mean the plugin and fixture workspaces type-check.
@@ -208,6 +211,7 @@ npm run lint:design-tokens
 npm run lint:semantic-dark
 npm run lint:emitted-tokens
 npm run lint:repo-refs
+npm run lint:restart-instructions
 npm run typecheck
 npm test
 ```

@@ -74,6 +74,10 @@ In the Roubo window:
 
 Roubo parses and validates the `roubo.yaml`, checks for port conflicts with any other registered projects, and adds the project to the registry. If validation fails, Roubo shows the specific error inline.
 
+From then on Roubo watches the file. Save a change to `roubo.yaml` and Roubo applies it while it runs, with no relaunch: a one-line notice says `Project <id>: roubo.yaml applied.`, and a bench set up after that uses the new definitions. A change that fails validation is not applied: the last good config stays live, and the notice names the first error until a valid save clears it.
+
+A bench that is already set up keeps the definitions it was set up with. When a change alters them, its card shows the marker **stale · Set up with an older roubo.yaml**, and the applied notice counts the stale benches. Choose **Restart with new config** on the bench card when you want that bench to pick up the change. See [Live apply](./configuration.md#live-apply) for the details.
+
 ## 4. Set up your first bench
 
 From the project's page in Roubo, click **Set up bench**. Optionally specify a branch. If you leave this empty, Roubo creates the bench from the project's default branch.

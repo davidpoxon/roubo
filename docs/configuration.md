@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Every project Roubo manages ships a `roubo.yaml` at `.roubo/roubo.yaml`. This document is the authoritative reference for what each section does. Roubo validates it against its built-in schema at registration time. The machine-readable JSON Schema at [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) mirrors that schema for editor validation.
+Every project Roubo manages ships a `roubo.yaml` at `.roubo/roubo.yaml`. This document is the authoritative reference for what each section does. Roubo validates it against its built-in schema at registration time, and applies a saved change while it runs (see [Live apply](#live-apply)). The machine-readable JSON Schema at [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) mirrors that schema for editor validation.
 
 The full working example used to develop Roubo itself is checked in at [`.roubo/roubo.yaml`](../.roubo/roubo.yaml).
 
@@ -391,7 +391,25 @@ users:
 
 ## Validation
 
-Roubo validates `roubo.yaml` against its built-in schema when you register a project. Validation errors are reported inline in the UI with the path to the offending field. [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) is a JSON Schema mirror of that schema, and it can be wired into your editor (VS Code, IntelliJ) for live validation: point your YAML language server at the schema URL.
+Roubo validates `roubo.yaml` against its built-in schema when you register a project, and again on each save while it runs (see [Live apply](#live-apply)). Validation errors are reported inline in the UI with the path to the offending field. [`schema/roubo-config.schema.json`](../schema/roubo-config.schema.json) is a JSON Schema mirror of that schema, and it can be wired into your editor (VS Code, IntelliJ) for live validation: point your YAML language server at the schema URL.
+
+---
+
+## Live apply
+
+Roubo watches the `roubo.yaml` of every registered project while it runs, so a saved change applies with no relaunch. Each save is re-parsed through the same validation as registration: the schema, the port-conflict check against every other project, and the component bindings. Saving the same content again changes nothing.
+
+- **A valid change** replaces the project's config in one step, so a bench set up from then on uses the new definitions. A one-line notice confirms it: `Project <id>: roubo.yaml applied.`, followed by the count of stale benches when there are any, such as `2 benches are stale.`
+- **An invalid change** is not applied, and the last good config stays live. The notice names the path and the first error, such as `Project <id>: roubo.yaml not applied. .roubo/roubo.yaml: <error>. Last good config is still live.`, and it stays until you dismiss it or a later valid save clears it.
+
+### Stale benches
+
+A bench that is already set up keeps the component definitions it was set up with, so a live apply never stops or rewires a running component. When an applied change alters those definitions, the bench card shows the marker **stale · Set up with an older roubo.yaml** beside the status label, and its tooltip says the bench keeps its old definitions. The bench goes on working under them until you choose **Restart with new config** on its card. That action stops every component of the bench, applies the current `roubo.yaml`, runs `benches.setup` again if it changed, and starts the components under the new definitions. The workspace stays as it is.
+
+Two other causes mark a bench stale, each with its own label:
+
+- **stale · A plugin swap left it unbound**: a plugin the bench uses was replaced and a resource did not re-bind to the new plugin process. The resources still run. Restarting the bench, or the plugin, binds them again.
+- **stale · Set up before the project moved**: the project's path changed after the bench was set up. A restart keeps the workspace, so it cannot undo the move: clear the bench and set it up again.
 
 ---
 
