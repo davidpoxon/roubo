@@ -127,6 +127,7 @@ vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
   __test: {
     reloadFromState: vi.fn(),
+    clearRuntimeState: vi.fn(),
   },
 }));
 
@@ -331,6 +332,12 @@ describe("POST /test/__reset", () => {
     // TC-001 (#478): the bench-manager Map is re-hydrated from the wiped
     // state.json so a previous spec's real-create bench cannot survive a reset.
     expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
+    // The descriptor cache is dropped before the Map, so a start after the reset
+    // translates the config again instead of reusing an earlier spec's command.
+    expect(benchManager.__test.clearRuntimeState).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(benchManager.__test.clearRuntimeState).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(benchManager.__test.reloadFromState).mock.invocationCallOrder[0]);
     // #590: the cut-list disk-cache bypass is restored to its env default so a
     // prior spec's /test/__set-cut-list-disk-cache toggle cannot leak the warm
     // path into the next spec.

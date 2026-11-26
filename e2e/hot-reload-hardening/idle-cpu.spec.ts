@@ -3,6 +3,7 @@ import path from "node:path";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import {
   getPlugin,
+  MAX_SLEEP_MS,
   openWithStream,
   pollUntil,
   resetHarness,
@@ -47,7 +48,7 @@ import {
 
 const PROJECTS = 20;
 const PLUGINS = 20;
-const IDLE_MS = positiveIntFromEnv("ROUBO_E2E_IDLE_MS", 10 * 60_000, 60 * 60_000);
+const IDLE_MS = positiveIntFromEnv("ROUBO_E2E_IDLE_MS", 10 * 60_000, MAX_SLEEP_MS);
 // Lets the start-up work of the new projects and plugins end before the window.
 const SETTLE_MS = 30_000;
 const BUDGET_PERCENT = 1;

@@ -4848,6 +4848,19 @@ export class BenchError extends Error {
 // append duplicates if called twice with the same projectId+id, so this
 // helper clears first.
 export const __test = {
+  /**
+   * Drops the per-bench runtime state of every bench still in the Map, then the
+   * whole ProvisionDescriptor cache. `/test/__reset` calls it before
+   * `reloadFromState` so a descriptor translated for a bench of an earlier spec
+   * is not served to a bench of a later one that reuses the id. `reloadFromState`
+   * leaves it alone: the register route calls that with live benches.
+   */
+  clearRuntimeState(): void {
+    for (const bench of benches.values()) {
+      clearBenchRuntimeState(bench.projectId, bench.id, Object.keys(bench.components));
+    }
+    componentDescriptors.clear();
+  },
   reloadFromState(): void {
     benches.clear();
     initialize();

@@ -645,6 +645,10 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // survives a reset, so without this the next spec's bench list would still
     // show the previous run's bench (breaking 10x determinism, NFR-018). Runs
     // after project-registry init so the rehydrate sees the right project set.
+    // Drop the per-bench runtime state first, descriptor cache included: the
+    // Map clear below forgets which benches had it, and a surviving descriptor
+    // would be served to a later bench that reuses the id.
+    benchManager.__test.clearRuntimeState();
     benchManager.__test.reloadFromState();
     // Apply the pinning AFTER project-registry init and BEFORE plugin-manager
     // initialize: initialize() is what spawns the plugin processes, and the

@@ -17,8 +17,8 @@ export const NEWER_VERSION = "1.1.0";
 /** The plugin a plugins-state.json edit turns off: an integration nothing else uses. */
 export const TOGGLED_PLUGIN_ID = "e2e-stub-5";
 
-/** The longest single wait: no case waits longer than the 10 minute idle window plus a margin. */
-const MAX_SLEEP_MS = 30 * 60_000;
+/** The longest single wait, 30 minutes: the idle window's environment cap is this value too. */
+export const MAX_SLEEP_MS = 30 * 60_000;
 
 /** Wait `ms`, held to 0 through MAX_SLEEP_MS so no value of the environment sets an unbounded timer. */
 export function sleep(ms: number): Promise<void> {
