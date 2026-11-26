@@ -155,6 +155,59 @@ describe("initialize", () => {
   });
 });
 
+describe("applyProjectsFileEdit (HR-FR-012)", () => {
+  it("applies the changed settings of a registered project and ignores a record of an unregistered one", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [
+        { id: "project1", repoPath: "/repos/project1" },
+        { id: "project2", repoPath: "/repos/project2" },
+      ],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+    const before2 = registryModule.getProject("project2")?.settings;
+
+    const changed = registryModule.applyProjectsFileEdit({
+      projects: [
+        {
+          id: "project1",
+          repoPath: "/repos/project1",
+          settings: { worktreeSource: { branchFromDefault: false, pullLatest: true } },
+        },
+        { id: "project2", repoPath: "/repos/project2" },
+        {
+          id: "stranger",
+          repoPath: "/repos/stranger",
+          settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+        },
+      ],
+    });
+
+    expect(changed).toEqual(["project1"]);
+    expect(registryModule.getProject("project1")?.settings.worktreeSource).toEqual({
+      branchFromDefault: false,
+      pullLatest: true,
+    });
+    expect(registryModule.getProject("project2")?.settings).toEqual(before2);
+    expect(registryModule.getProject("stranger")).toBeUndefined();
+    expect(registryModule.getProjects()).toHaveLength(2);
+  });
+
+  it("returns no id when the edit leaves every registered project's settings as they are", () => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "project1", repoPath: "/repos/project1" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    registryModule.initialize();
+
+    expect(
+      registryModule.applyProjectsFileEdit({
+        projects: [{ id: "project1", repoPath: "/repos/project1" }],
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("onProjectConfigLoaded", () => {
   it("fires on initialize for each project with a valid config", () => {
     mockedLoadProjects.mockReturnValue({

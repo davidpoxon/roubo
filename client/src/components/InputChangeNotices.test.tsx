@@ -118,6 +118,58 @@ describe("InputChangeNotices", () => {
     expect(screen.getByText("Project config applied to 2 benches")).toBeInTheDocument();
   });
 
+  it("HR-TC-037 a valid state file clears only its own rejected notice, not that of another input of the same surface", () => {
+    render(<Screen onSetUp={vi.fn()} />);
+    act(() =>
+      publishInputChanged(
+        rejected({
+          surface: "plugin",
+          projectId: undefined,
+          input: "plugins-state.json",
+          summary: "Plugin state not applied",
+          error: { path: "plugins-state.json", first: "Unexpected end of JSON input" },
+        }),
+      ),
+    );
+    act(() => publishInputChanged(rejected()));
+
+    // A valid plugins-consent.json leaves the plugins-state.json notice open,
+    // and a projects.json edit of p1 leaves that of p1's roubo.yaml open.
+    act(() =>
+      publishInputChanged(
+        applied({
+          surface: "plugin",
+          projectId: undefined,
+          benchIds: undefined,
+          input: "plugins-consent.json",
+          summary: "Plugin consent applied.",
+        }),
+      ),
+    );
+    act(() =>
+      publishInputChanged(
+        applied({ input: "projects.json", benchIds: undefined, summary: "Project state applied." }),
+      ),
+    );
+    expect(screen.getByText(/Plugin state not applied/)).toBeInTheDocument();
+    expect(screen.getByText(/Project config rejected/)).toBeInTheDocument();
+
+    // The file's own valid save clears it.
+    act(() =>
+      publishInputChanged(
+        applied({
+          surface: "plugin",
+          projectId: undefined,
+          benchIds: undefined,
+          input: "plugins-state.json",
+          summary: "Plugin state applied.",
+        }),
+      ),
+    );
+    expect(screen.queryByText(/Plugin state not applied/)).toBeNull();
+    expect(screen.getByText(/Project config rejected/)).toBeInTheDocument();
+  });
+
   it("HR-TC-037 a rejected notice the watcher wrote itself, with only the watch's projectId and a generic error, is cleared by the next applied change of that project", () => {
     render(<Screen onSetUp={vi.fn()} />);
     act(() =>

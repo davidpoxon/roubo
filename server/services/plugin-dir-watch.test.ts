@@ -380,7 +380,7 @@ describe("a plugin directory added by hand", () => {
 
     // A grant of consent keeps the user's disable.
     hoisted.consented.add("off-agent");
-    await pluginManager.startAfterConsent("off-agent");
+    expect(await pluginManager.startAfterConsent("off-agent")).toBe(false);
     expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
     expect(record("off-agent")?.pid).toBeNull();
   }, 20_000);
@@ -472,6 +472,26 @@ describe("a plugin directory added by hand", () => {
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
+  }, 20_000);
+
+  it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app runs", async () => {
+    await startWatch();
+    dropPlugin("held-plugin", { kind: "agent" });
+    await waitFor(() => outcomeLines("held-plugin", "applied").length === 1);
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("awaiting-consent");
+
+    handEditEnableValue("held-plugin", "disabled");
+    await pluginManager.reloadEnableState();
+    expect(hoisted.enableState?.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+
+    // A relaunch reads the hold back from the file.
+    await stopPluginDirWatch();
+    await pluginManager.shutdown();
+    pluginManager.__test.reset();
+    await pluginManager.initialize();
+    await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
+    await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
+    expect(record("held-plugin")?.pid).toBeNull();
   }, 20_000);
 
   it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app is closed", async () => {

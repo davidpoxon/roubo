@@ -38,7 +38,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import { getRouboDir, loadProjects } from "./state.js";
-import { consumeSelfWrite, hashContent } from "./self-write-tokens.js";
+import {
+  consumeSelfWrites,
+  forgetInputContent,
+  hashContent,
+  noteInputContent,
+} from "./self-write-tokens.js";
 import { broadcastInputChanged } from "./sse.js";
 import { INPUT_SURFACES, type InputSurface } from "@roubo/shared";
 
@@ -95,6 +100,18 @@ export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 export interface WatchInputOptions {
   /** The surface name written on every log line, such as `settings`. */
   surface: string;
+  /**
+   * The surface of one input, for a watch whose inputs feed different
+   * surfaces, such as the state dir. Its log lines and events carry it. Falls
+   * back to `surface` when absent or when it gives nothing.
+   */
+  surfaceOf?: (absPath: string) => string | undefined;
+  /**
+   * The name of one input that its events carry as `input`, for a watch whose
+   * inputs share a surface, such as the state files, so a client tells their
+   * notices apart. Absent, or giving nothing, the events carry no `input`.
+   */
+  inputOf?: (absPath: string) => string | undefined;
   /** The trailing settle window for each input, in milliseconds. */
   settleMs: number;
   /**
@@ -140,6 +157,22 @@ export interface WatchInputOptions {
    * the finished input and is deduped rather than applied a second time.
    */
   hold?: (absPath: string) => Promise<void>;
+  /**
+   * Track the content of each input, so an app write that lands on a hand edit
+   * the watch has not run for yet is told apart from a plain self-write: the
+   * handler still runs for the change (see `noteInputContent` in
+   * self-write-tokens.ts). For inputs that are single files the app writes
+   * read-modify-write, such as the state files.
+   */
+  trackHandEdits?: boolean;
+  /**
+   * Called after a run that takes the change as the app's own write and runs no
+   * handler, when the watch records the input as applied (an app write the
+   * surface rejected stays rejected and does not call it). A surface that keeps
+   * open notices, such as the state dir's rejected files, clears them here: a
+   * valid app write fixes the file as a hand edit would.
+   */
+  onSelfWrite?: (change: InputChange) => void;
 }
 
 export interface Disposable {
@@ -268,6 +301,7 @@ function sendInputChanged(
   detail: InputEventDetail | undefined,
   target: WatchInputOptions["target"],
   fallbackError: { path: string; first: string },
+  input?: string,
 ): void {
   if (!isInputSurface(surface)) return;
   const projectId = detail?.projectId ?? target?.projectId;
@@ -276,6 +310,7 @@ function sendInputChanged(
   broadcastInputChanged({
     surface,
     outcome,
+    ...(input === undefined ? {} : { input }),
     ...(projectId === undefined ? {} : { projectId }),
     ...(pluginId === undefined ? {} : { pluginId }),
     ...(detail?.benchIds === undefined ? {} : { benchIds: [...detail.benchIds] }),
@@ -479,7 +514,7 @@ export function watchInput(
     depth = 0;
   }
 
-  const { surface, settleMs } = options;
+  const { settleMs } = options;
   // The hash of each input's last applied content, or what was rejected when
   // its last handler run did not apply.
   const lastApplied = new Map<string, string | null | RejectedContent>();
@@ -552,6 +587,7 @@ export function watchInput(
 
   async function run(unit: string, mode: RunMode): Promise<void> {
     if (disposed) return;
+    const surface = options.surfaceOf?.(unit) ?? options.surface;
     if (options.hold) {
       try {
         await options.hold(unit);
@@ -582,10 +618,18 @@ export function watchInput(
       });
       // Deduped and self-write outcomes are logged only, never sent.
       if (outcome === "applied" || outcome === "rejected" || outcome === "refused") {
-        sendInputChanged(surface, outcome, detail, options.target, {
-          path: pathFromWatchRoot(unit, roots),
-          first: reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
-        });
+        sendInputChanged(
+          surface,
+          outcome,
+          detail,
+          options.target,
+          {
+            path: pathFromWatchRoot(unit, roots),
+            first:
+              reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
+          },
+          options.inputOf?.(unit),
+        );
       }
     };
 
@@ -623,20 +667,33 @@ export function watchInput(
     }
 
     const hash = hashUnit(unit, files, roots);
+    // The content this run reads is taken in now, before the handler runs, so
+    // an app write the handler makes, such as a write-back, is not taken for
+    // one that lands on a hand edit.
+    if (options.trackHandEdits) noteInputContent(unit, hash);
     if (mode === "seed") {
       lastApplied.set(unit, hash);
       return;
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
-    if (hash !== null && consumeSelfWrite(unit, hash)) {
+    // An absent input matches no token, and still clears the hand edits the
+    // live tokens carry, since the handler runs for what the input now holds.
+    const selfWrites = consumeSelfWrites(unit, hash);
+    // One line for each app write the merged change accounts for.
+    for (const written of selfWrites.hashes) emit("self-write", written);
+    if (selfWrites.hashes.length > 0 && !selfWrites.carriesHandEdit) {
       // An app write the surface rejected stays rejected (see markRejected).
       // One it applied was recorded through markApplied, which dropped any
       // earlier rejected record of the same content, so it stays applied.
-      if (lastRejected?.rejected !== hash) lastApplied.set(unit, hash);
-      emit("self-write", hash);
+      if (lastRejected?.rejected !== hash) {
+        lastApplied.set(unit, hash);
+        options.onSelfWrite?.({ path: unit, hash });
+      }
       return;
     }
+    // An app write that landed on a hand edit the watch had not run for: the
+    // file holds that edit, so the handler runs for it as for any hand edit.
     // A rescan finds the content that was last rejected unchanged: the handler
     // already said no to it, so it does not run again for it.
     if (mode === "quiet" && lastRejected !== null && lastRejected.rejected === hash) return;
@@ -749,7 +806,7 @@ export function watchInput(
     });
     w.on("error", (err) => {
       const code = (err as NodeJS.ErrnoException).code ?? "unknown";
-      console.warn(`${LOG_PREFIX} watch error surface=${surface} path=${dir} code=${code}`);
+      console.warn(`${LOG_PREFIX} watch error surface=${options.surface} path=${dir} code=${code}`);
     });
     watcher = w;
     return ready;
@@ -849,6 +906,7 @@ export function watchInput(
       disposed = true;
       if (poll) clearInterval(poll);
       await disarm();
+      if (options.trackHandEdits) for (const unit of lastApplied.keys()) forgetInputContent(unit);
     },
   };
 }

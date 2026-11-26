@@ -3028,6 +3028,111 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     expect(findRecord(mgr.listInstalled(), "echo").status).toBe("disabled");
   });
 
+  it("HR-TC-028 reloadEnableState stops a running plugin that a hand edit of plugins-state.json disables", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").pid).not.toBeNull();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: ["echo"], enabled: [] });
+    const echo = findRecord(mgr.listInstalled(), "echo");
+    expect(echo.status).toBe("disabled");
+    expect(echo.pid).toBeNull();
+    expect(cutListMocks.evictPlugin).toHaveBeenCalledWith("echo");
+    // The file already holds the edit: nothing is written back.
+    expect(enableStateMocks.setPluginEnabled).not.toHaveBeenCalled();
+  });
+
+  it("reloadEnableState starts a stopped plugin that a hand edit of plugins-state.json enables", async () => {
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "disabled" },
+    });
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    expect(findRecord(mgr.listInstalled(), "echo").pid).toBeNull();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    });
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: [], enabled: ["echo"] });
+    expect(findRecord(mgr.listInstalled(), "echo").pid).not.toBeNull();
+  });
+
+  it("reloadEnableState leaves a plugin whose value did not change as it is", async () => {
+    const same: PluginEnableState = {
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { echo: "enabled" },
+    };
+    enableStateMocks.loadEnableState.mockReturnValueOnce(same);
+    sandbox = await makeSandbox({ bundled: ["echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+    const pid = findRecord(mgr.listInstalled(), "echo").pid;
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce(same);
+    const reload = await mgr.reloadEnableState();
+
+    expect(reload).toEqual({ disabled: [], enabled: [] });
+    expect(findRecord(mgr.listInstalled(), "echo").pid).toBe(pid);
+  });
+
+  it.each([
+    ["set to enabled", { "component-echo": "enabled" } as PluginEnableState["plugins"]],
+    ["removed", {} as PluginEnableState["plugins"]],
+  ])(
+    "reloadEnableState does not start a consent-gated plugin with no consent whose held value a hand edit %s",
+    async (_edit, edited) => {
+      consentStateMocks.hasConsent.mockReturnValue(false);
+      enableStateMocks.loadEnableState.mockReturnValueOnce({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: { "component-echo": "awaiting-consent" },
+      });
+      sandbox = await makeSandbox({ bundled: ["component-echo"] });
+      mgr = await loadManager();
+      await mgr.initialize();
+      expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
+
+      enableStateMocks.loadEnableState.mockReturnValueOnce({
+        schemaVersion: 1,
+        installInitialized: true,
+        plugins: edited,
+      });
+      const reload = await mgr.reloadEnableState();
+
+      expect(reload).toEqual({ disabled: [], enabled: [] });
+      const rec = findRecord(mgr.listInstalled(), "component-echo");
+      expect(rec.pid).toBeNull();
+      expect(rec.status).toBe("disabled");
+      // The hold is written back, as a relaunch would keep it.
+      expect(enableStateMocks.setPluginEnableValue).toHaveBeenCalledWith(
+        "component-echo",
+        "awaiting-consent",
+      );
+      await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    },
+  );
+
   // A disabled component or agent plugin that was never held for consent,
   // such as an e2e fixture that /test/__reset disables, enables and restarts
   // before it is consented, as it did before the hold existed (HR-FR-008).
@@ -3103,6 +3208,29 @@ describe("plugin-enable-state integration (IP-WU-046)", () => {
     consentStateMocks.hasConsent.mockReturnValue(true);
     await mgr.enable("component-echo");
     expect(findRecord(mgr.listInstalled(), "component-echo").pid).not.toBeNull();
+  });
+
+  it("HR-FR-008 enable and restart refuse a held plugin that a hand edit of plugins-state.json sets to disabled", async () => {
+    consentStateMocks.hasConsent.mockReturnValue(false);
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "awaiting-consent" },
+    });
+    sandbox = await makeSandbox({ bundled: ["component-echo"] });
+    mgr = await loadManager();
+    await mgr.initialize();
+
+    enableStateMocks.loadEnableState.mockReturnValueOnce({
+      schemaVersion: 1,
+      installInitialized: true,
+      plugins: { "component-echo": "disabled" },
+    });
+    await mgr.reloadEnableState();
+
+    await expect(mgr.enable("component-echo")).rejects.toThrow(/has no consent yet/);
+    await expect(mgr.restart("component-echo")).rejects.toThrow(/has no consent yet/);
+    expect(findRecord(mgr.listInstalled(), "component-echo").pid).toBeNull();
   });
 });
 

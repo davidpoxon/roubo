@@ -190,6 +190,83 @@ describe("loadSettings", () => {
     });
   });
 
+  it("HR-TC-034 keeps serving the last settings that parsed when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light", benches: { maxGlobal: 4 } }));
+    const good = stateModule.loadSettings();
+
+    readFileSync.mockReturnValue("{");
+    const served = stateModule.loadSettings();
+
+    expect(served).toEqual(good);
+    expect(served.theme).toBe("light");
+    expect(served.benches?.maxGlobal).toBe(4);
+    // A caller that mutates what it was served does not change the last good copy.
+    served.theme = "dark";
+    expect(stateModule.loadSettings().theme).toBe("light");
+    // The opt-in corruption signal is unchanged.
+    expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow();
+  });
+
+  it.each(["[]", '"x"', "1", "true", "null"])(
+    "HR-TC-034 keeps serving the last settings that parsed when settings.json holds %s, not an object",
+    (text) => {
+      existsSync.mockReturnValue(true);
+      readFileSync.mockReturnValue(JSON.stringify({ theme: "light", benches: { maxGlobal: 4 } }));
+      const good = stateModule.loadSettings();
+
+      readFileSync.mockReturnValue(text);
+      expect(stateModule.loadSettings()).toEqual(good);
+      expect(() => stateModule.loadSettings({ throwOnCorrupt: true })).toThrow(
+        /must hold a JSON object/,
+      );
+
+      // The rejected read did not become the last good settings either.
+      readFileSync.mockReturnValue("{");
+      expect(stateModule.loadSettings()).toEqual(good);
+    },
+  );
+
+  it("HR-TC-034 serves the built-in defaults for an unparseable settings.json only when no read has parsed yet", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue("{");
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light" }));
+    stateModule.loadSettings();
+    stateModule.resetLastGoodSettings();
+    readFileSync.mockReturnValue("{");
+    expect(stateModule.loadSettings().theme).toBe("dark");
+  });
+
+  it("HR-TC-034 serves the settings the app last saved, not the last read, when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark", benches: { maxGlobal: 4 } }));
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    stateModule.saveSettings({
+      theme: "light",
+      benches: { ...DEFAULT_BENCH_SETTINGS, maxGlobal: 9 },
+    });
+    readFileSync.mockReturnValue("{");
+    const served = stateModule.loadSettings();
+
+    expect(served.theme).toBe("light");
+    expect(served.benches?.maxGlobal).toBe(9);
+  });
+
+  it("HR-TC-034 serves the settings the legacy agent seam last wrote when settings.json stops parsing", () => {
+    existsSync.mockReturnValue(true);
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "dark" }));
+    expect(stateModule.loadSettings().theme).toBe("dark");
+
+    readFileSync.mockReturnValue(JSON.stringify({ theme: "light" }));
+    stateModule.writeLegacyAgentSettings({ autoMode: true });
+    readFileSync.mockReturnValue("{");
+
+    expect(stateModule.loadSettings().theme).toBe("light");
+  });
+
   it("throws on malformed JSON when throwOnCorrupt is set, but stays fail-open by default", () => {
     existsSync.mockReturnValue(true);
     readFileSync.mockReturnValue("not valid json{{{");
@@ -798,6 +875,39 @@ describe("addBench", () => {
     const written = JSON.parse(writeFileSync.mock.calls[0][1] as string);
     expect(written.benches).toHaveLength(1);
     expect(written.benches[0].branch).toBe("new");
+  });
+});
+
+describe("known state.json content (HR-FR-013)", () => {
+  it("is null until the app reads or writes the file", () => {
+    expect(stateModule.getKnownState()).toBeNull();
+  });
+
+  it("follows each write of state.json, as a copy the caller cannot change", () => {
+    const data = {
+      benches: [
+        {
+          id: 1,
+          projectId: "project1",
+          branch: "main",
+          workspacePath: "/w",
+          ports: { backend: 5000 },
+          createdAt: "now",
+        },
+      ],
+    };
+    stateModule.saveState(data);
+    data.benches[0].branch = "changed after the write";
+
+    expect(stateModule.getKnownState()?.benches[0].branch).toBe("main");
+    const read = stateModule.getKnownState();
+    if (read) read.benches[0].branch = "changed by a reader";
+    expect(stateModule.getKnownState()?.benches[0].branch).toBe("main");
+  });
+
+  it("takes a remembered read", () => {
+    stateModule.rememberState({ benches: [] });
+    expect(stateModule.getKnownState()).toEqual({ benches: [] });
   });
 });
 

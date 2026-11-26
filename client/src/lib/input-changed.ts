@@ -80,9 +80,20 @@ export function inputNoticeText(event: InputChangedEvent): string {
   return `${head}${where}. ${LAST_GOOD_LINE}`;
 }
 
-/** Whether two events are about the same target of the same surface. */
+/**
+ * Whether two events are about the same input: the same surface, project and
+ * plugin, and the same state file. A surface that more than one input feeds
+ * is told apart by `input`, so a valid plugins-consent.json does not clear the
+ * rejected notice of a plugins-state.json, nor a projects.json edit the
+ * rejected notice of a roubo.yaml.
+ */
 export function sameInputTarget(a: InputChangedEvent, b: InputChangedEvent): boolean {
-  return a.surface === b.surface && a.projectId === b.projectId && a.pluginId === b.pluginId;
+  return (
+    a.surface === b.surface &&
+    a.input === b.input &&
+    a.projectId === b.projectId &&
+    a.pluginId === b.pluginId
+  );
 }
 
 type Listener = (event: InputChangedEvent) => void;
