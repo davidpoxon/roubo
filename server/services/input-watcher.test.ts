@@ -31,7 +31,6 @@ import { atomicWrite } from "./state.js";
 import {
   ARM_LIVE_MS,
   ARM_WARMUP_SCANS,
-  WARMUP_LATE_EVENT_MS,
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
@@ -417,6 +416,38 @@ function dropEventsJustAfterReady(windowMs: number): void {
   });
 }
 
+// The stream can replay a setup write just after `ready`. A test that delays
+// events holds that replay back too, and it would land next to the test's own
+// write and report it ahead of the rescan. Wait for it, its settle window and
+// its run (`runMs`) to pass first.
+async function letReplayedSetupEventsPass(delayMs: number, runMs: number): Promise<void> {
+  await sleep(delayMs + runMs + WATCH_QUIET_MS);
+}
+
+// Write `content` to `file` as chokidar reports `ready`, before the watch is
+// live, and delay every event after `ready` by `delayMs`: the arm's own scan
+// runs that write, and the stream reports it late.
+function writeOnReadyThenDelayEvents(file: string, content: string, delayMs: number): void {
+  const real = vi.mocked(watch).getMockImplementation();
+  if (!real) throw new Error("expected the real chokidar watch behind the mock");
+  vi.mocked(watch).mockImplementationOnce((paths, opts) => {
+    const w = real(paths, opts);
+    let ready = false;
+    const emit = w.emit.bind(w);
+    w.emit = ((event: string | symbol, ...args: unknown[]) => {
+      if (event === "ready") {
+        ready = true;
+        fs.writeFileSync(file, content);
+      } else if (ready && event !== "error") {
+        setTimeout(() => emit(event, ...args), delayMs);
+        return true;
+      }
+      return emit(event, ...args);
+    }) as typeof w.emit;
+    return w;
+  });
+}
+
 // Delay every event after `ready` by `delayMs`: the stream reports a change
 // late, after a warm-up rescan has already seen it.
 function delayEventsAfterReady(delayMs: number): void {
@@ -569,6 +600,33 @@ describe("watchInput arm", () => {
     expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
   });
 
+  it("sends one notice when the arm's own scan rejects a change before the stream reports it", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const loaded = hashInputFiles(file, null);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    writeOnReadyThenDelayEvents(file, "name: two\n", 600);
+    const w = track(
+      watchInput(
+        file,
+        {
+          surface: "project",
+          settleMs: WATCH_SETTLE_MS,
+          rearmPollMs: 100,
+          loadedHash: () => loaded,
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Past the late event and its settle window.
+    await sleep(600 + WATCH_QUIET_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=rejected ")]);
+  });
+
   it("runs the handler again for a later hand save of content a warm-up rescan rejected", async () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
@@ -586,8 +644,8 @@ describe("watchInput arm", () => {
     // The stream never reports this write; a warm-up rescan rejects it.
     fs.writeFileSync(file, "name: bad\n");
     await waitFor(() => outcomeCount("rejected") === 1);
-    // Well after the warm-up, the same content is saved by hand (HR-TC-004).
-    await sleep(WATCH_SETTLE_MS + WARMUP_LATE_EVENT_MS + 500);
+    // After the warm-up, the same content is saved by hand (HR-TC-004).
+    await sleep(WATCH_QUIET_MS);
     fs.writeFileSync(file, "name: bad\n");
     await waitFor(() => outcomeCount("rejected") === 2);
     expect(handler).toHaveBeenCalledTimes(2);
@@ -831,13 +889,78 @@ describe("watchInput rescan", () => {
       ),
     );
     await w.ready;
+    await letReplayedSetupEventsPass(600, 50);
+    const before = applyLines().length;
 
     fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
     await waitFor(() => outcomeCount("rejected") === 1);
     // Past the late event and its settle window.
     await sleep(600 + WATCH_QUIET_MS);
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(applyLines()).toEqual([expect.stringContaining(" outcome=rejected ")]);
+    expect(applyLines().slice(before)).toEqual([expect.stringContaining(" outcome=rejected ")]);
+  });
+
+  it("HR-TC-014 sends one notice when a slow rescan run rejects a change before the stream reports it", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    // A settle window, gate and handler as slow as the plugin surface's, or
+    // slower: the late event is still the same change.
+    const handler = vi.fn(async (): Promise<HandlerResult> => {
+      await sleep(1_500);
+      return "rejected";
+    });
+    const slowGate = async (): Promise<readonly string[]> => {
+      await sleep(500);
+      return ["roubo-plugin.yaml"];
+    };
+    delayEventsAfterReady(600);
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 500, rearmPollMs: 100, settled: slowGate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+    await letReplayedSetupEventsPass(600, 500 + 500);
+
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Past the late events, their settle window, gate and handler.
+    await sleep(600 + 500 + 500 + WATCH_QUIET_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(outcomeCount("rejected")).toBe(1);
+  });
+
+  it("HR-TC-004 runs the handler again for a hand save, after the late event, of content a rescan rejected", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    delayEventsAfterReady(200);
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+    await letReplayedSetupEventsPass(200, 50);
+
+    const manifest = path.join(unit, "roubo-plugin.yaml");
+    fs.writeFileSync(manifest, "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Past the late event of that write, then the same content saved again
+    // soon after, as a person saves twice.
+    await sleep(200 + 150);
+    expect(handler).toHaveBeenCalledTimes(1);
+    fs.writeFileSync(manifest, "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 2);
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 
   it("HR-TC-013 logs one line when a rescan applies a change before the stream reports it", async () => {
@@ -855,12 +978,14 @@ describe("watchInput rescan", () => {
       ),
     );
     await w.ready;
+    await letReplayedSetupEventsPass(600, 50);
+    const before = applyLines().length;
 
     fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
     await waitFor(() => outcomeCount("applied") === 1);
     await sleep(600 + WATCH_QUIET_MS);
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
+    expect(applyLines().slice(before)).toEqual([expect.stringContaining(" outcome=applied ")]);
   });
 
   it("HR-TC-014 runs a new input whose file event never came, and does not run its rejection again", async () => {

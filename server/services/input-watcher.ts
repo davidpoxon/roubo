@@ -273,14 +273,6 @@ export const ARM_LIVE_MS = 100;
  */
 export const ARM_WARMUP_SCANS = 3;
 
-/**
- * How long after its settle window an event of a change that a rescan (a
- * warm-up rescan, or a pass of the periodic rescan) already ran for is still
- * taken as the stream reporting that change late, and stays silent. A later
- * event of the same content is a new save and runs as usual.
- */
-export const WARMUP_LATE_EVENT_MS = 1_000;
-
 function waitUntilLive(): Promise<void> {
   // Unref'd, so a watch disposed during the wait does not hold the process
   // open; each caller checks `disposed` after it.
@@ -517,10 +509,7 @@ function hashUnit(
   } catch {
     return null;
   }
-  const rels = (files ?? walkFiles(unit))
-    .map((f) => path.relative(unit, path.resolve(unit, f)))
-    .filter((rel) => isWithin(path.join(unit, rel), unit));
-  const lines = rels.map((rel) => {
+  const lines = listedFiles(unit, files).map((rel) => {
     let digest = "missing";
     const abs = path.join(unit, rel);
     // A listed entry that is a symlink out of every root is never read.
@@ -533,6 +522,48 @@ function hashUnit(
     return `${rel}\0${digest}\n`;
   });
   return hashContent(lines.join(""));
+}
+
+/** The files of a directory input that its hash reads, relative to it. */
+function listedFiles(unit: string, files: readonly string[] | null): string[] {
+  return (files ?? walkFiles(unit))
+    .map((f) => path.relative(unit, path.resolve(unit, f)))
+    .filter((rel) => isWithin(path.join(unit, rel), unit));
+}
+
+/**
+ * The newest modify or change time of the files that `hashUnit` reads for the
+ * same input and list, in ms. A save writes the file, so it makes this newer
+ * even when it writes the same content again; a late event of an earlier save
+ * does not. 0 when the input is absent, or no listed file can be read.
+ */
+function newestChange(
+  unit: string,
+  files: readonly string[] | null,
+  roots: readonly string[],
+): number {
+  if (!realpathAllowed(unit, roots)) return 0;
+  const changedAt = (p: string): number => {
+    try {
+      const st = fs.statSync(p);
+      return Math.max(st.mtimeMs, st.ctimeMs);
+    } catch {
+      return 0;
+    }
+  };
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(unit);
+  } catch {
+    return 0;
+  }
+  if (!stat.isDirectory()) return Math.max(stat.mtimeMs, stat.ctimeMs);
+  let newest = 0;
+  for (const rel of listedFiles(unit, files)) {
+    const abs = path.join(unit, rel);
+    if (realpathAllowed(abs, roots)) newest = Math.max(newest, changedAt(abs));
+  }
+  return newest;
 }
 
 /**
@@ -597,10 +628,11 @@ export function watchInput(
   let live = false;
   // The warm-up rescans left for the current arm (see ARM_WARMUP_SCANS).
   let warmupLeft = 0;
-  // The hash a rescan (a warm-up rescan, or a pass of the periodic rescan)
-  // last ran for, per input, and when, until an event of that input brings
-  // other content or comes after the bound (see WARMUP_LATE_EVENT_MS).
-  const ranAhead = new Map<string, { hash: string | null; at: number }>();
+  // The content a scan ran ahead of the stream for, per input: an arm's own
+  // scan, a warm-up rescan or a pass of the periodic rescan. It holds the hash
+  // and the newest change time of the files read (see newestChange), until an
+  // event of that input brings other content or a newer save.
+  const ranAhead = new Map<string, { hash: string | null; changedAt: number }>();
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -843,23 +875,28 @@ export function watchInput(
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
-    // A warm-up rescan acts only on content the watch has not seen: the
-    // stream reported every other change, or will.
-    if (mode === "warmup") {
+    if (mode === "event") {
+      const ran = ranAhead.get(unit);
+      if (ran !== undefined) {
+        // A late event of a change a scan already ran for: the stream
+        // reported it after all, and it is not a second change. The stream
+        // can report one change as several events, so the record stays until
+        // a save makes a read file newer (a new save, of the same content or
+        // not) or the content differs.
+        if (ran.hash === hash && newestChange(unit, files, roots) <= ran.changedAt) return;
+        ranAhead.delete(unit);
+      }
+    } else {
+      // A scan acts ahead of the stream only on content the watch has not
+      // seen. A warm-up rescan does nothing else: the stream reported every
+      // other change, or will.
       const seen =
         lastRejected !== null ? lastRejected.rejected : lastApplied.has(unit) ? last : null;
-      if (hash === seen) return;
-      ranAhead.set(unit, { hash, at: Date.now() });
-    } else if (mode === "rescan") {
-      ranAhead.set(unit, { hash, at: Date.now() });
-    } else if (mode === "event" && ranAhead.has(unit)) {
-      const ran = ranAhead.get(unit);
-      // A late event of a change a rescan already ran for: the stream
-      // reported it after all, and it is not a second change. The stream can
-      // report one change as several events, so the record stays for its
-      // whole bound.
-      if (ran?.hash === hash && Date.now() - ran.at <= settleMs + WARMUP_LATE_EVENT_MS) return;
-      ranAhead.delete(unit);
+      if (hash !== seen) {
+        ranAhead.set(unit, { hash, changedAt: newestChange(unit, files, roots) });
+      } else if (mode === "warmup") {
+        return;
+      }
     }
     // An absent input matches no token, and still clears the hand edits the
     // live tokens carry, since the handler runs for what the input now holds.
