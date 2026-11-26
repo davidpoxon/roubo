@@ -39,8 +39,9 @@
 // authoritative prose diverge from the shipped marketplace UX. This guard asserts
 // the shipped behaviour and the divergences are tracked for reconciliation in
 // #695:
-//   1. Toast text: the shipped Marketplace emits "Installed Redis." / "Updated
-//      Redis." (STRINGS.installedToast = `Installed ${name}.`), NOT TC-101's
+//   1. Toast text: the shipped Marketplace adds no success toast of its own; the
+//      server's input-changed notice ("Plugin redis installed." / "Plugin redis
+//      updated ...") is the one notice of the write (HR-TC-022), NOT TC-101's
 //      "Installed Redis · roubo/redis" / "Updated Redis · roubo/redis"
 //      (S005-O02 / S008-O02).
 //   2. Consent plugin id: the shipped MarketplaceConsentModal shows manifest.id =
@@ -82,7 +83,7 @@ vi.mock("../../lib/api", async (importOriginal) => {
   };
 });
 
-// useToast's addToast emits the install/update success toast (and any error).
+// useToast's addToast emits any install/update error toast.
 // Mock it so the toast call can be captured and no console noise escapes.
 const addToast = vi.fn();
 vi.mock("../../hooks/useToast", () => ({
@@ -224,13 +225,13 @@ const TC101_STEPS = {
   ackEnablesInstall:
     "S004 Consumer: ticking the acknowledgement checkbox enables the 'Install plugin' confirm",
   confirmInstall:
-    "S005 Consumer: pressing confirm closes the dialog, fires the success toast, flips the card to Installed, and shows no integrity error (verified)",
+    "S005 Consumer: pressing confirm closes the dialog, leaves the success notice to the server, flips the card to Installed, and shows no integrity error (verified)",
   publishUpdate:
     "S006 Consumer: simulating the registry publishing v1.4.0 and reloading flips the card to Update with strikethrough-old + new version",
   updateConsent:
     "S007 Consumer: pressing Update opens the consent dialog titled 'Update Redis?' targeting v1.4.0 with the trust banner and permission list",
   confirmUpdate:
-    "S008 Consumer: ticking ack and confirming closes the dialog, fires the update toast, shows v1.4.0 + the Installed badge, and shows no integrity/signature error (verified)",
+    "S008 Consumer: ticking ack and confirming closes the dialog, leaves the update notice to the server, shows v1.4.0 + the Installed badge, and shows no integrity/signature error (verified)",
 } as const;
 const TC101_SEQUENCE = [
   TC101_STEPS.browse,
@@ -423,13 +424,13 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
 
     // S005: pressing confirm fires the real confirm mutation (whose success
     // represents the server having verified the package integrity against the
-    // signed catalog, CP-FR-021). The dialog closes, the success toast fires, the
-    // card flips to Installed, and NO integrity error / consent error is shown
-    // (S005-O04). FIDELITY: shipped toast is "Installed Redis." (no "· roubo/redis"
-    // suffix; see #695).
+    // signed catalog, CP-FR-021). The dialog closes, the card flips to Installed,
+    // and NO integrity error / consent error is shown (S005-O04). FIDELITY: the
+    // client adds no success toast; the server's input-changed notice is the one
+    // notice of the install (HR-TC-022; see #695).
     await track(
       TC101_STEPS.confirmInstall,
-      "confirm closes the dialog, addToast fires the shipped install toast, the card shows Installed, and no integrity/consent error is shown",
+      "confirm closes the dialog, adds no client success toast, the card shows Installed, and no integrity/consent error is shown",
       async () => {
         // The confirm-mutation onSuccess invalidates the marketplace query; the
         // refetch must observe the plugin as installed so the card re-annotates.
@@ -450,8 +451,8 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
         });
-        // Shipped success toast (no "· roubo/redis" suffix; #695).
-        expect(addToast).toHaveBeenCalledWith("Installed Redis.");
+        // No client success toast: the server's notice is the one (HR-TC-022).
+        expect(addToast).not.toHaveBeenCalledWith(expect.stringMatching(/^Installed /));
         // Card flips to Installed (the invalidated catalog re-fetched as installed).
         await waitFor(() => {
           const card = getAllByTestId("marketplace-card")[0];
@@ -518,13 +519,13 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
     );
 
     // S008: ticking the acknowledgement and confirming fires the real confirm
-    // mutation (server-verified update package). The dialog closes, the update
-    // toast fires, the card shows v1.4.0 + the Installed badge, and NO integrity /
-    // signature error is shown (S008-O04). FIDELITY: shipped toast is "Updated
-    // Redis." (no "· roubo/redis" suffix; #695).
+    // mutation (server-verified update package). The dialog closes, the card
+    // shows v1.4.0 + the Installed badge, and NO integrity / signature error is
+    // shown (S008-O04). FIDELITY: the client adds no update toast; the server's
+    // input-changed notice is the one notice of the update (HR-TC-022; #695).
     await track(
       TC101_STEPS.confirmUpdate,
-      "ticking ack + confirm closes the dialog, addToast fires the shipped update toast, the card shows v1.4.0 + Installed, and no integrity/signature error is shown",
+      "ticking ack + confirm closes the dialog, adds no client update toast, the card shows v1.4.0 + Installed, and no integrity/signature error is shown",
       async () => {
         // After confirming the update, the reloaded catalog shows v1.4.0 installed.
         redisState = redisListing({ installed: true, installedVersion: "1.4.0", version: "1.4.0" });
@@ -548,8 +549,8 @@ describe("Marketplace journey E2E (CP-TC-101): consumer browses, installs (integ
         await waitFor(() => {
           expect(queryByTestId("marketplace-consent-modal")).not.toBeInTheDocument();
         });
-        // Shipped update toast (no "· roubo/redis" suffix; #695).
-        expect(addToast).toHaveBeenCalledWith("Updated Redis.");
+        // No client update toast: the server's notice is the one (HR-TC-022).
+        expect(addToast).not.toHaveBeenCalledWith(expect.stringMatching(/^Updated /));
         // Card shows the new version in monospace and the Installed badge.
         await waitFor(() => {
           const card = getAllByTestId("marketplace-card")[0];

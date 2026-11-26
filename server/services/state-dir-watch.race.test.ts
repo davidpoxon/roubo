@@ -9,6 +9,8 @@
  * real ones do: against the content the app last knew.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import express from "express";
+import request from "supertest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -361,6 +363,32 @@ describe("a hand edit followed by an app write inside the settle window", () => 
     );
     await sleep(300);
     expect(hoisted.events).toHaveLength(2);
+  });
+
+  it("HR-TC-034 a save in Settings while a settings.json rejection is open sends one applied notice", async () => {
+    const { default: router } = await import("../routes/settings.js");
+    const app = express();
+    app.use(express.json());
+    app.use("/api/settings", router);
+    fs.writeFileSync(path.join(dir, "settings.json"), "{");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ surface: "settings", outcome: "rejected" });
+
+    const res = await request(app).put("/api/settings").send({ theme: "light" });
+    expect(res.status).toBe(200);
+    await waitFor(() => lines.some((l) => l.includes("/settings.json outcome=self-write ")));
+    await sleep(300);
+
+    // The route's notice names the setting and clears the rejection, so the
+    // self-write of the save sends no second, generic one.
+    expect(hoisted.events.slice(1)).toEqual([
+      {
+        surface: "settings",
+        outcome: "applied",
+        input: "settings.json",
+        summary: "Settings applied: theme.",
+      },
+    ]);
   });
 
   it("HR-TC-034 a rejected projects.json notice clears when the app saves the projects", async () => {

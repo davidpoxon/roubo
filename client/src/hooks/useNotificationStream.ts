@@ -115,9 +115,9 @@ export function useNotificationStream(): void {
       }
 
       if (data.type === "input-changed") {
-        // A watched input changed (HR-FR-016): refresh only the surface's
-        // keys, so the screen, selection, scroll and unsent input stay, and
-        // hand the event to the notice list.
+        // A watched input changed (HR-FR-016): refresh only the changed
+        // input's keys, so the screen, selection, scroll and unsent input
+        // stay, and hand the event to the notice list.
         for (const queryKey of inputChangedQueryKeys(data)) {
           void queryClient.invalidateQueries({ queryKey });
         }

@@ -365,8 +365,10 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   // Watch the state files in the Roubo state dir, so a hand edit of
   // projects.json, state.json, auth.json, plugins-consent.json,
-  // plugins-state.json or settings.json applies with no relaunch, while the
-  // app's own writes of them are not applied again (HR-FR-012, HR-FR-013).
+  // plugins-state.json, settings.json or .env applies with no relaunch, while
+  // the app's own writes of them are not applied again (HR-FR-011, HR-FR-012,
+  // HR-FR-013). The boot-only keys of .env are the exception: a save that
+  // changes one sends a notice that a relaunch is needed.
   console.log("Starting state file watcher...");
   try {
     await stateDirWatch.startStateDirWatch();
@@ -378,6 +380,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
 
+  // One update check per launch. ROUBO_VERSION and ROUBO_QUIET are boot-only
+  // .env keys, so a later edit of either gets the relaunch notice.
   if (!process.env.ROUBO_QUIET && process.env.ROUBO_VERSION) {
     void checkForUpdate(process.env.ROUBO_VERSION);
   }

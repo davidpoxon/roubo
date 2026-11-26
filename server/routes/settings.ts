@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { loadSettings, saveSettings } from "../services/state.js";
 import { getEnvFileKeys, getContextWindow } from "../services/env.js";
+import { announceSettingsChange } from "../services/settings-changes.js";
+import { dismissOpenRejection } from "../services/state-dir-watch.js";
 import { AGENT_TOOL_DEFAULT_AGENT, THEME_MODES } from "@roubo/shared";
 import type { UserPreferences } from "@roubo/shared";
 import { VALID_JIG_ID } from "./helpers.js";
@@ -195,6 +197,10 @@ router.put("/", (req, res) => {
       github: body.github ?? current.github,
     };
     saveSettings(updated);
+    // Every setting is read per request, so the save applies now; the notice
+    // names what it changed (HR-FR-011). It also clears an open settings.json
+    // rejection, so the watch sends no second notice for the save's write.
+    if (announceSettingsChange(current, updated)) dismissOpenRejection("settings.json");
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

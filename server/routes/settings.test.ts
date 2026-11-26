@@ -4,10 +4,14 @@ import request from "supertest";
 
 vi.mock("../services/state.js");
 vi.mock("../services/env.js");
+vi.mock("../services/sse.js", () => ({ broadcastInputChanged: vi.fn() }));
+vi.mock("../services/state-dir-watch.js", () => ({ dismissOpenRejection: vi.fn() }));
 
 import router from "./settings.js";
 import * as state from "../services/state.js";
 import * as env from "../services/env.js";
+import * as sse from "../services/sse.js";
+import * as stateDirWatch from "../services/state-dir-watch.js";
 
 const app = express();
 app.use(express.json());
@@ -612,6 +616,72 @@ describe("PUT / agentTools", () => {
       .send({ theme: "dark", agentTools: [{ ...valid, params: "plan" }] });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/agentTools\[0\]\.params/);
+  });
+});
+
+describe("PUT / applied notice", () => {
+  const jigs = { autoInject: true, autoExecute: true };
+
+  beforeEach(() => {
+    vi.mocked(sse.broadcastInputChanged).mockClear();
+    vi.mocked(stateDirWatch.dismissOpenRejection).mockClear();
+    vi.mocked(state.saveSettings).mockReturnValue(undefined);
+  });
+
+  it("HR-TC-023 a change of the default agent sends 'Settings applied: default agent.'", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({
+      theme: "dark",
+      jigs: { ...jigs, defaultAgentPluginId: "claude-code" },
+    });
+
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", jigs: { ...jigs, defaultAgentPluginId: "codex" } });
+
+    expect(res.status).toBe(200);
+    expect(state.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ jigs: expect.objectContaining({ defaultAgentPluginId: "codex" }) }),
+    );
+    expect(sse.broadcastInputChanged).toHaveBeenCalledTimes(1);
+    expect(sse.broadcastInputChanged).toHaveBeenCalledWith({
+      surface: "settings",
+      outcome: "applied",
+      input: "settings.json",
+      summary: "Settings applied: default agent.",
+    });
+    // The notice clears an open settings.json rejection, so the watch does not.
+    expect(stateDirWatch.dismissOpenRejection).toHaveBeenCalledWith("settings.json");
+  });
+
+  it("names each setting a save changes", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", jigs });
+
+    await request(app)
+      .put("/")
+      .send({ theme: "light", jigs: { ...jigs, autoExecute: false } });
+
+    expect(sse.broadcastInputChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: "Settings applied: theme, jig auto-execute." }),
+    );
+  });
+
+  it("sends no notice for a save that changes no setting", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", jigs });
+
+    await request(app).put("/").send({ theme: "dark", jigs });
+
+    expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
+    // The watch's own applied notice is left to clear an open rejection.
+    expect(stateDirWatch.dismissOpenRejection).not.toHaveBeenCalled();
+  });
+
+  it("sends no notice for a save that is refused", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark" });
+
+    const res = await request(app).put("/").send({ theme: "neon" });
+
+    expect(res.status).toBe(400);
+    expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
   });
 });
 

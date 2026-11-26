@@ -139,6 +139,19 @@ describe("built-in presets", () => {
     expect(listAgentPresets()[0].resolvedAgentName).toBe("Codex CLI");
   });
 
+  // The default agent is read from settings at each resolve, so the next
+  // launch of the Agent preset after a change in Settings uses the new agent.
+  it("HR-TC-023 the Agent preset launches the default agent chosen in Settings with no relaunch", () => {
+    setDefaultAgent("claude-code");
+    const agent = () => listAgentPresets().find((p) => p.name === "Agent");
+    expect(agent()?.agentPluginId).toBe("claude-code");
+
+    setDefaultAgent("codex-cli");
+
+    expect(agent()?.agentPluginId).toBe("codex-cli");
+    expect(agent()?.unresolved).toBeUndefined();
+  });
+
   it("flags built-ins as unresolvable when no default agent is available", () => {
     installAgents([]);
     setDefaultAgent(undefined);
