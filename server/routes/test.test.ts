@@ -68,6 +68,15 @@ vi.mock("../services/project-registry.js", () => ({
   },
 }));
 
+// HR-TC-001 / HR-TC-045: the apply-log tap /test/__reset empties and
+// /test/__input-watcher-log reads. Mocked to the two members the routes touch.
+vi.mock("../services/input-watcher.js", () => ({
+  __test: {
+    resetE2EApplyLogTap: vi.fn(),
+    getE2EApplyLogTap: vi.fn(() => []),
+  },
+}));
+
 vi.mock("../services/migrate.js", () => ({
   __test: {
     reset: vi.fn(),
@@ -170,6 +179,7 @@ vi.mock("../services/agent-probe-runner.js", () => ({
 import router, { isE2eRateLimitExempt } from "./test.js";
 import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
+import * as inputWatcher from "../services/input-watcher.js";
 import * as benchManager from "../services/bench-manager.js";
 import * as migrate from "../services/migrate.js";
 import * as githubOauth from "../services/github-oauth.js";
@@ -298,6 +308,7 @@ describe("POST /test/__reset", () => {
     expect(githubOauth.__test.reset).toHaveBeenCalledTimes(1);
     expect(pluginManager.__test.resetConnectionStatusCache).toHaveBeenCalledTimes(1);
     expect(pluginManager.__test.resetE2EConnectionStateLogTap).toHaveBeenCalledTimes(1);
+    expect(inputWatcher.__test.resetE2EApplyLogTap).toHaveBeenCalledTimes(1);
     expect(pluginManager.shutdown).toHaveBeenCalledTimes(1);
     expect(projectRegistry.__test.reset).toHaveBeenCalledTimes(1);
     expect(projectRegistry.initialize).toHaveBeenCalledTimes(1);
@@ -336,21 +347,23 @@ describe("POST /test/__reset", () => {
     // spec that consented it cannot leave a second available agent behind.
     // AP-TC-115 (#1127) adds a third (gemini-cli) on the same terms, and
     // APCC-TC-022 (#1306) a fourth (agent-choice-probe), and APCC-TC-038 (#1349)
-    // a fifth (cursor-cli).
+    // a fifth (cursor-cli). HR-TC-001 adds the `process` component overlay on
+    // the same opt-in terms.
     const FAILURE_FIXTURE_IDS = ["broken-plugin", "errored-component-stub"];
-    const OPT_IN_AGENT_FIXTURE_IDS = [
+    const OPT_IN_FIXTURE_IDS = [
       "codex-cli",
       "gemini-cli",
       "agent-choice-probe",
       "cursor-cli",
+      "process",
     ];
     expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledTimes(
-      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_AGENT_FIXTURE_IDS.length,
+      BUNDLED_PLUGIN_IDS.length + FAILURE_FIXTURE_IDS.length + OPT_IN_FIXTURE_IDS.length,
     );
     for (const id of BUNDLED_PLUGIN_IDS) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, true);
     }
-    for (const id of [...FAILURE_FIXTURE_IDS, ...OPT_IN_AGENT_FIXTURE_IDS]) {
+    for (const id of [...FAILURE_FIXTURE_IDS, ...OPT_IN_FIXTURE_IDS]) {
       expect(pluginEnableState.setPluginEnabled).toHaveBeenCalledWith(id, false);
     }
 
@@ -482,7 +495,8 @@ describe("POST /test/__reset", () => {
   // those ids (broken-plugin, errored-component-stub) as well, and AP-TC-018
   // (#1101), AP-TC-115 (#1127), APCC-TC-022 (#1306) and APCC-TC-038 (#1349) add
   // the opt-in agent fixtures (codex-cli, gemini-cli, agent-choice-probe,
-  // cursor-cli) to the same set.
+  // cursor-cli) to the same set, and HR-TC-001 the opt-in `process` component
+  // overlay.
   it("writes every bundled plugin id as disabled when bundledPluginsDisabled: true", async () => {
     process.env.ROUBO_E2E = "1";
     const FORCED_DISABLED_IDS = [
@@ -492,6 +506,7 @@ describe("POST /test/__reset", () => {
       "gemini-cli",
       "agent-choice-probe",
       "cursor-cli",
+      "process",
     ];
 
     const res = await request(app).post("/test/__reset").send({ bundledPluginsDisabled: true });
@@ -1985,6 +2000,29 @@ describe("GET /test/__connection-state-log", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ entries: [entry] });
+  });
+});
+
+// HR-TC-001 / HR-TC-045 e2e tap endpoint. Reads the ROUBO_E2E=1-only buffer that
+// mirrors every input-watcher apply line.
+describe("GET /test/__input-watcher-log", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__input-watcher-log");
+
+    expect(res.status).toBe(404);
+    expect(inputWatcher.__test.getE2EApplyLogTap).not.toHaveBeenCalled();
+  });
+
+  it("returns the tap lines when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    const line =
+      "[input-watcher] surface=project-config path=/p/.roubo/roubo.yaml outcome=applied hash8=0123abcd durationMs=3";
+    vi.mocked(inputWatcher.__test.getE2EApplyLogTap).mockReturnValueOnce([line]);
+
+    const res = await request(app).get("/test/__input-watcher-log");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ lines: [line] });
   });
 });
 

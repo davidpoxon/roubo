@@ -32,7 +32,9 @@ import {
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
+  logApply,
   watchInput,
+  __test as inputWatcherTest,
   type Disposable,
   type HandlerResult,
   type InputChange,
@@ -560,6 +562,34 @@ describe("watchInput logging", () => {
     ).toBe(
       "[input-watcher] surface=plugin path=/p/x outcome=applied hash8=0123abcd durationMs=12 action=register",
     );
+  });
+
+  it("mirrors each apply line into the e2e tap only under ROUBO_E2E=1, and the reset empties it", () => {
+    const original = process.env.ROUBO_E2E;
+    const line = {
+      surface: "project-config",
+      path: "/p/.roubo/roubo.yaml",
+      outcome: "applied" as const,
+      hash8: "0123abcd",
+      durationMs: 3,
+    };
+    try {
+      inputWatcherTest.resetE2EApplyLogTap();
+      delete process.env.ROUBO_E2E;
+      logApply(line);
+      expect(inputWatcherTest.getE2EApplyLogTap()).toEqual([]);
+
+      process.env.ROUBO_E2E = "1";
+      logApply(line);
+      expect(inputWatcherTest.getE2EApplyLogTap()).toEqual([formatApplyLogLine(line)]);
+
+      inputWatcherTest.resetE2EApplyLogTap();
+      expect(inputWatcherTest.getE2EApplyLogTap()).toEqual([]);
+    } finally {
+      if (original === undefined) delete process.env.ROUBO_E2E;
+      else process.env.ROUBO_E2E = original;
+      inputWatcherTest.resetE2EApplyLogTap();
+    }
   });
 
   it("HR-TC-047 never puts file content in a log line or a handler event", async () => {
