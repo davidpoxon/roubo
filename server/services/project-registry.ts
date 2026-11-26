@@ -6,6 +6,8 @@ import type {
   PersistedProjectEntry,
 } from "@roubo/shared";
 import { DEFAULT_PROJECT_SETTINGS, DEFAULT_BENCH_SETTINGS } from "@roubo/shared";
+import fs from "node:fs";
+import path from "node:path";
 import { parseConfig } from "./config-parser.js";
 import { validateComponentBindings } from "./component-binding-validator.js";
 import { checkPortConflicts, getPortConflicts } from "./port-allocator.js";
@@ -13,8 +15,41 @@ import * as state from "./state.js";
 import * as pluginManager from "./plugin-manager.js";
 import { normalizeAbsolutePath, UnsafePathError } from "../lib/safe-path.js";
 import { cutListQueryService } from "./cut-list-query-service.js";
+import { logApply, watchInput, type HandlerResult, type InputWatch } from "./input-watcher.js";
+import { hashContent } from "./self-write-tokens.js";
+import { broadcastInputChanged } from "./sse.js";
 
 const projects = new Map<string, RegisteredProject>();
+
+/**
+ * The hash of the roubo.yaml content each project record was parsed from, or
+ * null when the file was missing. The watch arms later than the parse (at boot
+ * after the plugin manager is up), so it starts from this hash rather than
+ * from what is on disk at arm time: a save made in between still runs a
+ * re-parse instead of being taken as already loaded.
+ */
+const loadedConfigHashes = new Map<string, string | null>();
+
+/**
+ * The outcome of the last roubo.yaml apply of each project. An app write that
+ * applies after a rejection uses it to send the applied event that clears the
+ * open error notice (HR-TC-005).
+ */
+const lastConfigOutcomes = new Map<string, "applied" | "rejected">();
+
+/**
+ * The hash of a project's roubo.yaml as it is on disk now, or null when it
+ * cannot be read. Read before the parse, so a write that lands between the two
+ * leaves a hash older than the parsed content, and the watch re-parses again
+ * rather than missing the write.
+ */
+function readConfigHash(repoPath: string): string | null {
+  try {
+    return hashContent(fs.readFileSync(path.join(repoPath, ".roubo", "roubo.yaml")));
+  } catch {
+    return null;
+  }
+}
 
 type ConfigLoadedListener = (project: RegisteredProject) => void;
 const configLoadedListeners: ConfigLoadedListener[] = [];
@@ -22,6 +57,43 @@ const configLoadedListeners: ConfigLoadedListener[] = [];
 export function onProjectConfigLoaded(cb: ConfigLoadedListener): void {
   configLoadedListeners.push(cb);
 }
+
+/** A roubo.yaml change that was not applied: the path and its first error. */
+export interface ProjectConfigRejection {
+  projectId: string;
+  error: { path: string; first: string };
+}
+
+type ConfigRejectedListener = (rejection: ProjectConfigRejection) => void;
+const configRejectedListeners: ConfigRejectedListener[] = [];
+
+/**
+ * Subscribe to roubo.yaml re-parses that were not applied (HR-FR-002). The
+ * last good config of the project stays live; the listener gets the config
+ * path relative to the project root and the first validation error.
+ */
+export function onProjectConfigRejected(cb: ConfigRejectedListener): void {
+  configRejectedListeners.push(cb);
+}
+
+function emitConfigRejected(rejection: ProjectConfigRejection): void {
+  for (const cb of configRejectedListeners) {
+    try {
+      cb(rejection);
+    } catch (err) {
+      console.warn("[project-registry] config-rejected listener threw: %s", (err as Error).message);
+    }
+  }
+}
+
+/** The project config file, relative to the project root, as a notice names it. */
+export const PROJECT_CONFIG_PATH = ".roubo/roubo.yaml";
+
+/** The surface name of the roubo.yaml watch on every log line and event. */
+const PROJECT_CONFIG_SURFACE = "project-config";
+
+/** The settle window of the roubo.yaml watch, in milliseconds. */
+const PROJECT_CONFIG_SETTLE_MS = 150;
 
 /**
  * The in-memory bench map, seen from the registry. `bench-manager` already imports
@@ -45,6 +117,12 @@ export interface LiveBenchSource {
     repoPath: string,
     persisted: { id: number; workspacePath: string }[],
   ): Promise<{ leftovers: string[] }>;
+  /**
+   * The ids of the project's benches whose component snapshot no longer
+   * matches the live config, read after a roubo.yaml apply so its notice can
+   * name how many benches are stale (HR-FR-004). Without it no bench counts.
+   */
+  listStaleBenchIds?(projectId: string): number[];
 }
 
 let liveBenchSource: LiveBenchSource | null = null;
@@ -140,6 +218,7 @@ export function initialize() {
   const persisted = state.loadProjects();
   for (const entry of persisted.projects) {
     const settings = resolveSettings(entry);
+    const loadedHash = readConfigHash(entry.repoPath);
     const result = parseConfig(entry.repoPath);
     let project: RegisteredProject;
     if (result.valid && result.config) {
@@ -166,6 +245,7 @@ export function initialize() {
     // manifests are available yet; server/index.ts calls
     // revalidateComponentBindings() once plugins are up (#884).
     projects.set(entry.id, project);
+    loadedConfigHashes.set(entry.id, loadedHash);
     emitConfigLoaded(project);
   }
 }
@@ -186,6 +266,7 @@ export function registerProject(repoPath: string): RegisteredProject {
     throw err;
   }
 
+  const loadedHash = readConfigHash(safeRepoPath);
   const result = parseConfig(safeRepoPath);
   if (!result.valid || !result.config) {
     const isNotFound = result.errors?.some((e) => e.includes("not found"));
@@ -228,7 +309,10 @@ export function registerProject(repoPath: string): RegisteredProject {
   applyComponentBindingValidation(project);
 
   projects.set(id, project);
+  loadedConfigHashes.set(id, loadedHash);
   state.addProject({ id, repoPath: safeRepoPath, settings: project.settings });
+  // Armed after the project is persisted, so its root is an allowed watch root.
+  armConfigWatch(project);
 
   emitConfigLoaded(project);
   return project;
@@ -293,7 +377,10 @@ async function unregisterProjectNow(projectId: string, opts: { force?: boolean }
   }
 
   projects.delete(projectId);
+  loadedConfigHashes.delete(projectId);
+  lastConfigOutcomes.delete(projectId);
   state.removeProject(projectId);
+  await disposeConfigWatch(projectId);
   // FR-004 / NFR-001: drop every persisted disk snapshot for this project once
   // it is unregistered (after the active-bench guard above). A project's
   // subdirectory of the cache must not outlive the project.
@@ -308,30 +395,289 @@ export function getProject(projectId: string): RegisteredProject | undefined {
   return projects.get(projectId);
 }
 
-export function reloadConfig(projectId: string): RegisteredProject {
-  const project = projects.get(projectId);
-  if (!project) {
+/** What one re-parse of a project's roubo.yaml did. */
+export interface ConfigApplyResult {
+  outcome: "applied" | "rejected";
+  /** The live project record after the apply: the new one, or the one kept. */
+  project: RegisteredProject;
+  /** The project's benches that the applied config left stale, sorted. */
+  staleBenchIds: number[];
+  /** On a rejection, the config path and the first validation error. */
+  error?: { path: string; first: string };
+  /** One line for the notice of this outcome. */
+  summary: string;
+}
+
+/**
+ * The first line of an error message, with no trailing period, so it fits in
+ * one sentence of a notice. A YAML parse error quotes the input below its
+ * first line, and a notice never carries file content.
+ */
+function firstErrorLine(message: string): string {
+  const line = message.split("\n")[0].trim();
+  return line.endsWith(".") ? line.slice(0, -1) : line;
+}
+
+/** The notice line of an applied roubo.yaml (HR-US-001, HR-US-002). */
+export function appliedConfigSummary(projectId: string, staleCount: number): string {
+  const base = `Project ${projectId}: roubo.yaml applied.`;
+  if (staleCount === 0) return base;
+  const benches = staleCount === 1 ? "bench is" : "benches are";
+  return `${base} ${staleCount} ${benches} stale.`;
+}
+
+/**
+ * The notice line of a rejected roubo.yaml (HR-US-008). It says the last good
+ * config is still live only when the project has one.
+ */
+export function rejectedConfigSummary(
+  projectId: string,
+  error: { path: string; first: string },
+  lastGoodLive: boolean,
+): string {
+  const base = `Project ${projectId}: roubo.yaml not applied. ${error.path}: ${error.first}.`;
+  return lastGoodLive ? `${base} Last good config is still live.` : base;
+}
+
+/**
+ * Re-parse a project's roubo.yaml through the same validation as registration:
+ * the schema parse, the port-conflict check against every other project, and
+ * the component-binding second pass (HR-FR-001, HR-FR-002).
+ *
+ * On success the new project record is built in full and replaces the map
+ * entry in one assignment, so a bench set up meanwhile reads either the old
+ * record or the new one, never a mix (HR-NFR-004). On a rejection a project
+ * with a valid config keeps that record live untouched; a project with no
+ * valid config takes the new errors. Either way the rejected listeners hear
+ * the config path and the first error. Never throws for an invalid file.
+ */
+export function applyConfig(projectId: string): ConfigApplyResult {
+  const current = projects.get(projectId);
+  if (!current) {
     throw new ProjectRegistryError(`Project '${projectId}' not found`, "NOT_FOUND");
   }
+  const base = { id: current.id, repoPath: current.repoPath, settings: current.settings };
 
-  const result = parseConfig(project.repoPath);
-  if (result.valid && result.config) {
-    project.config = result.config;
-    project.configValid = true;
-    project.configError = undefined;
-    project.fieldErrors = undefined;
-    // Re-run the component-binding second pass on the freshly parsed config so a
-    // now-invalid binding (e.g. a plugin uninstalled since the last load)
-    // surfaces on reload (#884).
-    applyComponentBindingValidation(project);
+  let rejected: { first: string; record: RegisteredProject };
+  const loadedHash = readConfigHash(current.repoPath);
+  const result = parseConfig(current.repoPath);
+  if (!result.valid || !result.config) {
+    const errors = result.errors ?? [];
+    rejected = {
+      first: firstErrorLine(errors[0] ?? "the config could not be parsed"),
+      record: {
+        ...base,
+        config: undefined,
+        configValid: false,
+        configError: errors.join("; "),
+        fieldErrors: result.fieldErrors,
+      },
+    };
   } else {
-    project.configValid = false;
-    project.configError = result.errors?.join("; ");
-    project.fieldErrors = result.fieldErrors;
+    const others = Array.from(projects.values()).filter((p) => p.id !== projectId);
+    const conflicts = checkPortConflicts({ id: projectId, config: result.config }, others);
+    if (conflicts.length > 0) {
+      rejected = {
+        first: firstErrorLine(`Port conflicts detected: ${conflicts[0]}`),
+        record: {
+          ...base,
+          config: undefined,
+          configValid: false,
+          configError: `Port conflicts detected: ${conflicts.join("; ")}`,
+        },
+      };
+    } else {
+      const next: RegisteredProject = { ...base, config: result.config, configValid: true };
+      // The component-binding second pass runs on the new record before it is
+      // live, so a now-invalid binding (e.g. a plugin whose configSchema
+      // tightened) is a rejection rather than a half-applied config (#884).
+      applyComponentBindingValidation(next);
+      if (next.configValid) {
+        projects.set(projectId, next);
+        loadedConfigHashes.set(projectId, loadedHash);
+        lastConfigOutcomes.set(projectId, "applied");
+        emitConfigLoaded(next);
+        const staleBenchIds = liveBenchSource?.listStaleBenchIds?.(projectId) ?? [];
+        return {
+          outcome: "applied",
+          project: next,
+          staleBenchIds,
+          summary: appliedConfigSummary(projectId, staleBenchIds.length),
+        };
+      }
+      const firstField = next.fieldErrors?.[0];
+      rejected = {
+        first: firstErrorLine(
+          firstField ? `${firstField.path}: ${firstField.message}` : (next.configError ?? ""),
+        ),
+        record: next,
+      };
+    }
   }
 
-  emitConfigLoaded(project);
-  return project;
+  const lastGoodLive = current.configValid && current.config !== undefined;
+  if (!lastGoodLive) {
+    projects.set(projectId, rejected.record);
+    loadedConfigHashes.set(projectId, loadedHash);
+  }
+  lastConfigOutcomes.set(projectId, "rejected");
+  const error = { path: PROJECT_CONFIG_PATH, first: rejected.first };
+  emitConfigRejected({ projectId, error });
+  return {
+    outcome: "rejected",
+    project: projects.get(projectId) ?? rejected.record,
+    staleBenchIds: [],
+    error,
+    summary: rejectedConfigSummary(projectId, error, lastGoodLive),
+  };
+}
+
+/**
+ * Re-parse a project's roubo.yaml and return the live record. A caller that
+ * has just written the file itself goes through here: its write is a
+ * self-write, so the watch sends no event for an applied write (HR-NFR-002).
+ * A rejected write is reported as the manual reload reports it, with one log
+ * line and one rejected input-changed event, since the watch takes the write
+ * as the app's own and would otherwise tell no one; the watch also records
+ * the content as rejected, so a later save of it runs the re-parse again.
+ * An applied write that follows a rejected apply of the project is reported
+ * too, once, so its applied event clears the open error notice (HR-TC-005).
+ */
+export function reloadConfig(projectId: string): RegisteredProject {
+  const start = performance.now();
+  const lastRejected = lastConfigOutcomes.get(projectId) === "rejected";
+  const apply = applyConfig(projectId);
+  if (apply.outcome === "rejected" || lastRejected) reportConfigApply(projectId, apply, start);
+  else markConfigAppliedInWatch(projectId, apply);
+  return apply.project;
+}
+
+/**
+ * Tell the project's watch that an apply outside the watch made the content
+ * it parsed the applied content, so a rejected record of that content in the
+ * watch is dropped and the next unchanged save is deduped (HR-TC-041).
+ */
+function markConfigAppliedInWatch(projectId: string, apply: ConfigApplyResult): void {
+  if (apply.outcome !== "applied") return;
+  const configPath = path.join(apply.project.repoPath, ".roubo", "roubo.yaml");
+  configWatches.get(projectId)?.markApplied(configPath, loadedConfigHashes.get(projectId) ?? null);
+}
+
+function configWatchEvent(projectId: string, apply: ConfigApplyResult) {
+  return {
+    projectId,
+    ...(apply.staleBenchIds.length > 0 ? { benchIds: apply.staleBenchIds } : {}),
+    summary: apply.summary,
+    ...(apply.error ? { error: apply.error } : {}),
+  };
+}
+
+/**
+ * Log and notify one apply that ran outside the watch, as a watched save is
+ * logged and notified. A rejection also marks the content as rejected in the
+ * project's watch, so the watch neither dedupes a save of that content nor
+ * takes the app's own write of it as applied. An applied outcome marks the
+ * content as applied there, so a save of it that the watch last saw rejected
+ * is deduped rather than applied and notified again.
+ */
+function reportConfigApply(projectId: string, apply: ConfigApplyResult, start: number): void {
+  const configPath = path.join(apply.project.repoPath, ".roubo", "roubo.yaml");
+  let hash: string | null = null;
+  try {
+    hash = hashContent(fs.readFileSync(configPath));
+  } catch {
+    // A missing file logs no hash.
+  }
+  if (apply.outcome === "rejected") configWatches.get(projectId)?.markRejected(configPath, hash);
+  else markConfigAppliedInWatch(projectId, apply);
+  logApply({
+    surface: PROJECT_CONFIG_SURFACE,
+    path: configPath,
+    outcome: apply.outcome,
+    hash8: hash === null ? "none" : hash.slice(0, 8),
+    durationMs: Math.round(performance.now() - start),
+  });
+  broadcastInputChanged({
+    surface: PROJECT_CONFIG_SURFACE,
+    outcome: apply.outcome,
+    ...configWatchEvent(projectId, apply),
+  });
+}
+
+/**
+ * The manual reload (POST /api/projects/:projectId/reload-config). It applies
+ * whatever is on disk with no hash dedupe, and writes the same log line and
+ * sends the same input-changed event as a watched save (HR-FR-017).
+ */
+export function reloadConfigManually(projectId: string): RegisteredProject {
+  const start = performance.now();
+  const apply = applyConfig(projectId);
+  reportConfigApply(projectId, apply, start);
+  return apply.project;
+}
+
+// The roubo.yaml watch of each registered project, by project id.
+const configWatches = new Map<string, InputWatch>();
+// Off until the composition root turns it on at boot, so a registry under test
+// arms no file watch.
+let configWatchesEnabled = false;
+
+/**
+ * Watch the roubo.yaml of one project through its `.roubo` directory, since a
+ * single-file watch loses saves that replace the file (HR-FR-001). A save runs
+ * applyConfig; the watcher dedupes unchanged content and the app's own writes.
+ */
+function armConfigWatch(project: RegisteredProject): void {
+  if (!configWatchesEnabled || configWatches.has(project.id)) return;
+  const projectId = project.id;
+  try {
+    const watch = watchInput(
+      path.join(project.repoPath, ".roubo"),
+      {
+        surface: PROJECT_CONFIG_SURFACE,
+        settleMs: PROJECT_CONFIG_SETTLE_MS,
+        depth: 0,
+        allow: ["roubo.yaml"],
+        target: { projectId },
+        // The watch starts from the content the record was parsed from, so a
+        // save made between that parse and this arm runs the re-parse.
+        loadedHash: () => loadedConfigHashes.get(projectId),
+      },
+      async (): Promise<HandlerResult> => {
+        const apply = applyConfig(projectId);
+        return { outcome: apply.outcome, event: configWatchEvent(projectId, apply) };
+      },
+    );
+    configWatches.set(projectId, watch);
+  } catch (err) {
+    console.warn(
+      "[project-registry] roubo.yaml watch not armed for %s: %s",
+      projectId,
+      (err as Error).message,
+    );
+  }
+}
+
+async function disposeConfigWatch(projectId: string): Promise<void> {
+  const watch = configWatches.get(projectId);
+  if (!watch) return;
+  configWatches.delete(projectId);
+  await watch.dispose();
+}
+
+/**
+ * Arm the roubo.yaml watch of every loaded project, and of each project
+ * registered from now on. Called once at boot by the composition root.
+ */
+export function watchProjectConfigs(): void {
+  configWatchesEnabled = true;
+  for (const project of projects.values()) armConfigWatch(project);
+}
+
+/** Dispose every roubo.yaml watch, at shutdown. */
+export async function unwatchProjectConfigs(): Promise<void> {
+  configWatchesEnabled = false;
+  await Promise.all([...configWatches.keys()].map((id) => disposeConfigWatch(id)));
 }
 
 export function updateProjectSettings(
@@ -415,5 +761,13 @@ export class ProjectRegistryError extends Error {
 export const __test = {
   reset(): void {
     projects.clear();
+    loadedConfigHashes.clear();
+    lastConfigOutcomes.clear();
+    for (const watch of configWatches.values()) void watch.dispose();
+    configWatches.clear();
+  },
+  /** The roubo.yaml watch of a project, so a test can await its `ready`. */
+  configWatch(projectId: string): InputWatch | undefined {
+    return configWatches.get(projectId);
   },
 };

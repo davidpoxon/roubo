@@ -34,14 +34,11 @@ function benchKeys(event: InputChangedEvent): QueryKey[] {
 export const SURFACE_QUERY_KEYS: Record<InputSurface, (event: InputChangedEvent) => QueryKey[]> = {
   // The raw config editor seeds its text from ["raw-config", projectId] once,
   // so a refetch refreshes the saved copy without discarding unsent edits.
+  // ["project-settings", projectId] is not here: roubo.yaml does not feed it
+  // (HR-TC-035).
   "project-config": (event) => [
     ["projects"],
-    ...(event.projectId === undefined
-      ? []
-      : [
-          ["project-settings", event.projectId],
-          ["raw-config", event.projectId],
-        ]),
+    ...(event.projectId === undefined ? [] : [["raw-config", event.projectId]]),
     ["benches"],
     ...benchKeys(event),
   ],
@@ -68,13 +65,17 @@ export function inputChangedQueryKeys(event: InputChangedEvent): QueryKey[] {
 
 /**
  * The one line of a notice. It starts with the surface's thing; a rejection
- * adds the file path, the first validation error and the last-good line.
+ * adds the file path, the first validation error and the last-good line. A
+ * summary that already names the path and the first error is the whole
+ * notice: its sender wrote the sentence, and says the last good config is
+ * live only when the target has one, so nothing is added to it.
  */
 export function inputNoticeText(event: InputChangedEvent): string {
   const thing = surfaceThing(event.surface);
   const summary = event.summary.trim();
   const head = summary.startsWith(thing) ? summary : `${thing} ${summary}`.trim();
   if (event.outcome !== "rejected") return head;
+  if (event.error && head.includes(`${event.error.path}: ${event.error.first}`)) return head;
   const where = event.error ? `: ${event.error.path}: ${event.error.first}` : "";
   return `${head}${where}. ${LAST_GOOD_LINE}`;
 }
