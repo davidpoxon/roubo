@@ -54,6 +54,11 @@ export const PLUGIN_SETTLE_MS = 500;
 export const PLUGIN_COMPLETE_POLL_MS = 500;
 /** How long the completeness gate waits for a copy to stop before it gives up. */
 export const PLUGIN_COMPLETE_TIMEOUT_MS = 120_000;
+/**
+ * How often the watch rescans the plugin directories for a change whose file
+ * event never came. A rescan hashes each manifest and entry file only.
+ */
+export const PLUGIN_RESCAN_MS = 2_000;
 
 const MANIFEST_NAMES = ["roubo-plugin.yaml", "roubo-plugin.yml"] as const;
 // Directories below a plugin that change while it runs or that a copy fills
@@ -630,6 +635,8 @@ export interface PluginDirWatchOptions {
   pollMs?: number;
   completeTimeoutMs?: number;
   rearmPollMs?: number;
+  /** How often to rescan for a change whose file event never came. */
+  rescanMs?: number;
 }
 
 /**
@@ -659,6 +666,14 @@ export async function startPluginDirWatch(
           options.completeTimeoutMs ?? PLUGIN_COMPLETE_TIMEOUT_MS,
         ),
         hold: appWritesEnded,
+        // The OS file events can drop the event of a copy or a rebuild under
+        // load, so the plugin would not register or swap until its next
+        // change (HR-TC-013, HR-TC-014): the rescan hashes the same files as
+        // the completeness gate lists, and runs each directory that differs.
+        rescan: {
+          intervalMs: options.rescanMs ?? PLUGIN_RESCAN_MS,
+          files: pluginFingerprintFiles,
+        },
         ...(options.rearmPollMs === undefined ? {} : { rearmPollMs: options.rearmPollMs }),
       },
       handlePluginDirChange,

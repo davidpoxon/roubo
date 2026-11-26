@@ -32,6 +32,7 @@ import {
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
+  hashInputFiles,
   logApply,
   watchInput,
   __test as inputWatcherTest,
@@ -499,6 +500,322 @@ describe("watchInput lifecycle", () => {
     const settled = await Promise.race([w.ready.then(() => true), sleep(1_000).then(() => false)]);
     expect(settled).toBe(true);
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("watchInput rescan", () => {
+  /** The next watch gets a chokidar watcher whose file events never come. */
+  async function dropNextWatchEvents(): Promise<void> {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    vi.mocked(watch).mockImplementationOnce((...args) => {
+      const watcher = actual.watch(...args);
+      const on = watcher.on.bind(watcher) as (
+        event: string,
+        listener: (...a: unknown[]) => void,
+      ) => typeof watcher;
+      (watcher as { on: unknown }).on = (event: string, listener: (...a: unknown[]) => void) =>
+        on(event, event === "all" ? () => {} : listener);
+      return watcher;
+    });
+  }
+
+  /** The next watch counts each file event that it gets. */
+  async function countNextWatchEvents(): Promise<{ count: number }> {
+    const seen = { count: 0 };
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    vi.mocked(watch).mockImplementationOnce((...args) => {
+      const watcher = actual.watch(...args);
+      watcher.on("all", () => {
+        seen.count += 1;
+      });
+      return watcher;
+    });
+    return seen;
+  }
+
+  // The rescan hashes the files that the completeness gate lists, as the
+  // plugin surface does.
+  const rescan = { intervalMs: 100, files: () => ["roubo-plugin.yaml"] };
+  const settled = async (): Promise<readonly string[]> => ["roubo-plugin.yaml"];
+
+  it("HR-TC-013 runs a changed input whose file event never came once, on the next rescan", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    // A file outside the rescan's list does not make an input differ.
+    fs.writeFileSync(path.join(unit, "notes.txt"), "one");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(path.join(unit, "notes.txt"), "two");
+    await sleep(400);
+    expect(handler).not.toHaveBeenCalled();
+
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      path: unit,
+      hash: hashInputFiles(unit, ["roubo-plugin.yaml"]),
+    });
+    expect(applyLines()).toHaveLength(1);
+  });
+
+  it("HR-TC-014 runs a new input whose file event never came, and does not run its rejection again", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    const added = path.join(plugins, "fresh");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: fresh\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toHaveLength(1);
+  });
+
+  it("HR-TC-014 leaves a change whose file event came to that event's run", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "fresh");
+    const manifest = path.join(unit, "roubo-plugin.yaml");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(manifest, "id: fresh\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const events = await countNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        // A settle window much longer than the rescan interval, so several
+        // rescans come while the event's run waits.
+        { surface: "plugin", settleMs: 800, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    // A file the rescan does not hash opens the settle window first, so the
+    // window is open before the rescan can see the manifest change.
+    fs.writeFileSync(path.join(unit, "notes.txt"), "one");
+    await waitFor(() => events.count > 0);
+    fs.writeFileSync(manifest, "id: fresh\nversion: 2\n");
+    // Three rescan intervals, inside the settle window: no rescan runs it.
+    await sleep(300);
+    expect(handler).not.toHaveBeenCalled();
+
+    fs.writeFileSync(manifest, "id: fresh\nversion: 3\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      path: unit,
+      hash: hashInputFiles(unit, ["roubo-plugin.yaml"]),
+    });
+    expect(outcomeCount("applied")).toBe(1);
+  });
+
+  it("HR-TC-014 sends one incomplete notice for an input that the gate keeps finding incomplete", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const gate = vi.fn(async (): Promise<boolean> => false);
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    const added = path.join(plugins, "copying");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // A file the rescan does not hash goes on changing, as a copy that never
+    // settles does.
+    for (let i = 0; i < 6; i += 1) {
+      fs.writeFileSync(path.join(added, "notes.txt"), String(i));
+      await sleep(100);
+    }
+
+    expect(outcomeCount("rejected")).toBe(1);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+
+    // A change to a file the rescan hashes gates the input again.
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 2);
+  });
+
+  it("HR-TC-013 runs another input's dropped change while one input's completeness gate is held open", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const held = path.join(plugins, "copying");
+    const other = path.join(plugins, "existing");
+    fs.mkdirSync(held, { recursive: true });
+    fs.mkdirSync(other, { recursive: true });
+    fs.writeFileSync(path.join(held, "roubo-plugin.yaml"), "id: copying\n");
+    fs.writeFileSync(path.join(other, "roubo-plugin.yaml"), "id: existing\n");
+    let release: (() => void) | null = null;
+    let holding = false;
+    const gate = vi.fn(async (unit: string): Promise<readonly string[]> => {
+      // Hold the gate of one input open, as a copy that has not settled does.
+      if (holding && unit === held) await new Promise<void>((resolve) => (release = resolve));
+      return ["roubo-plugin.yaml"];
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    holding = true;
+    fs.writeFileSync(path.join(held, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
+    await waitFor(() => release !== null);
+    const heldGates = (): number => gate.mock.calls.filter(([unit]) => unit === held).length;
+    const gatedOnce = heldGates();
+
+    fs.writeFileSync(path.join(other, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    // The held gate never opens on its own, so the other input runs only if
+    // the rescan goes on hashing it while the held run waits.
+    await waitFor(() => handler.mock.calls.length === 1);
+    expect(handler).toHaveBeenCalledWith({
+      path: other,
+      hash: hashInputFiles(other, ["roubo-plugin.yaml"]),
+    });
+    // The held input is not gated again while its run is pending.
+    await sleep(300);
+    expect(heldGates()).toBe(gatedOnce);
+
+    (release as (() => void) | null)?.();
+    await waitFor(() => handler.mock.calls.length === 2);
+    expect(handler).toHaveBeenLastCalledWith({
+      path: held,
+      hash: hashInputFiles(held, ["roubo-plugin.yaml"]),
+    });
+  });
+
+  it("HR-TC-046 refuses unread an input that turns into a symlink out of every root while its gate waits and gives up", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const unit = path.join(plugins, "copying");
+    // Whether each call of the surface's file list was given a symlink.
+    const listedLinks: boolean[] = [];
+    const files = vi.fn((abs: string): readonly string[] => {
+      listedLinks.push(fs.lstatSync(abs).isSymbolicLink());
+      return ["roubo-plugin.yaml"];
+    });
+    // The input is swapped for a symlink out of every root after the run's
+    // root check, while its completeness gate waits, and the gate gives up.
+    const gate = vi.fn(async (abs: string): Promise<boolean> => {
+      fs.rmSync(abs, { recursive: true, force: true });
+      fs.symlinkSync(outsideDir, abs);
+      return false;
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        {
+          surface: "plugin",
+          settleMs: 50,
+          rearmPollMs: 100,
+          settled: gate,
+          rescan: { intervalMs: 100, files },
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(unit);
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("refused") === 1);
+    // Later rescans find the input out of every root and leave it alone.
+    await sleep(400);
+
+    expect(outcomeCount("refused")).toBe(1);
+    expect(outcomeCount("rejected")).toBe(0);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+    expect(listedLinks).not.toContain(true);
+  });
+
+  it("HR-TC-046 refuses unread an input that turns into a symlink out of every root while its gate waits and returns a file list", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const unit = path.join(plugins, "copying");
+    // The input is swapped for a symlink out of every root after the run's
+    // root check, while its completeness gate waits, and the gate then says
+    // the input is complete.
+    const gate = vi.fn(async (abs: string): Promise<readonly string[]> => {
+      fs.rmSync(abs, { recursive: true, force: true });
+      fs.symlinkSync(outsideDir, abs);
+      return ["roubo-plugin.yaml"];
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(unit);
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("refused") === 1);
+    // Later rescans find the input out of every root and leave it alone.
+    await sleep(400);
+
+    expect(outcomeCount("refused")).toBe(1);
+    expect(outcomeCount("applied")).toBe(0);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("HR-TC-046 hashes a directory input that is a symlink out of every root as absent", () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const link = path.join(plugins, "linked");
+    fs.symlinkSync(outsideDir, link);
+
+    expect(hashInputFiles(link, ["roubo-plugin.yaml"])).toBeNull();
+    expect(hashInputFiles(link, null)).toBeNull();
   });
 });
 
