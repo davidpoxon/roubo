@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 192 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 194 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -187,6 +187,7 @@ Request and response shapes are not derivable from the route registrations, so t
 | GET    | `/test/__inspect-bench-git`                                                                | `server/routes/test.ts`                 |
 | GET    | `/test/__inspect-marketplace-source`                                                       | `server/routes/test.ts`                 |
 | GET    | `/test/__plugin-enable-state`                                                              | `server/routes/test.ts`                 |
+| GET    | `/test/__process`                                                                          | `server/routes/test.ts`                 |
 | GET    | `/test/__read-cut-list-cache-file`                                                         | `server/routes/test.ts`                 |
 | GET    | `/test/__read-spec-manifest`                                                               | `server/routes/test.ts`                 |
 | GET    | `/test/__read-spec-results`                                                                | `server/routes/test.ts`                 |
@@ -203,4 +204,5 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/test/__set-cut-list-disk-cache`                                                          | `server/routes/test.ts`                 |
 | POST   | `/test/__set-marketplace-reachable`                                                        | `server/routes/test.ts`                 |
 | GET    | `/test/__state-dir`                                                                        | `server/routes/test.ts`                 |
+| GET    | `/test/__terminal-pids`                                                                    | `server/routes/test.ts`                 |
 | GET    | `/{*path}`                                                                                 | `server/index.ts`                       |

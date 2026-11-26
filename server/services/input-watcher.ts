@@ -258,6 +258,10 @@ export function formatApplyLogLine(line: ApplyLogLine): string {
 // /test/__reset empties it. Bounded so a long e2e run cannot grow it without end.
 const E2E_APPLY_LOG_TAP_MAX = 500;
 const e2eApplyLogTap: string[] = [];
+// How many lines the tap has taken since its last reset, the trimmed ones
+// included, so a spec that writes more than the tap holds can still count the
+// lines of its own writes.
+let e2eApplyLogTotal = 0;
 
 /** Write one ApplyLogLine. */
 export function logApply(line: ApplyLogLine): void {
@@ -265,6 +269,7 @@ export function logApply(line: ApplyLogLine): void {
   console.info(text);
   if (process.env.ROUBO_E2E === "1") {
     e2eApplyLogTap.push(text);
+    e2eApplyLogTotal += 1;
     if (e2eApplyLogTap.length > E2E_APPLY_LOG_TAP_MAX) {
       e2eApplyLogTap.splice(0, e2eApplyLogTap.length - E2E_APPLY_LOG_TAP_MAX);
     }
@@ -381,6 +386,10 @@ function realpathLoose(p: string): string {
     }
   }
 }
+
+// Every chokidar watcher an armed watch holds, so a test can count the watched
+// entries of the whole process (HR-TC-049). Never read on a production path.
+const armedWatchers = new Set<FSWatcher>();
 
 // Directories that Roubo owns outside its state dir, such as the user plugins
 // root, which stays ~/.roubo/plugins under a dev run whose state dir is not
@@ -921,6 +930,7 @@ export function watchInput(
       console.warn(`${LOG_PREFIX} watch error surface=${options.surface} path=${dir} code=${code}`);
     });
     watcher = w;
+    armedWatchers.add(w);
     return ready;
   }
 
@@ -935,7 +945,10 @@ export function watchInput(
     const settle = settleArm;
     settleArm = null;
     settle?.();
-    if (w) await w.close();
+    if (w) {
+      armedWatchers.delete(w);
+      await w.close();
+    }
   }
 
   /**
@@ -1033,7 +1046,27 @@ export const __test = {
   getE2EApplyLogTap(): string[] {
     return e2eApplyLogTap.slice();
   },
+  /** How many lines the tap has taken since its last reset, trimmed ones included. */
+  getE2EApplyLogTotal(): number {
+    return e2eApplyLogTotal;
+  },
   resetE2EApplyLogTap(): void {
     e2eApplyLogTap.length = 0;
+    e2eApplyLogTotal = 0;
+  },
+  /**
+   * The chokidar watchers that the armed watches hold, and the paths they
+   * watch: each watched directory and each entry chokidar lists below one,
+   * each path counted once across every watcher.
+   */
+  watchStats(): { instances: number; entries: number } {
+    const paths = new Set<string>();
+    for (const w of armedWatchers) {
+      for (const [dir, children] of Object.entries(w.getWatched())) {
+        paths.add(dir);
+        for (const child of children) paths.add(path.join(dir, child));
+      }
+    }
+    return { instances: armedWatchers.size, entries: paths.size };
   },
 };

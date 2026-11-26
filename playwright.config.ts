@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -138,10 +139,107 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
 //     ROUBO_BUNDLED_PLUGINS_DIR, plus `/test/__register-fixture-project` to
 //     hand each spec a registered project pointing at the right overlay.
+//   - hot-reload-hardening: same surface as hot-reload, holds the cases that
+//     take minutes or measure a budget: the HR-TC-048 save-to-UI latency, the
+//     HR-TC-049 idle CPU and the HR-TC-051 fuzz of invalid inputs. Each skips
+//     unless ROUBO_E2E_HARDENING=1, so a plain `playwright test` stays fast;
+//     the perf workflow runs them nightly (.github/workflows/perf.yml).
+//
+// The run mode (HR-TC-053), from E2E_RUN_MODE:
+//   - built (the default): the built server, `npm run start -w server`,
+//     serving the built client.
+//   - dev: the server as `npm run dev` runs it, from source under `tsx watch`,
+//     and the client from the Vite dev server, whose proxy targets the server
+//     under test. The hot-reload projects then drive the Vite URL.
+//   - packaged: the server bundle of the packaged app, run on the packaged
+//     app's own executable (e2e/_support/packaged-server.mjs), with its state
+//     under ~/.roubo of a throwaway HOME. E2E_PACKAGED_APP names the packaged
+//     app folder under electron/out/ (the folder holding Roubo.app, or the
+//     Linux app folder), by name; without it the first app there is used.
+// The reload-suite workflow (.github/workflows/reload-suite.yml) runs the
+// hot-reload project in each mode.
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
 const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 3336);
 const DEV_BASE_URL = `http://localhost:${DEV_PORT}`;
 const SERVER_BASE_URL = `http://localhost:${SERVER_PORT}`;
+
+type RunMode = "built" | "dev" | "packaged";
+
+function runModeOf(value: string | undefined): RunMode {
+  if (value === undefined || value === "" || value === "built") return "built";
+  if (value === "dev" || value === "packaged") return value;
+  throw new Error(`E2E_RUN_MODE must be built, dev or packaged, not ${JSON.stringify(value)}`);
+}
+
+const RUN_MODE = runModeOf(process.env.E2E_RUN_MODE);
+
+/** The packaged app's executable and server entry, for the packaged run mode. */
+function packagedServer(): { executable: string; entry: string } {
+  const outDir = path.resolve(__dirname, "electron", "out");
+  // The app is a folder of electron/out/, by name: a name is matched against a
+  // fixed pattern and the resolved path must stay inside the out dir, so no
+  // value of the environment points the run anywhere else.
+  const APP_NAME_RE = /^Roubo-(darwin|linux)-[A-Za-z0-9._-]+$/;
+  const requested = process.env.E2E_PACKAGED_APP;
+  if (requested && !APP_NAME_RE.test(requested)) {
+    throw new Error(
+      `E2E_PACKAGED_APP must name an app folder of electron/out/ such as Roubo-darwin-arm64, not ${JSON.stringify(requested)}`,
+    );
+  }
+  const found =
+    requested ||
+    (fs.existsSync(outDir)
+      ? fs.readdirSync(outDir).find((name) => APP_NAME_RE.test(name))
+      : undefined);
+  if (!found) {
+    throw new Error(
+      "E2E_RUN_MODE=packaged needs a packaged app: run `npm run package --prefix electron` or set E2E_PACKAGED_APP to its folder name under electron/out/",
+    );
+  }
+  const appDir = path.resolve(outDir, found);
+  if (path.dirname(appDir) !== outDir) {
+    throw new Error(`the packaged app ${found} is not inside electron/out/`);
+  }
+  const macApp = path.join(appDir, "Roubo.app");
+  if (fs.existsSync(macApp)) {
+    return {
+      executable: path.join(macApp, "Contents", "MacOS", "roubo"),
+      entry: path.join(
+        macApp,
+        "Contents",
+        "Resources",
+        "app.asar",
+        "resources",
+        "server",
+        "dist",
+        "index.js",
+      ),
+    };
+  }
+  return {
+    executable: path.join(appDir, "roubo"),
+    entry: path.join(appDir, "resources", "app.asar", "resources", "server", "dist", "index.js"),
+  };
+}
+
+function serverCommand(mode: RunMode): string {
+  if (mode === "dev") return "npm run dev:server";
+  if (mode === "packaged") {
+    const { executable, entry } = packagedServer();
+    const launcher = path.resolve(__dirname, "e2e", "_support", "packaged-server.mjs");
+    return `"${executable}" "${launcher}" "${entry}"`;
+  }
+  return "npm run start -w server";
+}
+
+// The URL the hot-reload projects drive: in dev mode the Vite dev server, which
+// proxies /api, /ws and /test to the server under test.
+const RELOAD_BASE_URL = RUN_MODE === "dev" ? DEV_BASE_URL : SERVER_BASE_URL;
+
+// The env of the packaged run: the app's executable runs as plain Node, and the
+// e2e harness may use the production state of the throwaway HOME.
+const RUN_MODE_ENV: Record<string, string> =
+  RUN_MODE === "packaged" ? { ELECTRON_RUN_AS_NODE: "1", ROUBO_E2E_PACKAGED: "1" } : {};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -217,13 +315,22 @@ export default defineConfig({
     {
       name: "hot-reload",
       testMatch: ["hot-reload/**/*.spec.ts"],
-      use: { ...devices["Desktop Chrome"], baseURL: SERVER_BASE_URL },
+      use: { ...devices["Desktop Chrome"], baseURL: RELOAD_BASE_URL },
+    },
+    {
+      name: "hot-reload-hardening",
+      testMatch: ["hot-reload-hardening/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"], baseURL: RELOAD_BASE_URL },
     },
   ],
   webServer: [
     {
       command: "npm run dev:client",
-      env: { DEV_PORT: String(DEV_PORT) },
+      // In dev mode the Vite proxy targets the server under test.
+      env: {
+        DEV_PORT: String(DEV_PORT),
+        ...(RUN_MODE === "dev" ? { DEV_API_PORT: String(SERVER_PORT) } : {}),
+      },
       url: DEV_BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
@@ -231,8 +338,9 @@ export default defineConfig({
       stderr: "pipe",
     },
     {
-      command: "npm run start -w server",
+      command: serverCommand(RUN_MODE),
       env: {
+        ...RUN_MODE_ENV,
         ROUBO_PORT: String(SERVER_PORT),
         ROUBO_E2E: "1",
         ROUBO_USER_PLUGINS_DIR: E2E_USER_PLUGINS_DIR,

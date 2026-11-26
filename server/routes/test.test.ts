@@ -69,11 +69,14 @@ vi.mock("../services/project-registry.js", () => ({
 }));
 
 // HR-TC-001 / HR-TC-045: the apply-log tap /test/__reset empties and
-// /test/__input-watcher-log reads. Mocked to the two members the routes touch.
+// /test/__input-watcher-log reads, and the watch counts /test/__process reads.
+// Mocked to the members the routes touch.
 vi.mock("../services/input-watcher.js", () => ({
   __test: {
     resetE2EApplyLogTap: vi.fn(),
     getE2EApplyLogTap: vi.fn(() => []),
+    getE2EApplyLogTotal: vi.fn(() => 0),
+    watchStats: vi.fn(() => ({ instances: 0, entries: 0 })),
   },
 }));
 
@@ -124,6 +127,7 @@ vi.mock("../services/bench-manager.js", () => ({
   getBench: vi.fn(),
   __test: {
     reloadFromState: vi.fn(),
+    clearRuntimeState: vi.fn(),
   },
 }));
 
@@ -328,6 +332,12 @@ describe("POST /test/__reset", () => {
     // TC-001 (#478): the bench-manager Map is re-hydrated from the wiped
     // state.json so a previous spec's real-create bench cannot survive a reset.
     expect(benchManager.__test.reloadFromState).toHaveBeenCalledTimes(1);
+    // The descriptor cache is dropped before the Map, so a start after the reset
+    // translates the config again instead of reusing an earlier spec's command.
+    expect(benchManager.__test.clearRuntimeState).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(benchManager.__test.clearRuntimeState).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(benchManager.__test.reloadFromState).mock.invocationCallOrder[0]);
     // #590: the cut-list disk-cache bypass is restored to its env default so a
     // prior spec's /test/__set-cut-list-disk-cache toggle cannot leak the warm
     // path into the next spec.
@@ -2105,11 +2115,61 @@ describe("GET /test/__input-watcher-log", () => {
     const line =
       "[input-watcher] surface=project-config path=/p/.roubo/roubo.yaml outcome=applied hash8=0123abcd durationMs=3";
     vi.mocked(inputWatcher.__test.getE2EApplyLogTap).mockReturnValueOnce([line]);
+    vi.mocked(inputWatcher.__test.getE2EApplyLogTotal).mockReturnValueOnce(501);
 
     const res = await request(app).get("/test/__input-watcher-log");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ lines: [line] });
+    expect(res.body).toEqual({ lines: [line], total: 501 });
+  });
+});
+
+// HR-TC-049 / HR-TC-051: the server process the hardening cases read.
+describe("GET /test/__process", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__process");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("names the server pid, its CPU time and the watch counts when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+    vi.mocked(inputWatcher.__test.watchStats).mockReturnValueOnce({ instances: 22, entries: 110 });
+
+    const res = await request(app).get("/test/__process");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pid).toBe(process.pid);
+    expect(res.body.cpu.userMicros).toBeGreaterThan(0);
+    expect(typeof res.body.cpu.systemMicros).toBe("number");
+    expect(res.body.watch).toEqual({ instances: 22, entries: 110 });
+  });
+});
+
+// HR-TC-039: the PTY process of each terminal session of a bench.
+describe("GET /test/__terminal-pids", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__terminal-pids?projectId=lantern&benchId=2");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for a projectId or benchId it cannot use", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    for (const query of ["projectId=lantern", "projectId=..%2Fx&benchId=2", "benchId=2"]) {
+      const res = await request(app).get(`/test/__terminal-pids?${query}`);
+      expect(res.status, query).toBe(400);
+    }
+  });
+
+  it("names each session with its PTY pid when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).get("/test/__terminal-pids?projectId=lantern&benchId=2");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sessions: [] });
   });
 });
 

@@ -24,6 +24,7 @@
     "postinstall": "node ../scripts/fix-node-pty-spawn-helper.mjs",
     "prepackage:deps": "npm install --prefix . --omit=dev --no-save --package-lock=false --workspaces=false --install-strategy=nested",
     "build:icons": "node scripts/build-icons.mjs",
+    "package": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge package",
     "make": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge make",
     "publish": "tsc && node scripts/copy-resources.mjs && npm run build:icons && npm run prepackage:deps && electron-forge release"
   },

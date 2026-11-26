@@ -59,6 +59,8 @@ import * as stateDirWatch from "./services/state-dir-watch.js";
 import * as catalogClient from "./services/catalog-client.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
+import { getRouboDir } from "./services/state.js";
+import { isDisposablePackagedE2EState } from "./lib/e2e-state-guard.js";
 import { DELIVERY_EVENT_HOOK_PATH } from "@roubo/shared/delivery-bench";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -108,7 +110,14 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   // mutate (migrate.run() writes state.json even on the no-op path). This
   // combination arises when the harness is launched from a bench terminal that
   // inherited the app's env; refusing here beats a half-working harness.
-  if (process.env.ROUBO_E2E === "1" && process.env.ROUBO_PRODUCTION) {
+  // The packaged-app run of the reload suite (HR-TC-053) is the one exception:
+  // it asks for production state by name, on a throwaway home under the OS
+  // temp dir (server/lib/e2e-state-guard.ts).
+  if (
+    process.env.ROUBO_E2E === "1" &&
+    process.env.ROUBO_PRODUCTION &&
+    !isDisposablePackagedE2EState({ env: process.env, rouboDir: getRouboDir() })
+  ) {
     throw new Error(
       "Refusing to start: ROUBO_E2E=1 and ROUBO_PRODUCTION are both set, so the e2e harness would run against the production ~/.roubo state. Unset ROUBO_PRODUCTION (bench terminals inherit it from the app; see issue #877).",
     );

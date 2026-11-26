@@ -6756,6 +6756,45 @@ describe("startAllComponents / stopAllComponents", () => {
     expect(translateCalls).toHaveLength(2);
   });
 
+  it("clearRuntimeState drops the descriptor cache so a bench re-created with the same id re-translates", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    benchManager.__test.clearRuntimeState();
+    benchManager.__test.reloadFromState();
+
+    // Re-create the bench with the same project and id, as a later spec does.
+    setupExistingBench();
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const translateCalls = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate");
+    expect(translateCalls).toHaveLength(2);
+  });
+
+  it("clearRuntimeState drops a descriptor whose bench is already gone from the Map", async () => {
+    setupExistingBench();
+    setupProcessMocks();
+
+    await benchManager.startComponent("test-project", 1, "backend");
+    // The persisted state no longer holds the bench, so the reload leaves the
+    // cached descriptor orphaned: no bench in the Map names its key.
+    vi.mocked(stateService.loadState).mockReturnValue({ benches: [] });
+    benchManager.__test.reloadFromState();
+    expect(benchManager.getBench("test-project", 1)).toBeUndefined();
+    benchManager.__test.clearRuntimeState();
+
+    setupExistingBench();
+    await benchManager.startComponent("test-project", 1, "backend");
+
+    const translateCalls = vi
+      .mocked(pluginManager.invoke)
+      .mock.calls.filter((call) => call[1] === "translate");
+    expect(translateCalls).toHaveLength(2);
+  });
+
   it("re-caches the assigned container on reconcile so a later start still adopts it (CP-TC-056)", async () => {
     setupExistingBench();
     setupProcessMocks();

@@ -14,6 +14,7 @@ import * as pluginManager from "../services/plugin-manager.js";
 import * as projectRegistry from "../services/project-registry.js";
 import * as inputWatcher from "../services/input-watcher.js";
 import * as benchManager from "../services/bench-manager.js";
+import * as terminalService from "../services/terminal.js";
 import { resolveTestbenchHost } from "../services/testbench-host-resolver.js";
 import {
   computePlanHash,
@@ -37,6 +38,7 @@ import * as pluginProvenanceState from "../services/plugin-provenance-state.js";
 import * as credentialStore from "../services/credential-store.js";
 import { resetProbeRunnerCache } from "../services/agent-probe-runner.js";
 import { PLUGIN_ID_RE, PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
+import { isDisposablePackagedE2EState } from "../lib/e2e-state-guard.js";
 import {
   IntegrationConfigSchema,
   type AssignedIssue,
@@ -133,11 +135,12 @@ const fixtureProjects = new Map<string, FixtureProjectEntry>();
 // than throws so a failure here cannot abort the caller's other cleanup steps.
 function removeProjectWorkspaces(projectId: string, caller: string): void {
   try {
-    if (process.env.ROUBO_PRODUCTION) {
+    const rouboDir = state.getRouboDir();
+    const disposable = isDisposablePackagedE2EState({ env: process.env, rouboDir });
+    if (process.env.ROUBO_PRODUCTION && !disposable) {
       throw new Error("removeProjectWorkspaces refuses to run when ROUBO_PRODUCTION is set");
     }
-    const rouboDir = state.getRouboDir();
-    if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
+    if (!disposable && !rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
       throw new Error(`removeProjectWorkspaces refuses to touch a non-dev roubo dir: ${rouboDir}`);
     }
     fs.rmSync(state.getProjectWorkspacesDir(projectId), { recursive: true, force: true });
@@ -345,11 +348,14 @@ interface ParsedResetConfig {
 // the destructive op keeps its own guard rather than trusting only the
 // caller.
 function wipePersistedTestState(): void {
-  if (process.env.ROUBO_PRODUCTION) {
+  const rouboDir = state.getRouboDir();
+  // The packaged run of the reload suite (HR-TC-053) keeps its state under
+  // ~/.roubo, on a throwaway home: see server/lib/e2e-state-guard.ts.
+  const disposable = isDisposablePackagedE2EState({ env: process.env, rouboDir });
+  if (process.env.ROUBO_PRODUCTION && !disposable) {
     throw new Error("wipePersistedTestState refuses to run when ROUBO_PRODUCTION is set");
   }
-  const rouboDir = state.getRouboDir();
-  if (!rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
+  if (!disposable && !rouboDir.includes(`${path.sep}.roubo-dev${path.sep}`)) {
     throw new Error(`wipePersistedTestState refuses to wipe a non-dev roubo dir: ${rouboDir}`);
   }
   for (const name of [
@@ -639,6 +645,10 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // survives a reset, so without this the next spec's bench list would still
     // show the previous run's bench (breaking 10x determinism, NFR-018). Runs
     // after project-registry init so the rehydrate sees the right project set.
+    // Drop the per-bench runtime state first, descriptor cache included: the
+    // Map clear below forgets which benches had it, and a surviving descriptor
+    // would be served to a later bench that reuses the id.
+    benchManager.__test.clearRuntimeState();
     benchManager.__test.reloadFromState();
     // Apply the pinning AFTER project-registry init and BEFORE plugin-manager
     // initialize: initialize() is what spawns the plugin processes, and the
@@ -1719,7 +1729,50 @@ router.get("/__input-watcher-log", (_req: Request, res: Response) => {
   if (process.env.ROUBO_E2E !== "1") {
     return res.status(404).end();
   }
-  res.status(200).json({ lines: inputWatcher.__test.getE2EApplyLogTap() });
+  res.status(200).json({
+    lines: inputWatcher.__test.getE2EApplyLogTap(),
+    // Every line since the last reset, the ones the bounded tap trimmed
+    // included: the fuzz case (HR-TC-051) writes more than the tap holds.
+    total: inputWatcher.__test.getE2EApplyLogTotal(),
+  });
+});
+
+// HR-TC-049 / HR-TC-051: the server process as the hardening cases observe it.
+// `pid` tells a crash and restart from a process that stayed up, `cpu` is
+// process.cpuUsage() in microseconds, so a spec can take the CPU time of an
+// idle window as the difference of two reads, and `watch` counts the chokidar
+// watchers of every armed input watch and the paths they hold. Gated by
+// ROUBO_E2E.
+router.get("/__process", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const cpu = process.cpuUsage();
+  res.status(200).json({
+    pid: process.pid,
+    uptimeMs: Math.round(process.uptime() * 1000),
+    cpu: { userMicros: cpu.user, systemMicros: cpu.system },
+    watch: inputWatcher.__test.watchStats(),
+  });
+});
+
+// HR-TC-039: the PTY process id of each terminal session of one bench, so the
+// no-loss sweep can tell that a terminal is the same process after an apply.
+// The session list the app serves carries no process id. Gated by ROUBO_E2E.
+router.get("/__terminal-pids", (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId : "";
+  const benchId = Number(req.query.benchId);
+  if (!PROJECT_ID_RE.test(projectId) || !Number.isInteger(benchId)) {
+    return res.status(400).json({ error: "projectId and an integer benchId are required" });
+  }
+  const sessions = terminalService.getSessions(projectId, benchId).map((session) => ({
+    id: session.id,
+    pid: terminalService.getSessionPtyPid(session.id) ?? null,
+  }));
+  res.status(200).json({ sessions });
 });
 
 // HR-TC-026: the Roubo state directory of the server under test. The

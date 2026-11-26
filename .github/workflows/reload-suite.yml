@@ -1,0 +1,108 @@
+name: reload-suite
+
+# The hot-reload e2e suite (the `hot-reload` Playwright project) in the run
+# modes of HR-TC-053:
+#   - `npm run dev` (E2E_RUN_MODE=dev: tsx watch server, Vite client) on Linux
+#     and macOS, on every pull request;
+#   - the packaged app (E2E_RUN_MODE=packaged: the server inside Roubo.app,
+#     run by its own Electron binary) on macOS, nightly, on pushes to release
+#     branches, and by hand. Packaging takes minutes, so it does not run per PR.
+# The packaged run keeps its state under ~/.roubo, so it runs with HOME set to
+# a fresh directory under the runner's temp dir; the server refuses an e2e
+# run on production state anywhere else.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches: ["release/**"]
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  dev:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROUBO_E2E: "1"
+      E2E_RUN_MODE: dev
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: "npm"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Same headless Secret Service as e2e.yml, for the credential writes.
+      - name: Install headless keyring (Secret Service) for credential-store
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-tools gnome-keyring dbus-user-session
+      # The dev server runs from source, but the plugin fixtures and the
+      # shared packages it loads are built artifacts.
+      - run: npm run build
+      - name: Run the hot-reload suite under npm run dev (Linux)
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- sh -c 'printf "\n" | gnome-keyring-daemon --unlock --components=secrets && exec npx playwright test --project=hot-reload'
+      - name: Run the hot-reload suite under npm run dev (macOS)
+        if: runner.os == 'macOS'
+        run: npx playwright test --project=hot-reload
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reload-suite-dev-${{ matrix.os }}-${{ github.run_id }}
+          path: playwright-report
+          retention-days: 7
+
+  packaged-macos:
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROUBO_E2E: "1"
+      E2E_RUN_MODE: packaged
+      # The browser cache is found through HOME, and the suite runs under a throwaway HOME,
+      # so the install and the run both name one cache.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: "npm"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Package the app
+        run: npm run electron:package
+      - name: Run the hot-reload suite against the packaged app
+        shell: bash
+        run: |
+          set -e
+          # mktemp -d puts the home inside os.tmpdir(), which the e2e state guard requires.
+          e2e_home="$(mktemp -d)"
+          HOME="$e2e_home" npx playwright test --project=hot-reload
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reload-suite-packaged-macos-${{ github.run_id }}
+          path: playwright-report
+          retention-days: 7

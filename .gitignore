@@ -27,6 +27,10 @@ e2e/fixtures/clasp-deploy-stub/logs/
 # marketplace into the same root, staging it under .staging/ first.
 e2e/fixtures/database/
 e2e/fixtures/.staging/
+# The reload suite copies a fixture plugin here for the consent surface (hr-consent-stub)
+# and 20 for the idle CPU case (hr-idle-NN); both are removed again after the case.
+e2e/fixtures/hr-consent-stub/
+e2e/fixtures/hr-idle-*/
 electron/out
 electron/node_modules
 **/.DS_Store
