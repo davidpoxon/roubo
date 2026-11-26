@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { canonicalize } from "../lib/canonical-json.js";
 
 // Marketplace channel-integrity primitives (CP-FR-021, #690).
 //
@@ -47,24 +48,6 @@ import path from "node:path";
 export const CATALOG_ROOT_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAa/6jBpbpxY+6fxdDdrz4hOeNpB+3TRwnFLB62yfWsNM=
 -----END PUBLIC KEY-----`;
-
-/**
- * Deterministically canonicalize a JSON value: object keys are sorted
- * recursively and there is no insignificant whitespace. The signature is
- * computed over these bytes, so the signing script and the verifier must agree
- * on this exact serialization.
- */
-export function canonicalize(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalize).join(",")}]`;
-  }
-  if (value !== null && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const keys = Object.keys(obj).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
 
 /** Canonical payload bytes that the catalog signature covers. */
 export function canonicalPayloadBytes(payload: unknown): Buffer {

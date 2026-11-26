@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 import { exec, execFile } from "node:child_process";
 import type { ComponentStatus, ResolvedTool, ToolResult } from "@roubo/shared";
 import * as projectRegistry from "./project-registry.js";
@@ -41,7 +42,11 @@ export function getResolvedTools(projectId: string, benchId: number): ResolvedTo
   const tools = project.config.tools;
   if (!tools || tools.length === 0) return [];
 
-  const ctx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+  const ctx = buildTemplateContext(
+    benchConfig(bench, project.config),
+    benchId,
+    bench.workspacePath,
+  );
   applyContainerOverrides(ctx, bench.assignedContainers);
   applyComponentUrlOverrides(ctx, bench.components);
 
@@ -168,7 +173,7 @@ export async function executeTool(
     throw err;
   }
 
-  const ctx = buildTemplateContext(project.config, benchId, workspacePath);
+  const ctx = buildTemplateContext(benchConfig(bench, project.config), benchId, workspacePath);
   applyContainerOverrides(ctx, bench.assignedContainers);
   applyComponentUrlOverrides(ctx, bench.components);
   ctx.user = selectedUser?.properties;

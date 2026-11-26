@@ -88,6 +88,18 @@ export function useCleanupAndRetryBench() {
   });
 }
 
+export function useRestartBenchWithConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, benchId }: { projectId: string; benchId: number }) =>
+      api.restartBenchWithConfig(projectId, benchId),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["benches"] });
+      queryClient.invalidateQueries({ queryKey: ["bench", vars.projectId, vars.benchId] });
+    },
+  });
+}
+
 export function useTeardownBench() {
   const queryClient = useQueryClient();
   return useMutation({

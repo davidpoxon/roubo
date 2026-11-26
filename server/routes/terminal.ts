@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 import { Router } from "express";
 import * as terminalService from "../services/terminal.js";
 import * as benchManager from "../services/bench-manager.js";
@@ -150,7 +151,11 @@ router.post("/:projectId/benches/:id/terminals", async (req, res) => {
 
     sizeWarning = jig.sizeWarning ?? false;
 
-    const templateCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+    const templateCtx = buildTemplateContext(
+      benchConfig(bench, project.config),
+      benchId,
+      bench.workspacePath,
+    );
     applyContainerOverrides(templateCtx, bench.assignedContainers);
     applyComponentUrlOverrides(templateCtx, bench.components);
 

@@ -19,8 +19,15 @@ vi.mock("../services/bench-manager.js", async (importOriginal) => {
     assignContainer: vi.fn(),
     unassignContainer: vi.fn(),
     cleanupAndRetryBench: vi.fn(),
+    restartBenchWithConfig: vi.fn(),
   };
 });
+
+// Passes the bench through by default, so a test of another route reads the
+// bench it set up. The stale tests below put the real serialiser back.
+vi.mock("../services/bench-serializer.js", () => ({
+  serializeBench: vi.fn((bench: unknown) => bench),
+}));
 
 vi.mock("../services/tool-launcher.js", () => ({
   getResolvedTools: vi.fn(),
@@ -88,6 +95,7 @@ vi.mock("../services/git-state.js", () => ({
 import router from "./benches.js";
 import * as benchManager from "../services/bench-manager.js";
 import { BenchError } from "../services/bench-manager.js";
+import { serializeBench } from "../services/bench-serializer.js";
 import * as toolService from "../services/tool-launcher.js";
 import * as issueAssignment from "../services/issue-assignment.js";
 import * as projectRegistry from "../services/project-registry.js";
@@ -1344,6 +1352,97 @@ describe("POST /:projectId/benches/:id/cleanup-and-retry", () => {
   it("returns 400 for non-numeric bench id", async () => {
     const res = await request(app).post("/project/benches/abc/cleanup-and-retry");
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /:projectId/benches/:id/restart-with-config", () => {
+  it("restarts the bench with the live config and answers with the bench", async () => {
+    const bench = { id: 1, projectId: "lantern", status: "preparing", stale: false };
+    vi.mocked(benchManager.restartBenchWithConfig).mockResolvedValue(bench as any);
+
+    const res = await request(app).post("/lantern/benches/1/restart-with-config");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(bench);
+    expect(benchManager.restartBenchWithConfig).toHaveBeenCalledWith("lantern", 1);
+    expect(serializeBench).toHaveBeenCalledWith(bench);
+  });
+
+  it("returns 404 for NOT_FOUND BenchError", async () => {
+    vi.mocked(benchManager.restartBenchWithConfig).mockRejectedValue(
+      new BenchError("Bench not found", "NOT_FOUND"),
+    );
+    const res = await request(app).post("/lantern/benches/9/restart-with-config");
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("NOT_FOUND");
+  });
+
+  it("returns 409 for INVALID_STATE BenchError", async () => {
+    vi.mocked(benchManager.restartBenchWithConfig).mockRejectedValue(
+      new BenchError("Bench is clearing", "INVALID_STATE"),
+    );
+    const res = await request(app).post("/lantern/benches/1/restart-with-config");
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("INVALID_STATE");
+  });
+
+  it("returns 400 for non-numeric bench id", async () => {
+    const res = await request(app).post("/lantern/benches/abc/restart-with-config");
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("the derived stale flag on bench reads (HR-FR-004)", () => {
+  const actualSerialize = async () =>
+    (
+      await vi.importActual<typeof import("../services/bench-serializer.js")>(
+        "../services/bench-serializer.js",
+      )
+    ).serializeBench;
+
+  it("HR-TC-007: GET bench reports stale=true after a roubo.yaml change and stale=false after a revert", async () => {
+    const { takeComponentSnapshot } = await import("../lib/bench-config.js");
+    const { makeConfig, makeProject, makeBench } = await import("../test/fixtures.js");
+    const setUp = makeConfig();
+    const bench = makeBench({
+      projectId: "lantern",
+      componentSnapshot: takeComponentSnapshot(setUp),
+    });
+    const project = makeProject({ id: "lantern", config: setUp });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(project);
+    vi.mocked(projectRegistry.resolveEnforceIssueDependencies).mockReturnValue(false);
+    vi.mocked(benchManager.getBench).mockReturnValue(bench);
+    vi.mocked(serializeBench).mockImplementation(await actualSerialize());
+    try {
+      project.config = makeConfig({ ports: { backend: { base: 6000 } } });
+      const changed = await request(app).get("/lantern/benches/1");
+      expect(changed.body.stale).toBe(true);
+      expect(changed.body.componentSnapshot).toBeDefined();
+
+      project.config = makeConfig();
+      const reverted = await request(app).get("/lantern/benches/1");
+      expect(reverted.body.stale).toBe(false);
+    } finally {
+      vi.mocked(serializeBench).mockImplementation((b) => b);
+    }
+  });
+
+  it("HR-TC-006: a legacy bench without a snapshot is listed with stale=false after a roubo.yaml change", async () => {
+    const { makeConfig, makeProject, makeBench } = await import("../test/fixtures.js");
+    const bench = makeBench({ projectId: "lantern" });
+    vi.mocked(projectRegistry.getProject).mockReturnValue(
+      makeProject({ id: "lantern", config: makeConfig({ ports: { backend: { base: 6000 } } }) }),
+    );
+    vi.mocked(benchManager.getBenches).mockReturnValue([bench]);
+    vi.mocked(serializeBench).mockImplementation(await actualSerialize());
+    try {
+      const res = await request(app).get("/lantern/benches");
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].stale).toBe(false);
+      expect(res.body[0]).not.toHaveProperty("componentSnapshot");
+    } finally {
+      vi.mocked(serializeBench).mockImplementation((b) => b);
+    }
   });
 });
 

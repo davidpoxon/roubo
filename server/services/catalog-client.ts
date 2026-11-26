@@ -13,8 +13,8 @@ import type {
 } from "@roubo/shared";
 import { getRouboDir } from "./state.js";
 import { guardedFetch } from "./guarded-fetch.js";
+import { canonicalize } from "../lib/canonical-json.js";
 import {
-  canonicalize,
   fingerprintKeyId,
   resolveActiveKey,
   verifyCatalogSignature,

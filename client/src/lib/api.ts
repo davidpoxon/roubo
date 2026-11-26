@@ -357,6 +357,16 @@ export function cleanupAndRetryBench(projectId: string, benchId: number): Promis
   return request(`/projects/${projectId}/benches/${benchId}/cleanup-and-retry`, { method: "POST" });
 }
 
+/**
+ * 'Restart with new config': stops the bench's components, applies the current
+ * roubo.yaml to the bench, and starts them again.
+ */
+export function restartBenchWithConfig(projectId: string, benchId: number): Promise<Bench> {
+  return request(`/projects/${projectId}/benches/${benchId}/restart-with-config`, {
+    method: "POST",
+  });
+}
+
 export function startBench(projectId: string, benchId: number): Promise<Bench> {
   return request(`/projects/${projectId}/benches/${benchId}/start`, {
     method: "POST",

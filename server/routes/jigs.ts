@@ -1,3 +1,4 @@
+import { benchConfig } from "../lib/bench-config.js";
 import fs from "node:fs";
 import * as YAML from "yaml";
 import { Router } from "express";
@@ -301,7 +302,11 @@ router.post("/:projectId/benches/:benchId/inject-jig", async (req, res) => {
     return;
   }
 
-  const templateCtx = buildTemplateContext(project.config, benchId, bench.workspacePath);
+  const templateCtx = buildTemplateContext(
+    benchConfig(bench, project.config),
+    benchId,
+    bench.workspacePath,
+  );
   applyContainerOverrides(templateCtx, bench.assignedContainers);
   applyComponentUrlOverrides(templateCtx, bench.components);
 
