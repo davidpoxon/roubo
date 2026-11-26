@@ -550,7 +550,6 @@ export function watchInput(
   let armRefused = false;
   let poll: NodeJS.Timeout | null = null;
   let rescanPoll: NodeJS.Timeout | null = null;
-  let rescanning = false;
   // How many runs of each input are queued or running.
   const pendingRuns = new Map<string, number>();
   // The rescan hash of each input whose last run the completeness gate found
@@ -635,29 +634,28 @@ export function watchInput(
    * as a rescan does. A change whose event did come has a settle window or a
    * run pending, so it is left to that run, and one that the completeness
    * gate found incomplete is left until its rescan hash changes.
+   *
+   * The pass hashes synchronously and does not wait for the runs it starts: a
+   * run can sit in its completeness gate for a long time, and the next pass
+   * must still hash every other input. The pending run of an input keeps
+   * later passes off it, and so does a re-arm's own rescan, which enqueues a
+   * run of every input; the pass waits only while no watcher is armed.
    */
-  async function rescanInputs(): Promise<void> {
+  function rescanInputs(): void {
     const opts = options.rescan;
-    if (!opts || disposed || rescanning || checking || !watcher || !watcherReady) return;
-    rescanning = true;
-    try {
-      const targets = new Set(listUnits());
-      for (const known of lastApplied.keys()) targets.add(known);
-      const roots = getWatchRoots();
-      const runs: Promise<void>[] = [];
-      for (const unit of targets) {
-        if (disposed) return;
-        if (timers.has(unit) || pendingRuns.has(unit)) continue;
-        // An input out of every root is refused by the run its event starts;
-        // a rescan would only refuse it again on every pass.
-        if (!realpathAllowed(unit, roots)) continue;
-        const hash = hashUnit(unit, rescanFilesOf(unit), roots);
-        if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
-        if (differsFromLast(unit, hash)) runs.push(enqueue(unit, "quiet"));
-      }
-      await Promise.all(runs);
-    } finally {
-      rescanning = false;
+    if (!opts || disposed || !watcher || !watcherReady) return;
+    const targets = new Set(listUnits());
+    for (const known of lastApplied.keys()) targets.add(known);
+    const roots = getWatchRoots();
+    for (const unit of targets) {
+      if (disposed) return;
+      if (timers.has(unit) || pendingRuns.has(unit)) continue;
+      // An input out of every root is refused by the run its event starts;
+      // a rescan would only refuse it again on every pass.
+      if (!realpathAllowed(unit, roots)) continue;
+      const hash = hashUnit(unit, rescanFilesOf(unit), roots);
+      if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
+      if (differsFromLast(unit, hash)) void enqueue(unit, "quiet");
     }
   }
 
@@ -972,7 +970,7 @@ export function watchInput(
       poll = setInterval(() => void check(), options.rearmPollMs ?? DEFAULT_REARM_POLL_MS);
       poll.unref();
       if (options.rescan) {
-        rescanPoll = setInterval(() => void rescanInputs(), options.rescan.intervalMs);
+        rescanPoll = setInterval(rescanInputs, options.rescan.intervalMs);
         rescanPoll.unref();
       }
     }

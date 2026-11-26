@@ -670,6 +670,59 @@ describe("watchInput rescan", () => {
     fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
     await waitFor(() => outcomeCount("rejected") === 2);
   });
+
+  it("HR-TC-013 runs another input's dropped change while one input's completeness gate is held open", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const held = path.join(plugins, "copying");
+    const other = path.join(plugins, "existing");
+    fs.mkdirSync(held, { recursive: true });
+    fs.mkdirSync(other, { recursive: true });
+    fs.writeFileSync(path.join(held, "roubo-plugin.yaml"), "id: copying\n");
+    fs.writeFileSync(path.join(other, "roubo-plugin.yaml"), "id: existing\n");
+    let release: (() => void) | null = null;
+    let holding = false;
+    const gate = vi.fn(async (unit: string): Promise<readonly string[]> => {
+      // Hold the gate of one input open, as a copy that has not settled does.
+      if (holding && unit === held) await new Promise<void>((resolve) => (release = resolve));
+      return ["roubo-plugin.yaml"];
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    holding = true;
+    fs.writeFileSync(path.join(held, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
+    await waitFor(() => release !== null);
+    const heldGates = (): number => gate.mock.calls.filter(([unit]) => unit === held).length;
+    const gatedOnce = heldGates();
+
+    fs.writeFileSync(path.join(other, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    // A few rescan intervals: the held gate does not keep the other input waiting.
+    const started = Date.now();
+    await waitFor(() => handler.mock.calls.length === 1);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(handler).toHaveBeenCalledWith({
+      path: other,
+      hash: hashInputFiles(other, ["roubo-plugin.yaml"]),
+    });
+    // The held input is not gated again while its run is pending.
+    await sleep(300);
+    expect(heldGates()).toBe(gatedOnce);
+
+    (release as (() => void) | null)?.();
+    await waitFor(() => handler.mock.calls.length === 2);
+    expect(handler).toHaveBeenLastCalledWith({
+      path: held,
+      hash: hashInputFiles(held, ["roubo-plugin.yaml"]),
+    });
+  });
 });
 
 describe("watchInput logging", () => {
