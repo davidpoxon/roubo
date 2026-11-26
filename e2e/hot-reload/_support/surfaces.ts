@@ -121,6 +121,7 @@ async function putConsentPlugin(request: APIRequestContext): Promise<void> {
     throw new Error(`the fixture plugin ${CONSENT_TEMPLATE_ID} is missing`);
   const templateDir = path.dirname(template.manifestPath);
   const dir = path.join(path.dirname(templateDir), CONSENT_PLUGIN_ID);
+  // A copy that an earlier run left is removed before the plugin is registered.
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir);
   consentPluginDir = dir;
