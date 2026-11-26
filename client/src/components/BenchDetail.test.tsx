@@ -703,6 +703,9 @@ describe("BenchDetail", () => {
     expect(badge).toBeInTheDocument();
 
     // The tooltip renders each blocker via shortIssueRef (strips the owner/repo).
+    // A React Aria TooltipTrigger opens on hover only when the last input was
+    // the pointer, so move the pointer over the page before hovering (#1734).
+    await userEvent.pointer({ target: document.body });
     await userEvent.hover(badge);
     expect(await screen.findByText("#10")).toBeInTheDocument();
   });
