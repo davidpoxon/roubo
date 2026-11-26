@@ -1,13 +1,18 @@
 name: perf
 
 # Runs the RUN_PERF_HARNESS-gated performance budgets (every *.perf*.test.* and
-# *.scale*.test.* file) once per merge to main.
+# *.scale*.test.* file) and the hot-reload hardening cases (HR-TC-048,
+# HR-TC-049, HR-TC-051 in the `hot-reload-hardening` Playwright project, plus
+# the live-registry part of HR-TC-054) once a night.
 #
 # Decision, per #1183:
 #   - The budgets are wall-clock assertions, which is exactly why they are gated
 #     out of the default `npm test`. On a shared runner they are a flake source,
-#     so this job runs on `push: [main]` and NOT on `pull_request`: a noisy
-#     budget costs a second look at a red run on main, never a blocked PR.
+#     so this workflow runs on a nightly schedule and NOT on `pull_request`: a
+#     noisy budget costs a second look at a red nightly run, never a blocked PR.
+#     The hardening cases take most of an hour, which a run per merge to main
+#     would multiply.
+#   - A breached budget fails its job.
 #   - It is therefore a detective control, not a gate. Nothing here prevents a
 #     regression landing; it makes one visible the moment it does.
 #   - The full `perf-evidence` output is teed to a log and uploaded as an
@@ -20,8 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -54,4 +59,52 @@ jobs:
         with:
           name: perf-evidence-${{ github.run_id }}
           path: perf-evidence/perf-evidence.log
+          retention-days: 30
+
+  hot-reload-hardening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ROUBO_E2E: '1'
+      ROUBO_E2E_HARDENING: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Same headless Secret Service as e2e.yml, for the credential writes.
+      - name: Install headless keyring (Secret Service) for credential-store
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-tools gnome-keyring dbus-user-session
+      - run: npm run build
+      - name: Run the hot-reload hardening cases
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p perf-evidence
+          dbus-run-session -- sh -c 'printf "\n" | gnome-keyring-daemon --unlock --components=secrets && exec npx playwright test --project=hot-reload-hardening' 2>&1 | tee perf-evidence/hot-reload-hardening.log
+      # HR-TC-054: the pinned github-com release from the live signed catalog
+      # stages through the install path.
+      - name: Stage the published github-com plugin from the live registry
+        shell: bash
+        env:
+          ROUBO_LIVE_REGISTRY: '1'
+        run: |
+          set -o pipefail
+          npx vitest run server/services/published-plugin-compat.test.ts 2>&1 | tee perf-evidence/published-plugin-compat.log
+      - name: Upload hardening evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hot-reload-hardening-${{ github.run_id }}
+          path: |
+            perf-evidence/
+            playwright-report/
           retention-days: 30
