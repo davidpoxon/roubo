@@ -461,6 +461,9 @@ function hashUnit(
   files: readonly string[] | null,
   roots: readonly string[],
 ): string | null {
+  // An input that is a symlink out of every root is never read: it hashes as
+  // absent.
+  if (!realpathAllowed(unit, roots)) return null;
   let stat: fs.Stats;
   try {
     stat = fs.statSync(unit);
@@ -493,8 +496,9 @@ function hashUnit(
 /**
  * The hash a watch gives the directory input `unit` when its completeness gate
  * lists `files` (paths relative to the input, or absolute), or every file below
- * it when `files` is null. Null when the input is absent. A surface that writes
- * an input itself passes it to `markApplied`, so the watch dedupes that write.
+ * it when `files` is null. Null when the input is absent, or is a symlink out
+ * of every root. A surface that writes an input itself passes it to
+ * `markApplied`, so the watch dedupes that write.
  */
 export function hashInputFiles(unit: string, files: readonly string[] | null): string | null {
   return hashUnit(unit, files, getWatchRoots());
@@ -604,10 +608,15 @@ export function watchInput(
     return next;
   }
 
-  /** The files the rescan hashes `unit` over, or null for every file below it. */
-  function rescanFilesOf(unit: string): readonly string[] | null {
+  /**
+   * The files the rescan hashes `unit` over, or null for every file below it.
+   * An input that is now a symlink out of every root is not read, and is not
+   * given to the surface to list either: it is hashed over no files.
+   */
+  function rescanFilesOf(unit: string, roots: readonly string[]): readonly string[] | null {
     const opts = options.rescan;
     if (!opts) return null;
+    if (!realpathAllowed(unit, roots)) return [];
     try {
       return fs.existsSync(unit) ? opts.files(unit) : null;
     } catch {
@@ -653,7 +662,7 @@ export function watchInput(
       // An input out of every root is refused by the run its event starts;
       // a rescan would only refuse it again on every pass.
       if (!realpathAllowed(unit, roots)) continue;
-      const hash = hashUnit(unit, rescanFilesOf(unit), roots);
+      const hash = hashUnit(unit, rescanFilesOf(unit, roots), roots);
       if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
       if (differsFromLast(unit, hash)) void enqueue(unit, "quiet");
     }
@@ -746,8 +755,12 @@ export function watchInput(
       if (disposed) return;
       if (complete === false) {
         // Taken after the gate gave up, so a rescan finds the same files
-        // unchanged and does not gate the input again.
-        if (options.rescan) incomplete.set(unit, hashUnit(unit, rescanFilesOf(unit), roots));
+        // unchanged and does not gate the input again. The input can have
+        // become a symlink out of every root while the gate waited: it is
+        // then neither listed nor read.
+        if (options.rescan) {
+          incomplete.set(unit, hashUnit(unit, rescanFilesOf(unit, roots), roots));
+        }
         if (mode !== "seed") {
           emit("rejected", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.incomplete);
         }

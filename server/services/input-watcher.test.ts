@@ -722,6 +722,63 @@ describe("watchInput rescan", () => {
       hash: hashInputFiles(held, ["roubo-plugin.yaml"]),
     });
   });
+
+  it("HR-TC-046 neither lists nor reads an input that turns into a symlink out of every root while its gate waits", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const unit = path.join(plugins, "copying");
+    // Whether each call of the surface's file list was given a symlink.
+    const listedLinks: boolean[] = [];
+    const files = vi.fn((abs: string): readonly string[] => {
+      listedLinks.push(fs.lstatSync(abs).isSymbolicLink());
+      return ["roubo-plugin.yaml"];
+    });
+    // The input is swapped for a symlink out of every root after the run's
+    // root check, while its completeness gate waits, and the gate gives up.
+    const gate = vi.fn(async (abs: string): Promise<boolean> => {
+      fs.rmSync(abs, { recursive: true, force: true });
+      fs.symlinkSync(outsideDir, abs);
+      return false;
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        {
+          surface: "plugin",
+          settleMs: 50,
+          rearmPollMs: 100,
+          settled: gate,
+          rescan: { intervalMs: 100, files },
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(unit);
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Later rescans find the input out of every root and leave it alone.
+    await sleep(400);
+
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+    expect(listedLinks).not.toContain(true);
+  });
+
+  it("HR-TC-046 hashes a directory input that is a symlink out of every root as absent", () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const link = path.join(plugins, "linked");
+    fs.symlinkSync(outsideDir, link);
+
+    expect(hashInputFiles(link, ["roubo-plugin.yaml"])).toBeNull();
+    expect(hashInputFiles(link, null)).toBeNull();
+  });
 });
 
 describe("watchInput logging", () => {
