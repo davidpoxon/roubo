@@ -84,7 +84,9 @@ export async function addSource(
   category: "projects" | "boards" | "filters" | "epics",
   opts: { search: string; option: RegExp },
 ): Promise<void> {
-  const trigger = picker.getByRole("button", { name: new RegExp(`^Add ${category}$`, "i") });
+  const trigger = picker.getByRole("button", {
+    name: new RegExp(`^Search to add ${category}$`, "i"),
+  });
   await trigger.click();
   await page
     .getByRole("searchbox", { name: new RegExp(`^Search ${category}$`, "i") })
