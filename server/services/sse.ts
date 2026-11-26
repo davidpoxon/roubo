@@ -4,6 +4,7 @@ import type {
   BenchNotification,
   BenchStatus,
   ComponentStatusValue,
+  InputChangedEvent,
   SpecBenchDecisionMode,
 } from "@roubo/shared";
 import type { DeliveryStreamChange, DeliveryStreamFrame } from "@roubo/shared/delivery-bench";
@@ -56,6 +57,7 @@ export type SseEvent =
   | BenchStatusEvent
   | BenchDecisionModeEvent
   | ComponentStatusChangeEvent
+  | InputChangedEvent
   | DeliveryStreamFrame;
 
 // The reconnection delay a client's EventSource waits after the connection
@@ -128,6 +130,16 @@ export function broadcastDeliveryFrame(
   change: DeliveryStreamChange = "snapshot",
 ): void {
   broadcast({ type: "delivery", projectId, benchId, change, seq });
+}
+
+/**
+ * Broadcast one applied, rejected or refused change of a watched input
+ * (HR-FR-015). The input watcher sends one for each such outcome; a surface
+ * handler that reports a change on its own sends it here. The event carries no
+ * file content: only target ids, a summary and the first validation error.
+ */
+export function broadcastInputChanged(event: Omit<InputChangedEvent, "type">): void {
+  broadcast({ ...event, type: "input-changed" });
 }
 
 /**

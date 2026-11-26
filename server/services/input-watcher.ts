@@ -14,6 +14,9 @@
  * - self-write suppression through the tokens that `atomicWrite` leaves;
  * - one `[input-watcher] ...` key=value log line for every outcome, which never
  *   carries file content;
+ * - one `input-changed` event on the notification stream for every applied,
+ *   rejected or refused outcome of a known surface (HR-FR-015); deduped and
+ *   self-write outcomes are logged only;
  * - re-arming when the watched directory disappears and returns.
  *
  * A file is watched through its parent directory at depth 0 with a basename
@@ -22,14 +25,19 @@
  * extra two seconds it adds.
  *
  * The handler receives `{ path, hash }` only. It reads its input itself and
- * resolves to `'applied' | 'rejected' | 'refused'` (or `{ outcome, action }`
- * on a surface that reports an action). A thrown error counts as `rejected`.
+ * resolves to `'applied' | 'rejected' | 'refused'` (or `{ outcome, action, event }`
+ * on a surface that reports an action or the target ids, summary and first
+ * error of its event). A thrown error counts as `rejected`. The watch's
+ * `target` ids go on every event, and a rejected or refused event with no
+ * error of the handler's gets the input path and a generic first error.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import { getRouboDir, loadProjects } from "./state.js";
 import { consumeSelfWrite, hashContent } from "./self-write-tokens.js";
+import { broadcastInputChanged } from "./sse.js";
+import { INPUT_SURFACES, type InputSurface } from "@roubo/shared";
 
 export type ApplyOutcome = "applied" | "rejected" | "deduped" | "self-write" | "refused";
 
@@ -54,7 +62,22 @@ export interface InputChange {
   hash: string | null;
 }
 
-export type HandlerResult = HandlerOutcome | { outcome: HandlerOutcome; action?: string };
+/**
+ * What a handler adds to the `input-changed` event of its outcome: the target
+ * ids, a one-line summary and, on a rejection, the input path with the first
+ * validation error. Never file content.
+ */
+export interface InputEventDetail {
+  projectId?: string;
+  pluginId?: string;
+  benchIds?: number[];
+  /** One line that starts with the surface's thing. A default is written when absent. */
+  summary?: string;
+  error?: { path: string; first: string };
+}
+
+export type HandlerResult =
+  HandlerOutcome | { outcome: HandlerOutcome; action?: string; event?: InputEventDetail };
 
 export type InputHandler = (change: InputChange) => Promise<HandlerResult>;
 
@@ -91,6 +114,14 @@ export interface WatchInputOptions {
   loadedHash?: (absPath: string) => string | null | undefined;
   /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
+  /**
+   * The target ids of every `input-changed` event of this watch. A handler's
+   * own `projectId` or `pluginId` wins over them, but an outcome the watcher
+   * reaches itself (a refusal, an incomplete directory, a thrown handler)
+   * still names its target, so a later applied event of the same target can
+   * clear its notice.
+   */
+  target?: { projectId?: string; pluginId?: string };
 }
 
 export interface Disposable {
@@ -121,6 +152,86 @@ export function formatApplyLogLine(line: ApplyLogLine): string {
 /** Write one ApplyLogLine. */
 export function logApply(line: ApplyLogLine): void {
   console.info(formatApplyLogLine(line));
+}
+
+const SURFACE_THINGS: Record<InputSurface, string> = {
+  "project-config": "Project",
+  plugin: "Plugin",
+  settings: "Settings",
+  bench: "Bench",
+  github: "GitHub",
+  environment: "Environment",
+};
+
+export function isInputSurface(surface: string): surface is InputSurface {
+  return (INPUT_SURFACES as readonly string[]).includes(surface);
+}
+
+/** The word a notice about `surface` starts with; an unknown surface is its own id. */
+export function surfaceThing(surface: string): string {
+  return isInputSurface(surface) ? SURFACE_THINGS[surface] : surface;
+}
+
+/** The one-line summary of an outcome whose handler gave none. */
+export function defaultInputSummary(surface: string, outcome: HandlerOutcome): string {
+  return `${surfaceThing(surface)} change ${outcome}`;
+}
+
+/** The first error of a rejected or refused outcome whose handler gave none. */
+export const DEFAULT_OUTCOME_REASONS = {
+  /** The handler threw. Its message can quote the input, so it is not sent. */
+  threw: "the change could not be read or validated",
+  /** The completeness gate said the directory input is not complete. */
+  incomplete: "the input is not complete",
+  /** The input resolves out of every allowed root, so it was not read. */
+  outside: "the input resolves outside every allowed root",
+  /** The handler said rejected with no error of its own. */
+  rejected: "the change was rejected",
+  /** The handler said refused with no error of its own. */
+  refused: "the change was refused",
+} as const;
+
+/**
+ * Send the `input-changed` event of one handler outcome (HR-FR-015). Only the
+ * six known surfaces are sent, since a client maps nothing else; deduped and
+ * self-write outcomes never reach here. The handler's detail wins over the
+ * watch's static target ids, and a rejected or refused outcome with no error
+ * gets `fallbackError`, so its notice always names a path and a first error.
+ */
+function sendInputChanged(
+  surface: string,
+  outcome: HandlerOutcome,
+  detail: InputEventDetail | undefined,
+  target: WatchInputOptions["target"],
+  fallbackError: { path: string; first: string },
+): void {
+  if (!isInputSurface(surface)) return;
+  const projectId = detail?.projectId ?? target?.projectId;
+  const pluginId = detail?.pluginId ?? target?.pluginId;
+  const error = detail?.error ?? (outcome === "applied" ? undefined : fallbackError);
+  broadcastInputChanged({
+    surface,
+    outcome,
+    ...(projectId === undefined ? {} : { projectId }),
+    ...(pluginId === undefined ? {} : { pluginId }),
+    ...(detail?.benchIds === undefined ? {} : { benchIds: [...detail.benchIds] }),
+    summary: detail?.summary ?? defaultInputSummary(surface, outcome),
+    ...(error === undefined ? {} : { error: { path: error.path, first: error.first } }),
+  });
+}
+
+/**
+ * The path of `unit` relative to the deepest allowed root that holds it, so an
+ * event names `roubo.yaml` rather than an absolute path. A unit under no root
+ * is named by its basename.
+ */
+function pathFromWatchRoot(unit: string, roots: readonly string[]): string {
+  let best: string | null = null;
+  for (const root of roots) {
+    if (isWithin(unit, root) && (best === null || root.length > best.length)) best = root;
+  }
+  const rel = best === null ? "" : path.relative(best, unit);
+  return rel === "" ? path.basename(unit) : rel;
 }
 
 function hash8Of(hash: string | null): string {
@@ -351,7 +462,14 @@ export function watchInput(
     // rescans, so a run now would only churn the surface.
     if (!fs.existsSync(dir)) return;
     const start = performance.now();
-    const emit = (outcome: ApplyOutcome, hash: string | null, action?: string) => {
+    const roots = getWatchRoots();
+    const emit = (
+      outcome: ApplyOutcome,
+      hash: string | null,
+      action?: string,
+      detail?: InputEventDetail,
+      reason?: string,
+    ) => {
       logApply({
         surface,
         path: unit,
@@ -360,13 +478,21 @@ export function watchInput(
         durationMs: Math.round(performance.now() - start),
         ...(action === undefined ? {} : { action }),
       });
+      // Deduped and self-write outcomes are logged only, never sent.
+      if (outcome === "applied" || outcome === "rejected" || outcome === "refused") {
+        sendInputChanged(surface, outcome, detail, options.target, {
+          path: pathFromWatchRoot(unit, roots),
+          first: reason ?? DEFAULT_OUTCOME_REASONS[outcome === "refused" ? "refused" : "rejected"],
+        });
+      }
     };
 
     // The input can have become a symlink out of every root since the watch
     // was armed: it is refused unread, and the handler does not run.
-    const roots = getWatchRoots();
     if (!realpathAllowed(unit, roots)) {
-      if (mode !== "seed") emit("refused", null);
+      if (mode !== "seed") {
+        emit("refused", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.outside);
+      }
       return;
     }
 
@@ -386,7 +512,9 @@ export function watchInput(
       }
       if (disposed) return;
       if (complete === false) {
-        if (mode !== "seed") emit("rejected", null);
+        if (mode !== "seed") {
+          emit("rejected", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.incomplete);
+        }
         return;
       }
       if (Array.isArray(complete)) files = complete;
@@ -410,19 +538,26 @@ export function watchInput(
 
     let outcome: HandlerOutcome = "rejected";
     let action: string | undefined;
+    let detail: InputEventDetail | undefined;
+    let reason: string | undefined;
     try {
       const result = await handler({ path: unit, hash });
       const value = typeof result === "string" ? result : result?.outcome;
       if (value === "applied" || value === "rejected" || value === "refused") outcome = value;
-      if (typeof result === "object" && result !== null) action = result.action;
+      if (typeof result === "object" && result !== null) {
+        action = result.action;
+        detail = result.event;
+      }
     } catch {
-      // The error message can quote the input, so it is not logged.
+      // The error message can quote the input, so it is neither logged nor
+      // sent; the event carries a generic first error instead.
       outcome = "rejected";
+      reason = DEFAULT_OUTCOME_REASONS.threw;
     }
     // The handler ran, so its outcome is recorded and logged even when the
     // watch was disposed while it was awaited.
     if (outcome === "applied") lastApplied.set(unit, hash);
-    emit(outcome, hash, action);
+    emit(outcome, hash, action, detail, reason);
   }
 
   async function scan(initial: boolean): Promise<void> {

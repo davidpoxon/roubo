@@ -29,6 +29,7 @@ vi.mock("chokidar", async (importOriginal) => {
 import { watch } from "chokidar";
 import { atomicWrite } from "./state.js";
 import {
+  DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
   watchInput,
@@ -43,6 +44,9 @@ import {
   markSelfWrite,
   resetSelfWriteTokens,
 } from "./self-write-tokens.js";
+import { addClient, _resetClientsForTest } from "./sse.js";
+import type { Response } from "express";
+import type { InputChangedEvent } from "@roubo/shared";
 
 const LINE_RE =
   /^\[input-watcher\] surface=\S+ path=\S+ outcome=(applied|rejected|deduped|self-write|refused) hash8=([0-9a-f]{8}|none) durationMs=\d+$/;
@@ -494,5 +498,278 @@ describe("watchInput logging", () => {
         .slice(1)
         .map((kv) => kv.split("=")[0]),
     ).toEqual(["surface", "path", "outcome", "hash8", "durationMs"]);
+  });
+});
+
+describe("watchInput input-changed events", () => {
+  let streamed: unknown[];
+
+  function streamClient(): Response {
+    return {
+      setHeader: vi.fn(),
+      flushHeaders: vi.fn(),
+      on: vi.fn(),
+      write: vi.fn((chunk: string) => {
+        const match = /^data: (.*)\n\n$/s.exec(chunk);
+        if (match) streamed.push(JSON.parse(match[1]));
+        return true;
+      }),
+    } as unknown as Response;
+  }
+
+  function inputEvents(): InputChangedEvent[] {
+    return streamed.filter(
+      (e): e is InputChangedEvent => (e as { type?: string }).type === "input-changed",
+    );
+  }
+
+  beforeEach(() => {
+    _resetClientsForTest();
+    streamed = [];
+    addClient(streamClient());
+  });
+
+  afterEach(() => {
+    _resetClientsForTest();
+  });
+
+  it("HR-TC-040 an applied roubo.yaml under two benches sends one event with surface, outcome, projectId, benchIds and summary", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => ({
+      outcome: "applied",
+      event: { projectId: "proj", benchIds: [3, 7], summary: "Project config applied" },
+    }));
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(200);
+
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "applied",
+      projectId: "proj",
+      benchIds: [3, 7],
+      summary: "Project config applied",
+    });
+    expect(JSON.stringify(events[0])).not.toContain("name: two");
+  });
+
+  it("HR-TC-040 an invalid roubo.yaml sends one rejected event with error.path and error.first", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => ({
+      outcome: "rejected",
+      event: {
+        projectId: "proj",
+        error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+      },
+    }));
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "benches: {max: many}\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(200);
+
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "rejected",
+      projectId: "proj",
+      error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+    });
+    expect(events[0].summary).toMatch(/^Project /);
+  });
+
+  it("HR-TC-040 a deduped run and a self-write run send no event", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    expect(inputEvents()).toHaveLength(1);
+    expect(inputEvents()[0].summary).toBe("Project change applied");
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("deduped") === 1);
+    atomicWrite(file, "name: three\n");
+    await waitFor(() => outcomeCount("self-write") === 1);
+    await sleep(200);
+
+    expect(inputEvents()).toHaveLength(1);
+  });
+
+  it("sends no event for a surface outside the six known surfaces", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const w = track(
+      watchInput(file, { surface: "project", settleMs: 50 }, async () => "applied" as const),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(100);
+
+    expect(inputEvents()).toHaveLength(0);
+  });
+
+  it("HR-TC-040 a throwing handler sends a rejected event with the watch's projectId, error.path and error.first", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => {
+      throw new Error("bad yaml near SECRET-MARKER");
+    });
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "benches: [SECRET-MARKER\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(200);
+
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      type: "input-changed",
+      surface: "project-config",
+      outcome: "rejected",
+      projectId: "proj",
+      summary: "Project change rejected",
+      error: { path: "roubo.yaml", first: DEFAULT_OUTCOME_REASONS.threw },
+    });
+    expect(JSON.stringify(events[0])).not.toContain("SECRET-MARKER");
+  });
+
+  it("HR-TC-040 a symlink refused outside every root sends a refused event with the watch's pluginId, error.path and error.first", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, target: { pluginId: "linked" } },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.symlinkSync(outsideDir, path.join(plugins, "linked"));
+    await waitFor(() => outcomeCount("refused") === 1);
+    await sleep(200);
+
+    expect(handler).not.toHaveBeenCalled();
+    const events = inputEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      type: "input-changed",
+      surface: "plugin",
+      outcome: "refused",
+      pluginId: "linked",
+      summary: "Plugin change refused",
+      error: {
+        path: path.join("plugins", "linked"),
+        first: DEFAULT_OUTCOME_REASONS.outside,
+      },
+    });
+  });
+
+  it("HR-TC-040 an incomplete directory sends a rejected event with the watch's pluginId, error.path and error.first", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const settled = vi.fn(async (): Promise<boolean> => false);
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, settled, target: { pluginId: "p1" } },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(path.join(plugins, "p1"));
+    fs.writeFileSync(path.join(plugins, "p1", "partial.txt"), "x");
+    await waitFor(() => outcomeCount("rejected") >= 1);
+    await sleep(200);
+
+    expect(handler).not.toHaveBeenCalled();
+    const events = inputEvents();
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    expect(events[0]).toMatchObject({
+      outcome: "rejected",
+      pluginId: "p1",
+      error: { path: path.join("plugins", "p1"), first: DEFAULT_OUTCOME_REASONS.incomplete },
+    });
+  });
+
+  it("HR-TC-040 a handler's own ids and error win over the watch's target and the default error", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => ({
+      outcome: "rejected",
+      event: {
+        projectId: "other",
+        error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+      },
+    }));
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "benches: {max: many}\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(200);
+
+    expect(inputEvents()).toHaveLength(1);
+    expect(inputEvents()[0]).toMatchObject({
+      projectId: "other",
+      error: { path: "roubo.yaml", first: "benches.max: expected a number" },
+    });
+  });
+
+  it("HR-TC-040 a handler's rejection with no error still sends error.path and error.first", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        async () => "rejected" as const,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(200);
+
+    expect(inputEvents()).toHaveLength(1);
+    expect(inputEvents()[0]).toMatchObject({
+      projectId: "proj",
+      error: { path: "roubo.yaml", first: DEFAULT_OUTCOME_REASONS.rejected },
+    });
   });
 });
