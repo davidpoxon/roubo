@@ -889,7 +889,14 @@ describe("watchInput rescan", () => {
     const w = track(
       watchInput(
         plugins,
-        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        {
+          surface: "plugin",
+          settleMs: 50,
+          rearmPollMs: 100,
+          warmupScans: 0,
+          settled: gate,
+          rescan,
+        },
         handler,
       ),
     );
@@ -913,6 +920,72 @@ describe("watchInput rescan", () => {
     // A change to a file the rescan hashes gates the input again.
     fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
     await waitFor(() => outcomeCount("rejected") === 2);
+  });
+
+  it("HR-TC-014 sends one incomplete notice for a dropped change that a warm-up scan found incomplete", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const gate = vi.fn(async (): Promise<boolean> => false);
+    await dropNextWatchEvents();
+    // Warm-up scans run through the whole test, beside the rescan.
+    const w = track(
+      watchInput(
+        plugins,
+        {
+          surface: "plugin",
+          settleMs: 50,
+          rearmPollMs: 100,
+          warmupScans: 1_000,
+          settled: gate,
+          rescan,
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    const added = path.join(plugins, "copying");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    const gated = gate.mock.calls.length;
+    // Neither the warm-up scans nor the rescan gate the input again while its
+    // rescanned files are unchanged, and no second notice is sent.
+    await sleep(600);
+    expect(outcomeCount("rejected")).toBe(1);
+    expect(gate).toHaveBeenCalledTimes(gated);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("HR-TC-014 does not gate an unchanged input again on each warm-up pass of a rescanning watch", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const existing = path.join(plugins, "existing");
+    fs.mkdirSync(existing, { recursive: true });
+    fs.writeFileSync(path.join(existing, "roubo-plugin.yaml"), "id: existing\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const gate = vi.fn(async (): Promise<boolean> => true);
+    // Warm-up passes run through the whole test, one per 100 ms poll.
+    const w = track(
+      watchInput(
+        plugins,
+        {
+          surface: "plugin",
+          settleMs: 50,
+          rearmPollMs: 100,
+          warmupScans: 1_000,
+          settled: gate,
+          rescan,
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+    const seeded = gate.mock.calls.length;
+
+    await sleep(600);
+    expect(gate).toHaveBeenCalledTimes(seeded);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("HR-TC-013 runs another input's dropped change while one input's completeness gate is held open", async () => {

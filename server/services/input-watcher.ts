@@ -694,12 +694,13 @@ export function watchInput(
    * The pass hashes synchronously and does not wait for the runs it starts: a
    * run can sit in its completeness gate for a long time, and the next pass
    * must still hash every other input. The pending run of an input keeps
-   * later passes off it, and so does a re-arm's own rescan, which enqueues a
-   * run of every input; the pass waits only while no watcher is armed.
+   * later passes off it, and so does an arm's own scan, which enqueues a run
+   * of every input as soon as the stream is live; the pass waits until then,
+   * so it cannot run an input ahead of that scan and gate it twice.
    */
   function rescanInputs(): void {
     const opts = options.rescan;
-    if (!opts || disposed || !watcher || !watcherReady) return;
+    if (!opts || disposed || !watcher || !live) return;
     const targets = new Set(listUnits());
     for (const known of lastApplied.keys()) targets.add(known);
     const roots = getWatchRoots();
@@ -911,17 +912,27 @@ export function watchInput(
   }
 
   /**
-   * One warm-up rescan. An input with an event still settling is left to that
-   * event, so the rescan cannot run first and turn the event into a deduped
-   * line.
+   * One warm-up rescan. An input with an event still settling, or a run
+   * pending, is left to that run, so the rescan cannot run first and turn the
+   * event into a deduped line. The pass does not wait for the runs it starts,
+   * so a slow run cannot hold up the lifecycle poll that re-arms the watch.
+   *
+   * A watch with the periodic rescan warms up with a rescan pass instead. That
+   * pass hashes each input first and runs only changed content, so the
+   * completeness gate does not run for every input on each warm-up pass, and
+   * an input it finds incomplete gets its one notice and is not gated again
+   * until its rescanned files change.
    */
-  async function warmupScan(): Promise<void> {
-    const targets = new Set([...listUnits(), ...lastApplied.keys()]);
-    const runs: Promise<void>[] = [];
-    for (const unit of targets) {
-      if (!timers.has(unit)) runs.push(enqueue(unit, "warmup"));
+  function warmupScan(): void {
+    if (options.rescan) {
+      rescanInputs();
+      return;
     }
-    await Promise.all(runs);
+    const targets = new Set([...listUnits(), ...lastApplied.keys()]);
+    for (const unit of targets) {
+      if (timers.has(unit) || pendingRuns.has(unit)) continue;
+      void enqueue(unit, "warmup");
+    }
   }
 
   async function scan(initial: boolean): Promise<void> {
@@ -1058,7 +1069,7 @@ export function watchInput(
         warmupLeft = options.warmupScans ?? ARM_WARMUP_SCANS;
       } else if (watcher && live && warmupLeft > 0 && !disposed) {
         warmupLeft -= 1;
-        await warmupScan();
+        warmupScan();
       }
     } finally {
       checking = false;

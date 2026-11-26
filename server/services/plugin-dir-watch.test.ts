@@ -434,7 +434,7 @@ describe("a plugin directory added by hand", () => {
     await sleep(1_000);
     expect(applyLines("new-plugin")).toHaveLength(1);
     expect(hoisted.events).toHaveLength(1);
-  }, 20_000);
+  });
 
   it("HR-TC-014 starts a dropped integration plugin, which is never consent-gated, and names no consent step", async () => {
     await startWatch();
@@ -737,8 +737,8 @@ describe("a plugin directory changed in place", () => {
     expect(summaries()).toEqual(["Plugin my-agent updated."]);
     expect(record("my-agent")?.status).toBe("enabled");
     expect(outcomeLines("my-agent", "applied").at(-1)).toMatch(/ action=swap$/);
-    await waitFor(() => !isAlive(oldPid), 6_000);
-  }, 30_000);
+    await waitFor(() => !isAlive(oldPid));
+  });
 
   it("HR-TC-013 rejects a new manifest that names another id with the rejected-manifest copy and keeps the process", async () => {
     await startWatch();
