@@ -101,6 +101,10 @@ import {
   envFileAppliedNotice,
   envFileNotice,
   jsonParseError,
+  projectRegisteredNotice,
+  projectRemovalRefusedNotice,
+  projectRepathedNotice,
+  projectUnregisteredNotice,
   startStateDirWatch,
   stopStateDirWatch,
 } from "./state-dir-watch.js";
@@ -1433,5 +1437,24 @@ describe("state dir watch notice copy", () => {
     const quoted = jsonParseError("secret-token-value");
     expect(quoted).toMatch(/^invalid JSON/);
     expect(quoted).not.toContain("secret");
+  });
+});
+
+describe("project notices (HR-FR-014)", () => {
+  it("names a path under the home directory with ~", () => {
+    const home = os.homedir();
+    expect(projectRegisteredNotice("lantern-2", path.join(home, "Developer", "lantern-2"))).toBe(
+      "Project lantern-2 registered from ~/Developer/lantern-2.",
+    );
+    expect(projectRepathedNotice("lantern", path.join(home, "Developer", "lantern-moved"), 0)).toBe(
+      "Project lantern now at ~/Developer/lantern-moved.",
+    );
+    expect(projectRepathedNotice("lantern", "/srv/lantern", 2)).toBe(
+      "Project lantern now at /srv/lantern. 2 benches are stale.",
+    );
+    expect(projectUnregisteredNotice("lantern")).toBe("Project lantern unregistered.");
+    expect(projectRemovalRefusedNotice("lantern", [2, 3])).toBe(
+      "Project lantern not unregistered: benches 2, 3 of lantern are active. Clear them first.",
+    );
   });
 });
