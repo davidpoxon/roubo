@@ -24,6 +24,15 @@ const SETTING_NAMES: ReadonlyArray<readonly [string, (s: UserPreferences) => unk
   ["issue type cache", (s) => s.github?.issueTypesCacheTtlSeconds],
 ];
 
+/**
+ * The settings whose editor in Settings confirms its own save, so a save there
+ * leaves them out of its notice: one save shows one confirmation (#1729). The
+ * agent tools editor shows "Agent tool saved.", and the default agent tiles
+ * show "Default agent set to <name>". A hand edit of settings.json still names
+ * them.
+ */
+const SELF_CONFIRMED_IN_APP = new Set(["default agent", "agent tools"]);
+
 /** The names of the settings that differ between `before` and `after`. */
 export function changedSettingNames(before: UserPreferences, after: UserPreferences): string[] {
   return SETTING_NAMES.filter(
@@ -42,14 +51,17 @@ export function settingsAppliedNotice(names: readonly string[]): string {
 /**
  * Send the applied notice of a settings change the app made, such as a save
  * in Settings, and return whether one was sent. A save that changes no setting
- * sends none. The app's write of settings.json is a self-write, so the state
+ * sends none, and neither does one that changes only settings whose editor
+ * confirms the save itself. The app's write of settings.json is a self-write, so the state
  * dir watch sends no notice of its own for it, except the generic applied
  * notice that clears an open rejection of the file. This notice carries the
  * file as its `input`, so it clears that rejection itself, and a caller that
  * gets true dismisses the rejection in the watch so it is not cleared twice.
  */
 export function announceSettingsChange(before: UserPreferences, after: UserPreferences): boolean {
-  const names = changedSettingNames(before, after);
+  const names = changedSettingNames(before, after).filter(
+    (name) => !SELF_CONFIRMED_IN_APP.has(name),
+  );
   if (names.length === 0) return false;
   broadcastInputChanged({
     surface: "settings",

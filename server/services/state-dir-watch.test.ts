@@ -701,6 +701,50 @@ describe("state dir watch", () => {
     expect(noticeOf(hoisted.events[0])).toBe("Settings applied: default agent.");
   });
 
+  it("a hand edit of the agent tools in settings.json names them, though a save in Settings does not (#1729)", async () => {
+    const tool = {
+      id: "at-1",
+      name: "Deep work",
+      agent: "claude-code",
+      params: { mode: "plan" },
+      jig: "__none__",
+    };
+    state.noteAnnouncedSettings({ theme: "dark" });
+    vi.mocked(state.loadSettings).mockReturnValueOnce({ theme: "dark", agentTools: [tool] });
+    fs.writeFileSync(
+      path.join(dir, "settings.json"),
+      JSON.stringify({ theme: "dark", agentTools: [tool] }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "settings",
+      outcome: "applied",
+      summary: "Settings applied: agent tools.",
+    });
+  });
+
+  it("a save in Settings that sends no notice of its own still clears an open settings.json rejection (#1729)", async () => {
+    fs.writeFileSync(path.join(dir, "settings.json"), "{");
+    await waitFor(() => hoisted.events.length === 1);
+    expect(hoisted.events[0]).toMatchObject({ outcome: "rejected", input: "settings.json" });
+
+    // A save of the agent tools only: the route sends no notice and dismisses
+    // nothing, so the self-write of the save is what clears the rejection.
+    atomicWrite(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark", agentTools: [] }));
+
+    await waitFor(() => hoisted.events.length === 2);
+    expect(hoisted.events[1]).toEqual({
+      surface: "settings",
+      outcome: "applied",
+      input: "settings.json",
+      summary: "Settings applied.",
+    });
+    await sleep(400);
+    expect(hoisted.events).toHaveLength(2);
+  });
+
   it("HR-TC-023 a hand edit of settings.json that changes no setting sends no notice", async () => {
     vi.mocked(state.loadSettings).mockClear();
     fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ theme: "dark" }, null, 4));
