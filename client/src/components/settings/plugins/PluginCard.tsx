@@ -45,6 +45,9 @@ const STRINGS = {
   configLoadFallback: "Failed to load plugin configuration",
   close: "Close",
   retry: "Retry",
+  stale: "stale",
+  staleDetail:
+    "A swap of this plugin left a bench resource unbound or its new process not started. The bench resources are still running.",
 };
 
 interface Props {
@@ -146,6 +149,18 @@ export default function PluginCard({ plugin, hostApiVersion }: Props) {
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <SourceLabel source={plugin.source} pluginId={plugin.id} />
             <ProvenanceBadge provenance={provenance} />
+            {/* HR-FR-009: stale sits beside the status, not in it. */}
+            {plugin.stale && (
+              <span
+                role="note"
+                title={STRINGS.staleDetail}
+                aria-description={STRINGS.staleDetail}
+                data-testid="plugin-card-stale-marker"
+                className="inline-flex items-center px-1.5 py-0.5 rounded-chip text-11 font-medium bg-accent-muted text-accent-text"
+              >
+                {STRINGS.stale}
+              </span>
+            )}
           </div>
         </div>
         <ConnectionStatusPill status={pillStatus} rechecking={connectionQuery.isFetching} />

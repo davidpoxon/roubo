@@ -13,6 +13,7 @@ import type {
   ComponentPhase,
   MissingPluginResolution,
   MissingPluginSourceOffer,
+  PluginManifest,
   ProvisioningStep,
   ProvisioningStepStatus,
   RegisteredProject,
@@ -37,6 +38,8 @@ import type { ContainerStatusResult } from "./docker.js";
 import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
 import * as pluginManager from "./plugin-manager.js";
+import * as pluginSwapState from "./plugin-swap-state.js";
+import { validateComponentBindings } from "./component-binding-validator.js";
 import * as marketplace from "./marketplace.js";
 import { resolveBinding, isNotBound, type NotBound } from "./component-plugin-registry.js";
 import { runDescriptor, type LifecycleContext } from "./lifecycle-engine.js";
@@ -2391,6 +2394,9 @@ function clearBenchRuntimeState(
   // component log store on every plugin-backed provision, so on bench-id reuse a
   // stale compose/init/migration tail would otherwise surface for the new bench.
   componentLogStore.clearComponentLogsForBench(projectId, benchId);
+  // Drop the bench from any plugin swap's stale marks (HR-FR-009), so a bench
+  // created later with the same number does not read stale.
+  pluginSwapState.clearBenchStale(projectId, benchId);
 
   // Drop this bench's cached ProvisionDescriptors (#888, CP-TC-002). Now
   // that provisionComponent trusts the descriptor cache on start rather than
@@ -2643,6 +2649,164 @@ export async function handleComponentPluginBudgetExhausted(pluginId: string): Pr
   // handles the pre-restart hook captured so a later manual restart's recovery
   // does not spuriously re-provision them.
   pendingComponentRecovery.delete(pluginId);
+}
+
+/** Each live bench with the names of its components bound to `pluginId`. */
+function benchesBoundTo(pluginId: string): { bench: Bench; names: string[] }[] {
+  const bound: { bench: Bench; names: string[] }[] = [];
+  for (const bench of benches.values()) {
+    const config = configOfBench(bench);
+    if (!config) continue;
+    const names = Object.entries(config.components)
+      .filter(([, componentConfig]) => componentConfig.plugin?.id === pluginId)
+      .map(([name]) => name);
+    if (names.length > 0) bound.push({ bench, names });
+  }
+  return bound;
+}
+
+/**
+ * The components that benches bind to `pluginId` whose config `next` no longer
+ * accepts, each named as `component '<name>' of bench <id>` (HR-FR-009).
+ * Registered with plugin-manager as `findBindingsBrokenBySwap`: a swap that
+ * would break one of them is refused before the old process is stopped.
+ */
+export function findBindingsBrokenBySwap(pluginId: string, next: PluginManifest): string[] {
+  const broken: string[] = [];
+  for (const { bench, names } of benchesBoundTo(pluginId)) {
+    const config = configOfBench(bench);
+    if (!config) continue;
+    for (const name of names) {
+      const errors = validateComponentBindings(
+        { components: { [name]: config.components[name] } },
+        [next],
+      );
+      if (errors.length > 0) {
+        broken.push(`component '${name}' of bench ${bench.id} in project '${bench.projectId}'`);
+      }
+    }
+  }
+  return broken;
+}
+
+/**
+ * The ledger rows of `pluginId` that belong to `bench`, whose components
+ * `names` bind to the plugin: the rows of the bench's ledger entry, keyed on
+ * (pluginId, projectId, benchId), whose handle names the bench or one of those
+ * components: the compose project `roubo-<projectId>-bench-<N>`, or a process
+ * id the engine gave one of `names`, `<pluginId>:<N>:<component>` and its
+ * phase ids.
+ */
+function ledgerRowsOfBench(
+  pluginId: string,
+  bench: Bench,
+  names: string[],
+): { processIds: string[]; composeProjects: string[] } {
+  const entry = ledger.getEntry(pluginId, bench.projectId, bench.id);
+  if (!entry) return { processIds: [], composeProjects: [] };
+  const composeProject = dockerService.getComposeProjectName(bench.projectId, bench.id);
+  const bases = names.map((name) => `${pluginId}:${bench.id}:${name}`);
+  return {
+    processIds: entry.processIds.filter((id) =>
+      bases.some((base) => id === base || id.startsWith(`${base}:`)),
+    ),
+    composeProjects: entry.composeProjects.filter((name) => name === composeProject),
+  };
+}
+
+/**
+ * Whether the ledger process id `processId` of `bench` names a handle that runs
+ * for as long as its component does, so a swap can check that it is still up.
+ * The `:setup` and `:migration` phase ids stay in the ledger until the
+ * component stops, but their processes exit once the phase is done, and a
+ * one-shot component's process exits once it has completed. Neither is a
+ * handle the swap re-binds, so neither is checked for liveness.
+ */
+function isLongRunningHandle(
+  pluginId: string,
+  bench: Bench,
+  names: string[],
+  processId: string,
+): boolean {
+  for (const name of names) {
+    const base = `${pluginId}:${bench.id}:${name}`;
+    if (processId === `${base}:setup` || processId === `${base}:migration`) return false;
+    if (processId === base && bench.components[name]?.status === "completed") return false;
+  }
+  return true;
+}
+
+/**
+ * Each live bench, by project and number, that holds a resource of `pluginId`
+ * in the ownership ledger (HR-FR-009). Registered with plugin-manager as
+ * `findBenchesUsingPlugin`: a swap whose new process does not start marks these
+ * benches stale. It counts only the benches that bind the plugin in their
+ * config, and only the ledger rows whose handles the engine gave them.
+ */
+export function findBenchesUsingPlugin(pluginId: string): pluginSwapState.SwapBenchRef[] {
+  const using: pluginSwapState.SwapBenchRef[] = [];
+  for (const { bench, names } of benchesBoundTo(pluginId)) {
+    const rows = ledgerRowsOfBench(pluginId, bench, names);
+    if (rows.processIds.length > 0 || rows.composeProjects.length > 0) {
+      using.push({ projectId: bench.projectId, benchId: bench.id });
+    }
+  }
+  return using;
+}
+
+/**
+ * Re-binds a swapped component plugin's bench resources to its new process
+ * (HR-FR-009). Registered with plugin-manager as `onComponentPluginSwapped` and
+ * fired once the new process has started. It stops nothing and leaves the
+ * ledger as it is: the Docker daemon owns the containers and the server owns
+ * the host processes, so each ledger row is re-bound by its deterministic
+ * handle, compose projects by name and host processes by process-manager id.
+ *
+ * It drops the plugin's cached descriptors, then, for each live bench bound to
+ * the plugin that holds ledger rows of it, checks each of its rows (matched to
+ * the bench by project and number, see ledgerRowsOfBench; a setup or migration
+ * phase id and a completed one-shot are not checked, see isLongRunningHandle)
+ * and runs a
+ * `translate` round trip on the new connection for each bound component, which
+ * caches the new process's descriptors. A bench with a resource that is no
+ * longer up, or a component the new process does not translate, is marked
+ * stale with the plugin; its resources are left running.
+ */
+export async function handleComponentPluginSwapped(pluginId: string): Promise<void> {
+  const bound = benchesBoundTo(pluginId);
+  for (const { bench, names } of bound) {
+    for (const name of names) {
+      componentDescriptors.delete(descriptorKindKey(bench.projectId, bench.id, name));
+    }
+  }
+
+  const stale: pluginSwapState.SwapBenchRef[] = [];
+  for (const { bench, names } of bound) {
+    const rows = ledgerRowsOfBench(pluginId, bench, names);
+    if (rows.processIds.length === 0 && rows.composeProjects.length === 0) continue;
+    let rebound = true;
+    for (const processId of rows.processIds) {
+      if (!isLongRunningHandle(pluginId, bench, names, processId)) continue;
+      if (!processManager.getProcessStatus(processId).alive) rebound = false;
+    }
+    for (const composeProject of rows.composeProjects) {
+      if (!(await dockerService.isComposeProjectRunning(composeProject))) rebound = false;
+    }
+    for (const name of names) {
+      const descriptor = await getOrResolveDescriptor(bench.projectId, bench.id, name);
+      if (!descriptor) rebound = false;
+    }
+    if (!rebound) stale.push({ projectId: bench.projectId, benchId: bench.id });
+  }
+
+  if (stale.length > 0) {
+    const named = stale.map((b) => `bench ${b.benchId} of '${b.projectId}'`).join(", ");
+    console.warn(
+      `[bench-manager] plugin swap: '${pluginId}' did not re-bind ${named}; ` +
+        `marked stale, resources left running`,
+    );
+    pluginSwapState.markPluginStale(pluginId, stale);
+  }
 }
 
 /**
@@ -3419,7 +3583,25 @@ async function launchComponent(
     throw new BenchError(`Invalid component name '${componentName}'`, "INVALID_COMPONENT");
   }
 
+  await waitForPluginSwap(projectId, benchId, componentName);
   await provisionComponent(projectId, benchId, componentName);
+}
+
+/**
+ * Waits while the plugin a component binds to is in a swap gap (HR-FR-009),
+ * so a start or stop that lands between the old process and the new one is
+ * queued behind the swap rather than failed as "not running". Returns at once
+ * when no swap runs or the component binds to no plugin.
+ */
+async function waitForPluginSwap(
+  projectId: string,
+  benchId: number,
+  componentName: string,
+): Promise<void> {
+  const components = configOfBench(getBench(projectId, benchId))?.components;
+  if (!components || !Object.prototype.hasOwnProperty.call(components, componentName)) return;
+  const pluginId = components[componentName].plugin?.id;
+  if (pluginId) await pluginSwapState.waitForSwapGap(pluginId);
 }
 
 /**
@@ -3517,6 +3699,7 @@ export async function stopComponent(
   componentStatus.status = "stopping";
   sseService.broadcastComponentStatusChange(projectId, benchId, componentName, "stopping");
 
+  await waitForPluginSwap(projectId, benchId, componentName);
   const binding = resolveBenchBinding(projectId, benchId, componentName);
 
   // Imperative (escape-hatch) plugins own their processes/containers, so teardown
@@ -3784,6 +3967,10 @@ export async function stopAllComponents(projectId: string, benchId: number): Pro
   // keeps no stale ownership rows (CP-TC-033 S008-O03, CP-TC-056 S002). Mirrors
   // teardown's clearLedgerForBench.
   clearLedgerForBench(projectId, benchId);
+  // No resource of the bench is left for a swap to have unbound (HR-FR-009):
+  // a stop, a restart and 'Restart with new config' all pass here, and the
+  // next start provisions through the plugin's current process.
+  pluginSwapState.clearBenchStale(projectId, benchId);
 }
 
 function updateBenchStatus(bench: Bench) {

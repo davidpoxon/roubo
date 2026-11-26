@@ -66,6 +66,7 @@ vi.mock("../services/plugin-installer.js", async () => {
 
 import router from "./plugins.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { PluginInUseError } from "../services/plugin-in-use.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import * as integrationOverrides from "../services/integration-overrides.js";
 import * as integrationTest from "../services/integration-test.js";
@@ -231,10 +232,37 @@ describe("DELETE /:id", () => {
     vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
   });
 
-  it("calls pluginManager.uninstall and returns 204", async () => {
+  it("calls pluginManager.uninstall and returns 200", async () => {
     const res = await request(app).delete("/github-com");
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: "github-com", removed: true });
     expect(pluginManager.uninstall).toHaveBeenCalledWith("github-com");
+  });
+
+  it("HR-TC-017 returns 409 with code plugin-in-use and the bench ids while a bench uses the plugin", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(new PluginInUseError("github-com", [2]));
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "Plugin github-com is in use by bench 2",
+      code: "plugin-in-use",
+      benchIds: [2],
+      notice: "Plugin github-com not removed. Bench 2 uses it. Clear that bench first.",
+    });
+  });
+
+  it("HR-TC-017 names each bench in the 409 body and notice when several benches use the plugin", async () => {
+    vi.mocked(pluginManager.uninstall).mockRejectedValue(
+      new PluginInUseError("github-com", [2, 5]),
+    );
+    const res = await request(app).delete("/github-com");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "Plugin github-com is in use by benches 2 and 5",
+      code: "plugin-in-use",
+      benchIds: [2, 5],
+      notice: "Plugin github-com not removed. Benches 2 and 5 use it. Clear those benches first.",
+    });
   });
 
   it("returns 400 when id is not kebab-case", async () => {
@@ -541,6 +569,23 @@ describe("POST /install/:token/confirm", () => {
     const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("unknown-token");
+  });
+
+  it("maps an update refused while a bench uses the plugin to 409 plugin-swap-refused, and records no consent", async () => {
+    vi.mocked(pluginInstaller.commit).mockRejectedValue(
+      new pluginInstaller.InstallError(
+        "plugin-swap-refused",
+        'Plugin "database" was not updated: its kind changed from component to agent. Stop bench 2, then update again.',
+      ),
+    );
+    const res = await request(app).post("/install/11111111-1111-1111-1111-111111111111/confirm");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error:
+        'Plugin "database" was not updated: its kind changed from component to agent. Stop bench 2, then update again.',
+      code: "plugin-swap-refused",
+    });
+    expect(vi.mocked(pluginConsentState.upsertConsent)).not.toHaveBeenCalled();
   });
 });
 

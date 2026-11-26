@@ -18,6 +18,7 @@ import {
 } from "@roubo/shared";
 import { runCommand } from "./exec.js";
 import * as pluginManager from "./plugin-manager.js";
+import { pluginUpdateRefusedMessage } from "./plugin-in-use.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
@@ -1200,7 +1201,9 @@ async function restoreUpdateBackup(backupDir: string, target: string): Promise<v
  * active-integration guard (`uninstallForUpdate`), swaps the staged copy into
  * place, and registers it. Any failure after the backup restores the previous
  * plugin so the consumer keeps a working install. The id was pinned to the
- * installed plugin at preview time, so `manifest.id === replaceId`.
+ * installed plugin at preview time, so `manifest.id === replaceId`. While a
+ * bench uses the plugin, an update that would break one of its bindings is
+ * refused first, with code `plugin-swap-refused`, and nothing changes.
  */
 async function commitUpdate(
   stagingToken: string,
@@ -1215,6 +1218,19 @@ async function commitUpdate(
     throw new InstallError(
       "update-target-missing",
       `No installed plugin with id "${replaceId}" to update`,
+    );
+  }
+
+  // The update stops the old process as a swap does, so it takes the swap's
+  // refusals while a bench uses the plugin (HR-FR-009). Refuse before the
+  // backup, so a refused update changes nothing.
+  const refusal = pluginManager.updateRefusal(replaceId, entry.manifest);
+  if (refusal) {
+    await rmStaging(entry.stagingDir);
+    staged.delete(stagingToken);
+    throw new InstallError(
+      "plugin-swap-refused",
+      pluginUpdateRefusedMessage(replaceId, refusal.detail, refusal.benchIds),
     );
   }
 

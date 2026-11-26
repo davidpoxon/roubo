@@ -158,7 +158,9 @@ export default function BenchCard({
                 <div
                   className={`flex items-center gap-2 ${isSpecbench ? "shrink-0" : "ml-auto min-w-0"}`}
                 >
-                  {bench.stale === true && <StaleBenchMarker />}
+                  {bench.stale === true && (
+                    <StaleBenchMarker fromSwap={bench.staleFromSwap === true} />
+                  )}
                   <StatusIndicator
                     tone={statusTone}
                     label={bench.status}

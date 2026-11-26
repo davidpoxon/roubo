@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { gzipSync } from "node:zlib";
@@ -18,6 +18,7 @@ vi.mock("./plugin-manager.js", () => ({
   registerInstalled: vi.fn(),
   uninstall: vi.fn(),
   uninstallForUpdate: vi.fn(),
+  updateRefusal: vi.fn(() => null),
 }));
 
 vi.mock("undici", () => ({
@@ -101,6 +102,8 @@ beforeEach(async () => {
   vi.mocked(pluginManager.uninstall).mockResolvedValue(undefined);
   vi.mocked(pluginManager.uninstallForUpdate).mockReset();
   vi.mocked(pluginManager.uninstallForUpdate).mockResolvedValue(undefined);
+  vi.mocked(pluginManager.updateRefusal).mockReset();
+  vi.mocked(pluginManager.updateRefusal).mockReturnValue(null);
 });
 
 afterEach(async () => {
@@ -718,6 +721,43 @@ describe("previewUpdateFromGitUrl (#688)", () => {
     // The staged copy is now at the target (its manifest replaced the OLD copy).
     expect((await stat(path.join(target, "roubo-plugin.yaml"))).isFile()).toBe(true);
     // No backup or staging directory is left behind on success.
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("refuses an update that would break a bench's binding before it touches the installed copy (HR-FR-009)", async () => {
+    const target = path.join(pluginsRoot, "echo");
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(target, "OLD"), "old", "utf8");
+
+    fakeClone(ECHO_MANIFEST);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "echo", source: "user" }),
+    ]);
+    const preview = await pluginInstaller.previewUpdateFromGitUrl(
+      "https://github.com/example/echo.git",
+      "echo",
+    );
+    vi.mocked(pluginManager.updateRefusal).mockReturnValue({
+      reason: "imperative",
+      detail: "an imperative component plugin owns its resources in its process",
+      benchIds: [2, 5],
+    });
+
+    await expect(pluginInstaller.commit(preview.stagingToken)).rejects.toMatchObject({
+      code: "plugin-swap-refused",
+      message:
+        'Plugin "echo" was not updated: an imperative component plugin owns its resources in its process. Stop benches 2 and 5, then update again.',
+    });
+
+    // The refusal is checked against the staged manifest, and nothing stops or
+    // moves: the old process keeps running and the installed copy stays put.
+    expect(pluginManager.updateRefusal).toHaveBeenCalledWith(
+      "echo",
+      expect.objectContaining({ id: "echo" }),
+    );
+    expect(pluginManager.uninstallForUpdate).not.toHaveBeenCalled();
+    expect(pluginManager.registerInstalled).not.toHaveBeenCalled();
+    expect(await readFile(path.join(target, "OLD"), "utf8")).toBe("old");
     expect(await listStaging()).toEqual([]);
   });
 

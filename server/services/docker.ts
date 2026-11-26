@@ -312,6 +312,23 @@ export async function getContainerId(projectName: string, service: string): Prom
   }
 }
 
+/**
+ * Whether the compose project `projectName` has a running container. A plugin
+ * swap re-binds a compose project by this name (HR-FR-009): the daemon, not the
+ * plugin process, owns the containers, so a project that is still up after the
+ * swap is the same one. False when the daemon cannot be reached.
+ */
+export async function isComposeProjectRunning(projectName: string): Promise<boolean> {
+  try {
+    const containers = await docker.listContainers({ all: true });
+    return containers.some(
+      (c) => c.Labels?.["com.docker.compose.project"] === projectName && c.State === "running",
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function getComposeProjectName(projectId: string, benchNumber: number): string {
   return `roubo-${projectId}-bench-${benchNumber}`;
 }

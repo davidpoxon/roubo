@@ -10,6 +10,7 @@ import { IntegrationConfigSchema, declaredCategories, isFullyAcknowledged } from
 import { z } from "zod";
 import { getConsent, upsertConsent } from "../services/plugin-consent-state.js";
 import * as pluginManager from "../services/plugin-manager.js";
+import { PluginInUseError } from "../services/plugin-in-use.js";
 import * as pluginInstaller from "../services/plugin-installer.js";
 import {
   IntegrationOverrideError,
@@ -47,6 +48,7 @@ function installErrorStatus(code: InstallErrorCode): number {
     case "incompatible-host":
       return 400;
     case "duplicate-id":
+    case "plugin-swap-refused":
       return 409;
     case "unknown-token":
     case "update-target-missing":
@@ -242,8 +244,19 @@ router.delete("/:id", async (req, res) => {
   }
   try {
     await pluginManager.uninstall(id);
-    res.status(204).end();
+    res.status(200).json({ id, removed: true });
   } catch (err) {
+    // HR-FR-010: a bench still uses the plugin. `error` and `notice` name the
+    // plugin by id and each bench; `benchIds` lets the client point at them.
+    if (err instanceof PluginInUseError) {
+      res.status(409).json({
+        error: err.message,
+        code: err.code,
+        benchIds: err.benchIds,
+        notice: err.notice,
+      });
+      return;
+    }
     res.status(409).json({ error: (err as Error).message });
   }
 });
