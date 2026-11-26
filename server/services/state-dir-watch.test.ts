@@ -54,8 +54,17 @@ vi.mock("./plugin-manager.js", () => ({
   startAfterConsent: vi.fn(() => Promise.resolve(true)),
   reloadEnableState: vi.fn(() => Promise.resolve({ disabled: [], enabled: [] })),
 }));
+const NO_PROJECTS_EDIT = vi.hoisted(() => ({
+  outcome: "applied" as const,
+  registered: [] as { projectId: string; repoPath: string }[],
+  repathed: [] as { projectId: string; repoPath: string; staleBenchIds: number[] }[],
+  unregistered: [] as string[],
+  refused: [] as { projectId: string; benchIds: number[] }[],
+  settingsChanged: [] as string[],
+}));
+
 vi.mock("./project-registry.js", () => ({
-  applyProjectsFileEdit: vi.fn(() => []),
+  applyProjectsFileEdit: vi.fn(() => Promise.resolve({ ...NO_PROJECTS_EDIT })),
 }));
 vi.mock("./credential-store.js", () => ({
   set: vi.fn(() => Promise.resolve()),
@@ -92,6 +101,10 @@ import {
   envFileAppliedNotice,
   envFileNotice,
   jsonParseError,
+  projectRegisteredNotice,
+  projectRemovalRefusedNotice,
+  projectRepathedNotice,
+  projectUnregisteredNotice,
   startStateDirWatch,
   stopStateDirWatch,
 } from "./state-dir-watch.js";
@@ -912,7 +925,10 @@ describe("state dir watch", () => {
   });
 
   it("applies the project settings that a projects.json edit changes", async () => {
-    vi.mocked(projectRegistry.applyProjectsFileEdit).mockReturnValueOnce(["lantern"]);
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      settingsChanged: ["lantern"],
+    });
     fs.writeFileSync(
       path.join(dir, "projects.json"),
       JSON.stringify({ projects: [{ id: "lantern", repoPath: "/r", settings: {} }] }),
@@ -928,6 +944,131 @@ describe("state dir watch", () => {
       input: "projects.json",
       summary: "Project settings applied: lantern.",
     });
+  });
+
+  it("HR-TC-026 sends 'registered from' for a project added to projects.json by hand", async () => {
+    const repoPath = path.join(os.homedir(), "Developer", "lantern-2");
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      registered: [{ projectId: "lantern-2", repoPath }],
+    });
+    fs.writeFileSync(
+      path.join(dir, "projects.json"),
+      JSON.stringify({ projects: [{ id: "lantern-2", repoPath }] }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toEqual({
+      surface: "project-config",
+      outcome: "applied",
+      projectId: "lantern-2",
+      input: "projects.json",
+      summary: "Project lantern-2 registered from ~/Developer/lantern-2.",
+    });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Project lantern-2 registered from ~/Developer/lantern-2.",
+    );
+  });
+
+  it("HR-TC-032 sends 'now at' for a project whose path projects.json changes", async () => {
+    const repoPath = path.join(os.homedir(), "Developer", "lantern-moved");
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      repathed: [{ projectId: "lantern", repoPath, staleBenchIds: [] }],
+    });
+    fs.writeFileSync(
+      path.join(dir, "projects.json"),
+      JSON.stringify({ projects: [{ id: "lantern", repoPath }] }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      surface: "project-config",
+      outcome: "applied",
+      projectId: "lantern",
+      summary: "Project lantern now at ~/Developer/lantern-moved.",
+    });
+  });
+
+  it("names the benches a re-path left stale", async () => {
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      repathed: [{ projectId: "lantern", repoPath: "/srv/lantern", staleBenchIds: [2, 3] }],
+    });
+    fs.writeFileSync(
+      path.join(dir, "projects.json"),
+      JSON.stringify({ projects: [{ id: "lantern", repoPath: "/srv/lantern" }] }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      outcome: "applied",
+      projectId: "lantern",
+      benchIds: [2, 3],
+      summary: "Project lantern now at /srv/lantern. 2 benches are stale.",
+    });
+  });
+
+  it("HR-TC-033 sends 'unregistered' for a project removed from projects.json by hand", async () => {
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      unregistered: ["lantern"],
+    });
+    fs.writeFileSync(path.join(dir, "projects.json"), JSON.stringify({ projects: [] }));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      outcome: "applied",
+      projectId: "lantern",
+      summary: "Project lantern unregistered.",
+    });
+  });
+
+  it("refuses the removal of a project with active benches and names them", async () => {
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      ...NO_PROJECTS_EDIT,
+      refused: [{ projectId: "lantern", benchIds: [2] }],
+    });
+    fs.writeFileSync(path.join(dir, "projects.json"), JSON.stringify({ projects: [] }));
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      outcome: "refused",
+      projectId: "lantern",
+      summary: "Project lantern not unregistered: bench 2 of lantern is active. Clear it first.",
+      error: { path: "projects.json", first: "bench 2 of lantern is active" },
+    });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Project lantern not unregistered: bench 2 of lantern is active. Clear it first.",
+    );
+  });
+
+  it("rejects a projects.json with an invalid entry whole and names it", async () => {
+    vi.mocked(projectRegistry.applyProjectsFileEdit).mockResolvedValueOnce({
+      outcome: "rejected",
+      first: "project lantern-2 has no repoPath",
+    });
+    fs.writeFileSync(
+      path.join(dir, "projects.json"),
+      JSON.stringify({ projects: [{ id: "lantern-2" }] }),
+    );
+
+    await waitFor(() => hoisted.events.length === 1);
+
+    expect(hoisted.events[0]).toMatchObject({
+      outcome: "rejected",
+      summary:
+        "Project state not applied. projects.json: project lantern-2 has no repoPath. No project was changed.",
+      error: { path: "projects.json", first: "project lantern-2 has no repoPath" },
+    });
+    expect(noticeOf(hoisted.events[0])).toBe(
+      "Project state not applied. projects.json: project lantern-2 has no repoPath. No project was changed.",
+    );
   });
 
   it("copies a GitHub token put in auth.json into the github-com credential slot and leaves the file", async () => {
@@ -1296,5 +1437,24 @@ describe("state dir watch notice copy", () => {
     const quoted = jsonParseError("secret-token-value");
     expect(quoted).toMatch(/^invalid JSON/);
     expect(quoted).not.toContain("secret");
+  });
+});
+
+describe("project notices (HR-FR-014)", () => {
+  it("names a path under the home directory with ~", () => {
+    const home = os.homedir();
+    expect(projectRegisteredNotice("lantern-2", path.join(home, "Developer", "lantern-2"))).toBe(
+      "Project lantern-2 registered from ~/Developer/lantern-2.",
+    );
+    expect(projectRepathedNotice("lantern", path.join(home, "Developer", "lantern-moved"), 0)).toBe(
+      "Project lantern now at ~/Developer/lantern-moved.",
+    );
+    expect(projectRepathedNotice("lantern", "/srv/lantern", 2)).toBe(
+      "Project lantern now at /srv/lantern. 2 benches are stale.",
+    );
+    expect(projectUnregisteredNotice("lantern")).toBe("Project lantern unregistered.");
+    expect(projectRemovalRefusedNotice("lantern", [2, 3])).toBe(
+      "Project lantern not unregistered: benches 2, 3 of lantern are active. Clear them first.",
+    );
   });
 });

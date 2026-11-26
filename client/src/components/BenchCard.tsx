@@ -159,7 +159,10 @@ export default function BenchCard({
                   className={`flex items-center gap-2 ${isSpecbench ? "shrink-0" : "ml-auto min-w-0"}`}
                 >
                   {bench.stale === true && (
-                    <StaleBenchMarker fromSwap={bench.staleFromSwap === true} />
+                    <StaleBenchMarker
+                      fromSwap={bench.staleFromSwap === true}
+                      fromRepath={bench.staleFromRepath === true}
+                    />
                   )}
                   <StatusIndicator
                     tone={statusTone}
@@ -260,7 +263,8 @@ export default function BenchCard({
               </div>
             )}
 
-            {bench.stale === true && !bench.error && (
+            {/* A restart keeps the workspace, so it cannot undo a re-path (HR-FR-014). */}
+            {bench.stale === true && bench.staleFromRepath !== true && !bench.error && (
               <div onClick={(e) => e.stopPropagation()} className="mt-2 shrink-0">
                 <TooltipTrigger delay={500}>
                   <Button

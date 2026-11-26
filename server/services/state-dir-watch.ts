@@ -9,7 +9,14 @@
  * the edit out of what the app records as known, and the watch still runs its
  * handler for the edit.
  *
- * - projects.json: the settings of each registered project.
+ * - projects.json: the set of registered projects and the settings of each
+ *   (HR-FR-014). A record added registers its project and arms its watches, a
+ *   record whose path changed re-paths its project and moves its watches, and
+ *   a record removed unregisters its project and disposes its watches. A file
+ *   with an invalid entry (no repoPath, a duplicate id, a port conflict) is
+ *   rejected whole, and the registry keeps what it has. Removing a project
+ *   with active benches is refused with a notice that names them, and the file
+ *   is written back with it.
  * - state.json: the hand-editable fields of each bench that is not live. An
  *   edit of a live bench is refused with a notice that names it, and the bench
  *   keeps what it has. A refused edit, an edit of a field that is not
@@ -53,6 +60,7 @@
  * a fix of it.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   PluginConsentStateSchema,
@@ -284,6 +292,59 @@ export function enableStateNotice(reload: pluginManager.EnableStateReload): stri
   return lines.length === 0 ? "Plugin state applied." : lines.join(" ");
 }
 
+/**
+ * `p` with the home directory written as `~`, as a notice names a project
+ * path: "~/Developer/lantern".
+ */
+export function displayProjectPath(p: string): string {
+  const home = os.homedir();
+  if (p === home) return "~";
+  return p.startsWith(home + path.sep) ? `~${p.slice(home.length)}` : p;
+}
+
+/** "Project lantern-2 registered from ~/Developer/lantern-2." */
+export function projectRegisteredNotice(projectId: string, repoPath: string): string {
+  return `Project ${projectId} registered from ${displayProjectPath(repoPath)}.`;
+}
+
+/** "Project lantern now at ~/Developer/lantern-moved." and the benches it left stale. */
+export function projectRepathedNotice(
+  projectId: string,
+  repoPath: string,
+  staleCount: number,
+): string {
+  const base = `Project ${projectId} now at ${displayProjectPath(repoPath)}.`;
+  if (staleCount === 0) return base;
+  const benches = staleCount === 1 ? "bench is" : "benches are";
+  return `${base} ${staleCount} ${benches} stale.`;
+}
+
+/** "Project lantern unregistered." */
+export function projectUnregisteredNotice(projectId: string): string {
+  return `Project ${projectId} unregistered.`;
+}
+
+/** "benches 2, 3 of lantern are active", the clause of a refused removal. */
+export function projectRemovalRefusedClause(
+  projectId: string,
+  benchIds: readonly number[],
+): string {
+  const one = benchIds.length === 1;
+  return `${one ? "bench" : "benches"} ${benchIds.join(", ")} of ${projectId} ${one ? "is" : "are"} active`;
+}
+
+/** "Project lantern not unregistered: bench 2 of lantern is active. Clear it first." */
+export function projectRemovalRefusedNotice(
+  projectId: string,
+  benchIds: readonly number[],
+): string {
+  const one = benchIds.length === 1;
+  return (
+    `Project ${projectId} not unregistered: ${projectRemovalRefusedClause(projectId, benchIds)}. ` +
+    `Clear ${one ? "it" : "them"} first.`
+  );
+}
+
 /** The single target of a list, for the event's target id. */
 function only<T>(items: readonly T[]): T | undefined {
   return items.length === 1 ? items[0] : undefined;
@@ -315,15 +376,57 @@ async function handleProjects(absPath: string): Promise<HandlerResult> {
   if (!Array.isArray(entries) || !entries.every(isProjectRecord)) {
     return rejected("projects.json", "Project state", "projects must be a list of project records");
   }
-  const changed = projectRegistry.applyProjectsFileEdit(read.value as unknown as PersistedProjects);
-  const projectId = only(changed);
-  return applied({
-    ...(projectId === undefined ? {} : { projectId }),
-    summary:
-      changed.length === 0
-        ? "Project state applied."
-        : `Project settings applied: ${changed.join(", ")}.`,
-  });
+  const edit = await projectRegistry.applyProjectsFileEdit(
+    read.value as unknown as PersistedProjects,
+  );
+  if (edit.outcome === "rejected") {
+    return rejected("projects.json", "Project state", edit.first, "No project was changed.");
+  }
+  // One sentence for each project the edit touched: registered, moved,
+  // unregistered, refused, then the settings it changed.
+  const sentences = [
+    ...edit.registered.map((p) => projectRegisteredNotice(p.projectId, p.repoPath)),
+    ...edit.repathed.map((p) =>
+      projectRepathedNotice(p.projectId, p.repoPath, p.staleBenchIds.length),
+    ),
+    ...edit.unregistered.map((id) => projectUnregisteredNotice(id)),
+    ...edit.refused.map((r) => projectRemovalRefusedNotice(r.projectId, r.benchIds)),
+    ...(edit.settingsChanged.length === 0
+      ? []
+      : [`Project settings applied: ${edit.settingsChanged.join(", ")}.`]),
+  ];
+  const touched = [
+    ...new Set([
+      ...edit.registered.map((p) => p.projectId),
+      ...edit.repathed.map((p) => p.projectId),
+      ...edit.unregistered,
+      ...edit.refused.map((r) => r.projectId),
+      ...edit.settingsChanged,
+    ]),
+  ];
+  const projectId = only(touched);
+  const target = projectId === undefined ? {} : { projectId };
+  const repathedOnly = only(edit.repathed);
+  const benchIds =
+    repathedOnly !== undefined && projectId !== undefined && repathedOnly.staleBenchIds.length > 0
+      ? { benchIds: repathedOnly.staleBenchIds }
+      : {};
+  const summary = sentences.length === 0 ? "Project state applied." : sentences.join(" ");
+  const firstRefused = edit.refused[0];
+  if (firstRefused !== undefined) {
+    return {
+      outcome: "refused",
+      event: {
+        ...target,
+        summary,
+        error: {
+          path: "projects.json",
+          first: projectRemovalRefusedClause(firstRefused.projectId, firstRefused.benchIds),
+        },
+      },
+    };
+  }
+  return applied({ ...target, ...benchIds, summary });
 }
 
 async function handleBenchState(absPath: string): Promise<HandlerResult> {

@@ -68,6 +68,7 @@ vi.mock("./services/terminal.js", () => ({
 vi.mock("./services/jig-manager.js", () => ({
   startAppJigsWatcher: vi.fn(),
   startWatchers: vi.fn(),
+  watchProjectJigs: vi.fn(() => () => undefined),
   stopAllWatchers: vi.fn(),
   listGlobalJigs: vi.fn(() => []),
 }));
@@ -316,6 +317,7 @@ describe("startServer", { concurrent: false }, () => {
       vi.doMock("./services/jig-manager.js", () => ({
         startAppJigsWatcher: vi.fn(),
         startWatchers: vi.fn(),
+        watchProjectJigs: vi.fn(() => () => undefined),
         stopAllWatchers: vi.fn(),
         listGlobalJigs: vi.fn(() => []),
       }));

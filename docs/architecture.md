@@ -40,6 +40,8 @@ Roubo keeps all of its state under `~/.roubo/`:
 
 `projects.json` and `state.json` are plain JSON. If you need to inspect or surgically edit the system state, that's where to look. The directory layout is stable.
 
+A project added to, moved in or removed from `projects.json` by hand while Roubo runs takes effect with no relaunch: the project is registered, re-pathed or unregistered, and its `roubo.yaml` and jig watches follow it. A re-path marks the project's benches stale, since each was set up from the old path, and a project with active benches is not removed.
+
 A terminal session file outlives the server. After a restart the session comes back as ended, with its scrollback, and keeps the record of how an agent session ended (a launch failure, or an unexpected exit) so a tab opened later still says why.
 
 ## Project registration

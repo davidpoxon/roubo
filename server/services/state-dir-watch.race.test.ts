@@ -90,7 +90,18 @@ vi.mock("./plugin-manager.js", async () => {
     }),
   };
 });
-vi.mock("./project-registry.js", () => ({ applyProjectsFileEdit: vi.fn(() => []) }));
+vi.mock("./project-registry.js", () => ({
+  applyProjectsFileEdit: vi.fn(() =>
+    Promise.resolve({
+      outcome: "applied",
+      registered: [],
+      repathed: [],
+      unregistered: [],
+      refused: [],
+      settingsChanged: [],
+    }),
+  ),
+}));
 vi.mock("./credential-store.js", () => ({ set: vi.fn(() => Promise.resolve()) }));
 
 let home: string;

@@ -64,6 +64,24 @@ export function changedInputOf(event: InputChangedEvent): ChangedInput | undefin
   }
 }
 
+/**
+ * The views that read the set of registered projects or a project's path
+ * (HR-FR-014): the project list and the settings screens, the bench views,
+ * the cut list, and each project's roubo.yaml, integration, settings and jig
+ * list, which a re-path reads from the new path. A change of the project set,
+ * from a projects.json hand edit or from the app's own register and
+ * unregister, refreshes them all.
+ */
+export const PROJECT_SET_QUERY_KEYS: readonly QueryKey[] = [
+  ["projects"],
+  ["benches"],
+  ["issues"],
+  ["project-settings"],
+  ["project-integration"],
+  ["raw-config"],
+  ["jigs"],
+];
+
 /** The plugin whose credential slot a token put in auth.json goes into. */
 const GITHUB_PLUGIN_ID = "github-com";
 
@@ -93,7 +111,7 @@ export const INPUT_QUERY_KEYS: Record<ChangedInput, (event: InputChangedEvent) =
   // state decide whether one is available, so each of those inputs refreshes it.
   plugin: () => [["plugins"], ["agent-plugins"], ["project-integration"], ["benches"]],
   settings: () => [["settings"]],
-  projects: () => [["projects"], ["benches"], ["issues"]],
+  projects: () => [...PROJECT_SET_QUERY_KEYS],
   // A bench's detail view reads ["bench", projectId, benchId], which
   // ["benches"] does not prefix-match.
   "bench-state": (event) => [["benches"], ...benchKeys(event)],

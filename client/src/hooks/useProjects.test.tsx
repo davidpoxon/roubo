@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
-import { renderHookWithProviders } from "../test/renderWithProviders";
+import { makeQueryClient, renderHookWithProviders } from "../test/renderWithProviders";
 import {
   useProjects,
   useCheckConfig,
@@ -76,6 +76,45 @@ describe("useUnregisterProject", () => {
     result.current.mutate({ projectId: "p1", force: true });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApi.unregisterProject).toHaveBeenCalledWith("p1", { force: true });
+  });
+});
+
+// The views that read the project set: the project list and the settings
+// screens, the bench views, the cut list, and each project's config,
+// integration, settings and jig list.
+const PROJECT_SET_KEYS = [
+  ["projects"],
+  ["benches"],
+  ["issues"],
+  ["project-settings"],
+  ["project-integration"],
+  ["raw-config"],
+  ["jigs"],
+];
+
+describe("the project set views", () => {
+  it("HR-TC-033 an unregister refreshes the cut list, the bench views and the settings screens", async () => {
+    mockedApi.unregisterProject.mockResolvedValue(undefined);
+    const queryClient = makeQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useUnregisterProject(), { queryClient });
+    result.current.mutate({ projectId: "lantern" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
+      PROJECT_SET_KEYS.map((queryKey) => ({ queryKey })),
+    );
+  });
+
+  it("HR-TC-026 a register refreshes the cut list, the bench views and the settings screens", async () => {
+    mockedApi.registerProject.mockResolvedValue({ id: "lantern-2" } as never);
+    const queryClient = makeQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useRegisterProject(), { queryClient });
+    result.current.mutate("/repos/lantern-2");
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual(
+      PROJECT_SET_KEYS.map((queryKey) => ({ queryKey })),
+    );
   });
 });
 

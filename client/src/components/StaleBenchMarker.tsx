@@ -11,6 +11,11 @@ export const SWAP_STALE_BENCH_MARKER_LABEL = "stale · A plugin swap left it unb
 export const SWAP_STALE_BENCH_MARKER_TOOLTIP =
   "A plugin this bench uses was replaced, and a resource of this bench did not re-bind to the new plugin process. The resources are still running. Restart the bench, or the plugin, to bind them again.";
 
+export const REPATH_STALE_BENCH_MARKER_LABEL = "stale · Set up before the project moved";
+
+export const REPATH_STALE_BENCH_MARKER_TOOLTIP =
+  "The project now lives at another path, and this bench's workspace was set up from the old one. Clear the bench and set it up again to work from the new path.";
+
 export const RESTART_WITH_CONFIG_LABEL = "Restart with new config";
 
 export const RESTART_WITH_CONFIG_TOOLTIP =
@@ -22,15 +27,29 @@ interface Props {
    * a roubo.yaml change: the marker then names the swap.
    */
   fromSwap?: boolean;
+  /**
+   * True when the project was re-pathed since the bench was set up
+   * (HR-FR-014): the marker then names the move, which outranks the other
+   * causes, since only clearing the bench undoes it.
+   */
+  fromRepath?: boolean;
 }
 
 // DESIGN.md Bench card, head: a bench whose roubo.yaml changed since it was set
-// up, or that a plugin swap left unbound, names itself stale beside its status
+// up, that a plugin swap left unbound, or whose project moved, names itself stale beside its status
 // label. The chip is focusable so the tooltip that explains it is reachable by
 // keyboard as well as hover.
-export default function StaleBenchMarker({ fromSwap = false }: Props) {
-  const label = fromSwap ? SWAP_STALE_BENCH_MARKER_LABEL : STALE_BENCH_MARKER_LABEL;
-  const tooltip = fromSwap ? SWAP_STALE_BENCH_MARKER_TOOLTIP : STALE_BENCH_MARKER_TOOLTIP;
+export default function StaleBenchMarker({ fromSwap = false, fromRepath = false }: Props) {
+  const label = fromRepath
+    ? REPATH_STALE_BENCH_MARKER_LABEL
+    : fromSwap
+      ? SWAP_STALE_BENCH_MARKER_LABEL
+      : STALE_BENCH_MARKER_LABEL;
+  const tooltip = fromRepath
+    ? REPATH_STALE_BENCH_MARKER_TOOLTIP
+    : fromSwap
+      ? SWAP_STALE_BENCH_MARKER_TOOLTIP
+      : STALE_BENCH_MARKER_TOOLTIP;
   return (
     <TooltipTrigger delay={500}>
       <Focusable>

@@ -156,7 +156,7 @@ describe("initialize", () => {
 });
 
 describe("applyProjectsFileEdit (HR-FR-012)", () => {
-  it("applies the changed settings of a registered project and ignores a record of an unregistered one", () => {
+  it("applies the changed settings of a registered project", async () => {
     mockedLoadProjects.mockReturnValue({
       projects: [
         { id: "project1", repoPath: "/repos/project1" },
@@ -167,7 +167,7 @@ describe("applyProjectsFileEdit (HR-FR-012)", () => {
     registryModule.initialize();
     const before2 = registryModule.getProject("project2")?.settings;
 
-    const changed = registryModule.applyProjectsFileEdit({
+    const edit = await registryModule.applyProjectsFileEdit({
       projects: [
         {
           id: "project1",
@@ -175,25 +175,26 @@ describe("applyProjectsFileEdit (HR-FR-012)", () => {
           settings: { worktreeSource: { branchFromDefault: false, pullLatest: true } },
         },
         { id: "project2", repoPath: "/repos/project2" },
-        {
-          id: "stranger",
-          repoPath: "/repos/stranger",
-          settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
-        },
       ],
     });
 
-    expect(changed).toEqual(["project1"]);
+    expect(edit).toEqual({
+      outcome: "applied",
+      registered: [],
+      repathed: [],
+      unregistered: [],
+      refused: [],
+      settingsChanged: ["project1"],
+    });
     expect(registryModule.getProject("project1")?.settings.worktreeSource).toEqual({
       branchFromDefault: false,
       pullLatest: true,
     });
     expect(registryModule.getProject("project2")?.settings).toEqual(before2);
-    expect(registryModule.getProject("stranger")).toBeUndefined();
     expect(registryModule.getProjects()).toHaveLength(2);
   });
 
-  it("returns no id when the edit leaves every registered project's settings as they are", () => {
+  it("changes nothing when the edit leaves every registered project as it is", async () => {
     mockedLoadProjects.mockReturnValue({
       projects: [{ id: "project1", repoPath: "/repos/project1" }],
     });
@@ -201,10 +202,222 @@ describe("applyProjectsFileEdit (HR-FR-012)", () => {
     registryModule.initialize();
 
     expect(
-      registryModule.applyProjectsFileEdit({
+      await registryModule.applyProjectsFileEdit({
         projects: [{ id: "project1", repoPath: "/repos/project1" }],
       }),
-    ).toEqual([]);
+    ).toEqual({
+      outcome: "applied",
+      registered: [],
+      repathed: [],
+      unregistered: [],
+      refused: [],
+      settingsChanged: [],
+    });
+  });
+});
+
+describe("applyProjectsFileEdit project set (HR-FR-014)", () => {
+  function lifecycle(): import("./project-registry.js").ProjectLifecycleEvent[] {
+    const events: import("./project-registry.js").ProjectLifecycleEvent[] = [];
+    registryModule.onProjectLifecycle((e) => events.push(e));
+    return events;
+  }
+
+  beforeEach(() => {
+    mockedLoadProjects.mockReturnValue({
+      projects: [{ id: "lantern", repoPath: "/repos/lantern" }],
+    });
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+    mockedGetPersistedBenches.mockReturnValue([]);
+    vi.mocked(state.saveProjects).mockReset();
+    registryModule.initialize();
+  });
+
+  it("HR-TC-026 registers a project added by hand and tells the lifecycle listeners", async () => {
+    const events = lifecycle();
+    const edit = await registryModule.applyProjectsFileEdit({
+      projects: [
+        { id: "lantern", repoPath: "/repos/lantern" },
+        { id: "lantern-2", repoPath: "/repos/lantern-2" },
+      ],
+    });
+
+    expect(edit).toMatchObject({
+      outcome: "applied",
+      registered: [{ projectId: "lantern-2", repoPath: "/repos/lantern-2" }],
+    });
+    expect(registryModule.getProject("lantern-2")).toMatchObject({
+      repoPath: "/repos/lantern-2",
+      configValid: true,
+    });
+    expect(events).toEqual([
+      { kind: "registered", project: registryModule.getProject("lantern-2") },
+    ]);
+    expect(mockedParseConfig).toHaveBeenLastCalledWith("/repos/lantern-2");
+  });
+
+  it("HR-TC-026 registers a project added with an invalid roubo.yaml config-invalid, as a relaunch loads it", async () => {
+    mockedParseConfig.mockReturnValueOnce({ valid: false, errors: ["roubo.yaml not found"] });
+    const edit = await registryModule.applyProjectsFileEdit({
+      projects: [
+        { id: "lantern", repoPath: "/repos/lantern" },
+        { id: "lantern-2", repoPath: "/repos/lantern-2" },
+      ],
+    });
+
+    expect(edit.outcome).toBe("applied");
+    expect(registryModule.getProject("lantern-2")).toMatchObject({
+      configValid: false,
+      configError: "roubo.yaml not found",
+    });
+  });
+
+  it("HR-TC-032 re-paths a project whose record has a new path, and marks its benches stale", async () => {
+    const { isBenchStaleFromRepath } = await import("./project-repath-state.js");
+    registryModule.registerLiveBenchSource({
+      listBenchIds: () => [2],
+      dropBenches: () => 0,
+      removeWorkspaces: () => Promise.resolve({ leftovers: [] }),
+    });
+    const events = lifecycle();
+    const edit = await registryModule.applyProjectsFileEdit({
+      projects: [{ id: "lantern", repoPath: "/repos/lantern-moved" }],
+    });
+
+    expect(edit).toMatchObject({
+      outcome: "applied",
+      registered: [],
+      unregistered: [],
+      repathed: [{ projectId: "lantern", repoPath: "/repos/lantern-moved", staleBenchIds: [2] }],
+    });
+    expect(registryModule.getProject("lantern")?.repoPath).toBe("/repos/lantern-moved");
+    expect(mockedParseConfig).toHaveBeenLastCalledWith("/repos/lantern-moved");
+    expect(events).toEqual([
+      {
+        kind: "repathed",
+        project: registryModule.getProject("lantern"),
+        previousRepoPath: "/repos/lantern",
+      },
+    ]);
+    expect(isBenchStaleFromRepath("lantern", 2)).toBe(true);
+    registryModule.registerLiveBenchSource(null);
+  });
+
+  it("HR-TC-033 unregisters a project removed by hand and tells the lifecycle listeners", async () => {
+    const events = lifecycle();
+    const edit = await registryModule.applyProjectsFileEdit({ projects: [] });
+
+    expect(edit).toMatchObject({ outcome: "applied", unregistered: ["lantern"] });
+    expect(registryModule.getProject("lantern")).toBeUndefined();
+    expect(cutListMocks.evictProject).toHaveBeenCalledWith("lantern");
+    expect(events).toEqual([
+      { kind: "unregistered", projectId: "lantern", repoPath: "/repos/lantern" },
+    ]);
+    // The file already lacks the project, so nothing is written back.
+    expect(state.saveProjects).not.toHaveBeenCalled();
+    expect(mockedRemoveProject).not.toHaveBeenCalled();
+  });
+
+  it("refuses to unregister a project removed by hand that has active benches, and writes it back", async () => {
+    mockedGetPersistedBenches.mockReturnValue([
+      { id: 3, projectId: "lantern", branch: "b", workspacePath: "/w", ports: {} },
+    ] as never);
+    const events = lifecycle();
+    const edit = await registryModule.applyProjectsFileEdit({ projects: [] });
+
+    expect(edit).toMatchObject({
+      outcome: "applied",
+      unregistered: [],
+      refused: [{ projectId: "lantern", benchIds: [3] }],
+    });
+    expect(registryModule.getProject("lantern")).toBeDefined();
+    expect(events).toEqual([]);
+    expect(state.saveProjects).toHaveBeenCalledWith({
+      projects: [
+        {
+          id: "lantern",
+          repoPath: "/repos/lantern",
+          settings: registryModule.getProject("lantern")?.settings,
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["no repoPath", [{ id: "lantern-2" }], "project lantern-2 has no repoPath"],
+    [
+      "a relative repoPath",
+      [{ id: "lantern-2", repoPath: "Developer/lantern-2" }],
+      "repoPath of project lantern-2 is not an absolute path",
+    ],
+    [
+      "a duplicate id",
+      [
+        { id: "lantern-2", repoPath: "/repos/a" },
+        { id: "lantern-2", repoPath: "/repos/b" },
+      ],
+      "project lantern-2 is listed twice",
+    ],
+  ])(
+    "rejects the whole file for an entry with %s and keeps the registry",
+    async (_, added, first) => {
+      const events = lifecycle();
+      const edit = await registryModule.applyProjectsFileEdit({
+        projects: [
+          {
+            id: "lantern",
+            repoPath: "/repos/lantern",
+            settings: { worktreeSource: { branchFromDefault: false, pullLatest: false } },
+          },
+          ...(added as { id: string; repoPath: string }[]),
+        ],
+      });
+
+      expect(edit).toEqual({ outcome: "rejected", first });
+      expect(registryModule.getProjects().map((p) => p.id)).toEqual(["lantern"]);
+      expect(registryModule.getProject("lantern")?.settings.worktreeSource).toEqual({
+        branchFromDefault: true,
+        pullLatest: true,
+      });
+      expect(events).toEqual([]);
+    },
+  );
+
+  it("rejects the whole file when an added project's ports overlap another's", async () => {
+    mockedCheckPortConflicts.mockImplementation((project) =>
+      project.id === "lantern-2" ? ["Port conflict: lantern-2.web overlaps with lantern.web"] : [],
+    );
+    const edit = await registryModule.applyProjectsFileEdit({
+      projects: [{ id: "lantern-2", repoPath: "/repos/lantern-2" }],
+    });
+
+    expect(edit).toEqual({
+      outcome: "rejected",
+      first: "Port conflict: lantern-2.web overlaps with lantern.web",
+    });
+    // Nothing of it applied: the removal of lantern included.
+    expect(registryModule.getProjects().map((p) => p.id)).toEqual(["lantern"]);
+    expect(registryModule.getProject("lantern-2")).toBeUndefined();
+    mockedCheckPortConflicts.mockReset().mockReturnValue([]);
+  });
+});
+
+describe("project lifecycle in the app (HR-FR-014)", () => {
+  it("tells the lifecycle listeners of an app register and unregister", async () => {
+    mockedLoadProjects.mockReturnValue({ projects: [] });
+    mockedGetPersistedBenches.mockReturnValue([]);
+    registryModule.initialize();
+    const events: import("./project-registry.js").ProjectLifecycleEvent[] = [];
+    registryModule.onProjectLifecycle((e) => events.push(e));
+    mockedParseConfig.mockReturnValue({ valid: true, config: makeConfig() });
+
+    const project = registryModule.registerProject("/repos/test-project");
+    await registryModule.unregisterProject(project.id);
+
+    expect(events).toEqual([
+      { kind: "registered", project },
+      { kind: "unregistered", projectId: project.id, repoPath: "/repos/test-project" },
+    ]);
   });
 });
 
