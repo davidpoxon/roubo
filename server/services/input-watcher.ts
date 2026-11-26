@@ -20,7 +20,9 @@
  * - one `input-changed` event on the notification stream for every applied,
  *   rejected or refused outcome of a known surface (HR-FR-015); deduped and
  *   self-write outcomes are logged only;
- * - re-arming when the watched directory disappears and returns.
+ * - re-arming when the watched directory disappears and returns;
+ * - an optional rescan (`rescan`) that finds a change whose file event never
+ *   came, which the OS file events can drop under load.
  *
  * A file is watched through its parent directory at depth 0 with a basename
  * allowlist, because a single-file watch loses saves that replace the file.
@@ -142,6 +144,22 @@ export interface WatchInputOptions {
   loadedHash?: (absPath: string) => string | null | undefined;
   /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
+  /**
+   * A periodic rescan of the inputs, for a change whose file event never came:
+   * the OS file events can drop an event when the host is under load, and the
+   * input would then not be read until its next change. Every `intervalMs`,
+   * each input that has no settle window or run pending is hashed over the
+   * files that `files` lists (absolute or relative to the input, null for
+   * every file below it), and an input whose hash differs from its last
+   * applied or rejected content runs as a rescan after a re-arm does: a
+   * deduped run logs nothing. `files` must list what the completeness gate
+   * lists, so an unchanged input hashes the same here and in its run. Off
+   * when absent.
+   */
+  rescan?: {
+    intervalMs: number;
+    files: (absPath: string) => readonly string[] | null;
+  };
   /**
    * The target ids of every `input-changed` event of this watch. A handler's
    * own `projectId` or `pluginId` wins over them, but an outcome the watcher
@@ -529,6 +547,10 @@ export function watchInput(
   let checking = false;
   let armRefused = false;
   let poll: NodeJS.Timeout | null = null;
+  let rescanPoll: NodeJS.Timeout | null = null;
+  let rescanning = false;
+  // How many runs of each input are queued or running.
+  const pendingRuns = new Map<string, number>();
   // Settles the ready promise of the current arm. Closing a watcher before
   // chokidar emits `ready` means `ready` never comes, so disarm settles it.
   let settleArm: (() => void) | null = null;
@@ -563,13 +585,71 @@ export function watchInput(
   }
 
   function enqueue(unit: string, mode: RunMode): Promise<void> {
+    pendingRuns.set(unit, (pendingRuns.get(unit) ?? 0) + 1);
     const next = (chains.get(unit) ?? Promise.resolve())
       .then(() => run(unit, mode))
       .catch(() => {
         // run() handles its own failures; a chain never rejects.
+      })
+      .finally(() => {
+        const left = (pendingRuns.get(unit) ?? 1) - 1;
+        if (left > 0) pendingRuns.set(unit, left);
+        else pendingRuns.delete(unit);
       });
     chains.set(unit, next);
     return next;
+  }
+
+  /**
+   * Whether `unit` holds other content than its last applied or rejected
+   * content, hashed over the rescan's files. False for an input that the
+   * watch never ran for and that is still absent.
+   */
+  function differsFromLast(
+    unit: string,
+    files: readonly string[] | null,
+    roots: readonly string[],
+  ): boolean {
+    const hash = hashUnit(unit, files, roots);
+    if (!lastApplied.has(unit)) return hash !== null;
+    const last = lastApplied.get(unit);
+    if (typeof last === "object" && last !== null) return last.rejected !== hash;
+    return last !== hash;
+  }
+
+  /**
+   * The periodic rescan (see `rescan`): each input that the watch is not
+   * already about to run, and whose content differs from its last, runs once
+   * as a rescan does. A change whose event did come has a settle window or a
+   * run pending, so it is left to that run.
+   */
+  async function rescanInputs(): Promise<void> {
+    const opts = options.rescan;
+    if (!opts || disposed || rescanning || checking || !watcher || !watcherReady) return;
+    rescanning = true;
+    try {
+      const targets = new Set(listUnits());
+      for (const known of lastApplied.keys()) targets.add(known);
+      const roots = getWatchRoots();
+      const runs: Promise<void>[] = [];
+      for (const unit of targets) {
+        if (disposed) return;
+        if (timers.has(unit) || pendingRuns.has(unit)) continue;
+        // An input out of every root is refused by the run its event starts;
+        // a rescan would only refuse it again on every pass.
+        if (!realpathAllowed(unit, roots)) continue;
+        let files: readonly string[] | null = null;
+        try {
+          files = fs.existsSync(unit) ? opts.files(unit) : null;
+        } catch {
+          // An input the surface cannot list is hashed over every file.
+        }
+        if (differsFromLast(unit, files, roots)) runs.push(enqueue(unit, "quiet"));
+      }
+      await Promise.all(runs);
+    } finally {
+      rescanning = false;
+    }
   }
 
   function schedule(unit: string): void {
@@ -878,6 +958,10 @@ export function watchInput(
     if (!disposed) {
       poll = setInterval(() => void check(), options.rearmPollMs ?? DEFAULT_REARM_POLL_MS);
       poll.unref();
+      if (options.rescan) {
+        rescanPoll = setInterval(() => void rescanInputs(), options.rescan.intervalMs);
+        rescanPoll.unref();
+      }
     }
   })();
 
@@ -905,6 +989,7 @@ export function watchInput(
     async dispose() {
       disposed = true;
       if (poll) clearInterval(poll);
+      if (rescanPoll) clearInterval(rescanPoll);
       await disarm();
       if (options.trackHandEdits) for (const unit of lastApplied.keys()) forgetInputContent(unit);
     },

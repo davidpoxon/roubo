@@ -21,7 +21,32 @@ const hoisted = vi.hoisted(() => ({
   consented: new Set<string>(),
   events: [] as Omit<InputChangedEvent, "type">[],
   enableState: null as PluginEnableState | null,
+  // Drop every file event that chokidar sends, as the OS file events can
+  // under load, so only the watch's rescan can see a change.
+  dropFileEvents: false,
 }));
+
+vi.mock("chokidar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("chokidar")>();
+  const watch: typeof actual.watch = (...args) => {
+    const watcher = actual.watch(...args);
+    const on = watcher.on.bind(watcher) as (
+      event: string,
+      listener: (...a: unknown[]) => void,
+    ) => typeof watcher;
+    (watcher as { on: unknown }).on = (event: string, listener: (...a: unknown[]) => void) =>
+      on(
+        event,
+        event === "all"
+          ? (...a: unknown[]) => {
+              if (!hoisted.dropFileEvents) listener(...a);
+            }
+          : listener,
+      );
+    return watcher;
+  };
+  return { ...actual, watch };
+});
 
 vi.mock("./state.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./state.js")>();
@@ -263,7 +288,7 @@ function record(id: string) {
 }
 
 async function startWatch(): Promise<void> {
-  await startPluginDirWatch({ root, settleMs: 100, pollMs: 150, rearmPollMs: 200 });
+  await startPluginDirWatch({ root, settleMs: 100, pollMs: 150, rearmPollMs: 200, rescanMs: 300 });
 }
 
 /**
@@ -295,6 +320,7 @@ beforeEach(async () => {
   hoisted.consented = new Set();
   hoisted.events = [];
   hoisted.enableState = null;
+  hoisted.dropFileEvents = false;
   lines = [];
   setChanges = [];
   stopSetListener = onPluginSetChanged((change) => setChanges.push(change));
@@ -393,6 +419,25 @@ describe("a plugin directory added by hand", () => {
     expect(record("new-plugin")?.status).toBe("enabled");
     expect(typeof record("new-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["new-plugin"]).toBe("enabled");
+  }, 20_000);
+
+  it("HR-TC-014 registers a dropped plugin directory whose file events never come", async () => {
+    await startWatch();
+    hoisted.dropFileEvents = true;
+    dropPlugin("new-plugin", { kind: "agent" });
+
+    await waitFor(() => hoisted.events.length === 1);
+    expect(record("new-plugin")?.status).toBe("disabled");
+    expect(summaries()).toEqual([
+      "Plugin new-plugin installed. Grant consent in Settings > Plugins to enable it.",
+    ]);
+    expect(outcomeLines("new-plugin", "applied")).toHaveLength(1);
+    expect(setChanges).toEqual([{ added: ["new-plugin"], swapped: [], removed: [] }]);
+
+    // Later rescans find the directory unchanged and run nothing more.
+    await sleep(1_000);
+    expect(applyLines("new-plugin")).toHaveLength(1);
+    expect(hoisted.events).toHaveLength(1);
   }, 20_000);
 
   it("HR-TC-014 starts a dropped integration plugin, which is never consent-gated, and names no consent step", async () => {
@@ -666,6 +711,25 @@ describe("a plugin directory changed in place", () => {
     await startWatch();
     const oldPid = await dropRunningPlugin("my-agent");
     hoisted.events = [];
+
+    fs.writeFileSync(path.join(root, "my-agent", "index.cjs"), entrySource(undefined, "two"));
+
+    await waitFor(() => {
+      const pid = record("my-agent")?.pid;
+      return typeof pid === "number" && pid !== oldPid;
+    });
+    await waitFor(() => hoisted.events.length === 1);
+    expect(summaries()).toEqual(["Plugin my-agent updated."]);
+    expect(record("my-agent")?.status).toBe("enabled");
+    expect(outcomeLines("my-agent", "applied").at(-1)).toMatch(/ action=swap$/);
+    await waitFor(() => !isAlive(oldPid), 6_000);
+  }, 30_000);
+
+  it("HR-TC-013 swaps the plugin process when the file event of the rebuild never comes", async () => {
+    await startWatch();
+    const oldPid = await dropRunningPlugin("my-agent");
+    hoisted.events = [];
+    hoisted.dropFileEvents = true;
 
     fs.writeFileSync(path.join(root, "my-agent", "index.cjs"), entrySource(undefined, "two"));
 

@@ -32,6 +32,7 @@ import {
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
+  hashInputFiles,
   logApply,
   watchInput,
   __test as inputWatcherTest,
@@ -499,6 +500,110 @@ describe("watchInput lifecycle", () => {
     const settled = await Promise.race([w.ready.then(() => true), sleep(1_000).then(() => false)]);
     expect(settled).toBe(true);
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("watchInput rescan", () => {
+  /** The next watch gets a chokidar watcher whose file events never come. */
+  async function dropNextWatchEvents(): Promise<void> {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    vi.mocked(watch).mockImplementationOnce((...args) => {
+      const watcher = actual.watch(...args);
+      const on = watcher.on.bind(watcher) as (
+        event: string,
+        listener: (...a: unknown[]) => void,
+      ) => typeof watcher;
+      (watcher as { on: unknown }).on = (event: string, listener: (...a: unknown[]) => void) =>
+        on(event, event === "all" ? () => {} : listener);
+      return watcher;
+    });
+  }
+
+  // The rescan hashes the files that the completeness gate lists, as the
+  // plugin surface does.
+  const rescan = { intervalMs: 100, files: () => ["roubo-plugin.yaml"] };
+  const settled = async (): Promise<readonly string[]> => ["roubo-plugin.yaml"];
+
+  it("HR-TC-013 runs a changed input whose file event never came once, on the next rescan", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    // A file outside the rescan's list does not make an input differ.
+    fs.writeFileSync(path.join(unit, "notes.txt"), "one");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(path.join(unit, "notes.txt"), "two");
+    await sleep(400);
+    expect(handler).not.toHaveBeenCalled();
+
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      path: unit,
+      hash: hashInputFiles(unit, ["roubo-plugin.yaml"]),
+    });
+    expect(applyLines()).toHaveLength(1);
+  });
+
+  it("HR-TC-014 runs a new input whose file event never came, and does not run its rejection again", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    const added = path.join(plugins, "fresh");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: fresh\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toHaveLength(1);
+  });
+
+  it("HR-TC-014 leaves a change whose file event came to that event's run", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(
+        plugins,
+        // A settle window longer than the rescan interval, so a rescan comes
+        // while the event's run waits.
+        { surface: "plugin", settleMs: 400, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(path.join(plugins, "fresh"));
+    fs.writeFileSync(path.join(plugins, "fresh", "roubo-plugin.yaml"), "id: fresh\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(400);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(outcomeCount("applied")).toBe(1);
   });
 });
 
