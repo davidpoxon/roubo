@@ -42,6 +42,7 @@ import * as pluginManager from "./plugin-manager.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { fetch } from "undici";
 import { resolveWithin } from "../lib/safe-path.js";
+import { catalogPackageEntry, catalogPackageUrl } from "./e2e-catalog-packages.js";
 
 const ECHO_MANIFEST = `id: echo
 name: Echo
@@ -1479,6 +1480,77 @@ describe("first-party install behaviour is unchanged (CPHMTP-NFR-001, #961)", ()
     const preview = await pluginInstaller.previewFromGitUrl("https://github.com/example/echo.git");
     expect(preview.manifest.id).toBe("echo");
     expect(exec.runCommand).toHaveBeenCalled();
+  });
+});
+
+describe("e2e fixture catalog packages (HR-TC-012)", () => {
+  const DATABASE_ENTRY = {
+    id: "database",
+    name: "Database",
+    kind: "component" as const,
+    version: "0.0.0",
+    summary: "Fixture",
+    source: { type: "git" as const, url: "https://example.com/database.git" },
+    provenance: "roubo/plugins@database",
+    integrity: "sha256-0000000000000000000000000000000000000000000000000000000000000000",
+    verified: true,
+  };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("HR-TC-012 stages an update from a fixture package under ROUBO_E2E=1, verifying its real digest with no network", async () => {
+    vi.stubEnv("ROUBO_E2E", "1");
+    const entry = await catalogPackageEntry(DATABASE_ENTRY, "1.1.0");
+    expect(entry).not.toBeNull();
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "database", source: "user" }),
+    ]);
+
+    const preview = await pluginInstaller.previewUpdateFromRelease(
+      catalogPackageUrl("database", "1.1.0"),
+      "database",
+      entry?.integrity,
+    );
+
+    expect(preview.manifest.id).toBe("database");
+    expect(preview.manifest.version).toBe("1.1.0");
+    expect(preview.source).toEqual({
+      type: "release",
+      assetUrl: catalogPackageUrl("database", "1.1.0"),
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("HR-TC-012 refuses a fixture package whose digest does not match the catalog entry", async () => {
+    vi.stubEnv("ROUBO_E2E", "1");
+    const older = await catalogPackageEntry(DATABASE_ENTRY, "1.0.0");
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "database", source: "user" }),
+    ]);
+
+    await expect(
+      pluginInstaller.previewUpdateFromRelease(
+        catalogPackageUrl("database", "1.1.0"),
+        "database",
+        older?.integrity,
+      ),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    expect(await listStaging()).toEqual([]);
+  });
+
+  it("downloads a fixture package URL from the network outside the e2e harness", async () => {
+    vi.stubEnv("ROUBO_E2E", "");
+    fakeDownloadStatus(404);
+    vi.mocked(pluginManager.listInstalled).mockReturnValue([
+      mockRecord({ id: "database", source: "user" }),
+    ]);
+
+    await expect(
+      pluginInstaller.previewUpdateFromRelease(catalogPackageUrl("database", "1.1.0"), "database"),
+    ).rejects.toMatchObject({ code: "download-failed" });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
 

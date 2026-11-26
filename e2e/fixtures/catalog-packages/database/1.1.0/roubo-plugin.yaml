@@ -1,0 +1,71 @@
+# One version of the e2e fixture catalog's `database` package. The e2e fixture
+# catalog (server/services/e2e-catalog-packages.ts) serves this directory as a
+# release asset when a spec asks for database 1.1.0 through
+# POST /test/__serve-catalog-package, so the marketplace installs it through the
+# real download, unpack and integrity path. ../1.0.0/ is the same package one
+# version back, which HR-TC-012 installs before it updates to this one. Their manifest
+# fields differ only in `version`, so the update keeps every binding a bench
+# uses.
+#
+# Mirrors e2e/fixtures/first-party-manifests/database/roubo-plugin.yaml, the
+# snapshot of the published manifest, except that the entry is this package's
+# own runtime. Not for production.
+id: database
+name: Database
+version: 1.1.0
+description: E2E fixture of the database component plugin, served by the e2e fixture catalog so a spec can install and update it. Not for production.
+kind: component
+roubo: ^1.0.0
+entry: ./index.mjs
+contractVersion: 1
+descriptorSchemaVersion: 1
+configSchema:
+  type: object
+  required:
+    - composeFile
+    - service
+  properties:
+    composeFile:
+      type: string
+      minLength: 1
+      description: Path (relative to the workspace) to the docker-compose file that defines the database service.
+    service:
+      type: string
+      minLength: 1
+      description: The compose service name brought up for this component.
+    initService:
+      type: string
+      minLength: 1
+      description: Optional compose service run once (via `compose run --rm`) before the database is considered ready.
+    portEnvVar:
+      type: string
+      minLength: 1
+      description: The env var name the allocated host port is interpolated into for compose. Defaults to `HOST_PORT`.
+    connection:
+      type: object
+      required:
+        - template
+      properties:
+        template:
+          type: string
+          minLength: 1
+          description: A connection-string template; `{{port}}` is filled with the allocated host port by the engine.
+      additionalProperties: false
+      description: Optional connection string exposed for the component, templated with the allocated port.
+    env:
+      type: object
+      additionalProperties:
+        type: string
+      description: Environment variables merged into the compose interpolation environment alongside the allocated port.
+permissions:
+  network:
+    hosts: []
+  credentials:
+    slots: []
+  filesystem:
+    paths: []
+  # Declarative plugin: translate() only emits a ProvisionDescriptor, and the
+  # host LifecycleEngine owns the docker phase machine.
+  processes: false
+  ports: false
+  docker: {}

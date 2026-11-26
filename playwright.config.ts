@@ -123,7 +123,12 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     ROUBO_BUNDLED_PLUGINS_DIR, which mirrors the real plugin's translate
 //     mapping. Every fixture project binds a component to `process`, so the
 //     overlay is force-disabled by every /test/__reset, and each spec enables
-//     and consents it before it sets up a bench.
+//     and consents it before it sets up a bench. The HR-TC-012 plugin-update
+//     journey drift guard installs and then updates `database` through the
+//     marketplace, from fixture packages the e2e catalog serves
+//     (POST /test/__serve-catalog-package, e2e/fixtures/catalog-packages/),
+//     while a bench runs its Redis container. It needs Docker, and skips
+//     with the reason when the runner has none.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
