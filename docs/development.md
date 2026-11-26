@@ -69,7 +69,7 @@ npm run lint:emitted-tokens
 # No references to disallowed repositories
 npm run lint:repo-refs
 
-# No instructions to restart Roubo for a change it applies live
+# No instruction to relaunch for a change that Roubo applies live
 npm run lint:restart-instructions
 ```
 
