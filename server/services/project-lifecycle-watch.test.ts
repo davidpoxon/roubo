@@ -166,8 +166,6 @@ afterEach(async () => {
   fs.rmSync(base, { recursive: true, force: true });
 });
 
-// Each case waits on file watches and settle windows, which run slower when
-// the whole suite shares the machine.
 describe("project add, re-path and remove", () => {
   it("HR-TC-026 a project added to projects.json by hand is listed and its roubo.yaml watch is armed", async () => {
     const lantern2Dir = makeProjectDir("lantern-2", roubo("lantern-2", 4300));

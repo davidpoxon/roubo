@@ -265,21 +265,26 @@ export const ARM_LIVE_MS = 100;
  * load of the machine the FSEvents stream can go live later than
  * `ARM_LIVE_MS`, and a change made before then is never reported. A warm-up
  * rescan runs the handler for an input whose content is not the one the watch
- * last saw, so that change is applied at the next poll instead of never. It
- * logs nothing for an input it finds unchanged, refused or incomplete.
+ * last saw, so that change is applied at the next poll instead of never. On a
+ * watch without the periodic rescan, it logs nothing for an input it finds
+ * unchanged, refused or incomplete. A watch with the periodic rescan warms up
+ * with rescan passes instead, which send the one incomplete notice for an
+ * input that the completeness gate gives up on.
  */
 export const ARM_WARMUP_SCANS = 3;
 
 /**
- * How long after its settle window the event of a change that a warm-up
- * rescan already ran the handler for is still taken as the stream reporting
- * that change late, and stays silent. A later event of the same content is a
- * new save and runs as usual.
+ * How long after its settle window an event of a change that a rescan (a
+ * warm-up rescan, or a pass of the periodic rescan) already ran for is still
+ * taken as the stream reporting that change late, and stays silent. A later
+ * event of the same content is a new save and runs as usual.
  */
 export const WARMUP_LATE_EVENT_MS = 1_000;
 
 function waitUntilLive(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ARM_LIVE_MS));
+  // Unref'd, so a watch disposed during the wait does not hold the process
+  // open; each caller checks `disposed` after it.
+  return new Promise((resolve) => setTimeout(resolve, ARM_LIVE_MS).unref());
 }
 
 /** Serialise one ApplyLogLine as key=value pairs on one line. Not JSON. */
@@ -541,7 +546,7 @@ export function hashInputFiles(unit: string, files: readonly string[] | null): s
   return hashUnit(unit, files, getWatchRoots());
 }
 
-type RunMode = "event" | "quiet" | "seed" | "warmup";
+type RunMode = "event" | "quiet" | "rescan" | "seed" | "warmup";
 
 /**
  * Watch one input. `target` is a file, or a directory whose entries (filtered
@@ -592,9 +597,10 @@ export function watchInput(
   let live = false;
   // The warm-up rescans left for the current arm (see ARM_WARMUP_SCANS).
   let warmupLeft = 0;
-  // The hash a warm-up rescan last ran the handler for, per input, and when,
-  // until the next event of that input (see WARMUP_LATE_EVENT_MS).
-  const warmupRan = new Map<string, { hash: string | null; at: number }>();
+  // The hash a rescan (a warm-up rescan, or a pass of the periodic rescan)
+  // last ran for, per input, and when, until an event of that input brings
+  // other content or comes after the bound (see WARMUP_LATE_EVENT_MS).
+  const ranAhead = new Map<string, { hash: string | null; at: number }>();
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -712,7 +718,7 @@ export function watchInput(
       if (!realpathAllowed(unit, roots)) continue;
       const hash = hashUnit(unit, rescanFilesOf(unit, roots), roots);
       if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
-      if (differsFromLast(unit, hash)) void enqueue(unit, "quiet");
+      if (differsFromLast(unit, hash)) void enqueue(unit, "rescan");
     }
   }
 
@@ -843,13 +849,17 @@ export function watchInput(
       const seen =
         lastRejected !== null ? lastRejected.rejected : lastApplied.has(unit) ? last : null;
       if (hash === seen) return;
-      warmupRan.set(unit, { hash, at: Date.now() });
-    } else if (mode === "event" && warmupRan.has(unit)) {
-      const ran = warmupRan.get(unit);
-      warmupRan.delete(unit);
-      // The late event of a change a warm-up rescan already ran for: the
-      // stream reported it after all, and it is not a second change.
+      ranAhead.set(unit, { hash, at: Date.now() });
+    } else if (mode === "rescan") {
+      ranAhead.set(unit, { hash, at: Date.now() });
+    } else if (mode === "event" && ranAhead.has(unit)) {
+      const ran = ranAhead.get(unit);
+      // A late event of a change a rescan already ran for: the stream
+      // reported it after all, and it is not a second change. The stream can
+      // report one change as several events, so the record stays for its
+      // whole bound.
       if (ran?.hash === hash && Date.now() - ran.at <= settleMs + WARMUP_LATE_EVENT_MS) return;
+      ranAhead.delete(unit);
     }
     // An absent input matches no token, and still clears the hand edits the
     // live tokens carry, since the handler runs for what the input now holds.
@@ -870,7 +880,13 @@ export function watchInput(
     // file holds that edit, so the handler runs for it as for any hand edit.
     // A rescan finds the content that was last rejected unchanged: the handler
     // already said no to it, so it does not run again for it.
-    if (mode === "quiet" && lastRejected !== null && lastRejected.rejected === hash) return;
+    if (
+      (mode === "quiet" || mode === "rescan") &&
+      lastRejected !== null &&
+      lastRejected.rejected === hash
+    ) {
+      return;
+    }
     const unchanged = lastApplied.has(unit) ? last === hash : hash === null;
     if (unchanged) {
       if (mode === "event") emit("deduped", hash);
@@ -1021,7 +1037,7 @@ export function watchInput(
     watcherReady = false;
     live = false;
     warmupLeft = 0;
-    warmupRan.clear();
+    ranAhead.clear();
     const settle = settleArm;
     settleArm = null;
     settle?.();

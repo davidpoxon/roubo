@@ -816,6 +816,53 @@ describe("watchInput rescan", () => {
     expect(applyLines()).toHaveLength(1);
   });
 
+  it("HR-TC-014 sends one notice when a rescan rejects a change before the stream reports it", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    delayEventsAfterReady(600);
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Past the late event and its settle window.
+    await sleep(600 + WATCH_QUIET_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=rejected ")]);
+  });
+
+  it("HR-TC-013 logs one line when a rescan applies a change before the stream reports it", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    const unit = path.join(plugins, "existing");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    delayEventsAfterReady(600);
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    await sleep(600 + WATCH_QUIET_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
+  });
+
   it("HR-TC-014 runs a new input whose file event never came, and does not run its rejection again", async () => {
     const plugins = path.join(stateDir, "plugins");
     fs.mkdirSync(plugins);
