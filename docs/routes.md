@@ -2,7 +2,7 @@
 
 # Route inventory
 
-Every HTTP route the Roubo server registers: 191 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
+Every HTTP route the Roubo server registers: 192 in total, extracted from the router mount table in [`server/index.ts`](../server/index.ts) and the handlers under [`server/routes/`](../server/routes/).
 
 This file is generated. Run `npm run generate:routes` after adding, removing, or renaming a route; the `route-inventory-drift` job in `pr-check` fails when the committed inventory does not match the source.
 
@@ -202,4 +202,5 @@ Request and response shapes are not derivable from the route registrations, so t
 | POST   | `/test/__serve-catalog-package`                                                            | `server/routes/test.ts`                 |
 | POST   | `/test/__set-cut-list-disk-cache`                                                          | `server/routes/test.ts`                 |
 | POST   | `/test/__set-marketplace-reachable`                                                        | `server/routes/test.ts`                 |
+| GET    | `/test/__state-dir`                                                                        | `server/routes/test.ts`                 |
 | GET    | `/{*path}`                                                                                 | `server/index.ts`                       |

@@ -2113,6 +2113,29 @@ describe("GET /test/__input-watcher-log", () => {
   });
 });
 
+// HR-TC-026: the state directory the hand-add-a-project journey edits
+// projects.json in.
+describe("GET /test/__state-dir", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app).get("/test/__state-dir");
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+  });
+
+  it("names the state dir and its projects.json when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).get("/test/__state-dir");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      rouboDir: TEST_ROUBO_DIR,
+      projectsFile: path.join(TEST_ROUBO_DIR, "projects.json"),
+    });
+  });
+});
+
 // TC-154 (#261): read-only mirror of plugins-state.json so a spec can assert
 // the NFR-024 invariant ("plugin remains in its previous disabled state on
 // spawn failure") without poking the filesystem from the test process.

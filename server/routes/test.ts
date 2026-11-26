@@ -1722,6 +1722,19 @@ router.get("/__input-watcher-log", (_req: Request, res: Response) => {
   res.status(200).json({ lines: inputWatcher.__test.getE2EApplyLogTap() });
 });
 
+// HR-TC-026: the Roubo state directory of the server under test. The
+// hand-add-a-project journey edits projects.json from outside the app, as a
+// user would, so the spec needs the path the server reads it from. The dev
+// state dir is keyed by the server's own checkout, so the server names it
+// rather than the spec deriving it again. Gated by ROUBO_E2E.
+router.get("/__state-dir", (_req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const rouboDir = state.getRouboDir();
+  res.status(200).json({ rouboDir, projectsFile: path.join(rouboDir, "projects.json") });
+});
+
 // TC-154 (#261): read the persisted plugin-enable-state file so a Playwright
 // spec can assert the NFR-024 invariant ("plugin remains in its previous
 // disabled state on spawn failure") without poking the filesystem from the

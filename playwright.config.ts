@@ -128,7 +128,11 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //     marketplace, from fixture packages the e2e catalog serves
 //     (POST /test/__serve-catalog-package, e2e/fixtures/catalog-packages/),
 //     while a bench runs its Redis container. It needs Docker, and skips
-//     with the reason when the runner has none.
+//     with the reason when the runner has none. The HR-TC-026 hand-add
+//     journey drift guard appends a project to projects.json from outside
+//     the app, in the state dir that GET /test/__state-dir names, and reads
+//     its cut list from the stubbed plugin's
+//     `hot-reload-hand-added-project` scenario.
 //   - project-settings: same built-app surface, holds the IP-WU-068 specs
 //     (IP-TC-177/178/179/182). These rely on the `bundled-overlays/` stub
 //     plugins replacing the real github-com / ghe / jira-self-hosted under
