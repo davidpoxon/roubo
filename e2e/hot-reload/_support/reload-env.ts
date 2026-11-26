@@ -17,8 +17,15 @@ export const NEWER_VERSION = "1.1.0";
 /** The plugin a plugins-state.json edit turns off: an integration nothing else uses. */
 export const TOGGLED_PLUGIN_ID = "e2e-stub-5";
 
+/** The longest single wait: no case waits longer than the 10 minute idle window plus a margin. */
+const MAX_SLEEP_MS = 30 * 60_000;
+
+/** Wait `ms`, held to 0 through MAX_SLEEP_MS so no value of the environment sets an unbounded timer. */
 export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  let bounded = Number.isFinite(ms) ? Math.trunc(ms) : 0;
+  if (bounded < 0) bounded = 0;
+  if (bounded > MAX_SLEEP_MS) bounded = MAX_SLEEP_MS;
+  return new Promise((resolve) => setTimeout(resolve, bounded));
 }
 
 /** Poll `read` until `done` holds or the deadline passes, and answer the last read. */
@@ -35,6 +42,29 @@ export async function pollUntil<T>(
     value = await read();
   }
   return value;
+}
+
+/**
+ * Wait until the server has logged no apply line for `quietMs`, so an apply
+ * that an edit of the state files queued has finished before the next reset:
+ * a late apply would otherwise land in the next case.
+ */
+export async function settleApplies(
+  request: APIRequestContext,
+  quietMs = 1_500,
+  timeoutMs = 15_000,
+): Promise<void> {
+  let last = (await applyLog(request)).total;
+  let quietSince = Date.now();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && Date.now() - quietSince < quietMs) {
+    await sleep(100);
+    const total = (await applyLog(request)).total;
+    if (total !== last) {
+      last = total;
+      quietSince = Date.now();
+    }
+  }
 }
 
 export async function resetHarness(request: APIRequestContext): Promise<void> {

@@ -9,6 +9,7 @@ import {
   registerLantern,
   removeDatabase,
   resetHarness,
+  settleApplies,
   stateDir,
   waitForNotice,
 } from "./_support/reload-env.js";
@@ -47,6 +48,8 @@ test.afterEach(async ({ request }) => {
   await removeDatabase(request);
   if (scratchDir !== null) fs.rmSync(scratchDir, { recursive: true, force: true });
   scratchDir = null;
+  // The restore above queued applies: let them finish before the next case.
+  await settleApplies(request);
   await resetHarness(request);
 });
 

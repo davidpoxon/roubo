@@ -18,15 +18,22 @@ export function percentile(samples: readonly number[], p: number): number {
 
 /**
  * A positive integer from the environment, or `fallback` when the variable is
- * unset. A value that is set but not a positive integer is an error, so a typo
+ * unset. A value that is set but not a positive integer, or above `max`, is an error, so a typo
  * never quietly runs the default.
  */
-export function positiveIntFromEnv(name: string, fallback: number): number {
+export function positiveIntFromEnv(
+  name: string,
+  fallback: number,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer, not ${JSON.stringify(raw)}`);
+  }
+  if (value > max) {
+    throw new Error(`${name} must be at most ${max}, not ${value}`);
   }
   return value;
 }

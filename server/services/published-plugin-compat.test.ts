@@ -29,8 +29,11 @@ import { HOST_API_VERSION } from "./plugin-manager.js";
 // the home dir is a throwaway one. The mock is hoisted above every import so
 // state.ts resolves its dir under it, never the real ~/.roubo.
 const isolation = vi.hoisted(() => {
+  // Taken before the hoisted set-up changes it, so afterAll restores the value
+  // the run started with.
+  const originalProduction = process.env.ROUBO_PRODUCTION;
   process.env.ROUBO_PRODUCTION = "1";
-  return { tmpHome: "" };
+  return { tmpHome: "", originalProduction };
 });
 
 vi.mock("node:os", async () => {
@@ -45,7 +48,7 @@ vi.mock("node:os", async () => {
 });
 
 const savedEnv = {
-  ROUBO_PRODUCTION: process.env.ROUBO_PRODUCTION,
+  ROUBO_PRODUCTION: isolation.originalProduction,
   ROUBO_USER_PLUGINS_DIR: process.env.ROUBO_USER_PLUGINS_DIR,
 };
 

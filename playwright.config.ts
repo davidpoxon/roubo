@@ -154,8 +154,8 @@ const E2E_FIXTURE_BIN_DIR = path.resolve(__dirname, "e2e", "fixtures", "bin");
 //   - packaged: the server bundle of the packaged app, run on the packaged
 //     app's own executable (e2e/_support/packaged-server.mjs), with its state
 //     under ~/.roubo of a throwaway HOME. E2E_PACKAGED_APP names the packaged
-//     app directory (the folder holding Roubo.app, or the Linux app folder);
-//     without it the first app under electron/out/ is used.
+//     app folder under electron/out/ (the folder holding Roubo.app, or the
+//     Linux app folder), by name; without it the first app there is used.
 // The reload-suite workflow (.github/workflows/reload-suite.yml) runs the
 // hot-reload project in each mode.
 const DEV_PORT = Number(process.env.E2E_DEV_PORT ?? 3334);
@@ -176,17 +176,29 @@ const RUN_MODE = runModeOf(process.env.E2E_RUN_MODE);
 /** The packaged app's executable and server entry, for the packaged run mode. */
 function packagedServer(): { executable: string; entry: string } {
   const outDir = path.resolve(__dirname, "electron", "out");
-  let appDir = process.env.E2E_PACKAGED_APP;
-  if (!appDir) {
-    const found = fs.existsSync(outDir)
-      ? fs.readdirSync(outDir).find((name) => /^Roubo-(darwin|linux)-/.test(name))
-      : undefined;
-    if (!found) {
-      throw new Error(
-        "E2E_RUN_MODE=packaged needs a packaged app: run `npm run package --prefix electron` or set E2E_PACKAGED_APP",
-      );
-    }
-    appDir = path.join(outDir, found);
+  // The app is a folder of electron/out/, by name: a name is matched against a
+  // fixed pattern and the resolved path must stay inside the out dir, so no
+  // value of the environment points the run anywhere else.
+  const APP_NAME_RE = /^Roubo-(darwin|linux)-[A-Za-z0-9._-]+$/;
+  const requested = process.env.E2E_PACKAGED_APP;
+  if (requested && !APP_NAME_RE.test(requested)) {
+    throw new Error(
+      `E2E_PACKAGED_APP must name an app folder of electron/out/ such as Roubo-darwin-arm64, not ${JSON.stringify(requested)}`,
+    );
+  }
+  const found =
+    requested ||
+    (fs.existsSync(outDir)
+      ? fs.readdirSync(outDir).find((name) => APP_NAME_RE.test(name))
+      : undefined);
+  if (!found) {
+    throw new Error(
+      "E2E_RUN_MODE=packaged needs a packaged app: run `npm run package --prefix electron` or set E2E_PACKAGED_APP to its folder name under electron/out/",
+    );
+  }
+  const appDir = path.resolve(outDir, found);
+  if (path.dirname(appDir) !== outDir) {
+    throw new Error(`the packaged app ${found} is not inside electron/out/`);
   }
   const macApp = path.join(appDir, "Roubo.app");
   if (fs.existsSync(macApp)) {
