@@ -271,6 +271,9 @@ export function benchRemovedNotice(refs: readonly BenchStateEditRef[]): NotAppli
   return notApplied(`${benchPhrase(refs)} cannot be removed by hand`);
 }
 
+/** The notice of a GitHub token put in auth.json and copied into its credential slot. */
+export const GITHUB_CREDENTIALS_APPLIED_NOTICE = "GitHub credentials applied.";
+
 /** "Plugin consent applied: database." */
 export function consentAppliedNotice(pluginIds: readonly string[]): string {
   return pluginIds.length === 0
@@ -488,7 +491,7 @@ async function handleAuth(absPath: string): Promise<HandlerResult> {
     return rejected("auth.json", "GitHub credentials", "githubToken must be a non-empty string");
   }
   await credentialStore.set(GITHUB_PLUGIN_ID, GITHUB_TOKEN_SLOT, token);
-  return applied({ summary: "GitHub credentials applied." });
+  return applied({ summary: GITHUB_CREDENTIALS_APPLIED_NOTICE });
 }
 
 async function handleConsent(absPath: string): Promise<HandlerResult> {
