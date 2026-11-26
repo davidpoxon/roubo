@@ -28,7 +28,7 @@ export const SCAN_PATHS = ["docs", "client/src", "README.md"];
 /** The inline marker that allows a match on the line that carries it. */
 export const ALLOW_MARKER = "restart-guard: allow";
 
-const INSTRUCTION = /\bre-?(?:start|launch)(?:s|ed|ing)?\s+(?:roubo|the\s+app)\b/gi;
+const INSTRUCTION = /\bre-?(?:start|launch)(?:s|es|ed|ing)?\s+(?:roubo|the\s+app)\b/gi;
 
 /**
  * Return one finding per match in `contents` that no line of the match allows,
