@@ -170,6 +170,11 @@ describe("BenchCard", () => {
       const user = userEvent.setup();
       makeDefaultMutations();
       renderCard(makeBench({ stale: true }));
+      // A React Aria TooltipTrigger opens on hover only when the last input
+      // was the pointer, and user.hover fires pointerover on the button before
+      // any pointermove. Move the pointer over the page first, as a real mouse
+      // does on its way to the button (#1734).
+      await user.pointer({ target: document.body });
       await user.hover(screen.getByRole("button", { name: /Restart with new config/ }));
       expect(await screen.findByRole("tooltip")).toHaveTextContent(
         "Stop all components, apply the current roubo.yaml, and start them again",
