@@ -8,9 +8,11 @@ import { createWaitFor } from "./watch-wait.js";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HELPER_IMPORT = 'from "../test/watch-wait.js"';
 // A test that starts one of these for real waits on the file system.
-const REAL_WATCH = /\b(watchInput|startStateDirWatch|startPluginDirWatch)\(/;
-// A test that mocks the module of the watch does not.
-const MOCKED_WATCH = /vi\.mock\("[^"]*\/(input-watcher|state-dir-watch|plugin-dir-watch)\.js"/;
+const REAL_WATCH =
+  /\b(watchInput|startStateDirWatch|startPluginDirWatch|startWatchers|startAppJigsWatcher|watchProjectJigs)\(/;
+// A test that mocks the module of the watch, or fs.watch itself, does not.
+const MOCKED_WATCH =
+  /vi\.mock\("[^"]*\/(input-watcher|state-dir-watch|plugin-dir-watch|jig-manager)\.js"|vi\.spyOn\(fs, "watch"\)/;
 
 function serverTestFiles(dir = path.join(repoRoot, "server")): string[] {
   const out: string[] = [];

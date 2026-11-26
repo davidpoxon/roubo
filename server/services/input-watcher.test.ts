@@ -416,13 +416,37 @@ function dropEventsJustAfterReady(windowMs: number): void {
   });
 }
 
+// Delay every event after `ready` by `delayMs`: the stream reports a change
+// late, after a warm-up rescan has already seen it.
+function delayEventsAfterReady(delayMs: number): void {
+  const real = vi.mocked(watch).getMockImplementation();
+  if (!real) throw new Error("expected the real chokidar watch behind the mock");
+  vi.mocked(watch).mockImplementationOnce((paths, opts) => {
+    const w = real(paths, opts);
+    let ready = false;
+    const emit = w.emit.bind(w);
+    w.emit = ((event: string | symbol, ...args: unknown[]) => {
+      if (event === "ready") ready = true;
+      else if (ready && event !== "error") {
+        setTimeout(() => emit(event, ...args), delayMs);
+        return true;
+      }
+      return emit(event, ...args);
+    }) as typeof w.emit;
+    return w;
+  });
+}
+
 describe("watchInput arm", () => {
   it("is ready only once the watch is live, so a change made just after ready is handled", async () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    dropEventsJustAfterReady(20);
-    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
+    dropEventsJustAfterReady(50);
+    // No warm-up rescan, so only the live stream can see the change.
+    const w = track(
+      watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS, warmupScans: 0 }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
@@ -440,7 +464,7 @@ describe("watchInput arm", () => {
     const w = track(
       watchInput(
         file,
-        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100, warmupScans: 0 },
         handler,
       ),
     );
@@ -486,6 +510,50 @@ describe("watchInput arm", () => {
     const w = track(
       watchInput(
         file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100, warmupScans: 30 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    // Warm-up rescans go on for 3 s after the arm, so several run while the
+    // watch already holds the applied content.
+    await sleep(1_000);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
+  });
+
+  it("runs no handler again at a warm-up rescan for content the handler rejected", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100, warmupScans: 30 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Several warm-up rescans run while the watch holds the rejected content.
+    await sleep(1_000);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=rejected ")]);
+  });
+
+  it("logs one line when a warm-up rescan applies a change before the stream reports it", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    delayEventsAfterReady(600);
+    const w = track(
+      watchInput(
+        file,
         { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
         handler,
       ),
@@ -494,8 +562,8 @@ describe("watchInput arm", () => {
 
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("applied") === 1);
-    // Past every warm-up rescan.
-    await sleep(100 * (ARM_WARMUP_SCANS + 2));
+    // Past the late event and its settle window.
+    await sleep(600 + WATCH_QUIET_MS);
     expect(handler).toHaveBeenCalledTimes(1);
     expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
   });

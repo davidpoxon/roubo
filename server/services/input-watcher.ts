@@ -144,6 +144,8 @@ export interface WatchInputOptions {
   loadedHash?: (absPath: string) => string | null | undefined;
   /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
+  /** How many of those checks after each arm also rescan. Default `ARM_WARMUP_SCANS`. */
+  warmupScans?: number;
   /**
    * A periodic rescan of the inputs, for a change whose file event never came:
    * the OS file events can drop an event when the host is under load, and the
@@ -582,6 +584,9 @@ export function watchInput(
   let live = false;
   // The warm-up rescans left for the current arm (see ARM_WARMUP_SCANS).
   let warmupLeft = 0;
+  // The hash a warm-up rescan last ran the handler for, per input, until the
+  // next event of that input.
+  const warmupRan = new Map<string, string | null>();
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -829,6 +834,13 @@ export function watchInput(
       const seen =
         lastRejected !== null ? lastRejected.rejected : lastApplied.has(unit) ? last : null;
       if (hash === seen) return;
+      warmupRan.set(unit, hash);
+    } else if (mode === "event" && warmupRan.has(unit)) {
+      const ran = warmupRan.get(unit);
+      warmupRan.delete(unit);
+      // The late event of a change a warm-up rescan already ran for: the
+      // stream reported it after all, and it is not a second change.
+      if (ran === hash) return;
     }
     // An absent input matches no token, and still clears the hand edits the
     // live tokens carry, since the handler runs for what the input now holds.
@@ -1034,7 +1046,7 @@ export function watchInput(
         if (everArmed) console.info(`${LOG_PREFIX} re-armed path=${dir}`);
         everArmed = true;
         await scan(false);
-        warmupLeft = ARM_WARMUP_SCANS;
+        warmupLeft = options.warmupScans ?? ARM_WARMUP_SCANS;
       } else if (watcher && live && warmupLeft > 0 && !disposed) {
         warmupLeft -= 1;
         await warmupScan();
@@ -1054,7 +1066,7 @@ export function watchInput(
       live = true;
       everArmed = true;
       await scan(true);
-      warmupLeft = ARM_WARMUP_SCANS;
+      warmupLeft = options.warmupScans ?? ARM_WARMUP_SCANS;
     }
     if (!disposed) {
       poll = setInterval(() => void check(), options.rearmPollMs ?? DEFAULT_REARM_POLL_MS);
