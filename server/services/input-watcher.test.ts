@@ -519,6 +519,20 @@ describe("watchInput rescan", () => {
     });
   }
 
+  /** The next watch counts each file event that it gets. */
+  async function countNextWatchEvents(): Promise<{ count: number }> {
+    const seen = { count: 0 };
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    vi.mocked(watch).mockImplementationOnce((...args) => {
+      const watcher = actual.watch(...args);
+      watcher.on("all", () => {
+        seen.count += 1;
+      });
+      return watcher;
+    });
+    return seen;
+  }
+
   // The rescan hashes the files that the completeness gate lists, as the
   // plugin surface does.
   const rescan = { intervalMs: 100, files: () => ["roubo-plugin.yaml"] };
@@ -584,26 +598,77 @@ describe("watchInput rescan", () => {
 
   it("HR-TC-014 leaves a change whose file event came to that event's run", async () => {
     const plugins = path.join(stateDir, "plugins");
-    fs.mkdirSync(plugins);
+    const unit = path.join(plugins, "fresh");
+    const manifest = path.join(unit, "roubo-plugin.yaml");
+    fs.mkdirSync(unit, { recursive: true });
+    fs.writeFileSync(manifest, "id: fresh\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const events = await countNextWatchEvents();
     const w = track(
       watchInput(
         plugins,
-        // A settle window longer than the rescan interval, so a rescan comes
-        // while the event's run waits.
-        { surface: "plugin", settleMs: 400, rearmPollMs: 100, settled, rescan },
+        // A settle window much longer than the rescan interval, so several
+        // rescans come while the event's run waits.
+        { surface: "plugin", settleMs: 800, rearmPollMs: 100, settled, rescan },
         handler,
       ),
     );
     await w.ready;
 
-    fs.mkdirSync(path.join(plugins, "fresh"));
-    fs.writeFileSync(path.join(plugins, "fresh", "roubo-plugin.yaml"), "id: fresh\n");
+    // A file the rescan does not hash opens the settle window first, so the
+    // window is open before the rescan can see the manifest change.
+    fs.writeFileSync(path.join(unit, "notes.txt"), "one");
+    await waitFor(() => events.count > 0);
+    fs.writeFileSync(manifest, "id: fresh\nversion: 2\n");
+    // Three rescan intervals, inside the settle window: no rescan runs it.
+    await sleep(300);
+    expect(handler).not.toHaveBeenCalled();
+
+    fs.writeFileSync(manifest, "id: fresh\nversion: 3\n");
     await waitFor(() => outcomeCount("applied") === 1);
     await sleep(400);
 
     expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      path: unit,
+      hash: hashInputFiles(unit, ["roubo-plugin.yaml"]),
+    });
     expect(outcomeCount("applied")).toBe(1);
+  });
+
+  it("HR-TC-014 sends one incomplete notice for an input that the gate keeps finding incomplete", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const gate = vi.fn(async (): Promise<boolean> => false);
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    const added = path.join(plugins, "copying");
+    fs.mkdirSync(added);
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // A file the rescan does not hash goes on changing, as a copy that never
+    // settles does.
+    for (let i = 0; i < 6; i += 1) {
+      fs.writeFileSync(path.join(added, "notes.txt"), String(i));
+      await sleep(100);
+    }
+
+    expect(outcomeCount("rejected")).toBe(1);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+
+    // A change to a file the rescan hashes gates the input again.
+    fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: copying\nversion: 2\n");
+    await waitFor(() => outcomeCount("rejected") === 2);
   });
 });
 

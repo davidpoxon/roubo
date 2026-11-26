@@ -153,8 +153,10 @@ export interface WatchInputOptions {
    * every file below it), and an input whose hash differs from its last
    * applied or rejected content runs as a rescan after a re-arm does: a
    * deduped run logs nothing. `files` must list what the completeness gate
-   * lists, so an unchanged input hashes the same here and in its run. Off
-   * when absent.
+   * lists, so an unchanged input hashes the same here and in its run. An
+   * input that the completeness gate last found incomplete is left alone
+   * until those files change, so a tree that never settles is not gated, and
+   * its incomplete notice sent, again on every pass. Off when absent.
    */
   rescan?: {
     intervalMs: number;
@@ -551,6 +553,9 @@ export function watchInput(
   let rescanning = false;
   // How many runs of each input are queued or running.
   const pendingRuns = new Map<string, number>();
+  // The rescan hash of each input whose last run the completeness gate found
+  // incomplete; the rescan skips the input while its hash stays the same.
+  const incomplete = new Map<string, string | null>();
   // Settles the ready promise of the current arm. Closing a watcher before
   // chokidar emits `ready` means `ready` never comes, so disarm settles it.
   let settleArm: (() => void) | null = null;
@@ -600,17 +605,24 @@ export function watchInput(
     return next;
   }
 
+  /** The files the rescan hashes `unit` over, or null for every file below it. */
+  function rescanFilesOf(unit: string): readonly string[] | null {
+    const opts = options.rescan;
+    if (!opts) return null;
+    try {
+      return fs.existsSync(unit) ? opts.files(unit) : null;
+    } catch {
+      // An input the surface cannot list is hashed over every file.
+      return null;
+    }
+  }
+
   /**
-   * Whether `unit` holds other content than its last applied or rejected
-   * content, hashed over the rescan's files. False for an input that the
-   * watch never ran for and that is still absent.
+   * Whether `hash`, the rescan hash of `unit`, is other content than its last
+   * applied or rejected content. False for an input that the watch never ran
+   * for and that is still absent.
    */
-  function differsFromLast(
-    unit: string,
-    files: readonly string[] | null,
-    roots: readonly string[],
-  ): boolean {
-    const hash = hashUnit(unit, files, roots);
+  function differsFromLast(unit: string, hash: string | null): boolean {
     if (!lastApplied.has(unit)) return hash !== null;
     const last = lastApplied.get(unit);
     if (typeof last === "object" && last !== null) return last.rejected !== hash;
@@ -621,7 +633,8 @@ export function watchInput(
    * The periodic rescan (see `rescan`): each input that the watch is not
    * already about to run, and whose content differs from its last, runs once
    * as a rescan does. A change whose event did come has a settle window or a
-   * run pending, so it is left to that run.
+   * run pending, so it is left to that run, and one that the completeness
+   * gate found incomplete is left until its rescan hash changes.
    */
   async function rescanInputs(): Promise<void> {
     const opts = options.rescan;
@@ -638,13 +651,9 @@ export function watchInput(
         // An input out of every root is refused by the run its event starts;
         // a rescan would only refuse it again on every pass.
         if (!realpathAllowed(unit, roots)) continue;
-        let files: readonly string[] | null = null;
-        try {
-          files = fs.existsSync(unit) ? opts.files(unit) : null;
-        } catch {
-          // An input the surface cannot list is hashed over every file.
-        }
-        if (differsFromLast(unit, files, roots)) runs.push(enqueue(unit, "quiet"));
+        const hash = hashUnit(unit, rescanFilesOf(unit), roots);
+        if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
+        if (differsFromLast(unit, hash)) runs.push(enqueue(unit, "quiet"));
       }
       await Promise.all(runs);
     } finally {
@@ -738,6 +747,9 @@ export function watchInput(
       }
       if (disposed) return;
       if (complete === false) {
+        // Taken after the gate gave up, so a rescan finds the same files
+        // unchanged and does not gate the input again.
+        if (options.rescan) incomplete.set(unit, hashUnit(unit, rescanFilesOf(unit), roots));
         if (mode !== "seed") {
           emit("rejected", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.incomplete);
         }
@@ -745,6 +757,7 @@ export function watchInput(
       }
       if (Array.isArray(complete)) files = complete;
     }
+    incomplete.delete(unit);
 
     const hash = hashUnit(unit, files, roots);
     // The content this run reads is taken in now, before the handler runs, so
