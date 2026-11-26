@@ -9,6 +9,7 @@ import {
   DEFAULT_GITHUB_SETTINGS,
 } from "@roubo/shared";
 import { PROJECT_ID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
+import { hashContent, markSelfWrite } from "./self-write-tokens.js";
 import type {
   AssignedIssue,
   Bench,
@@ -62,6 +63,9 @@ export function atomicWrite(filePath: string, data: string, mode?: number) {
   }
   const tmp = resolvedFile + ".tmp";
   fs.writeFileSync(tmp, data, { encoding: "utf-8", mode: mode ?? 0o666 });
+  // Mark the write before the rename, so the InputWatcher event the rename
+  // raises is taken as the server's own write and runs no reload handler.
+  markSelfWrite(resolvedFile, hashContent(data));
   fs.renameSync(tmp, resolvedFile);
 }
 
