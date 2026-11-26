@@ -226,9 +226,19 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
     );
 
     await row.getByRole("button").first().click();
-    await expect(page, "opening lantern-2 goes to its project page").toHaveURL(
-      new RegExp(`/projects/${PROJECT_ID}$`),
+    const projectUrl = new RegExp(`/projects/${PROJECT_ID}$`);
+    const opened = await page.waitForURL(projectUrl, { timeout: 5_000 }).then(
+      () => true,
+      () => false,
     );
+    observe(
+      STEPS.S002,
+      "S002-O02",
+      opened,
+      `opening '${PROJECT_ID}' goes to its project page, a URL that ends in /projects/${PROJECT_ID}`,
+      `after 5000 ms the page is at ${page.url()}`,
+    );
+
     const missing: string[] = [];
     for (const title of ISSUE_TITLES) {
       const visible = await page
@@ -243,7 +253,7 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
     }
     observe(
       STEPS.S002,
-      "S002-O02",
+      "S002-O03",
       missing.length === 0,
       `the cut list lists the lantern-2 issues: ${ISSUE_TITLES.join(", ")}`,
       missing.length === 0 ? "listed" : `not listed after 10000 ms: ${missing.join(", ")}`,
