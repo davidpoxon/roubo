@@ -68,6 +68,12 @@ jobs:
       # repository must not reference. Cite spec ids or this repository's own
       # issue and PR numbers instead.
       - run: npm run lint:repo-refs
+      # HR-FR-019: fail the build if docs/, client/src or README.md tells the
+      # user to restart Roubo. Roubo applies roubo.yaml, plugins, settings, state
+      # files and project registration live. A line that still needs a restart,
+      # such as for a release update, carries the inline `restart-guard: allow`
+      # marker and its reason.
+      - run: npm run lint:restart-instructions
 
   format:
     runs-on: ubuntu-latest
