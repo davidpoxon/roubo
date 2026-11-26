@@ -704,10 +704,9 @@ describe("watchInput rescan", () => {
     const gatedOnce = heldGates();
 
     fs.writeFileSync(path.join(other, "roubo-plugin.yaml"), "id: existing\nversion: 2\n");
-    // A few rescan intervals: the held gate does not keep the other input waiting.
-    const started = Date.now();
+    // The held gate never opens on its own, so the other input runs only if
+    // the rescan goes on hashing it while the held run waits.
     await waitFor(() => handler.mock.calls.length === 1);
-    expect(Date.now() - started).toBeLessThan(1_000);
     expect(handler).toHaveBeenCalledWith({
       path: other,
       hash: hashInputFiles(other, ["roubo-plugin.yaml"]),
