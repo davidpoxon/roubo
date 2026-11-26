@@ -144,6 +144,7 @@ import {
   type PluginSetChange,
 } from "./plugin-dir-watch.js";
 import { createWaitFor, sleep } from "../test/watch-wait.js";
+import { WATCH_SETTLE_MS } from "../test/watch-project.js";
 
 // An entry that exits as soon as it starts: a rebuild that crashes at start.
 const EXITS_AT_START = `"use strict";\nprocess.exit(1);\n`;
@@ -277,7 +278,13 @@ function record(id: string) {
 }
 
 async function startWatch(): Promise<void> {
-  await startPluginDirWatch({ root, settleMs: 100, pollMs: 150, rearmPollMs: 200, rescanMs: 300 });
+  await startPluginDirWatch({
+    root,
+    settleMs: WATCH_SETTLE_MS,
+    pollMs: 150,
+    rearmPollMs: 200,
+    rescanMs: 300,
+  });
 }
 
 /**

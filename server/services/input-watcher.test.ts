@@ -29,6 +29,8 @@ vi.mock("chokidar", async (importOriginal) => {
 import { watch } from "chokidar";
 import { atomicWrite } from "./state.js";
 import {
+  ARM_LIVE_MS,
+  ARM_WARMUP_SCANS,
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
@@ -53,6 +55,7 @@ import { addClient, _resetClientsForTest } from "./sse.js";
 import type { Response } from "express";
 import type { InputChangedEvent } from "@roubo/shared";
 import { createWaitFor, sleep } from "../test/watch-wait.js";
+import { WATCH_QUIET_MS, WATCH_SETTLE_MS } from "../test/watch-project.js";
 
 const LINE_RE =
   /^\[input-watcher\] surface=\S+ path=\S+ outcome=(applied|rejected|deduped|self-write|refused) hash8=([0-9a-f]{8}|none) durationMs=\d+$/;
@@ -106,9 +109,9 @@ afterEach(async () => {
 describe("watchInput allowlist", () => {
   it("HR-TC-046 rejects /etc/hosts with WatchRootError and creates no watcher", () => {
     const before = vi.mocked(watch).mock.calls.length;
-    expect(() => watchInput("/etc/hosts", { surface: "test", settleMs: 50 }, vi.fn())).toThrow(
-      WatchRootError,
-    );
+    expect(() =>
+      watchInput("/etc/hosts", { surface: "test", settleMs: WATCH_SETTLE_MS }, vi.fn()),
+    ).toThrow(WatchRootError);
     expect(vi.mocked(watch).mock.calls.length).toBe(before);
   });
 
@@ -117,8 +120,12 @@ describe("watchInput allowlist", () => {
     const inState = path.join(stateDir, "settings.json");
     fs.writeFileSync(inProject, "a: 1\n");
     fs.writeFileSync(inState, "{}");
-    const a = track(watchInput(inProject, { surface: "project", settleMs: 50 }, vi.fn()));
-    const b = track(watchInput(inState, { surface: "settings", settleMs: 50 }, vi.fn()));
+    const a = track(
+      watchInput(inProject, { surface: "project", settleMs: WATCH_SETTLE_MS }, vi.fn()),
+    );
+    const b = track(
+      watchInput(inState, { surface: "settings", settleMs: WATCH_SETTLE_MS }, vi.fn()),
+    );
     await Promise.all([a.ready, b.ready]);
   });
 
@@ -128,9 +135,9 @@ describe("watchInput allowlist", () => {
     const link = path.join(projectDir, "linked.json");
     fs.symlinkSync(secret, link);
     const before = vi.mocked(watch).mock.calls.length;
-    expect(() => watchInput(link, { surface: "project", settleMs: 50 }, vi.fn())).toThrow(
-      WatchRootError,
-    );
+    expect(() =>
+      watchInput(link, { surface: "project", settleMs: WATCH_SETTLE_MS }, vi.fn()),
+    ).toThrow(WatchRootError);
     expect(vi.mocked(watch).mock.calls.length).toBe(before);
   });
 
@@ -140,7 +147,11 @@ describe("watchInput allowlist", () => {
     const plugins = path.join(stateDir, "plugins");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
     const w = track(
-      watchInput(plugins, { surface: "plugin", settleMs: 50, rearmPollMs: 100 }, handler),
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
     );
     await w.ready;
     const before = vi.mocked(watch).mock.calls.length;
@@ -165,14 +176,18 @@ describe("watchInput allowlist", () => {
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
     const settled = vi.fn(async (): Promise<boolean> => true);
     const w = track(
-      watchInput(plugins, { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled }, handler),
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100, settled },
+        handler,
+      ),
     );
     await w.ready;
 
     const link = path.join(plugins, "linked");
     fs.symlinkSync(outsideDir, link);
     await waitFor(() => outcomeCount("refused") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).not.toHaveBeenCalled();
     expect(settled).not.toHaveBeenCalled();
@@ -187,14 +202,14 @@ describe("watchInput dedupe and self-write", () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("applied") === 1);
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("deduped") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
@@ -206,12 +221,12 @@ describe("watchInput dedupe and self-write", () => {
     const file = path.join(stateDir, "settings.json");
     fs.writeFileSync(file, "{}");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = track(watchInput(file, { surface: "settings", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "settings", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     atomicWrite(file, '{"theme":"dark"}');
     await waitFor(() => outcomeCount("self-write") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).not.toHaveBeenCalled();
     expect(applyLines()).toEqual([expect.stringContaining(" outcome=self-write ")]);
@@ -223,7 +238,7 @@ describe("watchInput dedupe and self-write", () => {
     const handler = vi.fn(async (change: InputChange): Promise<HandlerResult> =>
       change.hash === hashContent("name: bad\n") ? "rejected" : "applied",
     );
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: bad\n");
@@ -242,7 +257,7 @@ describe("watchInput dedupe and self-write", () => {
     const handler = vi.fn(async (change: InputChange): Promise<HandlerResult> =>
       change.hash === hashContent("name: bad\n") ? "rejected" : "applied",
     );
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: bad\n");
@@ -262,7 +277,11 @@ describe("watchInput dedupe and self-write", () => {
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
     const w = track(
-      watchInput(file, { surface: "project", settleMs: 50, rearmPollMs: 100 }, handler),
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
     );
     await w.ready;
 
@@ -272,7 +291,7 @@ describe("watchInput dedupe and self-write", () => {
     await sleep(300);
     fs.renameSync(away, dir);
     await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")));
-    await sleep(300);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(outcomeCount("rejected")).toBe(1);
@@ -282,7 +301,7 @@ describe("watchInput dedupe and self-write", () => {
     const file = path.join(stateDir, "settings.json");
     fs.writeFileSync(file, "{}");
     const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
-    const w = track(watchInput(file, { surface: "settings", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "settings", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     const content = '{"theme":42}';
@@ -302,7 +321,7 @@ describe("watchInput dedupe and self-write", () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
@@ -403,7 +422,7 @@ describe("watchInput arm", () => {
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
     dropEventsJustAfterReady(20);
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
@@ -419,7 +438,11 @@ describe("watchInput arm", () => {
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
     const w = track(
-      watchInput(file, { surface: "project", settleMs: 50, rearmPollMs: 100 }, handler),
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
     );
     await w.ready;
 
@@ -435,6 +458,73 @@ describe("watchInput arm", () => {
     await waitFor(() => outcomeCount("applied") === 1);
     expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
   });
+
+  it("applies a change that a stream slower to go live than ARM_LIVE_MS never reports, at a warm-up rescan", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    dropEventsJustAfterReady(ARM_LIVE_MS + 300);
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
+  });
+
+  it("adds no line at a warm-up rescan when the stream reported the change", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    // Past every warm-up rescan.
+    await sleep(100 * (ARM_WARMUP_SCANS + 2));
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
+  });
+
+  it("reports nothing at a warm-up rescan for an input that is refused or still incomplete", async () => {
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    fs.symlinkSync(outsideDir, path.join(plugins, "linked"));
+    fs.mkdirSync(path.join(plugins, "partial"));
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(
+        plugins,
+        {
+          surface: "plugin",
+          settleMs: WATCH_SETTLE_MS,
+          rearmPollMs: 100,
+          settled: async () => false,
+        },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    await sleep(100 * (ARM_WARMUP_SCANS + 2));
+    expect(handler).not.toHaveBeenCalled();
+    expect(applyLines()).toEqual([]);
+  });
 });
 
 describe("watchInput lifecycle", () => {
@@ -449,7 +539,11 @@ describe("watchInput lifecycle", () => {
       return { outcome: "applied", action: "register" };
     });
     const w = track(
-      watchInput(plugins, { surface: "plugin", settleMs: 50, rearmPollMs: 100 }, handler),
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
     );
     await w.ready;
 
@@ -484,7 +578,7 @@ describe("watchInput lifecycle", () => {
       return "applied";
     });
     // No rearmPollMs: the default one-second lifecycle poll.
-    const w = track(watchInput(plugins, { surface: "plugin", settleMs: 50 }, handler));
+    const w = track(watchInput(plugins, { surface: "plugin", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.renameSync(plugins, away);
@@ -512,7 +606,7 @@ describe("watchInput lifecycle", () => {
     const file = path.join(dir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.renameSync(dir, away);
@@ -531,12 +625,14 @@ describe("watchInput lifecycle", () => {
   it("HR-TC-055 arms a file watch on a missing file and handles the file once it appears", async () => {
     const file = path.join(stateDir, "settings.json");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = track(watchInput(file, { surface: "settings", settleMs: 50, kind: "file" }, handler));
+    const w = track(
+      watchInput(file, { surface: "settings", settleMs: WATCH_SETTLE_MS, kind: "file" }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(file, '{"theme":"dark"}');
     await waitFor(() => outcomeCount("applied") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent('{"theme":"dark"}') });
@@ -549,7 +645,7 @@ describe("watchInput lifecycle", () => {
     const dir = path.join(stateDir, "plugins");
     fs.mkdirSync(dir);
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = watchInput(dir, { surface: "plugin", settleMs: 50 }, handler);
+    const w = watchInput(dir, { surface: "plugin", settleMs: WATCH_SETTLE_MS }, handler);
     await w.dispose();
 
     const settled = await Promise.race([w.ready.then(() => true), sleep(1_000).then(() => false)]);
@@ -888,7 +984,9 @@ describe("watchInput logging", () => {
       "refused.json": () => "refused",
     };
     const handler = vi.fn(async (change: InputChange) => plan[path.basename(change.path)]());
-    const w = track(watchInput(dir, { surface: "settings", settleMs: 50, allow: names }, handler));
+    const w = track(
+      watchInput(dir, { surface: "settings", settleMs: WATCH_SETTLE_MS, allow: names }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(path.join(dir, "applied.json"), '{"a":1}');
@@ -901,7 +999,7 @@ describe("watchInput logging", () => {
     await waitFor(() => outcomeCount("refused") === 1);
     atomicWrite(path.join(dir, "self.json"), '{"d":1}');
     await waitFor(() => outcomeCount("self-write") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     const outcomeLines = applyLines();
     expect(outcomeLines.map((l) => / outcome=(\S+) /.exec(l)?.[1])).toEqual([
@@ -929,7 +1027,7 @@ describe("watchInput logging", () => {
           release = resolve;
         }),
     );
-    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    const w = track(watchInput(file, { surface: "project", settleMs: WATCH_SETTLE_MS }, handler));
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
@@ -937,7 +1035,7 @@ describe("watchInput logging", () => {
     await w.dispose();
     release("applied");
     await waitFor(() => applyLines().length === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(applyLines()).toHaveLength(1);
     expect(applyLines()[0]).toMatch(LINE_RE);
@@ -955,7 +1053,7 @@ describe("watchInput logging", () => {
     const w = track(
       watchInput(
         stateDir,
-        { surface: "plugin", settleMs: 50, allow: ["plugins"], depth: 3 },
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, allow: ["plugins"], depth: 3 },
         handler,
       ),
     );
@@ -1025,7 +1123,7 @@ describe("watchInput logging", () => {
     const w = track(
       watchInput(
         stateDir,
-        { surface: "settings", settleMs: 50, allow: ["settings.json", "auth.json"] },
+        { surface: "settings", settleMs: WATCH_SETTLE_MS, allow: ["settings.json", "auth.json"] },
         handler,
       ),
     );
@@ -1035,7 +1133,7 @@ describe("watchInput logging", () => {
     await waitFor(() => events.some((e) => e.path === settings));
     fs.writeFileSync(auth, '{"apiKey":"SECRET-MARKER-AUTH"}');
     await waitFor(() => events.some((e) => e.path === auth));
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(lines.some((l) => l.includes("SECRET-MARKER"))).toBe(false);
     expect(events.some((e) => JSON.stringify(e).includes("SECRET-MARKER"))).toBe(false);
@@ -1090,12 +1188,14 @@ describe("watchInput input-changed events", () => {
       outcome: "applied",
       event: { projectId: "proj", benchIds: [3, 7], summary: "Project config applied" },
     }));
-    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    const w = track(
+      watchInput(file, { surface: "project-config", settleMs: WATCH_SETTLE_MS }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("applied") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     const events = inputEvents();
     expect(events).toHaveLength(1);
@@ -1120,12 +1220,14 @@ describe("watchInput input-changed events", () => {
         error: { path: "roubo.yaml", first: "benches.max: expected a number" },
       },
     }));
-    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    const w = track(
+      watchInput(file, { surface: "project-config", settleMs: WATCH_SETTLE_MS }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(file, "benches: {max: many}\n");
     await waitFor(() => outcomeCount("rejected") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     const events = inputEvents();
     expect(events).toHaveLength(1);
@@ -1143,7 +1245,9 @@ describe("watchInput input-changed events", () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
-    const w = track(watchInput(file, { surface: "project-config", settleMs: 50 }, handler));
+    const w = track(
+      watchInput(file, { surface: "project-config", settleMs: WATCH_SETTLE_MS }, handler),
+    );
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
@@ -1155,7 +1259,7 @@ describe("watchInput input-changed events", () => {
     await waitFor(() => outcomeCount("deduped") === 1);
     atomicWrite(file, "name: three\n");
     await waitFor(() => outcomeCount("self-write") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(inputEvents()).toHaveLength(1);
   });
@@ -1164,13 +1268,17 @@ describe("watchInput input-changed events", () => {
     const file = path.join(projectDir, "roubo.yaml");
     fs.writeFileSync(file, "name: one\n");
     const w = track(
-      watchInput(file, { surface: "project", settleMs: 50 }, async () => "applied" as const),
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS },
+        async () => "applied" as const,
+      ),
     );
     await w.ready;
 
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("applied") === 1);
-    await sleep(100);
+    await sleep(WATCH_QUIET_MS);
 
     expect(inputEvents()).toHaveLength(0);
   });
@@ -1184,7 +1292,7 @@ describe("watchInput input-changed events", () => {
     const w = track(
       watchInput(
         file,
-        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        { surface: "project-config", settleMs: WATCH_SETTLE_MS, target: { projectId: "proj" } },
         handler,
       ),
     );
@@ -1192,7 +1300,7 @@ describe("watchInput input-changed events", () => {
 
     fs.writeFileSync(file, "benches: [SECRET-MARKER\n");
     await waitFor(() => outcomeCount("rejected") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     const events = inputEvents();
     expect(events).toHaveLength(1);
@@ -1215,7 +1323,7 @@ describe("watchInput input-changed events", () => {
     const w = track(
       watchInput(
         plugins,
-        { surface: "plugin", settleMs: 50, target: { pluginId: "linked" } },
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, target: { pluginId: "linked" } },
         handler,
       ),
     );
@@ -1223,7 +1331,7 @@ describe("watchInput input-changed events", () => {
 
     fs.symlinkSync(outsideDir, path.join(plugins, "linked"));
     await waitFor(() => outcomeCount("refused") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).not.toHaveBeenCalled();
     const events = inputEvents();
@@ -1249,7 +1357,7 @@ describe("watchInput input-changed events", () => {
     const w = track(
       watchInput(
         plugins,
-        { surface: "plugin", settleMs: 50, settled, target: { pluginId: "p1" } },
+        { surface: "plugin", settleMs: WATCH_SETTLE_MS, settled, target: { pluginId: "p1" } },
         handler,
       ),
     );
@@ -1258,7 +1366,7 @@ describe("watchInput input-changed events", () => {
     fs.mkdirSync(path.join(plugins, "p1"));
     fs.writeFileSync(path.join(plugins, "p1", "partial.txt"), "x");
     await waitFor(() => outcomeCount("rejected") >= 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(handler).not.toHaveBeenCalled();
     const events = inputEvents();
@@ -1283,7 +1391,7 @@ describe("watchInput input-changed events", () => {
     const w = track(
       watchInput(
         file,
-        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        { surface: "project-config", settleMs: WATCH_SETTLE_MS, target: { projectId: "proj" } },
         handler,
       ),
     );
@@ -1291,7 +1399,7 @@ describe("watchInput input-changed events", () => {
 
     fs.writeFileSync(file, "benches: {max: many}\n");
     await waitFor(() => outcomeCount("rejected") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(inputEvents()).toHaveLength(1);
     expect(inputEvents()[0]).toMatchObject({
@@ -1306,7 +1414,7 @@ describe("watchInput input-changed events", () => {
     const w = track(
       watchInput(
         file,
-        { surface: "project-config", settleMs: 50, target: { projectId: "proj" } },
+        { surface: "project-config", settleMs: WATCH_SETTLE_MS, target: { projectId: "proj" } },
         async () => "rejected" as const,
       ),
     );
@@ -1314,7 +1422,7 @@ describe("watchInput input-changed events", () => {
 
     fs.writeFileSync(file, "name: two\n");
     await waitFor(() => outcomeCount("rejected") === 1);
-    await sleep(200);
+    await sleep(WATCH_QUIET_MS);
 
     expect(inputEvents()).toHaveLength(1);
     expect(inputEvents()[0]).toMatchObject({
