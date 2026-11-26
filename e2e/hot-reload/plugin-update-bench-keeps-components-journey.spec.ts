@@ -63,26 +63,22 @@ const COMPOSE_YAML = `services:
       retries: 30
 `;
 
-// The slices of this journey, named by title: they are filed in a tracker this
-// public repository does not link to (see step-runner.ts).
+// The slices of this journey, named by their exact issue titles: they are filed
+// in a tracker this public repository does not link to (see step-runner.ts).
+// Only the slices this journey is blocked by are named, so a failure points at
+// a slice the journey depends on.
 const SLICE = {
-  inputWatcher: {
-    title:
-      "InputWatcher module: allowlisted chokidar watches with settle, hash dedupe, self-write tokens, and one log line per outcome",
-  },
-  benchSnapshot: {
-    title:
-      "Bench keeps its component definitions: snapshot at set-up, stale marker, restart with new config",
-  },
   pluginSwap: {
-    title: "Plugin swap keeps bench resources and re-binds them on the new process",
-  },
-  events: {
     title:
-      "input-changed event on the server stream and a non-blocking client notice with targeted refresh",
+      "Plugin swap keeps bench resources, and removal is refused while a bench uses the plugin",
+  },
+  configWatch: {
+    title:
+      "Watch roubo.yaml per project: re-parse on save, keep last good, notify, mark running benches stale",
   },
   pluginsWatch: {
-    title: "Watch ~/.roubo/plugins: register, swap and unregister plugins live",
+    title:
+      "Watch ~/.roubo/plugins: register, swap, and unregister plugins live, inert until consent, converging with the marketplace path",
   },
 } as const;
 
@@ -90,17 +86,20 @@ const STEPS: Record<string, JourneyStep> = {
   S001: {
     id: "S001",
     instruction: "With bench 2 active and its database container running, note the container id",
-    owners: [SLICE.pluginSwap, SLICE.benchSnapshot],
+    owners: [SLICE.pluginSwap],
   },
   S002: {
     id: "S002",
     instruction: "Open Marketplace and click Update on 'database'",
-    owners: [SLICE.pluginSwap, SLICE.pluginsWatch, SLICE.events, SLICE.inputWatcher],
+    // The update swaps the process (pluginSwap), lands through the plugins
+    // watch (pluginsWatch), and its notice counts the benches that kept their
+    // components the way a watched roubo.yaml save counts them (configWatch).
+    owners: [SLICE.pluginSwap, SLICE.pluginsWatch, SLICE.configWatch],
   },
   S003: {
     id: "S003",
     instruction: "Run a query through the bench's database component",
-    owners: [SLICE.pluginSwap, SLICE.benchSnapshot],
+    owners: [SLICE.pluginSwap],
   },
 };
 
