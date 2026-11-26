@@ -1101,6 +1101,15 @@ export function getSessions(projectId: string, benchId: number): TerminalSession
     .map((s) => s.session);
 }
 
+/**
+ * The process id of a session's PTY, or undefined when the session is unknown
+ * or its PTY has ended. The e2e harness reads it to tell that a terminal is
+ * still the same process after a hot-reload apply (HR-TC-039).
+ */
+export function getSessionPtyPid(sessionId: string): number | undefined {
+  return sessions.get(sessionId)?.pty?.pid ?? undefined;
+}
+
 export function isLiveSession(sessionId: string): boolean {
   const internal = sessions.get(sessionId);
   return internal !== undefined && internal.pty !== null;
