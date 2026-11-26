@@ -20,6 +20,7 @@ import {
   verifyCatalogSignature,
   verifyKeyRing,
 } from "./marketplace-integrity.js";
+import { catalogPackageEntry } from "./e2e-catalog-packages.js";
 
 // Marketplace catalog client (CPHM-FR-001 / FR-009 / NFR-003, #845).
 //
@@ -658,7 +659,9 @@ export function prefetch(): Promise<void> {
 // reachable (replacing the retired committed seed catalog it used to re-sign,
 // #993). Five well-formed entries are enough to walk
 // the degrade journey; the digests are placeholders (the offline journey lists
-// and pauses, it never installs).
+// and pauses, it never installs). A spec that installs or updates a plugin
+// serves a fixture package with a real digest in place of an entry instead
+// (__setE2ECatalogPackage, e2e-catalog-packages.ts).
 //
 // Every kind is represented, deliberately (AP-FR-022, #1112): the agent
 // entries are what give an e2e run an agent-kind listing to render, and having
@@ -771,6 +774,13 @@ interface E2EReachabilitySeam {
   catalogBody: string;
   /** Pre-signed key-ring envelope body the injected fetch serves when reachable. */
   keyRingBody: string;
+  /** Signs `entries` as a catalog envelope body with the ring's operational key. */
+  signEntries: (entries: MarketplaceCatalogEntry[]) => string;
+  /**
+   * Fixture catalog entries served in place of the inline entry of the same id,
+   * each a release-sourced fixture package (HR-TC-012). Empty by default.
+   */
+  packageEntries: Map<string, MarketplaceCatalogEntry>;
 }
 
 let e2eSeam: E2EReachabilitySeam | null = null;
@@ -803,24 +813,35 @@ function buildE2ESeam(): E2EReachabilitySeam {
 
   // Sign the inline fixture entries with the generated operational key, so the
   // reachable (network) listing matches the offline (cache) listing exactly: the
-  // journey degrades to the last-known catalog, never a different one.
-  const entries = E2E_FIXTURE_ENTRIES;
-  const catalogPayload = { schemaVersion: 1, generatedAt, keyId, entries };
-  const catalog: SignedMarketplaceCatalog = {
-    payload: catalogPayload,
-    signature: sign(
-      null,
-      Buffer.from(canonicalize(catalogPayload), "utf8"),
-      op.privateKey,
-    ).toString("base64"),
+  // journey degrades to the last-known catalog, never a different one. The same
+  // key re-signs the catalog when a spec serves a fixture package in place of an
+  // inline entry (__setE2ECatalogPackage), so the client keeps verifying it.
+  const signEntries = (entries: MarketplaceCatalogEntry[]): string => {
+    const catalogPayload = { schemaVersion: 1, generatedAt, keyId, entries };
+    const catalog: SignedMarketplaceCatalog = {
+      payload: catalogPayload,
+      signature: sign(
+        null,
+        Buffer.from(canonicalize(catalogPayload), "utf8"),
+        op.privateKey,
+      ).toString("base64"),
+    };
+    return JSON.stringify(catalog);
   };
 
   return {
     reachable: true,
     rootPublicKeyPem: spkiPem(root.publicKey),
-    catalogBody: JSON.stringify(catalog),
+    catalogBody: signEntries(E2E_FIXTURE_ENTRIES),
     keyRingBody: JSON.stringify(keyRing),
+    signEntries,
+    packageEntries: new Map(),
   };
+}
+
+/** The inline fixture entries, each replaced by its served fixture package, if any. */
+function servedE2EEntries(seam: E2EReachabilitySeam): MarketplaceCatalogEntry[] {
+  return E2E_FIXTURE_ENTRIES.map((entry) => seam.packageEntries.get(entry.id) ?? entry);
 }
 
 function getE2ESeam(): E2EReachabilitySeam {
@@ -860,6 +881,64 @@ export async function __setE2EMarketplaceReachable(
   getE2ESeam().reachable = reachable;
   const resolved = await getDefaultClient().getVerifiedCatalog({ forceRefresh: true });
   return resolved.source;
+}
+
+/** Thrown when a spec asks for a fixture package that does not exist. */
+export class UnknownE2ECatalogPackageError extends Error {}
+
+/**
+ * ROUBO_E2E-only: serve the fixture package `id` at `version`
+ * (e2e/fixtures/catalog-packages/<id>/<version>/) in place of the inline
+ * catalog entry of that id, as a release-sourced entry carrying the package's
+ * real digest, so the marketplace can install or update it end to end
+ * (HR-TC-012). A null `version` serves the inline entry again. The catalog is
+ * re-signed and the memo is busted, so the next listing reads the change.
+ * Returns the entry now served, or null outside the e2e gate. Throws
+ * UnknownE2ECatalogPackageError when the inline catalog has no entry `id` or
+ * no fixture package has that version. `POST /test/__serve-catalog-package`
+ * drives this, and `/test/__reset` serves the inline entries again
+ * (`__resetE2ECatalogPackages`) so a served package never leaks into a later
+ * spec (NFR-018).
+ */
+export async function __setE2ECatalogPackage(
+  id: string,
+  version: string | null,
+): Promise<MarketplaceCatalogEntry | null> {
+  if (process.env.ROUBO_E2E !== "1") return null;
+  const base = E2E_FIXTURE_ENTRIES.find((entry) => entry.id === id);
+  if (base === undefined) {
+    throw new UnknownE2ECatalogPackageError(`The e2e fixture catalog has no entry "${id}"`);
+  }
+  const seam = getE2ESeam();
+  let served: MarketplaceCatalogEntry = base;
+  if (version === null) {
+    seam.packageEntries.delete(id);
+  } else {
+    const entry = await catalogPackageEntry(base, version);
+    if (entry === null) {
+      throw new UnknownE2ECatalogPackageError(
+        `No e2e fixture package "${id}" at version ${version}`,
+      );
+    }
+    seam.packageEntries.set(id, entry);
+    served = entry;
+  }
+  seam.catalogBody = seam.signEntries(servedE2EEntries(seam));
+  await getDefaultClient().getVerifiedCatalog({ forceRefresh: true });
+  return served;
+}
+
+/**
+ * ROUBO_E2E-only: serve every inline catalog entry again, dropping each fixture
+ * package a spec served. It does not refresh the client itself: `/test/__reset`
+ * calls it just before `__setE2EMarketplaceReachable(true)`, whose forced
+ * refresh then reads the restored catalog. A no-op outside the e2e gate.
+ */
+export function __resetE2ECatalogPackages(): void {
+  if (process.env.ROUBO_E2E !== "1" || e2eSeam === null) return;
+  if (e2eSeam.packageEntries.size === 0) return;
+  e2eSeam.packageEntries.clear();
+  e2eSeam.catalogBody = e2eSeam.signEntries(servedE2EEntries(e2eSeam));
 }
 
 // ── ROUBO_E2E third-party-source seam (#989, CPHMTP-TC-073) ──────────────

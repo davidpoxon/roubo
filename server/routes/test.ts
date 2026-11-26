@@ -36,7 +36,7 @@ import * as sourcesState from "../services/marketplace-sources-state.js";
 import * as pluginProvenanceState from "../services/plugin-provenance-state.js";
 import * as credentialStore from "../services/credential-store.js";
 import { resetProbeRunnerCache } from "../services/agent-probe-runner.js";
-import { PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
+import { PLUGIN_ID_RE, PROJECT_ID_RE, resolveWithin } from "../lib/safe-path.js";
 import {
   IntegrationConfigSchema,
   type AssignedIssue,
@@ -54,6 +54,9 @@ import {
 } from "@roubo/shared/testbench-contracts";
 
 const router: Router = Router();
+
+// The version shape a fixture catalog package directory is named by.
+const SEMVER_CORE_RE = /^\d+\.\d+\.\d+$/;
 
 // Defence-in-depth rate limit on the e2e harness surface. These routes only
 // respond when ROUBO_E2E=1 (production builds 404 them), but they touch the
@@ -603,7 +606,11 @@ router.post("/__reset", async (req: Request, res: Response) => {
     // #850 (CPHM-TC-051): restore the marketplace catalog client to its
     // reachable (network) default so the offline-journey toggle
     // (POST /test/__set-marketplace-reachable) never leaks an "unreachable"
-    // state into a later spec (NFR-018). No-op outside ROUBO_E2E.
+    // state into a later spec (NFR-018). No-op outside ROUBO_E2E. Any fixture
+    // package a spec served (POST /test/__serve-catalog-package) is dropped
+    // first, so the forced refresh of the reachable reset reads the inline
+    // catalog again.
+    catalogClient.__resetE2ECatalogPackages();
     await catalogClient.__setE2EMarketplaceReachable(true);
     // #989 (CPHMTP-TC-073): drop the in-memory marketplace-sources snapshot and
     // the per-source third-party client cache. wipePersistedTestState already
@@ -757,6 +764,41 @@ router.post("/__set-marketplace-reachable", async (req: Request, res: Response) 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("/test/__set-marketplace-reachable failed:", message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /test/__serve-catalog-package (HR-TC-012): serve a fixture package
+// (e2e/fixtures/catalog-packages/<id>/<version>/) in place of the fixture
+// catalog's entry of that id, as a release-sourced entry with the package's
+// real digest, so a spec can install or update the plugin through the real
+// marketplace path: the installer downloads the package from the fixture
+// origin, unpacks it and verifies its digest. A null version serves the inline
+// entry again, and /test/__reset does that for every package so nothing leaks
+// into a later spec (NFR-018). Gated by ROUBO_E2E; production builds 404 the URL.
+//
+// Body: { id: string, version: string | null }.
+router.post("/__serve-catalog-package", async (req: Request, res: Response) => {
+  if (process.env.ROUBO_E2E !== "1") {
+    return res.status(404).end();
+  }
+  const body = (req.body ?? {}) as { id?: unknown; version?: unknown };
+  const { id, version } = body;
+  if (typeof id !== "string" || !PLUGIN_ID_RE.test(id)) {
+    return res.status(400).json({ error: "id must be a plugin id" });
+  }
+  if (version !== null && (typeof version !== "string" || !SEMVER_CORE_RE.test(version))) {
+    return res.status(400).json({ error: "version must be a MAJOR.MINOR.PATCH version or null" });
+  }
+  try {
+    const entry = await catalogClient.__setE2ECatalogPackage(id, version);
+    res.status(200).json({ ok: true, entry });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof catalogClient.UnknownE2ECatalogPackageError) {
+      return res.status(404).json({ error: message });
+    }
+    console.error("/test/__serve-catalog-package failed:", message);
     res.status(500).json({ error: message });
   }
 });

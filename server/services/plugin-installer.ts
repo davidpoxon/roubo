@@ -22,6 +22,7 @@ import { pluginUpdateRefusedMessage } from "./plugin-in-use.js";
 import * as pluginProvenanceState from "./plugin-provenance-state.js";
 import { guardedFetch } from "./guarded-fetch.js";
 import { verifyPackageIntegrity } from "./marketplace-integrity.js";
+import { catalogPackageFetch } from "./e2e-catalog-packages.js";
 import { PLUGIN_ID_RE, UUID_RE, assertSafeIdentifier, resolveWithin } from "../lib/safe-path.js";
 
 const STAGING_DIR_NAME = ".staging";
@@ -541,6 +542,17 @@ async function assertLooksLikeArchive(file: string): Promise<void> {
   }
 }
 
+// The transport under guardedFetch for a Release asset download. Under the e2e
+// harness (ROUBO_E2E=1) it also answers the fixture catalog's package URLs
+// (e2e-catalog-packages.ts), so a spec can install and update a plugin through
+// this whole download, unpack and verify path with no real network. Every other
+// URL, and every URL outside the harness, goes to undici's fetch.
+function assetTransport(): typeof globalThis.fetch {
+  return process.env.ROUBO_E2E === "1"
+    ? (catalogPackageFetch as typeof globalThis.fetch)
+    : (fetch as unknown as typeof globalThis.fetch);
+}
+
 // Stream a Release asset to `destFile`, failing closed on a non-200 response, a
 // network error, or a body that exceeds the download cap. The size guard runs
 // both up front (declared content-length) and as bytes flow (a server may lie
@@ -554,8 +566,9 @@ async function downloadAssetToFile(
   try {
     // Route through the shared guarded transport (#956): SSRF / redirect
     // guarding, per-hop range re-validation, and the origin-scoped credential
-    // rule live in guardedFetch. The undici fetch stays the injected transport so
-    // the test seam is unchanged, timeoutMs null keeps the download bounded by its
+    // rule live in guardedFetch. The undici fetch stays the injected transport
+    // (through assetTransport, which adds only the e2e fixture packages under
+    // ROUBO_E2E=1) so the test seam is unchanged, timeoutMs null keeps the download bounded by its
     // byte cap rather than a wall-clock timeout, and the content-length +
     // streaming maxDownloadBytes guard below is untouched. A guard block surfaces
     // as a thrown error and maps to download-failed here, just like a transport
@@ -572,7 +585,7 @@ async function downloadAssetToFile(
       sourceOrigin: thirdParty?.sourceOrigin ?? new URL(assetUrl).origin,
       ...(thirdParty?.credential !== undefined ? { credential: thirdParty.credential } : {}),
       allowHttp: thirdParty?.allowHttp ?? false,
-      fetchImpl: fetch as unknown as typeof globalThis.fetch,
+      fetchImpl: assetTransport(),
       timeoutMs: null,
       // A GitHub/GHE Release-asset API endpoint negotiates content by Accept: the
       // default `*/*` (or even `application/octet-stream, */*`) returns the asset's

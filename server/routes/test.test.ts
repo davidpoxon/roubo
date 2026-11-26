@@ -141,17 +141,30 @@ vi.mock("../services/cut-list-query-service.js", () => ({
 // route flips and /test/__reset restores. Mocked so the unit suite asserts the
 // route wiring without running the real client (ed25519 keygen + a cache write).
 // The fake echoes the resolved source so the route's surfaced `source` is testable.
-vi.mock("../services/catalog-client.js", () => ({
-  __setE2EMarketplaceReachable: vi.fn(async (reachable: boolean) =>
-    reachable ? "network" : "cache",
-  ),
-  // #989 (CPHMTP-TC-073): the seam the /test/__seed-source-catalog route writes
-  // through. Mocked so the unit suite asserts the route wiring without touching
-  // the real per-source cache file; echoes a fake path the route surfaces.
-  seedThirdPartyCacheForE2E: vi.fn(
-    async (sourceId: string) => `/tmp/${sourceId}/catalog-cache.json`,
-  ),
-}));
+vi.mock("../services/catalog-client.js", () => {
+  // HR-TC-012: the fixture-package seam /test/__serve-catalog-package drives and
+  // /test/__reset restores. The fake refuses version 9.9.9 as a missing package.
+  class UnknownE2ECatalogPackageError extends Error {}
+  return {
+    UnknownE2ECatalogPackageError,
+    __setE2ECatalogPackage: vi.fn(async (id: string, version: string | null) => {
+      if (version === "9.9.9") {
+        throw new UnknownE2ECatalogPackageError(`No e2e fixture package "${id}" at version 9.9.9`);
+      }
+      return { id, version: version ?? "0.1.1" };
+    }),
+    __resetE2ECatalogPackages: vi.fn(),
+    __setE2EMarketplaceReachable: vi.fn(async (reachable: boolean) =>
+      reachable ? "network" : "cache",
+    ),
+    // #989 (CPHMTP-TC-073): the seam the /test/__seed-source-catalog route writes
+    // through. Mocked so the unit suite asserts the route wiring without touching
+    // the real per-source cache file; echoes a fake path the route surfaces.
+    seedThirdPartyCacheForE2E: vi.fn(
+      async (sourceId: string) => `/tmp/${sourceId}/catalog-cache.json`,
+    ),
+  };
+});
 
 // #989 (CPHMTP-TC-073): the marketplace service members the seed-source-catalog
 // route and /test/__reset call (drop a memoised source client, clear the whole
@@ -323,6 +336,14 @@ describe("POST /test/__reset", () => {
     // reachable (network) default so a prior spec's offline toggle cannot leak an
     // "unreachable" state into the next spec.
     expect(catalogClient.__setE2EMarketplaceReachable).toHaveBeenCalledWith(true);
+    // HR-TC-012: a fixture package a spec served is dropped before that forced
+    // refresh, so the next spec lists the inline catalog again.
+    expect(catalogClient.__resetE2ECatalogPackages).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(catalogClient.__resetE2ECatalogPackages).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(catalogClient.__setE2EMarketplaceReachable).mock.invocationCallOrder[0],
+    );
     // #989 (CPHMTP-TC-073): the in-memory marketplace-sources snapshot and the
     // per-source third-party client cache are cleared so a source registered by
     // the declared-source journey cannot survive a reset in memory.
@@ -743,6 +764,72 @@ describe("POST /test/__set-marketplace-reachable", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "reachable must be a boolean" });
     expect(catalogClient.__setE2EMarketplaceReachable).not.toHaveBeenCalled();
+  });
+});
+
+// HR-TC-012: serve a fixture package in place of a fixture catalog entry, so the
+// update journey can install and update the plugin through the marketplace.
+describe("POST /test/__serve-catalog-package", () => {
+  it("returns 404 when ROUBO_E2E is unset", async () => {
+    const res = await request(app)
+      .post("/test/__serve-catalog-package")
+      .send({ id: "database", version: "1.1.0" });
+
+    expect(res.status).toBe(404);
+    expect(res.text).toBe("");
+    expect(catalogClient.__setE2ECatalogPackage).not.toHaveBeenCalled();
+  });
+
+  it("HR-TC-012 serves the package and surfaces the served entry when ROUBO_E2E=1", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__serve-catalog-package")
+      .send({ id: "database", version: "1.1.0" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, entry: { id: "database", version: "1.1.0" } });
+    expect(catalogClient.__setE2ECatalogPackage).toHaveBeenCalledWith("database", "1.1.0");
+  });
+
+  it("serves the inline entry again for a null version", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__serve-catalog-package")
+      .send({ id: "database", version: null });
+
+    expect(res.status).toBe(200);
+    expect(catalogClient.__setE2ECatalogPackage).toHaveBeenCalledWith("database", null);
+  });
+
+  it("returns 404 for a package the fixtures do not hold", async () => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app)
+      .post("/test/__serve-catalog-package")
+      .send({ id: "database", version: "9.9.9" });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain("9.9.9");
+  });
+
+  it.each([
+    [{ version: "1.1.0" }, "id must be a plugin id"],
+    [{ id: "../database", version: "1.1.0" }, "id must be a plugin id"],
+    [{ id: "database" }, "version must be a MAJOR.MINOR.PATCH version or null"],
+    [
+      { id: "database", version: "../1.1.0" },
+      "version must be a MAJOR.MINOR.PATCH version or null",
+    ],
+  ])("returns 400 for the body %j", async (body, error) => {
+    process.env.ROUBO_E2E = "1";
+
+    const res = await request(app).post("/test/__serve-catalog-package").send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error });
+    expect(catalogClient.__setE2ECatalogPackage).not.toHaveBeenCalled();
   });
 });
 
