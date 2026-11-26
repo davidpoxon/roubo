@@ -308,18 +308,31 @@ describe("SpecPickerModal a11y (#939)", () => {
       expect(row.querySelector("button")).toBeNull();
     });
 
-    it("is keyboard operable: Enter opens the menu and lands on the first item", async () => {
+    // #1736: a native button turns Enter and Space into a click with no pointer
+    // type, which React Aria reads as a screen reader's virtual click. In that
+    // modality it defers each focus move by a frame and drops one that finds
+    // focus already moved, so focus stopped on the menu container, never on the
+    // first item, and keys pressed before that frame still reached the trigger.
+    // These cases assert focus synchronously, as the arrow-key case below does.
+    it.each([
+      ["Enter", "{Enter}"],
+      ["Space", " "],
+    ])("is keyboard operable: %s opens the menu and lands on the first item", async (_, key) => {
       const user = userEvent.setup();
       renderModal();
       const trigger = screen.getByRole("button", { name: "Actions for testbench" });
       trigger.focus();
-      await user.keyboard("{Enter}");
-      const menu = await screen.findByRole("menu");
+      await user.keyboard(key);
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /Archive/ })).toHaveFocus();
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       await user.keyboard("{ArrowDown}");
-      expect(menu).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: /Supersede/ })).toHaveFocus();
       await user.keyboard("{Escape}");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
       expect(trigger).toHaveAttribute("aria-expanded", "false");
+      // Neither the key's release nor the Escape acted on an item.
+      expect(screen.queryByText(/this specification$/)).not.toBeInTheDocument();
     });
 
     it("opens from the arrow keys, and marks only the row that opened it as expanded", async () => {

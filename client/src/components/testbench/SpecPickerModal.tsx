@@ -400,11 +400,21 @@ export default function SpecPickerModal({
           aria-controls={menuSpec?.path === spec.path ? menuId : undefined}
           onClick={(event) => openRowMenu(event.currentTarget, spec)}
           onKeyDown={(event) => {
-            // Match the menu-button pattern: the arrow keys open the menu too,
-            // ArrowDown onto its first item and ArrowUp onto its last.
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            // Match the menu-button pattern: Enter, Space and ArrowDown open the
+            // menu onto its first item, ArrowUp onto its last. Enter and Space
+            // open here, not through the native click: that click carries no
+            // pointer type, so React Aria reads it as a screen reader's virtual
+            // click, defers focus into the menu, and focus then stops on the
+            // menu container instead of the first item (#1736).
+            const focus =
+              event.key === "ArrowUp"
+                ? "last"
+                : ["ArrowDown", "Enter", " "].includes(event.key)
+                  ? "first"
+                  : null;
+            if (focus) {
               event.preventDefault();
-              openRowMenu(event.currentTarget, spec, event.key === "ArrowUp" ? "last" : "first");
+              openRowMenu(event.currentTarget, spec, focus);
             }
           }}
           className="shrink-0 mt-1 p-1.5 rounded-control outline-none transition-colors text-text-secondary hover:bg-bg-hover active:bg-bg-pressed active:text-text-body focus-visible:ring-2 focus-visible:ring-focus-ring"
