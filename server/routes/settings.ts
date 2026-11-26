@@ -198,8 +198,10 @@ router.put("/", (req, res) => {
     };
     saveSettings(updated);
     // Every setting is read per request, so the save applies now; the notice
-    // names what it changed (HR-FR-011). It also clears an open settings.json
+    // names what it changed (HR-FR-011), except the settings whose editor
+    // confirms the save itself. It also clears an open settings.json
     // rejection, so the watch sends no second notice for the save's write.
+    // When the route sends no notice, the save's self-write clears it.
     if (announceSettingsChange(current, updated)) dismissOpenRejection("settings.json");
     res.json(updated);
   } catch (err) {

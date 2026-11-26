@@ -628,7 +628,7 @@ describe("PUT / applied notice", () => {
     vi.mocked(state.saveSettings).mockReturnValue(undefined);
   });
 
-  it("HR-TC-023 a change of the default agent sends 'Settings applied: default agent.'", async () => {
+  it("HR-TC-023 a change of the default agent sends no notice, since its tiles confirm it (#1729)", async () => {
     vi.mocked(state.loadSettings).mockReturnValue({
       theme: "dark",
       jigs: { ...jigs, defaultAgentPluginId: "claude-code" },
@@ -642,15 +642,9 @@ describe("PUT / applied notice", () => {
     expect(state.saveSettings).toHaveBeenCalledWith(
       expect.objectContaining({ jigs: expect.objectContaining({ defaultAgentPluginId: "codex" }) }),
     );
-    expect(sse.broadcastInputChanged).toHaveBeenCalledTimes(1);
-    expect(sse.broadcastInputChanged).toHaveBeenCalledWith({
-      surface: "settings",
-      outcome: "applied",
-      input: "settings.json",
-      summary: "Settings applied: default agent.",
-    });
-    // The notice clears an open settings.json rejection, so the watch does not.
-    expect(stateDirWatch.dismissOpenRejection).toHaveBeenCalledWith("settings.json");
+    expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
+    // The watch's own applied notice is left to clear an open rejection.
+    expect(stateDirWatch.dismissOpenRejection).not.toHaveBeenCalled();
   });
 
   it("names each setting a save changes", async () => {
@@ -660,9 +654,15 @@ describe("PUT / applied notice", () => {
       .put("/")
       .send({ theme: "light", jigs: { ...jigs, autoExecute: false } });
 
-    expect(sse.broadcastInputChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ summary: "Settings applied: theme, jig auto-execute." }),
-    );
+    expect(sse.broadcastInputChanged).toHaveBeenCalledTimes(1);
+    expect(sse.broadcastInputChanged).toHaveBeenCalledWith({
+      surface: "settings",
+      outcome: "applied",
+      input: "settings.json",
+      summary: "Settings applied: theme, jig auto-execute.",
+    });
+    // The notice clears an open settings.json rejection, so the watch does not.
+    expect(stateDirWatch.dismissOpenRejection).toHaveBeenCalledWith("settings.json");
   });
 
   it("sends no notice for a save that changes no setting", async () => {
@@ -673,6 +673,44 @@ describe("PUT / applied notice", () => {
     expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
     // The watch's own applied notice is left to clear an open rejection.
     expect(stateDirWatch.dismissOpenRejection).not.toHaveBeenCalled();
+  });
+
+  const tool = {
+    id: "at-1",
+    name: "Deep work",
+    agent: "claude-code",
+    params: { mode: "plan" },
+    jig: "__none__",
+  };
+
+  it("sends no notice for a save of the agent tools only, since their editor confirms it (AP-TC-024)", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", jigs });
+
+    const res = await request(app)
+      .put("/")
+      .send({ theme: "dark", jigs, agentTools: [tool] });
+
+    expect(res.status).toBe(200);
+    expect(sse.broadcastInputChanged).not.toHaveBeenCalled();
+    // The watch's own applied notice is left to clear an open rejection.
+    expect(stateDirWatch.dismissOpenRejection).not.toHaveBeenCalled();
+  });
+
+  it("leaves the default agent and the agent tools out of a notice that names other settings", async () => {
+    vi.mocked(state.loadSettings).mockReturnValue({ theme: "dark", jigs });
+
+    await request(app)
+      .put("/")
+      .send({
+        theme: "light",
+        jigs: { ...jigs, defaultAgentPluginId: "codex" },
+        agentTools: [tool],
+      });
+
+    expect(sse.broadcastInputChanged).toHaveBeenCalledTimes(1);
+    expect(sse.broadcastInputChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: "Settings applied: theme." }),
+    );
   });
 
   it("sends no notice for a save that is refused", async () => {
