@@ -126,7 +126,7 @@ Do not stop at step 4. A release can be published, correctly signed, and still i
 
 5. **Verify the release is publicly visible.** Run the checks in [Verifying a public release](#verifying-a-public-release). This step is mandatory and cannot be done with `gh`, because `gh` authenticates as you and will show a release the public cannot see.
 
-6. **Confirm rollout expectations.** Clients poll on the interval set in [`electron/src/main.ts`](../electron/src/main.ts) (currently one hour) and only while the app is running, so uptake is gradual. Users who checked for updates before the release went live are not re-prompted until their next poll.
+6. **Confirm rollout expectations.** Clients poll on the interval set in [`electron/src/updater.ts`](../electron/src/updater.ts) (currently one hour) and only while the app is running, so uptake is gradual. Users who checked for updates before the release went live are not re-prompted until their next poll.
 
 ## Verifying a public release
 

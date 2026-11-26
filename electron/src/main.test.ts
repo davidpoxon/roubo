@@ -49,7 +49,7 @@ vi.mock("electron", () => ({
   clipboard: { writeText: vi.fn() },
 }));
 
-vi.mock("update-electron-app", () => ({ updateElectronApp: vi.fn() }));
+vi.mock("./updater.js", () => ({ startUpdater: vi.fn() }));
 vi.mock("./bootstrap.js", () => ({ resolveBootstrap: vi.fn() }));
 vi.mock("./menu.js", () => ({ installApplicationMenu: vi.fn() }));
 vi.mock("./shutdown.js", () => ({ shutdownWithTimeout: vi.fn() }));
