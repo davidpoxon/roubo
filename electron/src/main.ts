@@ -1,10 +1,10 @@
 import { app, BrowserWindow, clipboard, ipcMain, Notification, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { updateElectronApp } from "update-electron-app";
 import { resolveBootstrap, type ServerHandleLike } from "./bootstrap.js";
 import { installApplicationMenu } from "./menu.js";
 import { shutdownWithTimeout } from "./shutdown.js";
+import { startUpdater } from "./updater.js";
 
 export function windowOpenHandler({ url }: { url: string }): {
   action: "deny";
@@ -26,9 +26,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Compiling preload.cts emits preload.cjs (CommonJS), which works with default sandbox:true.
 export const PRELOAD_FILENAME = "preload.cjs";
 
-if (app.isPackaged) {
-  updateElectronApp({ repo: "davidpoxon/roubo", updateInterval: "1 hour" });
-}
+startUpdater();
 
 let serverHandle: ServerHandleLike | null = null;
 let currentUrl: string | null = null;
