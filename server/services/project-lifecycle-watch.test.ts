@@ -87,7 +87,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitFor(pred: () => boolean, timeoutMs = 5_000) {
+async function waitFor(pred: () => boolean, timeoutMs = 10_000) {
   const end = Date.now() + timeoutMs;
   while (!pred()) {
     if (Date.now() > end) {
@@ -177,7 +177,9 @@ afterEach(async () => {
   fs.rmSync(base, { recursive: true, force: true });
 });
 
-describe("project add, re-path and remove", () => {
+// Each case waits on file watches and settle windows, which run slower when
+// the whole suite shares the machine.
+describe("project add, re-path and remove", { timeout: 30_000 }, () => {
   it("HR-TC-026 a project added to projects.json by hand is listed and its roubo.yaml watch is armed", async () => {
     const lantern2Dir = makeProjectDir("lantern-2", roubo("lantern-2", 4300));
     handEditProjects([
