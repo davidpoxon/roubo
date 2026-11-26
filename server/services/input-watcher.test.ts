@@ -723,7 +723,7 @@ describe("watchInput rescan", () => {
     });
   });
 
-  it("HR-TC-046 neither lists nor reads an input that turns into a symlink out of every root while its gate waits", async () => {
+  it("HR-TC-046 refuses unread an input that turns into a symlink out of every root while its gate waits and gives up", async () => {
     fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
     const plugins = path.join(stateDir, "plugins");
     fs.mkdirSync(plugins);
@@ -760,13 +760,51 @@ describe("watchInput rescan", () => {
 
     fs.mkdirSync(unit);
     fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: copying\n");
-    await waitFor(() => outcomeCount("rejected") === 1);
+    await waitFor(() => outcomeCount("refused") === 1);
     // Later rescans find the input out of every root and leave it alone.
     await sleep(400);
 
+    expect(outcomeCount("refused")).toBe(1);
+    expect(outcomeCount("rejected")).toBe(0);
     expect(gate).toHaveBeenCalledTimes(1);
     expect(handler).not.toHaveBeenCalled();
     expect(listedLinks).not.toContain(true);
+  });
+
+  it("HR-TC-046 refuses unread an input that turns into a symlink out of every root while its gate waits and returns a file list", async () => {
+    fs.writeFileSync(path.join(outsideDir, "roubo-plugin.yaml"), "id: outside\n");
+    const plugins = path.join(stateDir, "plugins");
+    fs.mkdirSync(plugins);
+    const unit = path.join(plugins, "copying");
+    // The input is swapped for a symlink out of every root after the run's
+    // root check, while its completeness gate waits, and the gate then says
+    // the input is complete.
+    const gate = vi.fn(async (abs: string): Promise<readonly string[]> => {
+      fs.rmSync(abs, { recursive: true, force: true });
+      fs.symlinkSync(outsideDir, abs);
+      return ["roubo-plugin.yaml"];
+    });
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    await dropNextWatchEvents();
+    const w = track(
+      watchInput(
+        plugins,
+        { surface: "plugin", settleMs: 50, rearmPollMs: 100, settled: gate, rescan },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    fs.mkdirSync(unit);
+    fs.writeFileSync(path.join(unit, "roubo-plugin.yaml"), "id: copying\n");
+    await waitFor(() => outcomeCount("refused") === 1);
+    // Later rescans find the input out of every root and leave it alone.
+    await sleep(400);
+
+    expect(outcomeCount("refused")).toBe(1);
+    expect(outcomeCount("applied")).toBe(0);
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("HR-TC-046 hashes a directory input that is a symlink out of every root as absent", () => {

@@ -753,11 +753,19 @@ export function watchInput(
         complete = false;
       }
       if (disposed) return;
+      // The input can have become a symlink out of every root while the gate
+      // waited: it is refused unread, whatever the gate said, and neither the
+      // incomplete record nor the handler sees it.
+      if (!realpathAllowed(unit, roots)) {
+        incomplete.delete(unit);
+        if (mode !== "seed") {
+          emit("refused", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.outside);
+        }
+        return;
+      }
       if (complete === false) {
         // Taken after the gate gave up, so a rescan finds the same files
-        // unchanged and does not gate the input again. The input can have
-        // become a symlink out of every root while the gate waited: it is
-        // then neither listed nor read.
+        // unchanged and does not gate the input again.
         if (options.rescan) {
           incomplete.set(unit, hashUnit(unit, rescanFilesOf(unit, roots), roots));
         }
