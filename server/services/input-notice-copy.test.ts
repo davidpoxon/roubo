@@ -67,7 +67,7 @@ const ROWS: Record<NoticeInput, Row> = {
   plugin: {
     surface: "plugin",
     summary: updatedNotice(PLUGIN_ID, "1.1.0", 0),
-    vars: { pluginId: PLUGIN_ID, version: "1.1.0" },
+    vars: { pluginId: PLUGIN_ID, version: "1.1.0", kept: "" },
   },
   settings: {
     surface: "settings",
@@ -96,8 +96,8 @@ const ROWS: Record<NoticeInput, Row> = {
   consent: {
     surface: "plugin",
     input: "plugins-consent.json",
-    summary: consentAppliedNotice([]),
-    vars: {},
+    summary: consentAppliedNotice([PLUGIN_ID]),
+    vars: { pluginIds: PLUGIN_ID },
   },
   "plugin-state": {
     surface: "plugin",
@@ -139,4 +139,36 @@ describe("HR-TC-036: notice text per surface matches the recorded samples", () =
       expect(text.startsWith(NOTICE_SAMPLES[input].thing)).toBe(true);
     });
   }
+
+  it("HR-TC-036: the recorded plugin update names the benches that kept their components", () => {
+    expect(updatedNotice(PLUGIN_ID, "1.4.0", 3)).toBe(
+      renderSample("plugin", {
+        pluginId: PLUGIN_ID,
+        version: "1.4.0",
+        kept: " 3 benches kept their components.",
+      }),
+    );
+    expect(updatedNotice(PLUGIN_ID, "1.4.0", 1)).toBe(
+      renderSample("plugin", {
+        pluginId: PLUGIN_ID,
+        version: "1.4.0",
+        kept: " 1 bench kept its components.",
+      }),
+    );
+    expect(updatedNotice(PLUGIN_ID, "1.4.0", 0)).toBe(
+      renderSample("plugin", { pluginId: PLUGIN_ID, version: "1.4.0", kept: "" }),
+    );
+    expect(updatedNotice(PLUGIN_ID, "1.4.0", 3)).toBe(
+      "Plugin database updated to 1.4.0. 3 benches kept their components.",
+    );
+  });
+
+  it("HR-TC-036: the recorded consent notice names the plugins the consent started", () => {
+    expect(consentAppliedNotice([PLUGIN_ID])).toBe("Plugin consent applied: database.");
+    expect(consentAppliedNotice(["database", "process"])).toBe(
+      "Plugin consent applied: database, process.",
+    );
+    // A consent that starts nothing is the one notice with no plugin named.
+    expect(consentAppliedNotice([])).toBe("Plugin consent applied.");
+  });
 });

@@ -18,9 +18,9 @@ concurrency:
 on:
   pull_request:
   push:
-    branches: ['release/**']
+    branches: ["release/**"]
   schedule:
-    - cron: '30 3 * * *'
+    - cron: "30 3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -36,14 +36,14 @@ jobs:
       contents: read
       packages: read
     env:
-      ROUBO_E2E: '1'
+      ROUBO_E2E: "1"
       E2E_RUN_MODE: dev
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: "24"
+          cache: "npm"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       # Same headless Secret Service as e2e.yml, for the credential writes.
@@ -77,14 +77,17 @@ jobs:
       contents: read
       packages: read
     env:
-      ROUBO_E2E: '1'
+      ROUBO_E2E: "1"
       E2E_RUN_MODE: packaged
+      # The browser cache is found through HOME, and the suite runs under a throwaway HOME,
+      # so the install and the run both name one cache.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/ms-playwright
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: "24"
+          cache: "npm"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Package the app
@@ -93,7 +96,8 @@ jobs:
         shell: bash
         run: |
           set -e
-          e2e_home="$(mktemp -d "${RUNNER_TEMP}/roubo-e2e-home.XXXXXX")"
+          # mktemp -d puts the home inside os.tmpdir(), which the e2e state guard requires.
+          e2e_home="$(mktemp -d)"
           HOME="$e2e_home" npx playwright test --project=hot-reload
       - name: Upload the Playwright report
         if: failure()

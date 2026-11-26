@@ -30,7 +30,9 @@ export interface NoticeSample {
 
 export const NOTICE_SAMPLES: Record<NoticeInput, NoticeSample> = {
   "project-config": { thing: "Project", template: "Project {projectId}: roubo.yaml applied." },
-  plugin: { thing: "Plugin", template: "Plugin {pluginId} updated to {version}." },
+  // {kept} is empty when no bench uses the plugin, else " 1 bench kept its components." or
+  // " 3 benches kept their components." (the recorded sample names 3 benches).
+  plugin: { thing: "Plugin", template: "Plugin {pluginId} updated to {version}.{kept}" },
   settings: { thing: "Settings", template: "Settings applied: {settings}." },
   projects: { thing: "Project", template: "Project {projectId} registered from {path}." },
   "bench-state": {
@@ -38,7 +40,7 @@ export const NOTICE_SAMPLES: Record<NoticeInput, NoticeSample> = {
     template: "Bench state applied: bench {benchId} on {projectId}.",
   },
   auth: { thing: "GitHub", template: "GitHub credentials applied." },
-  consent: { thing: "Plugin", template: "Plugin consent applied." },
+  consent: { thing: "Plugin", template: "Plugin consent applied: {pluginIds}." },
   "plugin-state": { thing: "Plugin", template: "Plugin {pluginId} disabled." },
   env: { thing: "Environment", template: "Environment file applied: {count} key changed." },
 };

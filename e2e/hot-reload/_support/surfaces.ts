@@ -8,6 +8,7 @@ import {
   TOGGLED_PLUGIN_ID,
   UPDATED_PLUGIN_ID,
   getPlugin,
+  pollUntil,
   readJson,
   writeJson,
   updateDatabase,
@@ -99,6 +100,50 @@ ports:
 benches:
   max: 1
 `;
+}
+
+/** The component plugin that the consent surface consents: it waits for consent until then. */
+export const CONSENT_PLUGIN_ID = "hr-consent-stub";
+/** The plugin's template: the fixture integration plugin whose runtime the copy runs. */
+const CONSENT_TEMPLATE_ID = "e2e-stub-5";
+let consentPluginDir: string | null = null;
+
+/**
+ * Put the plugin the consent surface consents in the plugins root, as a user
+ * drops a plugin folder, and wait until the server has registered it. It is a
+ * copy of the fixture plugin as a component plugin, so the server holds it
+ * until a consent record names it.
+ */
+async function putConsentPlugin(request: APIRequestContext): Promise<void> {
+  const template = (await getPlugin(request, CONSENT_TEMPLATE_ID)) as
+    { manifestPath?: string } | undefined;
+  if (!template?.manifestPath)
+    throw new Error(`the fixture plugin ${CONSENT_TEMPLATE_ID} is missing`);
+  const templateDir = path.dirname(template.manifestPath);
+  const dir = path.join(path.dirname(templateDir), CONSENT_PLUGIN_ID);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir);
+  consentPluginDir = dir;
+  fs.copyFileSync(path.join(templateDir, "index.mjs"), path.join(dir, "index.mjs"));
+  const manifest = fs
+    .readFileSync(template.manifestPath, "utf-8")
+    .replace(/^id: .*$/m, `id: ${CONSENT_PLUGIN_ID}`)
+    .replace(/^name: .*$/m, "name: Hot-reload consent stub")
+    .replace(/^kind: .*$/m, "kind: component\ncontractVersion: 1\ndescriptorSchemaVersion: 1");
+  fs.writeFileSync(path.join(dir, "roubo-plugin.yaml"), manifest);
+  const registered = await pollUntil(
+    () => getPlugin(request, CONSENT_PLUGIN_ID),
+    (p) => p !== undefined,
+    15_000,
+    250,
+  );
+  if (registered === undefined) throw new Error(`the server did not register ${CONSENT_PLUGIN_ID}`);
+}
+
+/** Take the consent plugin's folder back out of the plugins root. */
+function removeConsentPlugin(): void {
+  if (consentPluginDir !== null) fs.rmSync(consentPluginDir, { recursive: true, force: true });
+  consentPluginDir = null;
 }
 
 /** The checkout of lantern-2, made once per context. */
@@ -254,25 +299,31 @@ export const SURFACES: Record<ChangedInput, Surface> = {
     file: (ctx) => stateFile(ctx, "plugins-consent.json"),
     save: async (ctx, n) => {
       const file = stateFile(ctx, "plugins-consent.json");
+      // The first save consents a component plugin that waits for it, so the
+      // save starts it and the notice names it. Later saves consent the same
+      // plugin again, which starts nothing, so their notice names none.
+      if (n === 1) await putConsentPlugin(ctx.request);
       const current = readOr<{ schemaVersion: number; plugins: Record<string, unknown> }>(file, {
         schemaVersion: 1,
         plugins: {},
       });
-      // A consent record of an integration plugin, which is never
-      // consent-gated, so the save starts nothing and stops nothing.
       const consentedAt = new Date(Date.UTC(2026, 10, 1, 0, 0, n)).toISOString();
       const plugins = {
         ...current.plugins,
-        [TOGGLED_PLUGIN_ID]: {
-          pluginId: TOGGLED_PLUGIN_ID,
+        [CONSENT_PLUGIN_ID]: {
+          pluginId: CONSENT_PLUGIN_ID,
           acknowledgedCategories: [],
           consentedAt,
         },
       };
+      const expected =
+        n === 1
+          ? renderSample("consent", { pluginIds: CONSENT_PLUGIN_ID })
+          : "Plugin consent applied.";
       return {
         write: () => writeJson(file, { ...current, plugins }),
-        expected: renderSample("consent"),
-        notice: (text) => text === renderSample("consent"),
+        expected,
+        notice: (text) => text === expected,
       };
     },
   },
@@ -331,6 +382,7 @@ export function snapshotStateFiles(rouboDir: string): Map<string, string | null>
 }
 
 export function restoreStateFiles(snapshot: Map<string, string | null>): void {
+  removeConsentPlugin();
   for (const [file, content] of snapshot) {
     if (content === null) fs.rmSync(file, { force: true });
     else fs.writeFileSync(file, content);
@@ -345,7 +397,11 @@ export function restoreStateFiles(snapshot: Map<string, string | null>): void {
  * serves no version above 1.1.0.
  */
 export function marketplaceUpdate(ctx: SurfaceContext): Save {
-  const expected = renderSample("plugin", { pluginId: UPDATED_PLUGIN_ID, version: NEWER_VERSION });
+  const expected = renderSample("plugin", {
+    pluginId: UPDATED_PLUGIN_ID,
+    version: NEWER_VERSION,
+    kept: "",
+  });
   return {
     write: () => updateDatabase(ctx.request),
     expected,
