@@ -177,3 +177,16 @@ describe("JSS-WU-008 scenario pack", () => {
     expect(boards.every((b) => b.project === "PLAT")).toBe(true);
   });
 });
+
+// The hand-add-a-project journey (HR-US-007) lists the hand-added project's
+// issues in its cut list. Assert the pack loads with open issues that the
+// manifest's default Done exclusion leaves in, before Playwright spins up.
+describe("hot-reload hand-added project scenario pack", () => {
+  it("hot-reload-hand-added-project seeds open issues of the lantern-2 repository", () => {
+    const scenario = loadScenario("hot-reload-hand-added-project");
+    expect(scenario.connectionStatus.state).toBe("connected");
+    expect(scenario.issues.length).toBeGreaterThan(0);
+    expect(scenario.issues.every((i) => i.externalId.startsWith("lantern/lantern-2#"))).toBe(true);
+    expect(scenario.issues.every((i) => i.statusCategory !== "Done")).toBe(true);
+  });
+});

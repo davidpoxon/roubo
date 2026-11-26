@@ -1,0 +1,62 @@
+{
+  "pluginId": "e2e-stub",
+  "currentUser": {
+    "externalId": "alice",
+    "displayName": "Alice Stub"
+  },
+  "connectionStatus": {
+    "state": "connected",
+    "detail": "hot-reload-hand-added-project",
+    "checkedAt": "1970-01-01T00:00:00.000Z"
+  },
+  "sourceCandidates": {
+    "shape": "multi-list",
+    "items": [
+      {
+        "externalId": "lantern/lantern-2",
+        "label": "lantern/lantern-2",
+        "sublabel": "Repository",
+        "icon": "repo"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "lantern/lantern-2#201",
+      "externalUrl": "https://stub.example/lantern/lantern-2/issues/201",
+      "title": "Dim the lantern at dusk",
+      "body": null,
+      "currentState": "To Do",
+      "statusCategory": "To Do",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-11-20T00:00:00.000Z",
+      "raw": null
+    },
+    {
+      "integrationId": "e2e-stub",
+      "externalId": "lantern/lantern-2#202",
+      "externalUrl": "https://stub.example/lantern/lantern-2/issues/202",
+      "title": "Refit the lantern wick",
+      "body": null,
+      "currentState": "In Progress",
+      "statusCategory": "In Progress",
+      "allowedTransitions": [],
+      "assignees": [],
+      "labels": [],
+      "issueType": null,
+      "blocks": [],
+      "blockedBy": [],
+      "updatedAt": "2026-11-21T00:00:00.000Z",
+      "raw": null
+    }
+  ],
+  "commentsByExternalId": {},
+  "issueTypes": [],
+  "labels": []
+}
