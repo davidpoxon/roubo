@@ -40,6 +40,20 @@ describe("PluginEnableStateSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("HR-TC-015 accepts awaiting-consent for a plugin held inert until consent", () => {
+    const parsed = PluginEnableStateSchema.parse(
+      makeState({ plugins: { "new-plugin": "awaiting-consent" } }),
+    );
+    expect(parsed.plugins["new-plugin"]).toBe("awaiting-consent");
+  });
+
+  it("HR-FR-008 accepts disabled-awaiting-consent for a held plugin the user disabled during its hold", () => {
+    const parsed = PluginEnableStateSchema.parse(
+      makeState({ plugins: { "held-plugin": "disabled-awaiting-consent" } }),
+    );
+    expect(parsed.plugins["held-plugin"]).toBe("disabled-awaiting-consent");
+  });
+
   it("rejects unknown enable values", () => {
     const result = PluginEnableStateSchema.safeParse({
       ...makeState(),

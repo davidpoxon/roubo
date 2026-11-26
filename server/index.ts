@@ -54,6 +54,7 @@ import marketplaceRouter from "./routes/marketplace.js";
 import testRouter from "./routes/test.js";
 import * as jigManager from "./services/jig-manager.js";
 import * as pluginManager from "./services/plugin-manager.js";
+import * as pluginDirWatch from "./services/plugin-dir-watch.js";
 import * as catalogClient from "./services/catalog-client.js";
 import * as migrate from "./services/migrate.js";
 import { resolveClientDist } from "./clientDist.js";
@@ -224,7 +225,13 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
 
   console.log("Initializing plugin manager...");
   try {
-    await pluginManager.initialize();
+    // A component or agent plugin in the user plugins root with no consent
+    // is held, not started, until it is consented (HR-FR-008). The e2e
+    // harness serves its fixture plugins from the user plugins root with no
+    // ConsentRecord and consents them per spec, so it launches without the
+    // hold, as its reset re-initializes without it. The packaged app sets
+    // ROUBO_PRODUCTION, and startServer refuses to start with both set.
+    await pluginManager.initialize({ holdUnconsented: process.env.ROUBO_E2E !== "1" });
   } catch (err) {
     console.error("Plugin manager initialization failed:", (err as Error).message);
   }
@@ -341,6 +348,20 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Starting roubo.yaml watchers...");
   projectRegistry.watchProjectConfigs();
 
+  // Watch ~/.roubo/plugins, so a plugin installed, updated or removed there,
+  // by the marketplace or by hand, takes effect with no relaunch (HR-FR-006,
+  // HR-FR-007). Each change of the plugin set re-runs the component-binding
+  // validation of every project.
+  console.log("Starting plugin directory watcher...");
+  const stopPluginSetListener = pluginDirWatch.onPluginSetChanged(() => {
+    projectRegistry.revalidateComponentBindings();
+  });
+  try {
+    await pluginDirWatch.startPluginDirWatch();
+  } catch (err) {
+    console.error("Plugin directory watcher failed to start:", (err as Error).message);
+  }
+
   const statusInterval = setInterval(() => {
     benchManager.refreshComponentStatuses().catch(console.error);
   }, 5000);
@@ -381,6 +402,8 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     releaseDeliveryControlWaiters();
     jigManager.stopAllWatchers();
     await projectRegistry.unwatchProjectConfigs();
+    stopPluginSetListener();
+    await pluginDirWatch.stopPluginDirWatch();
     terminalService.destroyAllSessions();
     await new Promise<void>((r) => wss.close(() => r()));
     await pluginManager.shutdown();

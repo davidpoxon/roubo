@@ -369,13 +369,16 @@ test("HR-TC-002: a roubo.yaml save leaves a running bench on its definition, mar
     expect(start.status(), "precondition: POST start the bench").toBe(200);
   }
   // Settled: 'web' is up and the bench is out of its start, so a restart is
-  // accepted later.
+  // accepted later. 'web' reports running once its process is spawned, which
+  // can be before its command has logged the start, so a running 'web' also
+  // waits for that line.
   const running = await waitForBench(
     request,
     benchId,
     (b) =>
       b.status !== "preparing" &&
-      (b.components.web?.status === "running" || b.components.web?.status === "error"),
+      ((b.components.web?.status === "running" && readRunLog(runLog).length > 0) ||
+        b.components.web?.status === "error"),
     45_000,
   );
   expect(

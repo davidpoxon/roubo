@@ -83,6 +83,13 @@ vi.mock("./services/plugin-manager.js", () => ({
   // installed here, so the warm loop is a no-op.
   getAgentManifests: vi.fn(() => []),
 }));
+// HR-FR-006: startServer arms the ~/.roubo/plugins watch and disposes it at
+// shutdown.
+vi.mock("./services/plugin-dir-watch.js", () => ({
+  onPluginSetChanged: vi.fn(() => () => {}),
+  startPluginDirWatch: vi.fn(() => Promise.resolve()),
+  stopPluginDirWatch: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("./services/catalog-client.js", () => ({
   prefetch: vi.fn(() => Promise.resolve()),
 }));
@@ -99,6 +106,38 @@ describe("startServer", { concurrent: false }, () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("HR-FR-008 starts the plugin manager with the launch consent hold", async () => {
+    // Whatever the shell running the tests exports, this is not the e2e harness.
+    vi.stubEnv("ROUBO_E2E", "");
+    try {
+      const pluginManager = await import("./services/plugin-manager.js");
+      vi.mocked(pluginManager.initialize).mockClear();
+
+      const handle = await startServer({ port: 0 });
+
+      expect(pluginManager.initialize).toHaveBeenCalledTimes(1);
+      expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: true });
+      await handle.shutdown();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("HR-FR-008 starts the e2e harness without the launch consent hold", async () => {
+    vi.stubEnv("ROUBO_E2E", "1");
+    try {
+      const pluginManager = await import("./services/plugin-manager.js");
+      vi.mocked(pluginManager.initialize).mockClear();
+
+      const handle = await startServer({ port: 0 });
+
+      expect(pluginManager.initialize).toHaveBeenCalledWith({ holdUnconsented: false });
+      await handle.shutdown();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("port 0: OS assigns a free port and handle.port reflects it", async () => {
@@ -284,6 +323,11 @@ describe("startServer", { concurrent: false }, () => {
         listInstalled: vi.fn(() => []),
         registerComponentPluginHooks: vi.fn(),
         getAgentManifests: vi.fn(() => []),
+      }));
+      vi.doMock("./services/plugin-dir-watch.js", () => ({
+        onPluginSetChanged: vi.fn(() => () => {}),
+        startPluginDirWatch: vi.fn(() => Promise.resolve()),
+        stopPluginDirWatch: vi.fn(() => Promise.resolve()),
       }));
       vi.doMock("./services/catalog-client.js", () => ({
         prefetch: vi.fn(() => Promise.resolve()),
