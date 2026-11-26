@@ -148,10 +148,10 @@ describe("SourcePicker", () => {
 
       // Project search is always available; the scoped categories are disabled
       // with a hint until a project is picked.
-      expect(screen.getByRole("button", { name: "Add projects" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Add boards" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Add filters" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Add epics" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Search to add projects" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Search to add boards" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Search to add filters" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Search to add epics" })).toBeDisabled();
       expect(screen.getAllByText("Pick a project first.").length).toBeGreaterThan(0);
 
       rerender(
@@ -163,9 +163,9 @@ describe("SourcePicker", () => {
         />,
       );
 
-      expect(screen.getByRole("button", { name: "Add boards" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Add filters" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "Add epics" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Search to add boards" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Search to add filters" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Search to add epics" })).toBeEnabled();
       expect(screen.queryByText("Pick a project first.")).not.toBeInTheDocument();
     });
 
@@ -176,7 +176,7 @@ describe("SourcePicker", () => {
         <SourcePicker candidates={SEARCHABLE} value={{}} onChange={onChange} projectId="p1" />,
       );
 
-      await user.click(screen.getByRole("button", { name: "Add projects" }));
+      await user.click(screen.getByRole("button", { name: "Search to add projects" }));
       await user.click(screen.getByRole("option", { name: /Platform/ }));
 
       // The captured label lets the chip / tile show the project name on reload.
@@ -197,7 +197,7 @@ describe("SourcePicker", () => {
         />,
       );
 
-      await user.click(screen.getByRole("button", { name: "Add boards" }));
+      await user.click(screen.getByRole("button", { name: "Search to add boards" }));
       await user.click(screen.getByRole("option", { name: /PLAT Scrum Board/ }));
 
       expect(onChange).toHaveBeenCalledWith({
@@ -243,7 +243,7 @@ describe("SourcePicker", () => {
       }
       render(<Harness />);
 
-      await user.click(screen.getByRole("button", { name: "Add boards" }));
+      await user.click(screen.getByRole("button", { name: "Search to add boards" }));
       await user.click(screen.getByRole("option", { name: /PLAT Scrum Board/ }));
       await user.click(screen.getByRole("option", { name: /PLAT Kanban/ }));
 
@@ -272,7 +272,7 @@ describe("SourcePicker", () => {
         />,
       );
 
-      await user.click(screen.getByRole("button", { name: "Add filters" }));
+      await user.click(screen.getByRole("button", { name: "Search to add filters" }));
       await user.click(screen.getByRole("option", { name: /My open bugs/ }));
 
       // The filter carries no project key, so with several projects in scope it
@@ -297,7 +297,7 @@ describe("SourcePicker", () => {
       // so the user is told to re-pick rather than seeing a silent empty list.
       expect(screen.getByTestId("stale-sources-notice")).toBeInTheDocument();
       // The live picker still renders so the user can re-pick in place.
-      expect(screen.getByRole("button", { name: "Add projects" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Search to add projects" })).toBeInTheDocument();
     });
 
     it("does not prompt to re-pick when the saved config uses current categories", () => {

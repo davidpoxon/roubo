@@ -47,7 +47,7 @@ test("JSS-TC-022: a developer finds a source by searching instead of scrolling",
 
   // Step 1 - open a source picker. The board search popover opens with its
   // search field focused (no scrolling a giant list to begin).
-  const boardsTrigger = picker.getByRole("button", { name: /^Add boards$/i });
+  const boardsTrigger = picker.getByRole("button", { name: /^Search to add boards$/i });
   await boardsTrigger.click();
   const searchbox = page.getByRole("searchbox", { name: /^Search boards$/i });
   await expect(searchbox).toBeFocused();

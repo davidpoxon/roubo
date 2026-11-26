@@ -38,18 +38,18 @@ test("JSS-TC-019: a developer scopes to a Jira project before adding sources", a
 
   // Project scope is the first and only enabled control; board/filter/epic are
   // gated until a project is in scope.
-  await expect(picker.getByRole("button", { name: /^Add projects$/i })).toBeEnabled();
-  await expect(picker.getByRole("button", { name: /^Add boards$/i })).toBeDisabled();
-  await expect(picker.getByRole("button", { name: /^Add filters$/i })).toBeDisabled();
-  await expect(picker.getByRole("button", { name: /^Add epics$/i })).toBeDisabled();
+  await expect(picker.getByRole("button", { name: /^Search to add projects$/i })).toBeEnabled();
+  await expect(picker.getByRole("button", { name: /^Search to add boards$/i })).toBeDisabled();
+  await expect(picker.getByRole("button", { name: /^Search to add filters$/i })).toBeDisabled();
+  await expect(picker.getByRole("button", { name: /^Search to add epics$/i })).toBeDisabled();
 
   await addSource(page, picker, "projects", { search: "Platform", option: /Platform/ });
 
   // A project chip appears and the scoped pickers become enabled.
   await expect(picker.getByRole("button", { name: /^Remove Platform$/i })).toBeVisible();
-  await expect(picker.getByRole("button", { name: /^Add boards$/i })).toBeEnabled();
-  await expect(picker.getByRole("button", { name: /^Add filters$/i })).toBeEnabled();
-  await expect(picker.getByRole("button", { name: /^Add epics$/i })).toBeEnabled();
+  await expect(picker.getByRole("button", { name: /^Search to add boards$/i })).toBeEnabled();
+  await expect(picker.getByRole("button", { name: /^Search to add filters$/i })).toBeEnabled();
+  await expect(picker.getByRole("button", { name: /^Search to add epics$/i })).toBeEnabled();
 
   await save(dialog);
 
@@ -160,7 +160,7 @@ test("JSS-TC-029: a developer distinguishes two similarly named filters", async 
 
   // Search the shared name fragment: both filters appear, each with its project
   // key and filter id on the secondary line, so they can be told apart.
-  const filtersTrigger = picker.getByRole("button", { name: /^Add filters$/i });
+  const filtersTrigger = picker.getByRole("button", { name: /^Search to add filters$/i });
   await filtersTrigger.click();
   await page.getByRole("searchbox", { name: /^Search filters$/i }).fill("Team open bugs");
   const results = page.getByRole("listbox", { name: /Filters results/i });

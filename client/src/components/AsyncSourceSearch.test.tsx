@@ -51,8 +51,26 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Add boards" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Search to add boards" })).toBeDisabled();
     expect(screen.getByText("Pick a project first.")).toBeInTheDocument();
+  });
+
+  // WCAG 2.5.3 (Label in Name): the trigger shows "Search", so its accessible
+  // name must contain that text.
+  it("names the search trigger with the text it shows", () => {
+    render(
+      <AsyncSourceSearch
+        projectId="p1"
+        category="board"
+        label="Boards"
+        enabled={false}
+        value={[]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByText("Search").closest("button");
+    expect(trigger).toHaveAccessibleName("Search to add boards");
   });
 
   it("renders untruncated results with a monospace key + id sublabel (JSS-FR-011)", async () => {
@@ -69,7 +87,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     const listbox = screen.getByRole("listbox", { name: "Boards results" });
     const name = within(listbox).getByText("PLAT Scrum Board");
     const sub = within(listbox).getByText("PLAT · board #482 · scrum");
@@ -94,7 +112,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     await user.click(screen.getByRole("option", { name: /PLAT Scrum Board/ }));
 
     // A pick is delivered as a one-item add batch with no removals.
@@ -119,7 +137,7 @@ describe("AsyncSourceSearch", () => {
     // Open so the label cache fills from results, then close (the open popover
     // hides outside content for screen readers) and assert the chip shows the
     // friendly label rather than the raw externalId.
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     await user.keyboard("{Escape}");
     const chips = screen.getByRole("list", { name: "Selected boards" });
     expect(within(chips).getByText("PLAT Scrum Board")).toBeInTheDocument();
@@ -172,7 +190,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     await user.click(screen.getByRole("button", { name: "Load more" }));
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
@@ -192,7 +210,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2+ results");
 
     // Once the set is exhausted the "+" drops and the count is the exact total.
@@ -224,7 +242,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     // The latency reads alongside the count, and the count testid stays an exact
     // "N results" so the JSS-TC-022 e2e exact-match assertion keeps holding.
     expect(screen.getByTestId("source-search-latency")).toHaveTextContent("· 142ms");
@@ -245,7 +263,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     expect(screen.queryByTestId("source-search-latency")).not.toBeInTheDocument();
     expect(screen.getByTestId("source-search-result-count")).toHaveTextContent("2 results");
   });
@@ -266,7 +284,7 @@ describe("AsyncSourceSearch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add boards" }));
+    await user.click(screen.getByRole("button", { name: "Search to add boards" }));
     const region = screen.getByRole("status");
     expect(region).toBeInTheDocument();
     expect(region).toBeEmptyDOMElement();
@@ -287,7 +305,7 @@ describe("AsyncSourceSearch", () => {
     );
 
     await user.tab();
-    expect(screen.getByRole("button", { name: "Add boards" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Search to add boards" })).toHaveFocus();
     await user.keyboard("{Enter}");
 
     expect(screen.getByRole("searchbox", { name: "Search boards" })).toBeInTheDocument();
