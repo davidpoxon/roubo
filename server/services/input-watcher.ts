@@ -270,6 +270,14 @@ export const ARM_LIVE_MS = 100;
  */
 export const ARM_WARMUP_SCANS = 3;
 
+/**
+ * How long after its settle window the event of a change that a warm-up
+ * rescan already ran the handler for is still taken as the stream reporting
+ * that change late, and stays silent. A later event of the same content is a
+ * new save and runs as usual.
+ */
+export const WARMUP_LATE_EVENT_MS = 1_000;
+
 function waitUntilLive(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ARM_LIVE_MS));
 }
@@ -584,9 +592,9 @@ export function watchInput(
   let live = false;
   // The warm-up rescans left for the current arm (see ARM_WARMUP_SCANS).
   let warmupLeft = 0;
-  // The hash a warm-up rescan last ran the handler for, per input, until the
-  // next event of that input.
-  const warmupRan = new Map<string, string | null>();
+  // The hash a warm-up rescan last ran the handler for, per input, and when,
+  // until the next event of that input (see WARMUP_LATE_EVENT_MS).
+  const warmupRan = new Map<string, { hash: string | null; at: number }>();
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -834,13 +842,13 @@ export function watchInput(
       const seen =
         lastRejected !== null ? lastRejected.rejected : lastApplied.has(unit) ? last : null;
       if (hash === seen) return;
-      warmupRan.set(unit, hash);
+      warmupRan.set(unit, { hash, at: Date.now() });
     } else if (mode === "event" && warmupRan.has(unit)) {
       const ran = warmupRan.get(unit);
       warmupRan.delete(unit);
       // The late event of a change a warm-up rescan already ran for: the
       // stream reported it after all, and it is not a second change.
-      if (ran === hash) return;
+      if (ran?.hash === hash && Date.now() - ran.at <= settleMs + WARMUP_LATE_EVENT_MS) return;
     }
     // An absent input matches no token, and still clears the hand edits the
     // live tokens carry, since the handler runs for what the input now holds.
@@ -1002,6 +1010,7 @@ export function watchInput(
     watcherReady = false;
     live = false;
     warmupLeft = 0;
+    warmupRan.clear();
     const settle = settleArm;
     settleArm = null;
     settle?.();

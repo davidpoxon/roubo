@@ -31,6 +31,7 @@ import { atomicWrite } from "./state.js";
 import {
   ARM_LIVE_MS,
   ARM_WARMUP_SCANS,
+  WARMUP_LATE_EVENT_MS,
   DEFAULT_OUTCOME_REASONS,
   WatchRootError,
   formatApplyLogLine,
@@ -566,6 +567,30 @@ describe("watchInput arm", () => {
     await sleep(600 + WATCH_QUIET_MS);
     expect(handler).toHaveBeenCalledTimes(1);
     expect(applyLines()).toEqual([expect.stringContaining(" outcome=applied ")]);
+  });
+
+  it("runs the handler again for a later hand save of content a warm-up rescan rejected", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "rejected");
+    dropEventsJustAfterReady(ARM_LIVE_MS + 300);
+    const w = track(
+      watchInput(
+        file,
+        { surface: "project", settleMs: WATCH_SETTLE_MS, rearmPollMs: 100 },
+        handler,
+      ),
+    );
+    await w.ready;
+
+    // The stream never reports this write; a warm-up rescan rejects it.
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 1);
+    // Well after the warm-up, the same content is saved by hand (HR-TC-004).
+    await sleep(WATCH_SETTLE_MS + WARMUP_LATE_EVENT_MS + 500);
+    fs.writeFileSync(file, "name: bad\n");
+    await waitFor(() => outcomeCount("rejected") === 2);
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 
   it("reports nothing at a warm-up rescan for an input that is refused or still incomplete", async () => {
