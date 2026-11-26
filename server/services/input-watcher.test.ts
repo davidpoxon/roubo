@@ -52,6 +52,7 @@ import {
 import { addClient, _resetClientsForTest } from "./sse.js";
 import type { Response } from "express";
 import type { InputChangedEvent } from "@roubo/shared";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
 
 const LINE_RE =
   /^\[input-watcher\] surface=\S+ path=\S+ outcome=(applied|rejected|deduped|self-write|refused) hash8=([0-9a-f]{8}|none) durationMs=\d+$/;
@@ -63,17 +64,7 @@ let outsideDir: string;
 let lines: string[];
 let watches: Disposable[];
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(pred: () => boolean, timeoutMs = 4_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) throw new Error(`timed out; log so far:\n${lines.join("\n")}`);
-    await sleep(20);
-  }
-}
+const waitFor = createWaitFor(() => `log so far:\n${lines.join("\n")}`);
 
 function applyLines(): string[] {
   return lines.filter((l) => l.includes(" outcome="));
@@ -223,7 +214,7 @@ describe("watchInput dedupe and self-write", () => {
     await sleep(200);
 
     expect(handler).not.toHaveBeenCalled();
-    expect(applyLines()).toHaveLength(1);
+    expect(applyLines()).toEqual([expect.stringContaining(" outcome=self-write ")]);
   });
 
   it("HR-TC-005 a delete after a rejected save runs the handler with a null hash, not deduped", async () => {
@@ -280,7 +271,7 @@ describe("watchInput dedupe and self-write", () => {
     fs.renameSync(dir, away);
     await sleep(300);
     fs.renameSync(away, dir);
-    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")));
     await sleep(300);
 
     expect(handler).toHaveBeenCalledTimes(1);
@@ -382,6 +373,70 @@ describe("watchInput dedupe and self-write", () => {
   });
 });
 
+/**
+ * Make the next watcher drop every event that chokidar sends in the first
+ * `windowMs` after its `ready`. On macOS, the FSEvents stream behind
+ * `fs.watch` goes live some milliseconds after chokidar says it is ready, and
+ * a change in that window is lost (#1726). This makes that window certain.
+ */
+function dropEventsJustAfterReady(windowMs: number): void {
+  const real = vi.mocked(watch).getMockImplementation();
+  if (!real) throw new Error("expected the real chokidar watch behind the mock");
+  vi.mocked(watch).mockImplementationOnce((paths, opts) => {
+    const w = real(paths, opts);
+    let readyAt: number | null = null;
+    const emit = w.emit.bind(w);
+    w.emit = ((event: string | symbol, ...args: unknown[]) => {
+      if (event === "ready") readyAt = Date.now();
+      else if (readyAt !== null && event !== "error" && Date.now() - readyAt < windowMs) {
+        return false;
+      }
+      return emit(event, ...args);
+    }) as typeof w.emit;
+    return w;
+  });
+}
+
+describe("watchInput arm", () => {
+  it("is ready only once the watch is live, so a change made just after ready is handled", async () => {
+    const file = path.join(projectDir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    dropEventsJustAfterReady(20);
+    const w = track(watchInput(file, { surface: "project", settleMs: 50 }, handler));
+    await w.ready;
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
+  });
+
+  it("is re-armed only once the new watch is live, so a change made just after the re-armed line is handled", async () => {
+    const dir = path.join(projectDir, "conf");
+    const away = path.join(projectDir, "conf-away");
+    fs.mkdirSync(dir);
+    const file = path.join(dir, "roubo.yaml");
+    fs.writeFileSync(file, "name: one\n");
+    const handler = vi.fn(async (): Promise<HandlerResult> => "applied");
+    const w = track(
+      watchInput(file, { surface: "project", settleMs: 50, rearmPollMs: 100 }, handler),
+    );
+    await w.ready;
+
+    dropEventsJustAfterReady(50);
+    fs.renameSync(dir, away);
+    await sleep(300);
+    fs.renameSync(away, dir);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")));
+    // After the re-arm rescan, so only the watch can see the change.
+    await sleep(20);
+
+    fs.writeFileSync(file, "name: two\n");
+    await waitFor(() => outcomeCount("applied") === 1);
+    expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
+  });
+});
+
 describe("watchInput lifecycle", () => {
   it("HR-TC-052 re-arms a watched directory that is renamed away and back, then handles a later change", async () => {
     const plugins = path.join(stateDir, "plugins");
@@ -407,7 +462,7 @@ describe("watchInput lifecycle", () => {
     const startedAt = Date.now();
     fs.mkdirSync(added);
     fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: fresh\n");
-    await waitFor(() => seen.some((c) => c.path === added), 2_000);
+    await waitFor(() => seen.some((c) => c.path === added));
     expect(Date.now() - startedAt).toBeLessThan(2_000);
 
     const rearmed = lines.filter((l) => l.includes("re-armed"));
@@ -435,12 +490,12 @@ describe("watchInput lifecycle", () => {
     fs.renameSync(plugins, away);
     await sleep(150);
     fs.renameSync(away, plugins);
-    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")));
 
     const added = path.join(plugins, "fresh");
     fs.mkdirSync(added);
     fs.writeFileSync(path.join(added, "roubo-plugin.yaml"), "id: fresh\n");
-    await waitFor(() => seen.some((c) => c.path === added), 2_000);
+    await waitFor(() => seen.some((c) => c.path === added));
     // Two more polls: a re-arm must not repeat once the watch is healthy.
     await sleep(2_100);
 
@@ -463,10 +518,10 @@ describe("watchInput lifecycle", () => {
     fs.renameSync(dir, away);
     await sleep(150);
     fs.renameSync(away, dir);
-    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")), 3_000);
+    await waitFor(() => lines.some((l) => l.startsWith("[input-watcher] re-armed ")));
 
     fs.writeFileSync(file, "name: two\n");
-    await waitFor(() => outcomeCount("applied") === 1, 2_000);
+    await waitFor(() => outcomeCount("applied") === 1);
     expect(handler).toHaveBeenCalledWith({ path: file, hash: hashContent("name: two\n") });
     expect(lines.filter((l) => l.includes("re-armed"))).toEqual([
       `[input-watcher] re-armed path=${dir}`,
@@ -849,7 +904,13 @@ describe("watchInput logging", () => {
     await sleep(200);
 
     const outcomeLines = applyLines();
-    expect(outcomeLines).toHaveLength(5);
+    expect(outcomeLines.map((l) => / outcome=(\S+) /.exec(l)?.[1])).toEqual([
+      "applied",
+      "deduped",
+      "rejected",
+      "refused",
+      "self-write",
+    ]);
     for (const line of outcomeLines) {
       expect(line).toMatch(LINE_RE);
       expect(line.trim().startsWith("{")).toBe(false);

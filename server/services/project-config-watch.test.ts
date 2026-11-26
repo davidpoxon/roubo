@@ -40,6 +40,7 @@ import * as registry from "./project-registry.js";
 import { atomicWrite } from "./state.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
 import { addClient, _resetClientsForTest } from "./sse.js";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
 
 let base: string;
 let lanternDir: string;
@@ -47,17 +48,7 @@ let configFile: string;
 let lines: string[];
 let streamed: unknown[];
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(pred: () => boolean, timeoutMs = 4_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) throw new Error(`timed out; log so far:\n${lines.join("\n")}`);
-    await sleep(20);
-  }
-}
+const waitFor = createWaitFor(() => `log so far:\n${lines.join("\n")}`);
 
 function configLines(outcome: string): string[] {
   return lines.filter(
@@ -480,7 +471,7 @@ describe("roubo.yaml watch", () => {
   it("HR-TC-045: a save reaches one log line and one event well within the 2 s budget", async () => {
     const start = Date.now();
     fs.writeFileSync(configFile, roubo("lantern", { webBase: 4600 }));
-    await waitFor(() => inputEvents().length === 1, 2_000);
+    await waitFor(() => inputEvents().length === 1);
 
     expect(Date.now() - start).toBeLessThan(2_000);
     expect(configLines("applied")).toHaveLength(1);

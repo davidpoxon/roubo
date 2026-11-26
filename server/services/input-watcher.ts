@@ -245,6 +245,22 @@ export class WatchRootError extends Error {
 const LOG_PREFIX = "[input-watcher]";
 const DEFAULT_REARM_POLL_MS = 1_000;
 
+/**
+ * How long an arm waits after chokidar's `ready` before it scans and calls the
+ * watch ready. On macOS the FSEvents stream behind `fs.watch` goes live some
+ * milliseconds after chokidar says ready, and the stream never reports a
+ * change made before then. In a measurement, a write made 0 ms after `ready`
+ * was lost in 16 to 25 percent of trials, and a write made 20 ms or more after
+ * it was lost in none of 2,400, idle or under full CPU load (#1726). The scan
+ * after this wait finds a change that landed in the window, and a change made
+ * after the watch is ready reaches the live stream.
+ */
+export const ARM_LIVE_MS = 100;
+
+function waitUntilLive(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ARM_LIVE_MS));
+}
+
 /** Serialise one ApplyLogLine as key=value pairs on one line. Not JSON. */
 export function formatApplyLogLine(line: ApplyLogLine): string {
   const base =
@@ -548,6 +564,11 @@ export function watchInput(
   let armedIno: number | null = null;
   let watchLost = false;
   let watcherReady = false;
+  // False from each arm until its watch is live (`ARM_LIVE_MS` after chokidar's
+  // `ready`). The scan that follows covers every change before then, so an
+  // event in that window runs nothing. FSEvents replays a write made just
+  // before the stream started as a change about 10 ms after `ready`.
+  let live = false;
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -669,7 +690,7 @@ export function watchInput(
   }
 
   function schedule(unit: string): void {
-    if (disposed) return;
+    if (disposed || !live) return;
     const pending = timers.get(unit);
     if (pending) clearTimeout(pending);
     timers.set(
@@ -896,6 +917,7 @@ export function watchInput(
     });
     watchLost = false;
     watcherReady = false;
+    live = false;
     const ready = new Promise<void>((resolve) => {
       const settle = () => {
         if (settleArm === settle) settleArm = null;
@@ -932,6 +954,7 @@ export function watchInput(
     armedIno = null;
     watchLost = false;
     watcherReady = false;
+    live = false;
     const settle = settleArm;
     settleArm = null;
     settle?.();
@@ -969,6 +992,9 @@ export function watchInput(
         if (!ready) return;
         await ready;
         if (disposed || !watcher) return;
+        await waitUntilLive();
+        if (disposed || !watcher) return;
+        live = true;
         // A lifecycle line, not an ApplyLogLine: it carries no outcome.
         if (everArmed) console.info(`${LOG_PREFIX} re-armed path=${dir}`);
         everArmed = true;
@@ -984,6 +1010,9 @@ export function watchInput(
     if (armed) {
       await armed;
       if (disposed) return;
+      await waitUntilLive();
+      if (disposed) return;
+      live = true;
       everArmed = true;
       await scan(true);
     }
