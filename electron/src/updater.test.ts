@@ -40,7 +40,7 @@ vi.mock("update-electron-app", () => {
     exports: fake,
   } as unknown as NodeJS.Module;
   const libPath = require.resolve("update-electron-app");
-  delete require.cache[libPath];
+  Reflect.deleteProperty(require.cache, libPath);
   return require(libPath) as typeof import("update-electron-app");
 });
 
