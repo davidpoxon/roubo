@@ -209,6 +209,9 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
   await test.step("S002: open the cut list", async () => {
     // The project list refreshes in place: lantern-2 is in the sidebar of the
     // page that was open before the edit, and opening it opens its cut list.
+    // The case has one S002 observation, S002-O01 (the issues are listed); the
+    // sidebar and URL checks before it are preconditions, so their ids carry
+    // `pre` and cannot be read as observations of the case.
     const row = page.locator(`[data-project-id="${PROJECT_ID}"]`);
     const listed = await row.waitFor({ state: "visible", timeout: 5_000 }).then(
       () => true,
@@ -219,7 +222,7 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
       .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-project-id")))) as string[];
     observe(
       STEPS.S002,
-      "S002-O01",
+      "S002-pre-sidebar",
       listed,
       `the project list shows '${PROJECT_ID}' with no reload`,
       `the sidebar lists: ${sidebar.join(", ") || "no project"}`,
@@ -233,7 +236,7 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
     );
     observe(
       STEPS.S002,
-      "S002-O02",
+      "S002-pre-open",
       opened,
       `opening '${PROJECT_ID}' goes to its project page, a URL that ends in /projects/${PROJECT_ID}`,
       `after 5000 ms the page is at ${page.url()}`,
@@ -253,7 +256,7 @@ test("HR-TC-026: a project appended to projects.json by hand registers, lists it
     }
     observe(
       STEPS.S002,
-      "S002-O03",
+      "S002-O01",
       missing.length === 0,
       `the cut list lists the lantern-2 issues: ${ISSUE_TITLES.join(", ")}`,
       missing.length === 0 ? "listed" : `not listed after 10000 ms: ${missing.join(", ")}`,
