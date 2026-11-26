@@ -52,11 +52,10 @@ export default function SetupTile({ projectId }: Props) {
 
   const editButton = (
     <Button
-      aria-label="Edit project configuration"
       onPress={() => navigate(`/projects/${projectId}/settings/setup`)}
       className="text-11 px-2.5 py-1 rounded-control border border-border-strong bg-bg-surface text-text-secondary hover:bg-bg-hover hover:text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-pointer"
     >
-      Edit setup →
+      Edit setup <span aria-hidden="true">→</span>
     </Button>
   );
 

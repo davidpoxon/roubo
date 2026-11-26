@@ -116,7 +116,7 @@ export default function AsyncSourceSearch({
           ref={triggerRef}
           isDisabled={!enabled}
           onPress={() => setOpen(!isOpen)}
-          aria-label={`Add ${label.toLowerCase()}`}
+          aria-label={`Search to add ${label.toLowerCase()}`}
           aria-expanded={isOpen}
           className="flex items-center gap-1.5 rounded-control bg-bg-field border border-border-control px-2.5 py-1.5 text-12 text-text-body transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed"
         >

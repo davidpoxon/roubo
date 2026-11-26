@@ -95,7 +95,7 @@ describe("SetupTile", () => {
   it("navigates to config edit when Edit button is pressed", async () => {
     const user = userEvent.setup();
     render(<SetupTile projectId="proj-1" />);
-    await user.click(screen.getByRole("button", { name: "Edit project configuration" }));
+    await user.click(screen.getByRole("button", { name: "Edit setup" }));
     expect(mockNavigate).toHaveBeenCalledWith("/projects/proj-1/settings/setup");
   });
 
@@ -133,13 +133,22 @@ describe("SetupTile", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
+  // WCAG 2.5.3 (Label in Name): the accessible name is the text the button
+  // shows, and the arrow is decoration that the name leaves out.
+  it("names the Edit button by the text it shows", () => {
+    render(<SetupTile projectId="proj-1" />);
+    const edit = screen.getByText(/Edit setup/).closest("button");
+    expect(edit).toHaveAccessibleName("Edit setup");
+    expect(edit).toHaveTextContent("Edit setup →");
+  });
+
   it("still renders Edit button when config is invalid", () => {
     vi.mocked(useProjects).mockReturnValue({
       data: [makeProject({ config: undefined, configValid: false })],
       isLoading: false,
     } as unknown as ReturnType<typeof useProjects>);
     render(<SetupTile projectId="proj-1" />);
-    expect(screen.getByRole("button", { name: "Edit project configuration" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit setup" })).toBeInTheDocument();
   });
 
   it("renders loading skeleton when data is loading", () => {

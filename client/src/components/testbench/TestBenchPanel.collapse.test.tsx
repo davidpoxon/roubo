@@ -81,9 +81,7 @@ beforeEach(() => {
 describe("TestBenchPanel case-list collapse (#525)", () => {
   it("offers no collapse control until a case is selected", () => {
     render(<TestBenchPanel projectId="p1" benchId={1} />);
-    expect(
-      screen.queryByRole("button", { name: /collapse test case list/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Collapse list" })).not.toBeInTheDocument();
   });
 
   it("collapses the list, keeps the selected case shown, and restores via expand", async () => {
@@ -93,7 +91,7 @@ describe("TestBenchPanel case-list collapse (#525)", () => {
     // Select a case: the detail pane and a collapse control appear.
     await user.click(screen.getByText("case c1"));
     expect(screen.getByRole("heading", { name: "case c1" })).toBeInTheDocument();
-    const collapse = screen.getByRole("button", { name: /collapse test case list/i });
+    const collapse = screen.getByRole("button", { name: "Collapse list" });
 
     // Collapse: the list rows are hidden but the selected case detail stays.
     await user.click(collapse);
@@ -105,11 +103,22 @@ describe("TestBenchPanel case-list collapse (#525)", () => {
     expect(screen.getAllByTestId("case-row").length).toBeGreaterThan(0);
   });
 
+  // WCAG 2.5.3 (Label in Name): the control shows its label as text, so its
+  // accessible name must contain that text. axe in jsdom leaves the rule
+  // label-content-name-mismatch incomplete, so this asserts the name itself.
+  it("names the collapse control by the text it shows", async () => {
+    const user = userEvent.setup();
+    render(<TestBenchPanel projectId="p1" benchId={1} />);
+    await user.click(screen.getByText("case c1"));
+    const collapse = screen.getByText("Collapse list").closest("button");
+    expect(collapse).toHaveAccessibleName("Collapse list");
+  });
+
   it("persists the collapsed state per bench across remounts", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<TestBenchPanel projectId="p1" benchId={1} />);
     await user.click(screen.getByText("case c1"));
-    await user.click(screen.getByRole("button", { name: /collapse test case list/i }));
+    await user.click(screen.getByRole("button", { name: "Collapse list" }));
     unmount();
 
     setPlan({ plan: plan([makeCase("c1"), makeCase("c2")]) });

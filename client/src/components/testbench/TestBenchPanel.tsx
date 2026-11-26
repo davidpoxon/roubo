@@ -439,7 +439,6 @@ export default function TestBenchPanel({
               <div className="flex justify-end shrink-0">
                 <Button
                   onPress={() => setTestbenchCaseListCollapsed(true)}
-                  aria-label="Collapse test case list"
                   aria-expanded={true}
                   className="inline-flex items-center gap-1.5 px-2 py-1 rounded-control text-12 font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-bg-hover outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                 >
