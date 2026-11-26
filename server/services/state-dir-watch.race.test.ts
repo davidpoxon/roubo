@@ -20,6 +20,7 @@ import type {
   PersistedState,
   PluginEnableState,
 } from "@roubo/shared";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
 
 const hoisted = vi.hoisted(() => ({
   events: [] as Omit<InputChangedEvent, "type">[],
@@ -118,21 +119,9 @@ let watch: typeof import("./state-dir-watch.js");
 let pluginManager: typeof import("./plugin-manager.js");
 let benchManager: typeof import("./bench-manager.js");
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(pred: () => boolean, timeoutMs = 5_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) {
-      throw new Error(
-        `timed out; log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
-      );
-    }
-    await sleep(20);
-  }
-}
+const waitFor = createWaitFor(
+  () => `log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
+);
 
 function bench(id: number, branch: string, port: number): PersistedBench {
   return {

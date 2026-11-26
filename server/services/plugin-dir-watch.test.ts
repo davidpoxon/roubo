@@ -143,6 +143,8 @@ import {
   updatedNotice,
   type PluginSetChange,
 } from "./plugin-dir-watch.js";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
+import { WATCH_SETTLE_MS } from "../test/watch-project.js";
 
 // An entry that exits as soon as it starts: a rebuild that crashes at start.
 const EXITS_AT_START = `"use strict";\nprocess.exit(1);\n`;
@@ -168,10 +170,6 @@ let lines: string[];
 let setChanges: PluginSetChange[];
 let stopSetListener: () => void;
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /** Edit `pluginId`'s value in the in-memory plugins-state.json by hand. */
 function handEditEnableValue(pluginId: string, value: PluginEnableStateValue): void {
   const state = hoisted.enableState;
@@ -179,17 +177,9 @@ function handEditEnableValue(pluginId: string, value: PluginEnableStateValue): v
   hoisted.enableState = { ...state, plugins: { ...state.plugins, [pluginId]: value } };
 }
 
-async function waitFor(pred: () => boolean, timeoutMs = 8_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) {
-      throw new Error(
-        `timed out; log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
-      );
-    }
-    await sleep(25);
-  }
-}
+const waitFor = createWaitFor(
+  () => `log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
+);
 
 function applyLines(dirName: string): string[] {
   return lines.filter(
@@ -288,7 +278,13 @@ function record(id: string) {
 }
 
 async function startWatch(): Promise<void> {
-  await startPluginDirWatch({ root, settleMs: 100, pollMs: 150, rearmPollMs: 200, rescanMs: 300 });
+  await startPluginDirWatch({
+    root,
+    settleMs: WATCH_SETTLE_MS,
+    pollMs: 150,
+    rearmPollMs: 200,
+    rescanMs: 300,
+  });
 }
 
 /**
@@ -419,7 +415,7 @@ describe("a plugin directory added by hand", () => {
     expect(record("new-plugin")?.status).toBe("enabled");
     expect(typeof record("new-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["new-plugin"]).toBe("enabled");
-  }, 20_000);
+  });
 
   it("HR-TC-014 registers a dropped plugin directory whose file events never come", async () => {
     await startWatch();
@@ -438,7 +434,7 @@ describe("a plugin directory added by hand", () => {
     await sleep(1_000);
     expect(applyLines("new-plugin")).toHaveLength(1);
     expect(hoisted.events).toHaveLength(1);
-  }, 20_000);
+  });
 
   it("HR-TC-014 starts a dropped integration plugin, which is never consent-gated, and names no consent step", async () => {
     await startWatch();
@@ -449,7 +445,7 @@ describe("a plugin directory added by hand", () => {
     expect(record("new-integration")?.status).toBe("enabled");
     expect(hoisted.enableState?.plugins["new-integration"]).toBeUndefined();
     expect(summaries()).toEqual(["Plugin new-integration installed."]);
-  }, 20_000);
+  });
 
   it("HR-TC-014 does not start a dropped integration plugin that the user disabled", async () => {
     hoisted.enableState = {
@@ -465,7 +461,7 @@ describe("a plugin directory added by hand", () => {
     await waitFor(() => outcomeLines("off-integration", "applied").length === 1);
     expect(record("off-integration")?.status).toBe("disabled");
     expect(record("off-integration")?.pid).toBeNull();
-  }, 20_000);
+  });
 
   it("HR-TC-014 keeps a dropped agent plugin that the user disabled disabled, held until consent", async () => {
     hoisted.enableState = {
@@ -488,7 +484,7 @@ describe("a plugin directory added by hand", () => {
     expect(await pluginManager.startAfterConsent("off-agent")).toBe(false);
     expect(hoisted.enableState?.plugins["off-agent"]).toBe("disabled");
     expect(record("off-agent")?.pid).toBeNull();
-  }, 20_000);
+  });
 
   it("HR-TC-015 never spawns an un-consented plugin found on disk and logs action=register", async () => {
     await startWatch();
@@ -504,7 +500,7 @@ describe("a plugin directory added by hand", () => {
     expect(applyLines("marker-plugin")[0]).toMatch(
       /^\[input-watcher\] surface=plugin path=\S+\/marker-plugin outcome=applied hash8=[0-9a-f]{8} durationMs=\d+ action=register$/,
     );
-  }, 20_000);
+  });
 
   it("HR-TC-015 and HR-TC-014 keep an un-consented dropped plugin unspawned after a relaunch, and enable and restart refuse it", async () => {
     await startWatch();
@@ -534,7 +530,7 @@ describe("a plugin directory added by hand", () => {
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
-  }, 20_000);
+  });
 
   it("HR-TC-014 keeps a plugin disabled while it awaited consent disabled after consent, across a relaunch", async () => {
     await startWatch();
@@ -577,7 +573,7 @@ describe("a plugin directory added by hand", () => {
     expect(typeof record("held-plugin")?.pid).toBe("number");
     expect(hoisted.enableState?.plugins["held-plugin"]).toBe("enabled");
     await waitFor(() => fs.existsSync(marker));
-  }, 20_000);
+  });
 
   it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app runs", async () => {
     await startWatch();
@@ -597,7 +593,7 @@ describe("a plugin directory added by hand", () => {
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
     await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
     expect(record("held-plugin")?.pid).toBeNull();
-  }, 20_000);
+  });
 
   it("HR-TC-014 keeps the hold of a held plugin that a hand edit of plugins-state.json disables while the app is closed", async () => {
     await startWatch();
@@ -615,7 +611,7 @@ describe("a plugin directory added by hand", () => {
     await expect(pluginManager.enable("held-plugin")).rejects.toThrow(/no consent yet/);
     await expect(pluginManager.restart("held-plugin")).rejects.toThrow(/no consent yet/);
     expect(record("held-plugin")?.pid).toBeNull();
-  }, 20_000);
+  });
 
   it.each([
     ["no value", undefined, "awaiting-consent"],
@@ -679,7 +675,7 @@ describe("a plugin directory added by hand", () => {
       },
     });
     expect(outcomeLines("widget-plugin", "applied")).toEqual([]);
-  }, 20_000);
+  });
 
   it("HR-TC-020 registers a slow recursive copy with node_modules exactly once", async () => {
     await startWatch();
@@ -703,7 +699,7 @@ describe("a plugin directory added by hand", () => {
     expect(hoisted.events.filter((e) => e.outcome === "applied")).toHaveLength(1);
     expect(hoisted.events.filter((e) => e.outcome !== "applied")).toEqual([]);
     expect(record("slow-copy")).toBeDefined();
-  }, 20_000);
+  });
 });
 
 describe("a plugin directory changed in place", () => {
@@ -722,8 +718,8 @@ describe("a plugin directory changed in place", () => {
     expect(summaries()).toEqual(["Plugin my-agent updated."]);
     expect(record("my-agent")?.status).toBe("enabled");
     expect(outcomeLines("my-agent", "applied").at(-1)).toMatch(/ action=swap$/);
-    await waitFor(() => !isAlive(oldPid), 6_000);
-  }, 30_000);
+    await waitFor(() => !isAlive(oldPid));
+  });
 
   it("HR-TC-013 swaps the plugin process when the file event of the rebuild never comes", async () => {
     await startWatch();
@@ -741,8 +737,8 @@ describe("a plugin directory changed in place", () => {
     expect(summaries()).toEqual(["Plugin my-agent updated."]);
     expect(record("my-agent")?.status).toBe("enabled");
     expect(outcomeLines("my-agent", "applied").at(-1)).toMatch(/ action=swap$/);
-    await waitFor(() => !isAlive(oldPid), 6_000);
-  }, 30_000);
+    await waitFor(() => !isAlive(oldPid));
+  });
 
   it("HR-TC-013 rejects a new manifest that names another id with the rejected-manifest copy and keeps the process", async () => {
     await startWatch();
@@ -758,7 +754,7 @@ describe("a plugin directory changed in place", () => {
     expect(hoisted.events[0]).toMatchObject({ outcome: "rejected" });
     expect(record("my-agent")?.pid).toBe(pid);
     expect(isAlive(pid)).toBe(true);
-  }, 30_000);
+  });
 
   it("HR-TC-013 says which bench lost its link when the rebuilt entry exits at start, and keeps the ledger", async () => {
     benchesFromLedger();
@@ -781,7 +777,7 @@ describe("a plugin directory changed in place", () => {
     expect(record("database")?.status).toBe("errored");
     expect(hoisted.ledger).toEqual(ledger);
     expect(outcomeLines("database", "applied").at(-1)).toMatch(/ action=swap$/);
-  }, 30_000);
+  });
 
   it("HR-TC-013 refuses to swap a plugin that keeps component state and names the benches to stop", async () => {
     benchesFromLedger();
@@ -806,7 +802,7 @@ describe("a plugin directory changed in place", () => {
     expect(record("my-plugin")?.pid).toBe(pid);
     expect(isAlive(pid)).toBe(true);
     expect(outcomeLines("my-plugin", "refused")[0]).toMatch(/ action=swap$/);
-  }, 30_000);
+  });
 });
 
 describe("a plugin directory removed", () => {
@@ -829,7 +825,7 @@ describe("a plugin directory removed", () => {
     expect(record("database")?.pid).toBe(pid);
     expect(isAlive(pid)).toBe(true);
     expect(outcomeLines("database", "refused")[0]).toMatch(/ action=unregister$/);
-  }, 20_000);
+  });
 
   it("HR-TC-018 unregisters a removed plugin that no bench uses and stops its process", async () => {
     await startWatch();
@@ -842,9 +838,9 @@ describe("a plugin directory removed", () => {
     await waitFor(() => record("new-plugin") === undefined);
     await waitFor(() => hoisted.events.length === 1);
     expect(summaries()).toEqual(["Plugin new-plugin removed."]);
-    await waitFor(() => !isAlive(pid), 6_000);
+    await waitFor(() => !isAlive(pid));
     expect(setChanges).toEqual([{ added: [], swapped: [], removed: ["new-plugin"] }]);
-  }, 20_000);
+  });
 
   /** Give the watch time to run, then drop a plugin and wait for it, so later runs are seen. */
   async function settleAfter(): Promise<void> {
@@ -865,7 +861,7 @@ describe("a plugin directory removed", () => {
     expect(applyLines("github-com")).toEqual([]);
     expect(summaries()).toEqual(["Plugin sentinel installed."]);
     expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
-  }, 20_000);
+  });
 
   it("HR-TC-018 sends no removal for an empty directory made under the plugins root", async () => {
     await startWatch();
@@ -877,7 +873,7 @@ describe("a plugin directory removed", () => {
     expect(applyLines("foo")).toEqual([]);
     expect(summaries()).toEqual(["Plugin sentinel installed."]);
     expect(setChanges).toEqual([{ added: ["sentinel"], swapped: [], removed: [] }]);
-  }, 20_000);
+  });
 });
 
 describe("the marketplace path and the watch", () => {
@@ -903,7 +899,7 @@ describe("the marketplace path and the watch", () => {
     expect(outcomeLines("database", "applied")).toHaveLength(1);
     expect(outcomeLines("database", "deduped")).toHaveLength(1);
     expect(applyLines("database")).toHaveLength(2);
-  }, 20_000);
+  });
 
   it("HR-TC-011 an integration install names no consent step, which integration plugins never need", async () => {
     await startWatch();
@@ -920,7 +916,7 @@ describe("the marketplace path and the watch", () => {
 
     expect(installed.status).toBe("enabled");
     expect(summaries()).toEqual(["Plugin tracker installed."]);
-  }, 20_000);
+  });
 
   it("HR-TC-011 an agent install records consent in its write, so it starts and its notice names no consent step", async () => {
     await startWatch();
@@ -941,7 +937,7 @@ describe("the marketplace path and the watch", () => {
     expect(installed.status).toBe("enabled");
     expect(typeof installed.pid).toBe("number");
     expect(summaries()).toEqual(["Plugin database installed."]);
-  }, 20_000);
+  });
 
   it("HR-TC-012 an update through the app keeps the bench ledger and reports one swap", async () => {
     await startWatch();
@@ -975,7 +971,7 @@ describe("the marketplace path and the watch", () => {
     expect(outcomeLines("database", "applied").at(-1)).toMatch(/ action=swap$/);
     expect(outcomeLines("database", "refused")).toEqual([]);
     expect(record("database")?.pid).not.toBe(oldPid);
-  }, 30_000);
+  });
 
   it("HR-TC-012 an update through the app whose new copy exits at start names the bench that lost its link", async () => {
     benchesFromLedger();
@@ -1012,5 +1008,5 @@ describe("the marketplace path and the watch", () => {
     ]);
     expect(hoisted.events[0]).toMatchObject({ outcome: "applied", benchIds: [2] });
     expect(hoisted.ledger).toEqual(ledger);
-  }, 30_000);
+  });
 });

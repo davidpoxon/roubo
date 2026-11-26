@@ -30,6 +30,10 @@ import {
   resolveEffectiveDefaultJig,
   resolveJigForIssue,
   invalidateCache,
+  JIG_WATCH_WARMUP_MS,
+  startWatchers,
+  stopAllWatchers,
+  stopWatchers,
   slugify,
   createAppJig,
   updateAppJig,
@@ -1927,5 +1931,57 @@ describe("findProjectJigReferences", () => {
     expect(mappingRefs).toHaveLength(2);
     const issueTypes = mappingRefs.map((r) => (r as { issueType: string }).issueType).sort();
     expect(issueTypes).toEqual(["Bug", "Feature"]);
+  });
+});
+
+describe("jig watch warm-up (#1726)", () => {
+  afterEach(() => {
+    stopAllWatchers();
+    vi.useRealTimers();
+  });
+
+  // A stream that never reports: the case of a change made before the
+  // FSEvents stream behind fs.watch goes live.
+  function deafWatch(): void {
+    vi.spyOn(fs, "watch").mockImplementation(() => ({ close: vi.fn() }) as unknown as fs.FSWatcher);
+  }
+
+  it("lists a repo jig added while the new watch is not yet live", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "repo-jigs-warm-"));
+    const jigsDir = path.join(tmpDir, ".roubo", "jigs");
+    fs.mkdirSync(jigsDir, { recursive: true });
+    vi.mocked(projectRegistry.getProject).mockReturnValue({
+      id: "warm",
+      name: "Warm",
+      repoPath: tmpDir,
+      config: null,
+    } as unknown as ReturnType<typeof projectRegistry.getProject>);
+    vi.useFakeTimers();
+    deafWatch();
+    invalidateCache();
+    startWatchers("warm", tmpDir);
+    expect(listJigsForProject("warm").map((j) => j.id)).not.toContain("triage");
+
+    fs.writeFileSync(
+      path.join(jigsDir, "triage.md"),
+      "---\nname: Triage\ndescription: Sort issues\nicon: star\n---\nBody.\n",
+    );
+    vi.advanceTimersByTime(JIG_WATCH_WARMUP_MS[0]);
+
+    expect(listJigsForProject("warm").map((j) => j.id)).toContain("triage");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("re-reads no list once the warm-up is over and the watch is closed", () => {
+    vi.useFakeTimers();
+    deafWatch();
+    vi.mocked(projectRegistry.getProject).mockReturnValue(undefined);
+    startWatchers("warm", os.tmpdir());
+    stopWatchers("warm");
+    const first = listJigsForProject("warm");
+
+    vi.advanceTimersByTime(JIG_WATCH_WARMUP_MS[JIG_WATCH_WARMUP_MS.length - 1]);
+
+    expect(listJigsForProject("warm")).toBe(first);
   });
 });

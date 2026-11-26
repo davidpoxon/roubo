@@ -144,6 +144,8 @@ export interface WatchInputOptions {
   loadedHash?: (absPath: string) => string | null | undefined;
   /** How often to check that the watched directory still exists and is still watched. Default 1000 ms. */
   rearmPollMs?: number;
+  /** How many of those checks after each arm also rescan. Default `ARM_WARMUP_SCANS`. */
+  warmupScans?: number;
   /**
    * A periodic rescan of the inputs, for a change whose file event never came:
    * the OS file events can drop an event when the host is under load, and the
@@ -244,6 +246,38 @@ export class WatchRootError extends Error {
 
 const LOG_PREFIX = "[input-watcher]";
 const DEFAULT_REARM_POLL_MS = 1_000;
+
+/**
+ * How long an arm waits after chokidar's `ready` before it scans and calls the
+ * watch ready. On macOS the FSEvents stream behind `fs.watch` goes live some
+ * milliseconds after chokidar says ready, and the stream never reports a
+ * change made before then. In a measurement, a write made 0 ms after `ready`
+ * was lost in 16 to 25 percent of trials, and a write made 20 ms or more after
+ * it was lost in none of 2,400, idle or under a CPU burn (#1726). The scan
+ * after this wait finds a change that landed in the window. Under a full test
+ * run the stream can still go live later than this; `ARM_WARMUP_SCANS` covers
+ * that case.
+ */
+export const ARM_LIVE_MS = 100;
+
+/**
+ * How many lifecycle polls after each arm also rescan the inputs. Under a full
+ * load of the machine the FSEvents stream can go live later than
+ * `ARM_LIVE_MS`, and a change made before then is never reported. A warm-up
+ * rescan runs the handler for an input whose content is not the one the watch
+ * last saw, so that change is applied at the next poll instead of never. On a
+ * watch without the periodic rescan, it logs nothing for an input it finds
+ * unchanged, refused or incomplete. A watch with the periodic rescan warms up
+ * with rescan passes instead, which send the one incomplete notice for an
+ * input that the completeness gate gives up on.
+ */
+export const ARM_WARMUP_SCANS = 3;
+
+function waitUntilLive(): Promise<void> {
+  // Unref'd, so a watch disposed during the wait does not hold the process
+  // open; each caller checks `disposed` after it.
+  return new Promise((resolve) => setTimeout(resolve, ARM_LIVE_MS).unref());
+}
 
 /** Serialise one ApplyLogLine as key=value pairs on one line. Not JSON. */
 export function formatApplyLogLine(line: ApplyLogLine): string {
@@ -475,10 +509,7 @@ function hashUnit(
   } catch {
     return null;
   }
-  const rels = (files ?? walkFiles(unit))
-    .map((f) => path.relative(unit, path.resolve(unit, f)))
-    .filter((rel) => isWithin(path.join(unit, rel), unit));
-  const lines = rels.map((rel) => {
+  const lines = listedFiles(unit, files).map((rel) => {
     let digest = "missing";
     const abs = path.join(unit, rel);
     // A listed entry that is a symlink out of every root is never read.
@@ -493,6 +524,48 @@ function hashUnit(
   return hashContent(lines.join(""));
 }
 
+/** The files of a directory input that its hash reads, relative to it. */
+function listedFiles(unit: string, files: readonly string[] | null): string[] {
+  return (files ?? walkFiles(unit))
+    .map((f) => path.relative(unit, path.resolve(unit, f)))
+    .filter((rel) => isWithin(path.join(unit, rel), unit));
+}
+
+/**
+ * The newest modify or change time of the files that `hashUnit` reads for the
+ * same input and list, in ms. A save writes the file, so it makes this newer
+ * even when it writes the same content again; a late event of an earlier save
+ * does not. 0 when the input is absent, or no listed file can be read.
+ */
+function newestChange(
+  unit: string,
+  files: readonly string[] | null,
+  roots: readonly string[],
+): number {
+  if (!realpathAllowed(unit, roots)) return 0;
+  const changedAt = (p: string): number => {
+    try {
+      const st = fs.statSync(p);
+      return Math.max(st.mtimeMs, st.ctimeMs);
+    } catch {
+      return 0;
+    }
+  };
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(unit);
+  } catch {
+    return 0;
+  }
+  if (!stat.isDirectory()) return Math.max(stat.mtimeMs, stat.ctimeMs);
+  let newest = 0;
+  for (const rel of listedFiles(unit, files)) {
+    const abs = path.join(unit, rel);
+    if (realpathAllowed(abs, roots)) newest = Math.max(newest, changedAt(abs));
+  }
+  return newest;
+}
+
 /**
  * The hash a watch gives the directory input `unit` when its completeness gate
  * lists `files` (paths relative to the input, or absolute), or every file below
@@ -504,7 +577,7 @@ export function hashInputFiles(unit: string, files: readonly string[] | null): s
   return hashUnit(unit, files, getWatchRoots());
 }
 
-type RunMode = "event" | "quiet" | "seed";
+type RunMode = "event" | "quiet" | "rescan" | "seed" | "warmup";
 
 /**
  * Watch one input. `target` is a file, or a directory whose entries (filtered
@@ -548,6 +621,18 @@ export function watchInput(
   let armedIno: number | null = null;
   let watchLost = false;
   let watcherReady = false;
+  // False from each arm until its watch is live (`ARM_LIVE_MS` after chokidar's
+  // `ready`). The scan that follows covers every change before then, so an
+  // event in that window runs nothing. FSEvents replays a write made just
+  // before the stream started as a change about 10 ms after `ready`.
+  let live = false;
+  // The warm-up rescans left for the current arm (see ARM_WARMUP_SCANS).
+  let warmupLeft = 0;
+  // The content a scan ran ahead of the stream for, per input: an arm's own
+  // scan, a warm-up rescan or a pass of the periodic rescan. It holds the hash
+  // and the newest change time of the files read (see newestChange), until an
+  // event of that input brings other content or a newer save.
+  const ranAhead = new Map<string, { hash: string | null; changedAt: number }>();
   let everArmed = false;
   let disposed = false;
   let checking = false;
@@ -647,12 +732,13 @@ export function watchInput(
    * The pass hashes synchronously and does not wait for the runs it starts: a
    * run can sit in its completeness gate for a long time, and the next pass
    * must still hash every other input. The pending run of an input keeps
-   * later passes off it, and so does a re-arm's own rescan, which enqueues a
-   * run of every input; the pass waits only while no watcher is armed.
+   * later passes off it, and so does an arm's own scan, which enqueues a run
+   * of every input as soon as the stream is live; the pass waits until then,
+   * so it cannot run an input ahead of that scan and gate it twice.
    */
   function rescanInputs(): void {
     const opts = options.rescan;
-    if (!opts || disposed || !watcher || !watcherReady) return;
+    if (!opts || disposed || !watcher || !live) return;
     const targets = new Set(listUnits());
     for (const known of lastApplied.keys()) targets.add(known);
     const roots = getWatchRoots();
@@ -664,12 +750,12 @@ export function watchInput(
       if (!realpathAllowed(unit, roots)) continue;
       const hash = hashUnit(unit, rescanFilesOf(unit, roots), roots);
       if (incomplete.has(unit) && incomplete.get(unit) === hash) continue;
-      if (differsFromLast(unit, hash)) void enqueue(unit, "quiet");
+      if (differsFromLast(unit, hash)) void enqueue(unit, "rescan");
     }
   }
 
   function schedule(unit: string): void {
-    if (disposed) return;
+    if (disposed || !live) return;
     const pending = timers.get(unit);
     if (pending) clearTimeout(pending);
     timers.set(
@@ -732,7 +818,7 @@ export function watchInput(
     // The input can have become a symlink out of every root since the watch
     // was armed: it is refused unread, and the handler does not run.
     if (!realpathAllowed(unit, roots)) {
-      if (mode !== "seed") {
+      if (mode !== "seed" && mode !== "warmup") {
         emit("refused", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.outside);
       }
       return;
@@ -758,7 +844,7 @@ export function watchInput(
       // incomplete record nor the handler sees it.
       if (!realpathAllowed(unit, roots)) {
         incomplete.delete(unit);
-        if (mode !== "seed") {
+        if (mode !== "seed" && mode !== "warmup") {
           emit("refused", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.outside);
         }
         return;
@@ -769,7 +855,7 @@ export function watchInput(
         if (options.rescan) {
           incomplete.set(unit, hashUnit(unit, rescanFilesOf(unit, roots), roots));
         }
-        if (mode !== "seed") {
+        if (mode !== "seed" && mode !== "warmup") {
           emit("rejected", null, undefined, undefined, DEFAULT_OUTCOME_REASONS.incomplete);
         }
         return;
@@ -789,6 +875,29 @@ export function watchInput(
     }
     const last = lastApplied.get(unit);
     const lastRejected = typeof last === "object" && last !== null ? last : null;
+    if (mode === "event") {
+      const ran = ranAhead.get(unit);
+      if (ran !== undefined) {
+        // A late event of a change a scan already ran for: the stream
+        // reported it after all, and it is not a second change. The stream
+        // can report one change as several events, so the record stays until
+        // a save makes a read file newer (a new save, of the same content or
+        // not) or the content differs.
+        if (ran.hash === hash && newestChange(unit, files, roots) <= ran.changedAt) return;
+        ranAhead.delete(unit);
+      }
+    } else {
+      // A scan acts ahead of the stream only on content the watch has not
+      // seen. A warm-up rescan does nothing else: the stream reported every
+      // other change, or will.
+      const seen =
+        lastRejected !== null ? lastRejected.rejected : lastApplied.has(unit) ? last : null;
+      if (hash !== seen) {
+        ranAhead.set(unit, { hash, changedAt: newestChange(unit, files, roots) });
+      } else if (mode === "warmup") {
+        return;
+      }
+    }
     // An absent input matches no token, and still clears the hand edits the
     // live tokens carry, since the handler runs for what the input now holds.
     const selfWrites = consumeSelfWrites(unit, hash);
@@ -808,7 +917,13 @@ export function watchInput(
     // file holds that edit, so the handler runs for it as for any hand edit.
     // A rescan finds the content that was last rejected unchanged: the handler
     // already said no to it, so it does not run again for it.
-    if (mode === "quiet" && lastRejected !== null && lastRejected.rejected === hash) return;
+    if (
+      (mode === "quiet" || mode === "rescan") &&
+      lastRejected !== null &&
+      lastRejected.rejected === hash
+    ) {
+      return;
+    }
     const unchanged = lastApplied.has(unit) ? last === hash : hash === null;
     if (unchanged) {
       if (mode === "event") emit("deduped", hash);
@@ -847,6 +962,30 @@ export function watchInput(
     if (outcome === "applied") lastApplied.set(unit, hash);
     else lastApplied.set(unit, { rejected: hash });
     emit(outcome, hash, action, detail, reason);
+  }
+
+  /**
+   * One warm-up rescan. An input with an event still settling, or a run
+   * pending, is left to that run, so the rescan cannot run first and turn the
+   * event into a deduped line. The pass does not wait for the runs it starts,
+   * so a slow run cannot hold up the lifecycle poll that re-arms the watch.
+   *
+   * A watch with the periodic rescan warms up with a rescan pass instead. That
+   * pass hashes each input first and runs only changed content, so the
+   * completeness gate does not run for every input on each warm-up pass, and
+   * an input it finds incomplete gets its one notice and is not gated again
+   * until its rescanned files change.
+   */
+  function warmupScan(): void {
+    if (options.rescan) {
+      rescanInputs();
+      return;
+    }
+    const targets = new Set([...listUnits(), ...lastApplied.keys()]);
+    for (const unit of targets) {
+      if (timers.has(unit) || pendingRuns.has(unit)) continue;
+      void enqueue(unit, "warmup");
+    }
   }
 
   async function scan(initial: boolean): Promise<void> {
@@ -896,6 +1035,7 @@ export function watchInput(
     });
     watchLost = false;
     watcherReady = false;
+    live = false;
     const ready = new Promise<void>((resolve) => {
       const settle = () => {
         if (settleArm === settle) settleArm = null;
@@ -932,6 +1072,9 @@ export function watchInput(
     armedIno = null;
     watchLost = false;
     watcherReady = false;
+    live = false;
+    warmupLeft = 0;
+    ranAhead.clear();
     const settle = settleArm;
     settleArm = null;
     settle?.();
@@ -969,10 +1112,17 @@ export function watchInput(
         if (!ready) return;
         await ready;
         if (disposed || !watcher) return;
+        await waitUntilLive();
+        if (disposed || !watcher) return;
+        live = true;
         // A lifecycle line, not an ApplyLogLine: it carries no outcome.
         if (everArmed) console.info(`${LOG_PREFIX} re-armed path=${dir}`);
         everArmed = true;
         await scan(false);
+        warmupLeft = options.warmupScans ?? ARM_WARMUP_SCANS;
+      } else if (watcher && live && warmupLeft > 0 && !disposed) {
+        warmupLeft -= 1;
+        warmupScan();
       }
     } finally {
       checking = false;
@@ -984,8 +1134,12 @@ export function watchInput(
     if (armed) {
       await armed;
       if (disposed) return;
+      await waitUntilLive();
+      if (disposed) return;
+      live = true;
       everArmed = true;
       await scan(true);
+      warmupLeft = options.warmupScans ?? ARM_WARMUP_SCANS;
     }
     if (!disposed) {
       poll = setInterval(() => void check(), options.rearmPollMs ?? DEFAULT_REARM_POLL_MS);

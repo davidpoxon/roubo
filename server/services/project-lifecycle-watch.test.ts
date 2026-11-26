@@ -78,26 +78,15 @@ import * as jigManager from "./jig-manager.js";
 import { startStateDirWatch, stopStateDirWatch } from "./state-dir-watch.js";
 import { resetSelfWriteTokens } from "./self-write-tokens.js";
 import { resetForTests as resetRepathMarks } from "./project-repath-state.js";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
 
 let base: string;
 let lines: string[];
 let stopJigWatches: () => void;
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(pred: () => boolean, timeoutMs = 10_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) {
-      throw new Error(
-        `timed out; log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
-      );
-    }
-    await sleep(20);
-  }
-}
+const waitFor = createWaitFor(
+  () => `log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
+);
 
 function roubo(name: string, webBase: number, max = 3): string {
   return (
@@ -177,9 +166,7 @@ afterEach(async () => {
   fs.rmSync(base, { recursive: true, force: true });
 });
 
-// Each case waits on file watches and settle windows, which run slower when
-// the whole suite shares the machine.
-describe("project add, re-path and remove", { timeout: 30_000 }, () => {
+describe("project add, re-path and remove", () => {
   it("HR-TC-026 a project added to projects.json by hand is listed and its roubo.yaml watch is armed", async () => {
     const lantern2Dir = makeProjectDir("lantern-2", roubo("lantern-2", 4300));
     handEditProjects([

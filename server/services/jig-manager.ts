@@ -397,6 +397,35 @@ export function invalidateCache(projectId?: string): void {
   }
 }
 
+/**
+ * After each arm of a jig watch, the cached jig list is dropped at each of
+ * these delays. The FSEvents stream behind `fs.watch` goes live some time
+ * after the watch is created, under load more than a second, and it never
+ * reports a change made before then; without these, a jig added in that
+ * window stays unlisted until the cache expires (#1726). The input watch
+ * covers the same case with `ARM_WARMUP_SCANS`.
+ */
+export const JIG_WATCH_WARMUP_MS = [1_000, 2_000, 3_000];
+
+const warmupTimers = new Map<string, NodeJS.Timeout[]>();
+
+function clearWarmup(key: string): void {
+  for (const timer of warmupTimers.get(key) ?? []) clearTimeout(timer);
+  warmupTimers.delete(key);
+}
+
+function startWarmup(key: string, projectId?: string): void {
+  clearWarmup(key);
+  warmupTimers.set(
+    key,
+    JIG_WATCH_WARMUP_MS.map((ms) => {
+      const timer = setTimeout(() => invalidateCache(projectId), ms);
+      timer.unref();
+      return timer;
+    }),
+  );
+}
+
 function debounceReload(key: string, projectId?: string): void {
   const existing = debounceTimers.get(key);
   if (existing) clearTimeout(existing);
@@ -417,6 +446,7 @@ export function startWatchers(projectId: string, repoPath: string): void {
   // map too, so a new path with no jigs folder yet keeps no closed watcher.
   watcherMap.get(key)?.close();
   watcherMap.delete(key);
+  clearWarmup(key);
 
   try {
     watcherMap.set(
@@ -425,6 +455,7 @@ export function startWatchers(projectId: string, repoPath: string): void {
         debounceReload(key, projectId);
       }),
     );
+    startWarmup(key, projectId);
   } catch (err: unknown) {
     // ENOENT is expected when the repo has no .roubo/jigs/ directory yet.
     if (err instanceof Error && (err as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -446,6 +477,7 @@ export function stopWatchers(projectId: string): void {
     /* ignore */
   }
   watcherMap.delete(key);
+  clearWarmup(key);
   const timer = debounceTimers.get(key);
   if (timer) clearTimeout(timer);
   debounceTimers.delete(key);
@@ -495,6 +527,7 @@ export function startAppJigsWatcher(): void {
         debounceReload(key, undefined);
       }),
     );
+    startWarmup(key, undefined);
   } catch (err: unknown) {
     // mkdirSync runs just above, so ENOENT is not expected here.
     if (err instanceof Error) {
@@ -512,6 +545,7 @@ export function stopAllWatchers(): void {
     }
   }
   watcherMap.clear();
+  for (const key of [...warmupTimers.keys()]) clearWarmup(key);
   for (const timer of debounceTimers.values()) {
     clearTimeout(timer);
   }

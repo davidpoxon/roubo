@@ -108,6 +108,7 @@ import {
   startStateDirWatch,
   stopStateDirWatch,
 } from "./state-dir-watch.js";
+import { createWaitFor, sleep } from "../test/watch-wait.js";
 
 let base: string;
 let dir: string;
@@ -118,21 +119,9 @@ function noticeOf(event: Omit<InputChangedEvent, "type">): string {
   return inputNoticeText({ type: "input-changed", ...event });
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(pred: () => boolean, timeoutMs = 5_000) {
-  const end = Date.now() + timeoutMs;
-  while (!pred()) {
-    if (Date.now() > end) {
-      throw new Error(
-        `timed out; log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
-      );
-    }
-    await sleep(20);
-  }
-}
+const waitFor = createWaitFor(
+  () => `log so far:\n${lines.join("\n")}\nevents: ${JSON.stringify(hoisted.events)}`,
+);
 
 /** The apply lines of one state file. */
 function fileLines(file: string, outcome?: string): string[] {
