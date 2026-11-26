@@ -166,6 +166,24 @@ describe("BenchCard", () => {
       expect(tooltip).not.toHaveTextContent(/roubo\.yaml/);
     });
 
+    it("a bench its project's re-path left stale names the move and offers no restart", async () => {
+      const user = userEvent.setup();
+      makeDefaultMutations();
+      renderCard(makeBench({ stale: true, staleFromRepath: true }));
+      const marker = screen.getByTestId("bench-card-stale-marker");
+      expect(marker).toHaveTextContent("stale · Set up before the project moved");
+      await user.tab();
+      await user.tab();
+      expect(marker).toHaveFocus();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        /Clear the bench and set it up again to work from the new path/,
+      );
+      // A restart keeps the workspace, so it would not undo the move.
+      expect(
+        screen.queryByRole("button", { name: /Restart with new config/ }),
+      ).not.toBeInTheDocument();
+    });
+
     it("HR-TC-007: Restart with new config carries its tooltip", async () => {
       const user = userEvent.setup();
       makeDefaultMutations();

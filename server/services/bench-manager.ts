@@ -42,6 +42,7 @@ import * as processManager from "./process-manager.js";
 import * as ledger from "./resource-ownership-ledger.js";
 import * as pluginManager from "./plugin-manager.js";
 import * as pluginSwapState from "./plugin-swap-state.js";
+import { clearBenchRepathed } from "./project-repath-state.js";
 import { validateComponentBindings } from "./component-binding-validator.js";
 import * as marketplace from "./marketplace.js";
 import { resolveBinding, isNotBound, type NotBound } from "./component-plugin-registry.js";
@@ -2422,6 +2423,9 @@ function clearBenchRuntimeState(
   // Drop the bench from any plugin swap's stale marks (HR-FR-009), so a bench
   // created later with the same number does not read stale.
   pluginSwapState.clearBenchStale(projectId, benchId);
+  // And from a project re-path's stale marks (HR-FR-014): a bench set up later
+  // with the same number is set up at the project's current path.
+  clearBenchRepathed(projectId, benchId);
 
   // Drop this bench's cached ProvisionDescriptors (#888, CP-TC-002). Now
   // that provisionComponent trusts the descriptor cache on start rather than

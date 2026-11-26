@@ -534,7 +534,15 @@ describe("useNotificationStream", () => {
       [
         "projects",
         { surface: "project-config", input: "projects.json" },
-        [["projects"], ["benches"], ["issues"]],
+        [
+          ["projects"],
+          ["benches"],
+          ["issues"],
+          ["project-settings"],
+          ["project-integration"],
+          ["raw-config"],
+          ["jigs"],
+        ],
       ],
       ["bench-state", { surface: "bench", input: "state.json" }, [["benches"], ["bench", "p1", 4]]],
       [

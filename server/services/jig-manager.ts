@@ -413,7 +413,10 @@ export function startWatchers(projectId: string, repoPath: string): void {
   const repoDir = getRepoJigsDir(repoPath);
 
   const key = `repo:${projectId}`;
+  // A re-path closes the watch of the old path here; it is dropped from the
+  // map too, so a new path with no jigs folder yet keeps no closed watcher.
   watcherMap.get(key)?.close();
+  watcherMap.delete(key);
 
   try {
     watcherMap.set(
@@ -428,6 +431,54 @@ export function startWatchers(projectId: string, repoPath: string): void {
       console.warn(`[jig-manager] Failed to watch ${repoDir}: ${(err as Error).message}`);
     }
   }
+}
+
+/**
+ * Close the jig watch of one project and drop its cached jig list: the
+ * project was unregistered, so a later change under its old path reloads
+ * nothing.
+ */
+export function stopWatchers(projectId: string): void {
+  const key = `repo:${projectId}`;
+  try {
+    watcherMap.get(key)?.close();
+  } catch {
+    /* ignore */
+  }
+  watcherMap.delete(key);
+  const timer = debounceTimers.get(key);
+  if (timer) clearTimeout(timer);
+  debounceTimers.delete(key);
+  invalidateCache(projectId);
+}
+
+/**
+ * Keep each project's jig watch on its current path (HR-FR-014): arm the
+ * watch of every registered project now, arm one for each project registered
+ * from now on, move it when a project is re-pathed, and close it when one is
+ * unregistered. A re-path also drops the cached jig list, so the next read
+ * lists the jigs at the new path. Returns the unsubscribe, which leaves the
+ * armed watches to `stopAllWatchers`.
+ */
+export function watchProjectJigs(): () => void {
+  for (const project of projectRegistry.getProjects()) {
+    startWatchers(project.id, project.repoPath);
+  }
+  return projectRegistry.onProjectLifecycle((event) => {
+    switch (event.kind) {
+      case "registered":
+        startWatchers(event.project.id, event.project.repoPath);
+        invalidateCache(event.project.id);
+        break;
+      case "repathed":
+        startWatchers(event.project.id, event.project.repoPath);
+        invalidateCache(event.project.id);
+        break;
+      case "unregistered":
+        stopWatchers(event.projectId);
+        break;
+    }
+  });
 }
 
 export function startAppJigsWatcher(): void {

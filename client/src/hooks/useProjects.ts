@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "../lib/api";
+import { PROJECT_SET_QUERY_KEYS } from "../lib/input-changed";
+
+/** Refresh every view that reads the project set, after a register or an unregister. */
+function invalidateProjectSet(queryClient: ReturnType<typeof useQueryClient>): void {
+  for (const queryKey of PROJECT_SET_QUERY_KEYS) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
+}
 
 export function useProjects() {
   return useQuery({
@@ -22,9 +30,7 @@ export function useRegisterProject() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (repoPath: string) => api.registerProject(repoPath),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
+    onSuccess: () => invalidateProjectSet(queryClient),
   });
 }
 
@@ -33,9 +39,9 @@ export function useUnregisterProject() {
   return useMutation({
     mutationFn: ({ projectId, force }: { projectId: string; force?: boolean }) =>
       api.unregisterProject(projectId, { force }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
+    // The cut list, the bench views and the settings screens drop the project
+    // too, not only the project list (HR-TC-033).
+    onSuccess: () => invalidateProjectSet(queryClient),
   });
 }
 

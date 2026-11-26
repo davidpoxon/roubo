@@ -338,11 +338,12 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
   console.log("Loading persisted terminal sessions...");
   terminalService.loadPersistedSessions();
 
+  // Each project's jig watch follows the project: one is armed for each
+  // project registered from now on, moved on a re-path and closed on an
+  // unregister, in the app or by a hand edit of projects.json (HR-FR-014).
   console.log("Starting jig watchers...");
   jigManager.startAppJigsWatcher();
-  for (const project of projectRegistry.getProjects()) {
-    jigManager.startWatchers(project.id, project.repoPath);
-  }
+  const stopProjectJigWatches = jigManager.watchProjectJigs();
 
   // Watch each project's roubo.yaml, and each one registered from now on, so a
   // save applies with no relaunch (HR-FR-001).
@@ -416,6 +417,7 @@ export async function startServer(options: StartOptions = {}): Promise<ServerHan
     // A held control read answers 200 with an empty list before its
     // connection closes (SB-FR-041).
     releaseDeliveryControlWaiters();
+    stopProjectJigWatches();
     jigManager.stopAllWatchers();
     await projectRegistry.unwatchProjectConfigs();
     stopPluginSetListener();

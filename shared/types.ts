@@ -2011,8 +2011,10 @@ export interface Bench {
    * the bench was set up (HR-FR-004): the snapshot's `configHash` differs from
    * the hash of the live config. Also true when a swap of a plugin the bench
    * uses left one of its resources unbound or the plugin's new process not
-   * started (HR-FR-009); the resources are still running. Derived by the bench
-   * serialiser on each read and never persisted. Absent on the in-memory bench.
+   * started (HR-FR-009); the resources are still running. Also true when the
+   * project was re-pathed since the bench was set up (HR-FR-014). Derived by
+   * the bench serialiser on each read and never persisted. Absent on the
+   * in-memory bench.
    */
   stale?: boolean;
   /**
@@ -2021,6 +2023,13 @@ export interface Bench {
    * serialiser with `stale`, never persisted, and absent unless true.
    */
   staleFromSwap?: boolean;
+  /**
+   * True when `stale` comes from a re-path of the bench's project since the
+   * bench was set up (HR-FR-014): its workspace was made from the old
+   * checkout. Cleared when the bench is cleared. Derived by the bench
+   * serialiser with `stale`, never persisted, and absent unless true.
+   */
+  staleFromRepath?: boolean;
 }
 
 // ── Git dirty-state types ──

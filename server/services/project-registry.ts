@@ -20,6 +20,7 @@ import { cutListQueryService } from "./cut-list-query-service.js";
 import { logApply, watchInput, type HandlerResult, type InputWatch } from "./input-watcher.js";
 import { hashContent } from "./self-write-tokens.js";
 import { broadcastInputChanged } from "./sse.js";
+import { clearProjectRepathed, markBenchesRepathed } from "./project-repath-state.js";
 
 const projects = new Map<string, RegisteredProject>();
 
@@ -84,6 +85,40 @@ function emitConfigRejected(rejection: ProjectConfigRejection): void {
       cb(rejection);
     } catch (err) {
       console.warn("[project-registry] config-rejected listener threw: %s", (err as Error).message);
+    }
+  }
+}
+
+/**
+ * A change to the set of registered projects (HR-FR-014): a project was
+ * registered, now lives at another path, or was unregistered. Each one comes
+ * from the app's own register and unregister calls or from a hand edit of
+ * projects.json. A module that keeps a resource per project, such as a watch
+ * of the project's folder, subscribes to keep it on the project's current
+ * path.
+ */
+export type ProjectLifecycleEvent =
+  | { kind: "registered"; project: RegisteredProject }
+  | { kind: "repathed"; project: RegisteredProject; previousRepoPath: string }
+  | { kind: "unregistered"; projectId: string; repoPath: string };
+
+type ProjectLifecycleListener = (event: ProjectLifecycleEvent) => void;
+const lifecycleListeners = new Set<ProjectLifecycleListener>();
+
+/** Subscribe to project register, re-path and unregister. Returns the unsubscribe. */
+export function onProjectLifecycle(cb: ProjectLifecycleListener): () => void {
+  lifecycleListeners.add(cb);
+  return () => {
+    lifecycleListeners.delete(cb);
+  };
+}
+
+function emitLifecycle(event: ProjectLifecycleEvent): void {
+  for (const cb of lifecycleListeners) {
+    try {
+      cb(event);
+    } catch (err) {
+      console.warn("[project-registry] lifecycle listener threw: %s", (err as Error).message);
     }
   }
 }
@@ -252,24 +287,216 @@ export function initialize() {
   }
 }
 
+/** A project of a projects.json hand edit, named by its id and its path. */
+export interface ProjectPathRef {
+  projectId: string;
+  repoPath: string;
+}
+
+/** What one hand edit of projects.json did (HR-FR-012, HR-FR-014). */
+export type ProjectsFileEdit =
+  | {
+      outcome: "rejected";
+      /** The first invalid entry, as a clause, such as "project lantern has no repoPath". */
+      first: string;
+    }
+  | {
+      outcome: "applied";
+      /** The projects the edit added, each registered with its roubo.yaml watch armed. */
+      registered: ProjectPathRef[];
+      /** The projects whose path the edit changed, with the benches that left stale. */
+      repathed: (ProjectPathRef & { staleBenchIds: number[] })[];
+      /** The projects the edit removed and that are now unregistered. */
+      unregistered: string[];
+      /**
+       * The projects the edit removed that are still registered, since each has
+       * active benches. The file is written back with them, so it holds what
+       * the registry does.
+       */
+      refused: { projectId: string; benchIds: number[] }[];
+      /** The registered projects whose settings the edit changed. */
+      settingsChanged: string[];
+    };
+
 /**
- * Apply a projects.json edited outside the app (HR-FR-012): each registered
- * project whose record now carries other settings takes them, and its id is
- * returned. A record for a project that is not registered, and a project with
- * no record, are left as they are: registering and unregistering a project
- * stay with the app, which checks the config and the benches first.
+ * A record for a project read from projects.json at `repoPath`, as boot reads
+ * it: a roubo.yaml that is missing or invalid gives a config-invalid record,
+ * and the component-binding second pass runs when `validateBindings` is set.
  */
-export function applyProjectsFileEdit(persisted: PersistedProjects): string[] {
-  const changed: string[] = [];
-  for (const entry of persisted.projects) {
-    const project = projects.get(entry.id);
-    if (!project) continue;
-    const settings = resolveSettings(entry);
-    if (isDeepStrictEqual(settings, project.settings)) continue;
-    project.settings = settings;
-    changed.push(entry.id);
+function loadProjectRecord(
+  id: string,
+  repoPath: string,
+  settings: ProjectSettings,
+  validateBindings: boolean,
+): { project: RegisteredProject; loadedHash: string | null } {
+  const loadedHash = readConfigHash(repoPath);
+  const result = parseConfig(repoPath);
+  const project: RegisteredProject =
+    result.valid && result.config
+      ? { id, repoPath, config: result.config, configValid: true, settings }
+      : {
+          id,
+          repoPath,
+          config: undefined,
+          configValid: false,
+          configError: result.errors?.join("; "),
+          fieldErrors: result.fieldErrors,
+          settings,
+        };
+  if (validateBindings) applyComponentBindingValidation(project);
+  return { project, loadedHash };
+}
+
+/** The persisted record of a registered project. */
+function toPersistedEntry(project: RegisteredProject): PersistedProjectEntry {
+  return { id: project.id, repoPath: project.repoPath, settings: project.settings };
+}
+
+/**
+ * Every bench of a project, live or only persisted, by id. A bench that is
+ * provisioning shows in memory before it is persisted, and one whose
+ * provisioning failed is never persisted, so neither list alone is complete
+ * (#1204).
+ */
+function projectBenchIds(projectId: string): number[] {
+  const persisted = state.getPersistedBenches(projectId).map((b) => b.id);
+  const live = liveBenchSource?.listBenchIds(projectId) ?? [];
+  return Array.from(new Set([...persisted, ...live])).sort((a, b) => a - b);
+}
+
+/**
+ * The first reason a projects.json hand edit cannot be applied, or null when
+ * every entry is valid (HR-FR-014). An entry is invalid when it has no
+ * repoPath, when its repoPath is not an absolute path, or when its id is
+ * listed twice. A project the edit adds or moves is also invalid when its
+ * ports overlap those of another project that the edit leaves registered.
+ * `loaded` holds the record of each project the edit adds or moves.
+ */
+function projectsFileError(
+  entries: readonly PersistedProjectEntry[],
+  loaded: ReadonlyMap<string, RegisteredProject>,
+): string | null {
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const raw = entry as { id: unknown; repoPath?: unknown };
+    if (typeof raw.id !== "string" || raw.id.length === 0) return "a project has no id";
+    if (seen.has(entry.id)) return `project ${entry.id} is listed twice`;
+    seen.add(entry.id);
+    if (typeof raw.repoPath !== "string" || raw.repoPath.length === 0) {
+      return `project ${entry.id} has no repoPath`;
+    }
+    if (!path.isAbsolute(raw.repoPath) || raw.repoPath.includes("\0")) {
+      return `repoPath of project ${entry.id} is not an absolute path`;
+    }
   }
-  return changed;
+  // The projects that stay registered after the edit: each one listed, at its
+  // new record when the edit adds or moves it, and each one removed whose
+  // removal is refused for its active benches, since it stays too.
+  const after: RegisteredProject[] = [];
+  for (const entry of entries) {
+    const project = loaded.get(entry.id) ?? projects.get(entry.id);
+    if (project) after.push(project);
+  }
+  for (const project of projects.values()) {
+    if (!seen.has(project.id) && projectBenchIds(project.id).length > 0) after.push(project);
+  }
+  for (const project of loaded.values()) {
+    if (!project.config) continue;
+    const others = after.filter((p) => p.id !== project.id && p.config !== undefined);
+    const conflicts = checkPortConflicts({ id: project.id, config: project.config }, others);
+    if (conflicts.length > 0) return conflicts[0];
+  }
+  return null;
+}
+
+/**
+ * Apply a projects.json edited outside the app (HR-FR-012, HR-FR-014), as a
+ * relaunch would load it. Nothing of an edit with an invalid entry is applied:
+ * the registry keeps what it has, and the reason is returned. Otherwise:
+ *
+ * - a record with an id that is not registered registers that project, with
+ *   its roubo.yaml watch armed. A missing or invalid roubo.yaml registers it
+ *   config-invalid, as boot does, so the watch applies the fix when it lands.
+ * - a record of a registered project with another path re-paths it: its
+ *   roubo.yaml is read at the new path, its watch moves there, and each of its
+ *   benches is marked stale, since it was set up from the old path.
+ * - a registered project with no record is unregistered, unless it has an
+ *   active bench: then it stays, and the file is written back from the
+ *   registry, a self-write, so the next launch loads it too.
+ * - a registered project whose record carries other settings takes them.
+ */
+export async function applyProjectsFileEdit(
+  persisted: PersistedProjects,
+): Promise<ProjectsFileEdit> {
+  const entries = persisted.projects;
+  const loaded = new Map<string, RegisteredProject>();
+  const loadedHashes = new Map<string, string | null>();
+  const shapeError = projectsFileError(entries, loaded);
+  if (shapeError !== null) return { outcome: "rejected", first: shapeError };
+  for (const entry of entries) {
+    const current = projects.get(entry.id);
+    const repoPath = path.resolve(entry.repoPath);
+    if (current && current.repoPath === repoPath) continue;
+    const record = loadProjectRecord(entry.id, repoPath, resolveSettings(entry), true);
+    loaded.set(entry.id, record.project);
+    loadedHashes.set(entry.id, record.loadedHash);
+  }
+  const conflict = projectsFileError(entries, loaded);
+  if (conflict !== null) return { outcome: "rejected", first: conflict };
+
+  const listed = new Set(entries.map((e) => e.id));
+  const unregistered: string[] = [];
+  const refused: { projectId: string; benchIds: number[] }[] = [];
+  for (const project of [...projects.values()]) {
+    if (listed.has(project.id)) continue;
+    const benchIds = projectBenchIds(project.id);
+    if (benchIds.length > 0) {
+      refused.push({ projectId: project.id, benchIds });
+      continue;
+    }
+    await dropProject(project.id);
+    unregistered.push(project.id);
+  }
+
+  const registered: ProjectPathRef[] = [];
+  const repathed: (ProjectPathRef & { staleBenchIds: number[] })[] = [];
+  const settingsChanged: string[] = [];
+  for (const entry of entries) {
+    const next = loaded.get(entry.id);
+    const current = projects.get(entry.id);
+    if (next === undefined) {
+      if (!current) continue;
+      const settings = resolveSettings(entry);
+      if (isDeepStrictEqual(settings, current.settings)) continue;
+      current.settings = settings;
+      settingsChanged.push(entry.id);
+      continue;
+    }
+    if (current) {
+      await disposeConfigWatch(entry.id);
+      lastConfigOutcomes.delete(entry.id);
+    }
+    projects.set(entry.id, next);
+    loadedConfigHashes.set(entry.id, loadedHashes.get(entry.id) ?? null);
+    armConfigWatch(next);
+    emitConfigLoaded(next);
+    if (current) {
+      const staleBenchIds = projectBenchIds(entry.id);
+      markBenchesRepathed(entry.id, staleBenchIds);
+      repathed.push({ projectId: entry.id, repoPath: next.repoPath, staleBenchIds });
+      emitLifecycle({ kind: "repathed", project: next, previousRepoPath: current.repoPath });
+    } else {
+      registered.push({ projectId: entry.id, repoPath: next.repoPath });
+      emitLifecycle({ kind: "registered", project: next });
+    }
+  }
+
+  // A refused removal is undone in the file, so the file holds what the
+  // registry does and the next launch does not drop a project with benches.
+  if (refused.length > 0) {
+    state.saveProjects({ projects: Array.from(projects.values()).map(toPersistedEntry) });
+  }
+  return { outcome: "applied", registered, repathed, unregistered, refused, settingsChanged };
 }
 
 export function registerProject(repoPath: string): RegisteredProject {
@@ -337,6 +564,7 @@ export function registerProject(repoPath: string): RegisteredProject {
   armConfigWatch(project);
 
   emitConfigLoaded(project);
+  emitLifecycle({ kind: "registered", project });
   return project;
 }
 
@@ -398,15 +626,29 @@ async function unregisterProjectNow(projectId: string, opts: { force?: boolean }
     liveBenchSource?.dropBenches(projectId);
   }
 
+  state.removeProject(projectId);
+  await dropProject(projectId);
+}
+
+/**
+ * Drop a project the registry no longer lists: its record, its roubo.yaml
+ * watch, its cut-list cache and its re-path marks, and tell each lifecycle
+ * listener, so a later save under the project's path runs nothing (HR-TC-033).
+ * The caller has removed or found it removed from projects.json.
+ */
+async function dropProject(projectId: string): Promise<void> {
+  const project = projects.get(projectId);
+  if (!project) return;
   projects.delete(projectId);
   loadedConfigHashes.delete(projectId);
   lastConfigOutcomes.delete(projectId);
-  state.removeProject(projectId);
   await disposeConfigWatch(projectId);
   // FR-004 / NFR-001: drop every persisted disk snapshot for this project once
-  // it is unregistered (after the active-bench guard above). A project's
+  // it is unregistered (after the active-bench guard). A project's
   // subdirectory of the cache must not outlive the project.
   cutListQueryService.evictProject(projectId);
+  clearProjectRepathed(projectId);
+  emitLifecycle({ kind: "unregistered", projectId, repoPath: project.repoPath });
 }
 
 export function getProjects(): RegisteredProject[] {
