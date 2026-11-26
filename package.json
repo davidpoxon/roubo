@@ -39,6 +39,7 @@
     "test:e2e": "playwright test",
     "electron:dev": "concurrently -k -n vite,server,electron -c cyan,magenta,yellow \"npm run dev:client\" \"npm run dev:server\" \"npm run start:dev --prefix electron\"",
     "electron:start": "npm run start --prefix electron",
+    "electron:package": "npm run build && npm run package --prefix electron",
     "electron:make": "npm run build && npm run make --prefix electron",
     "electron:publish": "npm run publish --prefix electron",
     "release:draft": "node scripts/draft-release.mjs",

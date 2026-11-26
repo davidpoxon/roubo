@@ -23,6 +23,13 @@ export default defineConfig({
           });
         },
       },
+      // The ROUBO_E2E=1-only harness routes, for the dev-mode run of the e2e
+      // reload suite (E2E_RUN_MODE=dev in playwright.config.ts). A server
+      // without ROUBO_E2E answers them 404. A key that starts with ^ is a
+      // pattern, so a client route such as /testbench is not proxied.
+      "^/test/__": {
+        target: `http://localhost:${apiPort}`,
+      },
       "/ws": {
         target: `ws://localhost:${apiPort}`,
         ws: true,
