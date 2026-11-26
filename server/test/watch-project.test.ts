@@ -7,12 +7,35 @@ import { createWaitFor } from "./watch-wait.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HELPER_IMPORT = 'from "../test/watch-wait.js"';
-// A test that starts one of these for real waits on the file system.
-const REAL_WATCH =
-  /\b(watchInput|startStateDirWatch|startPluginDirWatch|startWatchers|startAppJigsWatcher|watchProjectJigs)\(/;
-// A test that mocks the module of the watch, or fs.watch itself, does not.
-const MOCKED_WATCH =
-  /vi\.mock\("[^"]*\/(input-watcher|state-dir-watch|plugin-dir-watch|jig-manager)\.js"|vi\.spyOn\(fs, "watch"\)\.mockImplementation/;
+// Each entry point of a real watch, and the mocks that keep it off the file
+// system: a mock of its own module, or of a module it starts its watch with.
+const WATCH_ENTRY_POINTS: { call: string; mockedBy: RegExp[] }[] = [
+  { call: "watchInput", mockedBy: [moduleMock("input-watcher")] },
+  {
+    call: "startStateDirWatch",
+    mockedBy: [moduleMock("state-dir-watch"), moduleMock("input-watcher")],
+  },
+  {
+    call: "startPluginDirWatch",
+    mockedBy: [moduleMock("plugin-dir-watch"), moduleMock("input-watcher")],
+  },
+  ...["startWatchers", "startAppJigsWatcher", "watchProjectJigs"].map((call) => ({
+    call,
+    mockedBy: [moduleMock("jig-manager"), /vi\.spyOn\(fs, "watch"\)\.mockImplementation/],
+  })),
+];
+
+function moduleMock(name: string): RegExp {
+  return new RegExp(`vi\\.mock\\("[^"]*\\/${name}\\.js"`);
+}
+
+/** True when the source calls a watch entry point that none of its mocks covers. */
+function startsRealWatch(text: string): boolean {
+  return WATCH_ENTRY_POINTS.some(
+    ({ call, mockedBy }) =>
+      new RegExp(`\\b${call}\\(`).test(text) && !mockedBy.some((mock) => mock.test(text)),
+  );
+}
 
 function serverTestFiles(dir = path.join(repoRoot, "server")): string[] {
   const out: string[] = [];
@@ -44,13 +67,32 @@ describe("the watch test project (#1726)", () => {
     const missing = serverTestFiles().filter((file) => {
       if (file === self) return false;
       const text = source(file);
-      const mocksTheWatch = MOCKED_WATCH.test(text);
-      return (
-        !listed.has(file) &&
-        (text.includes(HELPER_IMPORT) || (REAL_WATCH.test(text) && !mocksTheWatch))
-      );
+      return !listed.has(file) && (text.includes(HELPER_IMPORT) || startsRealWatch(text));
     });
     expect(missing).toEqual([]);
+  });
+});
+
+describe("startsRealWatch", () => {
+  it("counts a mock only for the watches it covers", () => {
+    const jigMock = 'vi.mock("./jig-manager.js", () => ({}));\n';
+    expect(startsRealWatch(`${jigMock}startWatchers("p", dir);`)).toBe(false);
+    expect(startsRealWatch(`${jigMock}watchInput(file, options, handler);`)).toBe(true);
+    expect(startsRealWatch('vi.mock("./input-watcher.js");\nstartStateDirWatch({ root });')).toBe(
+      false,
+    );
+    expect(
+      startsRealWatch('vi.mock("./state-dir-watch.js");\nstartPluginDirWatch({ root });'),
+    ).toBe(true);
+  });
+
+  it("counts a spy on fs.watch only when it replaces the implementation", () => {
+    expect(startsRealWatch('vi.spyOn(fs, "watch");\nstartWatchers("p", dir);')).toBe(true);
+    expect(
+      startsRealWatch(
+        'vi.spyOn(fs, "watch").mockImplementation(() => w);\nstartWatchers("p", dir);',
+      ),
+    ).toBe(false);
   });
 });
 
